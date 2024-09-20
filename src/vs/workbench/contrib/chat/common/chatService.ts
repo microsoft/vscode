@@ -20,6 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolData, IToolInvocation } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -124,11 +125,15 @@ export interface IChatProgressMessage {
 }
 
 export interface IChatTask extends IChatTaskDto {
+	buttonClicked?: boolean;
+	buttons?: string[];
+	buttonDeferred: DeferredPromise<string | void>;
 	deferred: DeferredPromise<string | void>;
 	progress: (IChatWarningMessage | IChatContentReference)[];
 	onDidAddProgress: Event<IChatWarningMessage | IChatContentReference>;
 	add(progress: IChatWarningMessage | IChatContentReference): void;
 
+	buttonClick(button: string): void;
 	complete: (result: string | void) => void;
 	task: () => Promise<string | void>;
 	isSettled: () => boolean;
@@ -191,6 +196,19 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatToolInvocation {
+	toolData: IToolData;
+	parameters: any;
+	requiresConfirmation?: boolean;
+	agentDisplayName: string;
+
+	// Maybe there's two types, and one gets serialized into the other?
+	confirm(confirmed: boolean): void;
+	complete(): void;
+	confirmed: Promise<boolean>;
+	kind: 'toolInvocation';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -208,7 +226,8 @@ export type IChatProgress =
 	| IChatTextEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
-	| IChatConfirmation;
+	| IChatConfirmation
+	| IChatToolInvocation;
 
 export interface IChatFollowup {
 	kind: 'reply';

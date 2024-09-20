@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
@@ -14,6 +15,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ChatModel } from './chatModel.js';
+import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
+import { IChatService } from './chatService.js';
 
 export interface IToolData {
 	id: string;
@@ -25,6 +29,10 @@ export interface IToolData {
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
+
+	confirmationTitle?: string;
+	messageTemplate?: string;
+	progressTemplate?: string;
 }
 
 interface IToolEntry {
@@ -50,7 +58,7 @@ export interface IToolResult {
 }
 
 export interface IToolImpl {
-	invoke(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -61,11 +69,11 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
@@ -83,6 +91,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -118,14 +127,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
-		const entry = this._tools.get(name);
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
+		const entry = this._tools.get(id);
 		if (!entry) {
-			throw new Error(`Tool "${name}" was not contributed.`);
+			throw new Error(`Tool "${id}" was not contributed.`);
 		}
 
 		if (entry.impl) {
-			throw new Error(`Tool "${name}" already has an implementation.`);
+			throw new Error(`Tool "${id}" already has an implementation.`);
 		}
 
 		entry.impl = tool;
@@ -178,6 +187,30 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return tool.impl.invoke(dto, countTokens, token);
+		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
+		// TODO move this to the tools service?
+		let toolInvocation: ChatToolInvocation | undefined;
+		if (dto.context) {
+			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
+			const request = model.getRequests().at(-1)!;
+
+			// how to get agent name
+			toolInvocation = new ChatToolInvocation(tool.data, dto.parameters, 'GitHub Copilot', true);
+			token.onCancellationRequested(() => {
+				toolInvocation!.confirm(false);
+			});
+			model.acceptResponseProgress(request, toolInvocation);
+			const userConfirmed = await toolInvocation.confirmed;
+			if (!userConfirmed) {
+				toolInvocation.complete();
+				throw new CancellationError();
+			}
+		}
+
+		try {
+			return tool.impl.invoke(dto, countTokens, token);
+		} finally {
+			toolInvocation?.complete();
+		}
 	}
 }

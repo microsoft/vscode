@@ -111,13 +111,13 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return typeConvert.LanguageModelToolResult.from(extensionResult);
 	}
 
-	registerTool(extension: IExtensionDescription, name: string, tool: vscode.LanguageModelTool): IDisposable {
-		this._registeredTools.set(name, { extension, tool });
-		this._proxy.$registerTool(name);
+	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {
+		this._registeredTools.set(id, { extension, tool });
+		this._proxy.$registerTool(id);
 
 		return toDisposable(() => {
-			this._registeredTools.delete(name);
-			this._proxy.$unregisterTool(name);
+			this._registeredTools.delete(id);
+			this._proxy.$unregisterTool(id);
 		});
 	}
 }

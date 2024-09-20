@@ -893,8 +893,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .rendered-markdown.progress-step {
 	display: flex;
+	gap: 2px;
 	margin-left: 4px;
 	white-space: normal;
+}
+
+.interactive-item-container .rendered-markdown.progress-step .monaco-button {
+	flex: 0 0 content;
+	font-size: 12px;
+	padding: 2px;
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p {
@@ -904,6 +911,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 8px;
 	align-items: center;
 	margin-bottom: 6px;
+	flex: 1;
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon {

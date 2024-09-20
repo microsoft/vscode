@@ -46,7 +46,7 @@ import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatTask, IChatTreeData } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatTask, IChatToolInvocation, IChatTreeData } from '../common/chatService.js';
 import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
@@ -63,6 +63,7 @@ import { ChatProgressContentPart } from './chatContentParts/chatProgressContentP
 import { ChatCollapsibleListContentPart, CollapsibleListPool } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
+import { ChatToolInvocationPart } from './chatContentParts/chatToolInvocationPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWarningContentPart } from './chatContentParts/chatWarningContentPart.js';
 import { ChatFollowups } from './chatFollowups.js';
@@ -384,13 +385,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderConfirmationAction(element, templateData);
 		}
 
+		this.renderElementValue(element, index, templateData);
+	}
+
+	private renderElementValue(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		// Do a progressive render if
 		// - This the last response in the list
 		// - And it has some content
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && element.response.value.length) {
-			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
+			this.traceLayout('renderElement', `start progressive render, index=${index}`);
 
 			const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
@@ -800,6 +805,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.renderContentReferencesListData(content, undefined, context, templateData);
 		} else if (content.kind === 'codeCitations') {
 			return this.renderCodeCitationsListData(content, context, templateData);
+		} else if (content.kind === 'toolInvocation') {
+			return this.renderToolInvocation(content, context, templateData);
 		}
 
 		return undefined;
@@ -849,6 +856,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderCodeCitationsListData(citations: IChatCodeCitations, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): ChatCodeCitationContentPart {
 		const citationsPart = this.instantiationService.createInstance(ChatCodeCitationContentPart, citations, context);
 		return citationsPart;
+	}
+
+	private renderToolInvocation(toolInvocation: IChatToolInvocation, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
+		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer);
+		part.addDisposable(part.onNeedsRerender(() => {
+			this.renderElementValue(context.element, context.index, templateData);
+		}));
+		return part;
 	}
 
 	private renderProgressTask(task: IChatTask, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
