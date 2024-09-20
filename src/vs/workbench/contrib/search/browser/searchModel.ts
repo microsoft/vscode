@@ -1726,6 +1726,7 @@ export class TextSearchResult extends Disposable {
 		this.disposeMatches();
 		this._folderMatches = [];
 		this._otherFilesMatch = null;
+		this.cachedSearchComplete = undefined;
 	}
 
 	override async dispose(): Promise<void> {
@@ -2345,6 +2346,10 @@ export class SearchModel extends Disposable {
 		return !!(this.searchResult.getCachedSearchComplete(true)) || !!(this.currentAICancelTokenSource);
 	}
 
+	get hasPlainResults(): boolean {
+		return !!(this.searchResult.getCachedSearchComplete(false)) || !!(this.currentCancelTokenSource);
+	}
+
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
 		asyncResults: Promise<ISearchComplete>;
 		syncResults: IFileMatch<URI>[];
@@ -2406,6 +2411,9 @@ export class SearchModel extends Disposable {
 					e => {
 						this.onSearchError(e, Date.now() - start, false);
 						throw e;
+					}).finally(() => {
+						this.currentCancelTokenSource?.dispose();
+						this.currentCancelTokenSource = null;
 					}),
 				syncResults
 			};
