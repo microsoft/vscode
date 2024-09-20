@@ -287,7 +287,7 @@ class AttachContextAction extends Action2 {
 				toAttach.push({
 					id: hash(fileBuffer).toString(),
 					name: localize('pastedImage', 'Pasted Image'),
-					fullName: 'Pasted Image',
+					fullName: localize('pastedImage', 'Pasted Image'),
 					value: fileBuffer,
 					isDynamic: true,
 					isImage: true
