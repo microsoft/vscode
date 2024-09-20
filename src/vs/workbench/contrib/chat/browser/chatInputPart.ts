@@ -34,6 +34,7 @@ import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -51,6 +52,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
+import { IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -58,6 +60,7 @@ import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidg
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
+import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 
@@ -120,6 +123,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
 
+	private chatEditingSessionWidgetContainer!: HTMLElement;
+
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
 		return this._inputPartHeight;
@@ -171,6 +176,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -424,6 +430,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.chat-input-container@inputContainer', [
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
@@ -436,6 +443,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-followups@followupsContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
+					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.chat-input-container@inputContainer', [
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-attached-context@attachedContextContainer'),
@@ -453,6 +461,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorContainer = elements.editorContainer;
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
+		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -678,6 +687,46 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
+		dom.clearNode(this.chatEditingSessionWidgetContainer);
+		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
+		if (!chatEditingSession) {
+			return;
+		}
+		const numberOfEditedEntries = chatEditingSession.entries.get().length;
+		const overviewRegion = dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-overview'));
+		const overviewText = dom.append(overviewRegion, $('span'));
+		overviewText.textContent = numberOfEditedEntries === 1
+			? localize('chatEditingSessionOverview.oneFileChanged', "1 file changed")
+			: localize('chatEditingSessionOverview', "{0} files changed", numberOfEditedEntries);
+
+		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
+		const actions = [
+			{
+				command: ChatEditingDiscardAllAction.ID,
+				label: ChatEditingDiscardAllAction.LABEL,
+				isSecondary: true
+			},
+			{
+				command: ChatEditingAcceptAllAction.ID,
+				label: ChatEditingAcceptAllAction.LABEL,
+			},
+		];
+		for (const action of actions) {
+			const button = this._register(new Button(actionsContainer, {
+				supportIcons: false,
+				secondary: action.isSecondary
+			}));
+			button.label = action.label;
+			this._register(button.onDidClick(() => {
+				this.commandService.executeCommand(action.command);
+			}));
+			dom.append(actionsContainer, button.element);
+		}
+
+		// TODO@joyceerhl render a list of resources, maybe reuse the References widget code a bit here
+	}
+
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
 		if (!this.options.renderFollowups) {
 			return;
@@ -693,7 +742,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -712,7 +761,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
@@ -746,6 +795,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputPartHorizontalPaddingInside: 12,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? executeToolbarWidth + executeToolbarPadding + inputToolbarWidth + inputToolbarPadding : 0,
 			toolbarsHeight: this.options.renderStyle === 'compact' ? 0 : 22,
+			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};
 	}
