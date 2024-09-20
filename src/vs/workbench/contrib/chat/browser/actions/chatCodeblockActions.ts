@@ -13,13 +13,12 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -238,14 +237,6 @@ export function registerChatCodeBlockActions() {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const codemapperService = accessor.get(ICodeMapperService);
 			const chatEditingService = accessor.get(IChatEditingService);
-			const notificationService = accessor.get(INotificationService);
-
-			if (chatEditingService.currentEditingSession) {
-				// there is already an editing session active, we should not start a new one
-				// TODO: figure out a way to implement follow-ups
-				notificationService.info(localize('chatCodeBlock.applyAll.editingSessionActive', 'An editing session is already active, please accept or reject the current proposed edits before continuing.'));
-				return;
-			}
 
 			const widget = chatWidgetService.lastFocusedWidget;
 			if (!widget) {
@@ -267,7 +258,7 @@ export function registerChatCodeBlockActions() {
 				}
 			}
 
-			await chatEditingService.createEditingSession(item.sessionId, async (stream) => {
+			await chatEditingService.startOrContinueEditingSession(item.sessionId, async (stream) => {
 
 				const response = {
 					textEdit: (resource: URI, textEdits: TextEdit[]) => {
