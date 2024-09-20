@@ -119,8 +119,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			throw new BugIndicatingError('Cannot continue missing session');
 		}
 
-		if (session.state.get() !== ChatEditingSessionState.Idle) {
-			throw new BugIndicatingError('Cannot continue session that is not idle');
+		if (session.state.get() === ChatEditingSessionState.StreamingEdits) {
+			throw new BugIndicatingError('Cannot continue session that is still streaming');
 		}
 
 		const groupedEditors = this._findGroupedEditors();
@@ -409,7 +409,7 @@ class ChatEditingTextModelContentProvider implements ITextModelContentProvider {
 }
 
 class ChatEditingSession extends Disposable implements IChatEditingSession {
-	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Idle);
+	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _entriesObs = observableValue<readonly ModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly ModifiedFileEntry[]> {
 		return this._entriesObs;
@@ -440,7 +440,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		// auto-dispose
 		autorun((reader) => {
-			if (this.state.read(reader) === ChatEditingSessionState.StreamingEdits) {
+			if (this.state.read(reader) !== ChatEditingSessionState.Idle) {
 				return;
 			}
 			const entries = this.entries.read(reader);
