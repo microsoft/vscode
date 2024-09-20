@@ -2180,6 +2180,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareDidInstallExtensions = Event.None;
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
+	onDidProfileAwareUninstallExtensions = Event.None;
+	onProfileAwareDidUpdateExtensionMetadata = Event.None;
 	onDidChangeProfile = Event.None;
 	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {
