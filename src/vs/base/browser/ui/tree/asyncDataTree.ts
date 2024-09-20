@@ -7,7 +7,7 @@ import { IDragAndDropData } from '../../dnd.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from '../list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../list/listView.js';
 import { IListStyles } from '../list/listWidget.js';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, IFindFilter, AbstractFindController } from './abstractTree.js';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart, LabelFuzzyScore, IFindFilter, AbstractFindController, ITreeFindToggleContribution, ITreeFindToggleChangeEvent } from './abstractTree.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from './compressedObjectTreeModel.js';
 import { getVisibleState, isFilterResult } from './indexTreeModel.js';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from './objectTree.js';
@@ -222,7 +222,9 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 }
 
 export interface IAsyncFindProvider<T> {
-	getFindResults(pattern: string, sessionId: number, token: CancellationToken): AsyncIterable<T>;
+	toggles?: ITreeFindToggleContribution[];
+	placeholder?: string;
+	getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: { id: string; isChecked: boolean }[]): AsyncIterable<T>;
 	revealResultInTree?(findElement: T): void;
 }
 
@@ -251,6 +253,15 @@ class AsyncFindTree<TInput, T> {
 		return [...this.root.children];
 	}
 
+	private _totalLeafs: number = 0;
+	get totalLeafs(): number {
+		return this._totalLeafs;
+	}
+
+	get totalNodes(): number {
+		return this.cachedNodes.size;
+	}
+
 	constructor(
 		private readonly dataSource: IAsyncDataSource<TInput, T>,
 		private readonly identityProvider: IIdentityProvider<T>
@@ -265,6 +276,8 @@ class AsyncFindTree<TInput, T> {
 		if (this.cachedNodes.has(elementId)) {
 			return;
 		}
+
+		this._totalLeafs++;
 
 		const node = new AsyncFindTreeNode(element, elementId);
 		this.cachedNodes.set(elementId, node);
@@ -300,15 +313,13 @@ class AsyncFindTree<TInput, T> {
 }
 
 class AsyncFindFilter<TInput, T> implements IFindFilter<IAsyncDataTreeNode<TInput, T>>, IDisposable {
-	readonly totalCount: number = 9999; // Count it unknown
-
-	private _matchCount = 0;
-	get matchCount(): number { return this._matchCount; }
-
 	private _pattern: string = '';
 	private _lowercasePattern: string = '';
 	private readonly disposables = new DisposableStore();
 
+	get pattern(): string {
+		return this._pattern;
+	}
 	set pattern(pattern: string) {
 		this._pattern = pattern;
 		this._lowercasePattern = pattern.toLowerCase();
@@ -316,7 +327,7 @@ class AsyncFindFilter<TInput, T> implements IFindFilter<IAsyncDataTreeNode<TInpu
 
 	constructor(
 		private keyboardNavigationLabelProvider: IKeyboardNavigationLabelProvider<T>,
-		private _filter?: ITreeFilter<IAsyncDataTreeNode<TInput, T>, FuzzyScore>
+		private _filter?: ITreeFilter<IAsyncDataTreeNode<TInput, T>, FuzzyScore>,
 	) { }
 
 	filter(element: IAsyncDataTreeNode<TInput, T>, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore | LabelFuzzyScore> {
@@ -339,7 +350,6 @@ class AsyncFindFilter<TInput, T> implements IFindFilter<IAsyncDataTreeNode<TInpu
 		}
 
 		if (!this._pattern) {
-			this._matchCount++;
 			return { data: FuzzyScore.Default, visibility };
 		}
 
@@ -354,7 +364,6 @@ class AsyncFindFilter<TInput, T> implements IFindFilter<IAsyncDataTreeNode<TInpu
 
 			const score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 			if (score) {
-				this._matchCount++;
 				return labels.length === 1 ?
 					{ data: score, visibility } :
 					{ data: { label: labelStr, score: score }, visibility };
@@ -362,10 +371,6 @@ class AsyncFindFilter<TInput, T> implements IFindFilter<IAsyncDataTreeNode<TInpu
 		}
 
 		return { data: FuzzyScore.Default, visibility };
-	}
-
-	reset(): void {
-		this._matchCount = 0;
 	}
 
 	dispose(): void {
@@ -379,8 +384,6 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	private readonly model: ITreeModel<IAsyncDataTreeNode<TInput, T> | null, TFilterData, IAsyncDataTreeNode<TInput, T> | null>;
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
 	private previousTreeScrollTop: number = 0;
-
-	protected toggles = [];
 
 	private sessionId: number = 0;
 	private active: boolean = false;
@@ -398,16 +401,16 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 		private readonly dataSource: IAsyncDataSource<TInput, T>,
 		private readonly identityProvider: IIdentityProvider<T>,
 		contextViewProvider: IContextViewProvider,
+		options: IAbstractTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData>,
 		private readonly asTreeElement: (node: IAsyncDataTreeNode<TInput, T>) => IObjectTreeElement<IAsyncDataTreeNode<TInput, T>>,
 	) {
-		super(tree as any, filter, contextViewProvider, { styles: tree.options.findWidgetStyles });
+		super(tree as any, filter, contextViewProvider, { ...options, placeholder: findProvider.placeholder, toggles: findProvider.toggles });
 
 		this.model = tree.getModel();
 		this.scheduler = this.store.add(new TimeoutTimer());
-		this.store.add(this.tree.onWillRefilter(() => this.filter.reset()));
 	}
 
-	private toggleActiveState(active: boolean): void {
+	private setFindModeActive(active: boolean): void {
 		if (this.active === active) {
 			return;
 		}
@@ -444,24 +447,19 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	}
 
 	protected applyPattern(pattern: string): void {
+		this.renderMessage(false);
 		this.scheduler.cancel();
 		this.activeTokenSource?.cancel();
 
 		if (!pattern) {
-			if (this.active) {
-				this.toggleActiveState(false);
-			}
+			this.setFindModeActive(false);
 			return;
 		}
 
 		this.activeTokenSource = new CancellationTokenSource();
 
-		const results = this.findProvider.getFindResults(pattern, this.sessionId, this.activeTokenSource.token);
-		this.pocessFindResults(results, this.activeTokenSource.token).then(() => {
-			if (this.activeTokenSource && !this.activeTokenSource.token.isCancellationRequested) {
-				this.render();
-			}
-		});
+		const results = this.findProvider.getFindResults(pattern, this.sessionId, this.activeTokenSource.token, this.toggles.states());
+		this.pocessFindResults(results, this.activeTokenSource.token);
 	}
 
 	private async pocessFindResults(results: AsyncIterable<T>, token: CancellationToken): Promise<void> {
@@ -495,7 +493,7 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 	private clearFindResults(): void {
 		this.schedule(() => {
 			if (!this.active) {
-				this.toggleActiveState(true);
+				this.setFindModeActive(true);
 				return;
 			} else {
 				this.tree.setChildren(null, []);
@@ -510,10 +508,10 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 		}
 
 		this.schedule(() => {
-			if (!this.active) {
-				this.toggleActiveState(true);
-			}
+			this.setFindModeActive(true);
 			this.tree.setChildren(null, rootChildren);
+			this.renderMessage(rootChildren.length === 0);
+			this.alertResults(findTree.totalLeafs);
 		}, 0);
 	}
 
@@ -556,8 +554,18 @@ class AsyncFindController<TInput, T, TFilterData> extends AbstractFindController
 		this.scheduler.cancelAndSet(fn, delay);
 	}
 
+	protected override onDidToggleChange(e: ITreeFindToggleChangeEvent): void {
+		super.onDidToggleChange(e);
+		this.applyPattern(this.pattern);
+	}
+
 	getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> | undefined {
 		return this.nodes.get(element as T);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.store.dispose();
 	}
 }
 
@@ -775,7 +783,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		if (asyncFindEnabled) {
 			const findFilter = this.disposables.add(new AsyncFindFilter<TInput, T>(options.keyboardNavigationLabelProvider as any, this.tree.options.filter as ITreeFilter<IAsyncDataTreeNode<TInput, T>, FuzzyScore>));
-			this.findController = this.disposables.add(new AsyncFindController(user, this.tree, options.findResultsProvider!, findFilter!, this.dataSource, this.identityProvider!, options.contextViewProvider!, node => this.asTreeElement(node)));
+			const findOptions = { styles: options.findWidgetStyles, showNotFoundMessage: options.showNotFoundMessage };
+			this.findController = this.disposables.add(new AsyncFindController(user, this.tree, options.findResultsProvider!, findFilter!, this.dataSource, this.identityProvider!, options.contextViewProvider!, findOptions, node => this.asTreeElement(node)));
 
 			this.onDidChangeFindOpenState = this.findController!.onDidChangeOpenState;
 			this.onDidChangeFindMode = Event.None;
