@@ -430,6 +430,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					}
 				},
 				{
+					id: 'commandPaletteTaskAccessibility',
+					title: localize('gettingStarted.commandPaletteAccessibility.title', "Unlock productivity with the Command Palette "),
+					description: localize('gettingStarted.commandPaletteAccessibility.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
+					media: { type: 'markdown', path: 'empty' },
+				},
+				{
 					id: 'keybindingsAccessibility',
 					title: localize('gettingStarted.keyboardShortcuts.title', "Customize your keyboard shortcuts"),
 					description: localize('gettingStarted.keyboardShortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
