@@ -123,15 +123,18 @@ export class ChatAttachmentsContentPart extends Disposable {
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
 
-				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
 
-				// No delay for keyboard
-				this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
-					const keyboardEvent = new StandardKeyboardEvent(event);
-					if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
-						this.hoverService.showManagedHover(widget);
-					}
-				}));
+					// No delay for keyboard
+					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
+						const keyboardEvent = new StandardKeyboardEvent(event);
+						if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
+							this.hoverService.showManagedHover(widget);
+						}
+					}));
+				}
+
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
