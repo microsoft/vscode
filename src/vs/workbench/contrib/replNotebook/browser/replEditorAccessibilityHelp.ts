@@ -32,7 +32,7 @@ export class ReplEditorAccessibilityHelp implements IAccessibleViewImplentation 
 
 function getAccessibilityHelpText(): string {
 	return [
-		localize('replEditor.overview', 'You are in a REPL Editor which contains in input box to evaluate expressions and a list of previously executed expressions and their output.'),
+		localize('replEditor.overview', 'You are in a REPL Editor which consists of an input box to enter code to be evaluated and the list of previously executed expressions along with the output.'),
 		localize('replEditor.execute', 'The Execute command{0} will evaluate the expression in the input box.', '<keybinding:repl.execute>'),
 		localize('replEditor.focusHistory', 'The Focus History command{0} will move focus to the list of previously executed items.', '<keybinding:interactive.history.focus>'),
 		localize('replEditor.focusReplInput', 'The Focus Input Editor command{0} will move focus to the REPL input box.', '<keybinding:interactive.input.focus>'),
@@ -48,6 +48,6 @@ function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeE
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => editor.focus(),
-		AccessibilityVerbositySettingId.Notebook,
+		AccessibilityVerbositySettingId.ReplEditor,
 	);
 }

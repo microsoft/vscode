@@ -96,7 +96,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { NotebookStickyScroll } from './viewParts/notebookEditorStickyScroll.js';
-import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { PreventDefaultContextMenuItemsContextKeyName } from '../../webview/browser/webview.contribution.js';
@@ -287,7 +286,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _baseCellEditorOptions = new Map<string, IBaseCellEditorOptions>();
 
-	readonly isEmbedded: boolean;
+	readonly isReplHistory: boolean;
 	private _readOnly: boolean;
 
 	public readonly scopedContextKeyService: IContextKeyService;
@@ -324,7 +323,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._dimension = dimension;
 
-		this.isEmbedded = creationOptions.isEmbedded ?? false;
+		this.isReplHistory = creationOptions.isReplHistory ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
 		this._overlayContainer = document.createElement('div');
@@ -932,7 +931,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate, DOM.getWindow(this.getDomNode()));
 		this._register(this._listDelegate);
 
-		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService);
+		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService, this.isReplHistory);
 		this._register(accessibilityProvider);
 
 		this._list = this.instantiationService.createInstance(
@@ -1058,7 +1057,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._registerNotebookStickyScroll();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Notebook)) {
+			if (e.affectsConfiguration(accessibilityProvider.verbositySettingId)) {
 				this._list.ariaLabel = accessibilityProvider?.getWidgetAriaLabel();
 			}
 		}));
@@ -1825,7 +1824,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _allowScrollBeyondLastLine() {
-		return this._scrollBeyondLastLine && !this.isEmbedded;
+		return this._scrollBeyondLastLine && !this.isReplHistory;
 	}
 
 	private getBodyHeight(dimensionHeight: number) {
