@@ -1311,7 +1311,9 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		}
 		copyFromOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
 		for (const profile of this.userDataProfilesService.profiles) {
-			copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
+			if (!profile.isTransient) {
+				copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
+			}
 		}
 		return copyFromOptions;
 	}
@@ -1474,7 +1476,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}
 				profilesContentTree.setInput(profileElement.root);
 				elementDisposables.add(profileElement.root.onDidChange(e => {
-					if (e.copyFrom || e.copyFlags || e.flags || e.extensions || e.snippets) {
+					if (e.copyFrom || e.copyFlags || e.flags || e.extensions || e.snippets || e.preview) {
 						profilesContentTree.updateChildren(element.root);
 					}
 					if (e.copyFromInfo) {
@@ -1853,10 +1855,10 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		}
 
 		renderRadioItems();
-		templateData.radio.setEnabled(!root.disabled);
+		templateData.radio.setEnabled(!root.disabled && !root.previewProfile);
 		templateData.elementDisposables.add(root.onDidChange(e => {
-			if (e.disabled) {
-				templateData.radio.setEnabled(!root.disabled);
+			if (e.disabled || e.preview) {
+				templateData.radio.setEnabled(!root.disabled && !root.previewProfile);
 			}
 			if (e.copyFrom || e.copyFromInfo) {
 				renderRadioItems();
@@ -2172,7 +2174,8 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		return new SubmenuAction(
 			'changeProfile',
 			localize('change profile', "Change Profile"),
-			[...this.userDataProfilesService.profiles]
+			this.userDataProfilesService.profiles
+				.filter(profile => !profile.isTransient)
 				.sort((a, b) => a.isDefault ? -1 : b.isDefault ? 1 : a.name.localeCompare(b.name))
 				.map<IAction>(profile => ({
 					id: `switchProfileTo${profile.id}`,

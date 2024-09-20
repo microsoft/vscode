@@ -113,6 +113,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		@IWorkspaceContextService protected readonly workspaceContextService: IWorkspaceContextService,
 		@IHostService protected readonly hostService: IHostService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@IFileService protected readonly fileService: IFileService,
+		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionManagementService protected readonly extensionManagementService: IExtensionManagementService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -126,6 +129,36 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				this.validate();
 			}
 			this.save();
+		}));
+		if (extensionManagementServerService.localExtensionManagementServer) {
+			this.registerExtensionListeners(extensionManagementServerService.localExtensionManagementServer);
+		}
+		if (extensionManagementServerService.remoteExtensionManagementServer) {
+			this.registerExtensionListeners(extensionManagementServerService.remoteExtensionManagementServer);
+		}
+		if (extensionManagementServerService.webExtensionManagementServer) {
+			this.registerExtensionListeners(extensionManagementServerService.webExtensionManagementServer);
+		}
+	}
+
+	private registerExtensionListeners(server: IExtensionManagementServer): void {
+		this._register(server.extensionManagementService.onDidInstallExtensions(results => {
+			const profile = this.getProfileToWatch();
+			if (profile && results.some(r => !r.error && (r.applicationScoped || this.uriIdentityService.extUri.isEqual(r.profileLocation, profile.extensionsResource)))) {
+				this._onDidChange.fire({ extensions: true });
+			}
+		}));
+		this._register(server.extensionManagementService.onDidUninstallExtension(e => {
+			const profile = this.getProfileToWatch();
+			if (profile && !e.error && (e.applicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, profile.extensionsResource))) {
+				this._onDidChange.fire({ extensions: true });
+			}
+		}));
+		this._register(server.extensionManagementService.onDidUpdateExtensionMetadata(e => {
+			const profile = this.getProfileToWatch();
+			if (profile && e.local.isApplicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, profile?.extensionsResource)) {
+				this._onDidChange.fire({ extensions: true });
+			}
 		}));
 	}
 
@@ -358,8 +391,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			? this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.globalState && this.flags.extensions ? undefined : this.flags
 			: undefined;
 
-
-
 		return await this.userDataProfileManagementService.updateProfile(profile, {
 			name: this.name,
 			icon: this.icon,
@@ -372,6 +403,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
+	protected abstract getProfileToWatch(): IUserDataProfile | undefined;
 }
 
 export class UserDataProfileElement extends AbstractUserDataProfileElement {
@@ -384,15 +416,15 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IFileService fileService: IFileService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IFileService fileService: IFileService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -407,6 +439,9 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			workspaceContextService,
 			hostService,
 			uriIdentityService,
+			fileService,
+			extensionManagementServerService,
+			extensionManagementService,
 			instantiationService,
 		);
 		this._isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
@@ -425,15 +460,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this._onDidChange.fire({ profile: true });
 			}
 		}));
-		if (extensionManagementServerService.localExtensionManagementServer) {
-			this.registerExtensionListeners(extensionManagementServerService.localExtensionManagementServer);
-		}
-		if (extensionManagementServerService.remoteExtensionManagementServer) {
-			this.registerExtensionListeners(extensionManagementServerService.remoteExtensionManagementServer);
-		}
-		if (extensionManagementServerService.webExtensionManagementServer) {
-			this.registerExtensionListeners(extensionManagementServerService.webExtensionManagementServer);
-		}
 		this._register(fileService.watch(this.profile.snippetsHome));
 		this._register(fileService.onDidFilesChange(e => {
 			if (e.affects(this.profile.snippetsHome)) {
@@ -442,22 +468,8 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		}));
 	}
 
-	private registerExtensionListeners(server: IExtensionManagementServer): void {
-		this._register(server.extensionManagementService.onDidInstallExtensions(results => {
-			if (results.some(r => !r.error && (r.applicationScoped || this.uriIdentityService.extUri.isEqual(r.profileLocation, this.profile.extensionsResource)))) {
-				this._onDidChange.fire({ extensions: true });
-			}
-		}));
-		this._register(server.extensionManagementService.onDidUninstallExtension(e => {
-			if (!e.error && (e.applicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, this.profile.extensionsResource))) {
-				this._onDidChange.fire({ extensions: true });
-			}
-		}));
-		this._register(server.extensionManagementService.onDidUpdateExtensionMetadata(e => {
-			if (e.local.isApplicationScoped || this.uriIdentityService.extUri.isEqual(e.profileLocation, this.profile.extensionsResource)) {
-				this._onDidChange.fire({ extensions: true });
-			}
-		}));
+	protected getProfileToWatch(): IUserDataProfile | undefined {
+		return this.profile;
 	}
 
 	reset(): void {
@@ -558,7 +570,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
 		readonly actions: [IAction[], IAction[]],
-		@IFileService private readonly fileService: IFileService,
+
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
@@ -566,6 +578,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IFileService fileService: IFileService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -580,6 +595,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			workspaceContextService,
 			hostService,
 			uriIdentityService,
+			fileService,
+			extensionManagementServerService,
+			extensionManagementService,
 			instantiationService,
 		);
 		this.defaultName = name;
@@ -614,13 +632,27 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 	}
 
+	private readonly previewProfileWatchDisposables = this._register(new DisposableStore());
 	private _previewProfile: IUserDataProfile | undefined;
 	get previewProfile(): IUserDataProfile | undefined { return this._previewProfile; }
 	set previewProfile(profile: IUserDataProfile | undefined) {
 		if (this._previewProfile !== profile) {
 			this._previewProfile = profile;
 			this._onDidChange.fire({ preview: true });
+			this.previewProfileWatchDisposables.clear();
+			if (this._previewProfile) {
+				this.previewProfileWatchDisposables.add(this.fileService.watch(this._previewProfile.snippetsHome));
+				this.previewProfileWatchDisposables.add(this.fileService.onDidFilesChange(e => {
+					if (this._previewProfile && e.affects(this._previewProfile.snippetsHome)) {
+						this._onDidChange.fire({ snippets: true });
+					}
+				}));
+			}
 		}
+	}
+
+	protected getProfileToWatch(): IUserDataProfile | undefined {
+		return this.previewProfile;
 	}
 
 	private getCopyFlagsFrom(copyFrom: URI | IUserDataProfile | undefined): ProfileResourceTypeFlags | undefined {
@@ -746,6 +778,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 		if (!this.getCopyFlag(resourceType)) {
 			return [];
+		}
+		if (this.previewProfile) {
+			return this.getChildrenFromProfile(this.previewProfile, resourceType);
 		}
 		if (this.copyFrom instanceof URI) {
 			await this.resolveTemplate(this.copyFrom);
@@ -1050,7 +1085,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			));
 			const updateCreateActionLabel = () => {
 				if (createAction.enabled) {
-					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => p.name === this.newProfileElement?.name)) {
+					if (this.newProfileElement?.copyFrom && this.userDataProfilesService.profiles.some(p => !p.isTransient && p.name === this.newProfileElement?.name)) {
 						createAction.label = localize('replace', "Replace");
 					} else {
 						createAction.label = localize('create', "Create");
@@ -1059,11 +1094,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			};
 			updateCreateActionLabel();
 			disposables.add(this.newProfileElement.onDidChange(e => {
-				if (e.preview) {
-					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
-				}
-				if (e.disabled || e.message) {
-					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
+				if (e.preview || e.disabled || e.message) {
+					createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
+					previewProfileAction.enabled = !this.newProfileElement?.previewProfile && !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
 				if (e.name || e.copyFrom) {
 					updateCreateActionLabel();

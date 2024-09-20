@@ -94,6 +94,12 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 			if (profileForWorkspace) {
 				return profileForWorkspace;
 			}
+		} else {
+			// If no workspace is open, use the current profile
+			const currentProfile = this.userDataProfilesService.profiles.find(profile => profile.id === this.userDataProfileService.currentProfile.id);
+			if (currentProfile) {
+				return currentProfile;
+			}
 		}
 		return this.getDefaultProfileToUse();
 	}
