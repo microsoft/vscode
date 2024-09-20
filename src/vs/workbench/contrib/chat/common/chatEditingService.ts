@@ -15,7 +15,7 @@ export interface IChatEditingService {
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	createEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
+	startOrContinueEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
 }
 
 export interface IChatEditingSession {
