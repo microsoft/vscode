@@ -19,10 +19,11 @@ export interface IChatEditingService {
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	createEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
+	createEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
 }
 
 export interface IChatEditingSession {
+	readonly chatSessionId: string;
 	readonly onDidEditNewResource: Event<URI>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;

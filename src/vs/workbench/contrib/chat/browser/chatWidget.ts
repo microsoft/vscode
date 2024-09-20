@@ -237,13 +237,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		let onDidEditNewResourceDisposable: IDisposable | null = null;
 		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
-			onDidEditNewResourceDisposable = this._register(session.onDidEditNewResource(() => {
-				this.renderChatEditingSessionState(session);
-			}));
+			if (session.chatSessionId === this.viewModel?.sessionId) {
+				onDidEditNewResourceDisposable = this._register(session.onDidEditNewResource(() => {
+					this.renderChatEditingSessionState(session);
+				}));
+			}
 		}));
 		this._register(this.chatEditingService.onDidDisposeEditingSession((session) => {
-			onDidEditNewResourceDisposable?.dispose();
-			this.renderChatEditingSessionState(null);
+			if (session.chatSessionId === this.viewModel?.sessionId) {
+				onDidEditNewResourceDisposable?.dispose();
+				this.renderChatEditingSessionState(null);
+			}
 		}));
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {

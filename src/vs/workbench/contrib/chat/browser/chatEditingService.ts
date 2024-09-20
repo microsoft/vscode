@@ -81,7 +81,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 	}
 
-	async createEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
+	async createEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
 		if (this._currentSessionObs.get()) {
 			throw new BugIndicatingError('Cannot have more than one active editing session');
 		}
@@ -93,7 +93,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane);
 		this._currentSessionObs.set(session, undefined);
 		this._onDidCreateEditingSession.fire(session);
 
@@ -389,6 +389,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	constructor(
+		public readonly chatSessionId: string,
 		parent: { killCurrentEditingSession(): void },
 		private readonly editorPane: MultiDiffEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

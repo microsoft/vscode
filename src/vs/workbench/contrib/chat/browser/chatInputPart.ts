@@ -43,7 +43,6 @@ import { registerAndCreateHistoryNavigationContext } from '../../../../platform/
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -62,7 +61,6 @@ import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidg
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
-import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
@@ -166,8 +164,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
+	private readonly _chatEditsDisposables = this._register(new DisposableStore());
 	private _chatEditsListPool: CollapsibleListPool;
-	private _chatEditsListItem: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -700,7 +698,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
 		dom.clearNode(this.chatEditingSessionWidgetContainer);
 		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
-		this._chatEditsListItem?.dispose();
+		this._chatEditsDisposables.clear();
 		if (!chatEditingSession) {
 			return;
 		}
@@ -747,10 +745,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			kind: 'reference',
 		}));
 		const editedFilesList = this._chatEditsListPool.get();
-		this._chatEditsListItem = editedFilesList;
 		const list = editedFilesList.object;
-		this._register(editedFilesList);
-		this._register(list.onDidOpen((e) => {
+		this._chatEditsDisposables.add(editedFilesList);
+		this._chatEditsDisposables.add(list.onDidOpen((e) => {
 			if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 				const modifiedFileUri = e.element.reference;
 				const editedFile = editedFiles.find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
