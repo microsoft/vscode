@@ -101,7 +101,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string'
 				},
 				supportedContentTypes: {
-					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's required that tools support `text/plain`, and that is assumed even if not specified here."),
+					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's required that tools support `text/plain`, and that is assumed even if not specified here. Another example could be the contentType exported by the `@vscode/prompt-tsx` library."),
 					type: 'array',
 					items: {
 						type: 'string'
