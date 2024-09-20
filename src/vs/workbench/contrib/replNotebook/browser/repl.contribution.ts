@@ -47,6 +47,8 @@ import * as icons from '../../notebook/browser/notebookIcons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
 import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
+import { ReplEditorAccessibilityHelp } from './replEditorAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions; label?: string };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -193,6 +195,8 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 
 registerWorkbenchContribution2(ReplWindowWorkingCopyEditorHandler.ID, ReplWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribution, WorkbenchPhase.BlockRestore);
+
+AccessibleViewRegistry.register(new ReplEditorAccessibilityHelp());
 
 registerAction2(class extends Action2 {
 	constructor() {
