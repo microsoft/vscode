@@ -81,6 +81,11 @@ viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('scm.providerCount', 0), WorkspaceTrustContext.IsEnabled, WorkspaceTrustContext.IsTrusted.toNegated())
 });
 
+viewsRegistry.registerViewWelcomeContent(HISTORY_VIEW_PANE_ID, {
+	content: localize('no history items', "The selected source control provider does not have any source control history items."),
+	when: ContextKeys.SCMHistoryItemCount.isEqualTo(0)
+});
+
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
 	name: localize2('source control repositories', "Source Control Repositories"),
