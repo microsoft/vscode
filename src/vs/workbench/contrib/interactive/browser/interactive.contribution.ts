@@ -759,6 +759,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 			},
+			precondition: InteractiveWindowOpen
 		});
 	}
 
