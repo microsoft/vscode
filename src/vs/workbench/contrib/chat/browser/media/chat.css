@@ -574,7 +574,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
-	padding: 3px 1px 3px 6px;
+	padding: 3px 0px 3px 6px;
 	display: flex;
 	align-items: center;
 }
