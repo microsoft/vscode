@@ -809,8 +809,7 @@ export class AzureActiveDirectoryService {
 				result = await fetch(endpoint.toString(), {
 					method: 'POST',
 					headers: {
-						'Content-Type': 'application/x-www-form-urlencoded',
-						'Content-Length': postData.length.toString()
+						'Content-Type': 'application/x-www-form-urlencoded'
 					},
 					body: postData
 				});
