@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import * as strings from '../../../../../base/common/strings.js';
+import { createTrustedTypesPolicy } from '../../../../../../base/browser/trustedTypes.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IObservable, autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import * as strings from '../../../../../../base/common/strings.js';
+import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
+import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
+import { OffsetEdit, SingleOffsetEdit } from '../../../../../common/core/offsetEdit.js';
+import { Position } from '../../../../../common/core/position.js';
+import { Range } from '../../../../../common/core/range.js';
+import { StringBuilder } from '../../../../../common/core/stringBuilder.js';
+import { ILanguageService } from '../../../../../common/languages/language.js';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../../common/model.js';
+import { LineEditWithAdditionalLines } from '../../../../../common/tokenizationTextModelPart.js';
+import { LineTokens } from '../../../../../common/tokens/lineTokens.js';
+import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
+import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
+import { InlineDecorationType } from '../../../../../common/viewModel.js';
+import { GhostText, GhostTextReplacement } from '../../model/ghostText.js';
+import { ColumnRange } from '../../utils.js';
 import './ghostTextView.css';
-import { applyFontInfo } from '../../../../browser/config/domFontInfo.js';
-import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../common/config/editorOptions.js';
-import { Position } from '../../../../common/core/position.js';
-import { Range } from '../../../../common/core/range.js';
-import { StringBuilder } from '../../../../common/core/stringBuilder.js';
-import { ILanguageService } from '../../../../common/languages/language.js';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from '../../../../common/model.js';
-import { LineTokens } from '../../../../common/tokens/lineTokens.js';
-import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { RenderLineInput, renderViewLine } from '../../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecorationType } from '../../../../common/viewModel.js';
-import { GhostText, GhostTextReplacement } from '../model/ghostText.js';
-import { ColumnRange } from '../utils.js';
-import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
-import { OffsetEdit, SingleOffsetEdit } from '../../../../common/core/offsetEdit.js';
-import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;

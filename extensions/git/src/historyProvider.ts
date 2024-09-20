@@ -174,8 +174,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace(`[GitHistoryProvider][onDidRunWriteOperation] historyItemRefs: ${JSON.stringify(deltaLog)}`);
 	}
 
-	async provideHistoryItemRefs(): Promise<SourceControlHistoryItemRef[]> {
-		const refs = await this.repository.getRefs();
+	async provideHistoryItemRefs(historyItemRefs: string[] | undefined): Promise<SourceControlHistoryItemRef[]> {
+		const refs = await this.repository.getRefs({ pattern: historyItemRefs });
 
 		const branches: SourceControlHistoryItemRef[] = [];
 		const remoteBranches: SourceControlHistoryItemRef[] = [];
@@ -365,12 +365,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async resolveHEADMergeBase(): Promise<Branch | undefined> {
-		if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+		try {
+			if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+				return undefined;
+			}
+
+			const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
+			return mergeBase;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHEADMergeBase] Failed to resolve merge base for ${this.repository.HEAD?.name}: ${err}`);
 			return undefined;
 		}
-
-		const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
-		return mergeBase;
 	}
 
 	dispose(): void {

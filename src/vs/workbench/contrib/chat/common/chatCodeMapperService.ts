@@ -11,7 +11,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 
 export interface ICodeMapperResponse {
-	textEdit: (textEdit: TextEdit, resource: URI) => void;
+	textEdit: (resource: URI, textEdit: TextEdit[]) => void;
 }
 
 export interface ICodeMapperCodeBlock {

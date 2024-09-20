@@ -75,7 +75,7 @@ export async function provideInlineCompletions(
 		return undefined;
 	}
 
-	function processProvider(provider: InlineCompletionsProvider<any>): Result {
+	function processProvider(provider: InlineCompletionsProvider<InlineCompletions>): Result {
 		const state = states.get(provider);
 		if (state) {
 			return state;

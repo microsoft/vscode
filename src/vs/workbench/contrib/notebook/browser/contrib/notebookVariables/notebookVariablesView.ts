@@ -105,7 +105,7 @@ export class NotebookVariablesView extends ViewPane {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<INotebookVariableElement>): any {
+	private onContextMenu(e: ITreeContextMenuEvent<INotebookVariableElement>): void {
 		if (!e.element) {
 			return;
 		}

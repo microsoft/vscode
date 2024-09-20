@@ -11,6 +11,10 @@
 	position: relative;
 }
 
+.monaco-workbench .notebookOverlay.notebook-editor .monaco-editor {
+	line-height: 1.4em;
+}
+
 .monaco-workbench .notebookOverlay .cell-list-container > .monaco-list {
 	position: absolute;
 }
@@ -453,8 +457,7 @@
 .nb-multicursor-selection {
 	top: 0;
 	min-width: 1.9px;
-	background-color: var(--vscode-notebook-symbolHighlightBackground);
-	/* TODO@Yoyokrazy: ^^highlight/selection color */
+	background-color: var(--vscode-editor-selectionBackground);
 
 	/* unsure about these two */
 	overflow: hidden;

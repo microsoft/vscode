@@ -2747,8 +2747,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }),
-			userSelectedModelId: request.userSelectedModelId,
+			toolInvocationToken: Object.freeze({ sessionId: request.sessionId })
 		};
 	}
 }

@@ -94,6 +94,31 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) { }
 
+	getParent(element: ExplorerItem): ExplorerItem {
+		const folders = this.contextService.getWorkspace().folders;
+		const isMultiRoot = folders.length > 1;
+
+		if (isMultiRoot) {
+			// If we have multiple folders, the root is a workspace folder
+			// Workspace folders are rendered and can be returned directly
+			if (element.isRoot) {
+				return element;
+			} else if (element.parent) {
+				return element.parent;
+			}
+		} else if (element.parent) {
+			// If we have a single folder, the root the workspace folder
+			// The workspace folder is not rendered, so all it's children are tree roots
+			if (element.parent.isRoot) {
+				return element;
+			} else {
+				return element.parent;
+			}
+		}
+
+		throw new Error('getParent only supported for cached parents');
+	}
+
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
 		// don't render nest parents as containing children when all the children are filtered out
 		return Array.isArray(element) || element.hasChildren((stat) => this.fileFilter.filter(stat, TreeVisibility.Visible));
@@ -448,7 +473,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData),
+			matches: stat.isDirectory ? [] : createMatches(filterData),
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
 			domId
 		});

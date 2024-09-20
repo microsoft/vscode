@@ -48,6 +48,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfile = this._onDidChangeProfile.event;
 
+	get onProfileAwareDidUpdateExtensionMetadata() { return super.onDidUpdateExtensionMetadata; }
+
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@ITelemetryService telemetryService: ITelemetryService,

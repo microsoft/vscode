@@ -786,8 +786,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.sendText(e.command.command, e.noNewLine ? false : true);
 			}
 		}));
-		this._register(this.xterm.onDidRequestFocus(() => this.focus()));
-		this._register(this.xterm.onDidRequestSendText(e => this.sendText(e, false)));
+		this._register(this.xterm.onDidRequestRefreshDimensions(() => {
+			if (this._lastLayoutDimensions) {
+				this.layout(this._lastLayoutDimensions);
+			}
+		}));
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		const initialTextWrittenPromise = this._shellLaunchConfig.initialText ? new Promise<void>(r => this._writeInitialText(xterm, r)) : undefined;
