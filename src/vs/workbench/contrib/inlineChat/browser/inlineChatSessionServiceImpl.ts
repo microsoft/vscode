@@ -157,7 +157,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		}));
 
 		store.add(this._chatAgentService.onDidChangeAgents(e => {
-			if (e === undefined && !this._chatAgentService.getAgent(agent.id)) {
+			if (e === undefined && (!this._chatAgentService.getAgent(agent.id) || !this._chatAgentService.getActivatedAgents().includes(agent))) {
 				this._logService.trace(`[IE] provider GONE for ${editor.getId()}, ${agent.extensionId}`);
 				this._releaseSession(session, true);
 			}
