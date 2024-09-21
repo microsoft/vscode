@@ -498,6 +498,14 @@ export function computeCompletionRanges(model: ITextModel, position: Position, r
 		// inside a "normal" word
 		return;
 	}
+
+	if (!varWord && position.column > 1) {
+		const textBefore = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
+		if (textBefore !== ' ') {
+			return;
+		}
+	}
+
 	if (varWord && onlyOnWordStart) {
 		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: varWord.startColumn });
 		if (wordBefore.word) {
@@ -520,7 +528,7 @@ export function computeCompletionRanges(model: ITextModel, position: Position, r
 
 class VariableCompletions extends Disposable {
 
-	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
 
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
