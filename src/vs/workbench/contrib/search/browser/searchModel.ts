@@ -1479,7 +1479,7 @@ export class TextSearchResult extends Disposable {
 	private _otherFilesMatch: FolderMatch | null = null;
 	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWorkspaceRoot>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	public resource = null;
-
+	public hidden = false;
 
 	public cachedSearchComplete: ISearchComplete | undefined;
 
@@ -1498,6 +1498,11 @@ export class TextSearchResult extends Disposable {
 				this._isDirty = !this.isEmpty();
 			}
 		}));
+	}
+
+	hide() {
+		this.hidden = true;
+		this.clear();
 	}
 
 	get isAIContributed() {
@@ -2000,8 +2005,12 @@ export class SearchResult extends Disposable {
 			this._onChange.pause();
 			elementsToRemove.forEach((currentElement) => {
 				if (!arrayContainsElementOrParent(currentElement, removedElems)) {
-					currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement);
-					removedElems.push(currentElement);
+					if (currentElement instanceof TextSearchResult) {
+						currentElement.hide();
+					} else {
+						currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement);
+						removedElems.push(currentElement);
+					}
 				}
 			}
 			);
@@ -2069,7 +2078,8 @@ export class SearchResult extends Disposable {
 
 
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
-		// Split up raw into a list per folder so we can do a batch add per folder.
+		this._plainTextSearchResult.hidden = false;
+		this._aiTextSearchResult.hidden = false;
 
 		if (ai) {
 			this._aiTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
