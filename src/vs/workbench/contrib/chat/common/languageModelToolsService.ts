@@ -64,7 +64,7 @@ export interface IToolConfirmationMessages {
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	provideToolConfirmationMessages(participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined>;
-	provideToolInvocationMessage(parameters: any, token: CancellationToken): Promise<string>;
+	provideToolInvocationMessage(parameters: any, token: CancellationToken): Promise<string | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -221,15 +221,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				tool.impl.provideToolInvocationMessage(dto.parameters, token),
 				getConfirmationMessages()
 			]);
-			toolInvocation = new ChatToolInvocation(invocationMessage, confirmationMessages);
+			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
+			toolInvocation = new ChatToolInvocation(invocationMessage ?? defaultMessage, confirmationMessages);
 			token.onCancellationRequested(() => {
 				toolInvocation!.confirm(false);
 			});
 			model.acceptResponseProgress(request, toolInvocation);
-			const userConfirmed = await toolInvocation.confirmed;
-			if (!userConfirmed) {
-				toolInvocation.complete();
-				throw new CancellationError();
+			if (tool.data.requiresConfirmation) {
+				const userConfirmed = await toolInvocation.confirmed;
+				if (!userConfirmed) {
+					toolInvocation.complete();
+					throw new CancellationError();
+				}
 			}
 		}
 

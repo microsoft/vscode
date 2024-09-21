@@ -1368,7 +1368,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
 	$provideToolConfirmationMessages(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined>;
-	$provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string>;
+	$provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

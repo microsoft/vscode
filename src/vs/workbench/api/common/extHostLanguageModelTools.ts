@@ -134,10 +134,14 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await item.tool.provideToolConfirmationMessages({ participantName, parameters }, token);
 	}
 
-	async $provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string> {
+	async $provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
+		}
+
+		if (!item.tool.provideToolInvocationMessage) {
+			return undefined;
 		}
 
 		return await item.tool.provideToolInvocationMessage(parameters, token);

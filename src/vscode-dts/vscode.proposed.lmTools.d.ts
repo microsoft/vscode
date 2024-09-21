@@ -183,7 +183,11 @@ declare module 'vscode' {
 		 * This can be implemented to customize the message shown to the user when a tool requires confirmation.
 		 */
 		provideToolConfirmationMessages?(options: LanguageModelToolProvideConfirmationMessageOptions, token: CancellationToken): Thenable<LanguageModelToolConfirmationMessages>;
-		provideToolInvocationMessage(parameters: any, token: CancellationToken): Thenable<string>;
+
+		/**
+		 * This message will be shown with the progress notification when the tool is invoked in a chat session.
+		 */
+		provideToolInvocationMessage?(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 
 	export interface ChatLanguageModelToolReference {
