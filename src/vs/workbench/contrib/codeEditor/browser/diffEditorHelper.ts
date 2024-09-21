@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { registerDiffEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { IDiffEditorContribution } from 'vs/editor/common/editorCommon';
-import { localize } from 'vs/nls';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { DiffEditorAccessibilityHelp } from 'vs/workbench/contrib/codeEditor/browser/diffEditorAccessibilityHelp';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
+import { IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { registerDiffEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
+import { IDiffEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { localize } from '../../../../nls.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { FloatingEditorClickWidget } from '../../../browser/codeeditor.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { DiffEditorAccessibilityHelp } from './diffEditorAccessibilityHelp.js';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
 	public static readonly ID = 'editor.contrib.diffEditorHelper';
@@ -25,7 +25,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 	constructor(
 		private readonly _diffEditor: IDiffEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
@@ -33,7 +33,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
-			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
+			const computationResult = observableFromEvent(this, e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
 			this._register(autorunWithStore((reader, store) => {
@@ -46,7 +46,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						null
 					));
 					store.add(helperWidget.onClick(() => {
-						this._configurationService.updateValue('diffEditor.ignoreTrimWhitespace', false);
+						this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.ignoreTrimWhitespace', false);
 					}));
 					helperWidget.render();
 				}
@@ -62,7 +62,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 						[{
 							label: localize('removeTimeout', "Remove Limit"),
 							run: () => {
-								this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
+								this._textResourceConfigurationService.updateValue(this._diffEditor.getModel()!.modified.uri, 'diffEditor.maxComputationTime', 0);
 							}
 						}],
 						{}

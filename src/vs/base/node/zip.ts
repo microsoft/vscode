@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createWriteStream, WriteStream } from 'fs';
+import { createWriteStream, WriteStream, promises } from 'fs';
 import { Readable } from 'stream';
-import { createCancelablePromise, Sequencer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as path from 'vs/base/common/path';
-import { assertIsDefined } from 'vs/base/common/types';
-import { Promises } from 'vs/base/node/pfs';
-import * as nls from 'vs/nls';
+import { createCancelablePromise, Sequencer } from '../common/async.js';
+import { CancellationToken } from '../common/cancellation.js';
+import * as path from '../common/path.js';
+import { assertIsDefined } from '../common/types.js';
+import { Promises } from './pfs.js';
+import * as nls from '../../nls.js';
 import type { Entry, ZipFile } from 'yauzl';
 
 export const CorruptZipMessage: string = 'end of central directory record signature not found';
@@ -85,7 +85,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		istream?.destroy();
 	});
 
-	return Promise.resolve(Promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
+	return Promise.resolve(promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -148,7 +148,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => Promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
+				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
 				return;
 			}
 

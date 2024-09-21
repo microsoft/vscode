@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname } from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ILocalizedString } from 'vs/platform/action/common/action';
+import { localize, localize2 } from '../../../nls.js';
+import { hasWorkspaceFileExtension, IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
+import { dirname } from '../../../base/common/resources.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { mnemonicButtonLabel } from '../../../base/common/labels.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { FileKind } from '../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { IQuickInputService, IPickOptions, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IFileDialogService, IPickAndOpenOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IRecent, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { ILocalizedString } from '../../../platform/action/common/action.js';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWorkspace', 'Add Folder to Workspace...');
@@ -263,7 +263,7 @@ CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.removeFromRecentlyOpened',
-	handler: (accessor: ServicesAccessor, path: string | URI): Promise<any> => {
+	handler: (accessor: ServicesAccessor, path: string | URI): Promise<void> => {
 		const workspacesService = accessor.get(IWorkspacesService);
 
 		if (typeof path === 'string') {

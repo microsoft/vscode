@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/8624d0bdae950a70cdf4a1c3d19c7398ef851721",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/5d7c2a4e451a932b776f6d9342087be6a1e8c0a1",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -108,7 +108,25 @@
 					"name": "punctuation.definition.function.tex"
 				}
 			},
-			"match": "(\\\\)(?:[,;]|(?:[\\p{Alphabetic}@]+(?:(?:_[\\p{Alphabetic}@]+)*:[NncVvoxefTFpwD]*)?))",
+			"match": "(\\\\)_*[\\p{Alphabetic}@]+(?:_[\\p{Alphabetic}@]+)*:[NncVvoxefTFpwD]*",
+			"name": "support.class.general.latex3.tex"
+		},
+		{
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.function.tex"
+				}
+			},
+			"match": "(\\.)[\\p{Alphabetic}@]+(?:_[\\p{Alphabetic}@]+)*:[NncVvoxefTFpwD]*",
+			"name": "support.class.general.latex3.tex"
+		},
+		{
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.function.tex"
+				}
+			},
+			"match": "(\\\\)(?:[,;]|(?:[\\p{Alphabetic}@]+))",
 			"name": "support.function.general.tex"
 		},
 		{

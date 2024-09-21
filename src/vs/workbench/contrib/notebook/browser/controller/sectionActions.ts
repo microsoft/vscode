@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookOutlineContext } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
-import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NotebookOutlineContext } from '../contrib/outline/notebookOutline.js';
+import { FoldingController } from './foldingController.js';
+import { CellFoldingState, INotebookEditor } from '../notebookBrowser.js';
+import * as icons from '../notebookIcons.js';
+import { OutlineEntry } from '../viewModel/OutlineEntry.js';
+import { CellKind } from '../../common/notebookCommon.js';
+import { OutlineTarget } from '../../../../services/outline/browser/outline.js';
 
 export type NotebookSectionArgs = {
 	notebookEditor: INotebookEditor | undefined;

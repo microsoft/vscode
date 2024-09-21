@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import assert from 'assert';
+import { MouseWheelClassifier } from '../../../../browser/ui/scrollbar/scrollableElement.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 export type IMouseWheelEvent = [number, number, number];
 
 suite('MouseWheelClassifier', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('OSX - Apple Magic Mouse', () => {
 		const testData: IMouseWheelEvent[] = [

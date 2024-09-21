@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
-import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
-import { hash } from 'vs/base/common/hash';
-import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { isDefined } from 'vs/base/common/types';
-import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-
+import { Emitter, Event, PauseableEmitter } from '../../../../../base/common/event.js';
+import { Disposable, dispose, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { NotebookCellTextModel } from './notebookCellTextModel.js';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata, NotebookTextModelWillAddRemoveEvent, NotebookCellTextModelSplice, ICell, NotebookCellCollapseState, NotebookCellDefaultCollapseConfig, CellKind } from '../notebookCommon.js';
+import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from './cellEdit.js';
+import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
+import { hash } from '../../../../../base/common/hash.js';
+import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { FindMatch, ITextModel } from '../../../../../editor/common/model.js';
+import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
+import { IPosition } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
@@ -77,32 +79,38 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 	async undo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = this._operations.length - 1; i >= 0; i--) {
-			await this._operations[i].undo();
+		try {
+			for (let i = this._operations.length - 1; i >= 0; i--) {
+				await this._operations[i].undo();
+			}
+			this._postUndoRedo(this._beginAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._beginSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._beginAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._beginSelectionState
-		});
-		this._pauseableEmitter.resume();
 	}
 
 	async redo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = 0; i < this._operations.length; i++) {
-			await this._operations[i].redo();
+		try {
+			for (let i = 0; i < this._operations.length; i++) {
+				await this._operations[i].redo();
+			}
+			this._postUndoRedo(this._resultAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._resultSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._resultAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._resultSelectionState
-		});
-		this._pauseableEmitter.resume();
 
 	}
 }
@@ -146,6 +154,10 @@ type TransformedEdit = {
 };
 
 class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
+	get isEmpty() {
+		return this._eventQueue.isEmpty();
+	}
+
 	isDirtyEvent() {
 		for (const e of this._eventQueue) {
 			for (let i = 0; i < e.rawEvents.length; i++) {
@@ -203,6 +215,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	get alternativeVersionId(): string {
 		return this._alternativeVersionId;
+	}
+
+	get notebookType() {
+		return this.viewType;
 	}
 
 	constructor(
@@ -513,15 +529,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
 			return true;
 		} finally {
-			// Update selection and versionId after applying edits.
-			const endSelections = endSelectionsComputer();
-			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
+			if (!this._pauseableEmitter.isEmpty) {
+				// Update selection and versionId after applying edits.
+				const endSelections = endSelectionsComputer();
+				this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
 
-			// Finalize undo element
-			this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
+				// Finalize undo element
+				this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
 
-			// Broadcast changes
-			this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+				// Broadcast changes
+				this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+			}
 			this._pauseableEmitter.resume();
 		}
 	}
@@ -1157,6 +1175,44 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _indexIsInvalid(index: number): boolean {
 		return index < 0 || index >= this._cells.length;
 	}
+
+	//#region Find
+	// TODO: enable wrapping through cell indices -- could do this with a wrapped flag
+	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; match: FindMatch } | null {
+		// check if search cell index is valid
+		this._assertIndex(searchStart.cellIndex);
+		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+		const searchData = searchParams.parseSearchRequest();
+
+		if (!searchData) {
+			return null;
+		}
+
+		let cellIndex = searchStart.cellIndex;
+		let searchStartPosition = searchStart.position;
+
+		while (cellIndex < this._cells.length) {
+			const cell = this._cells[cellIndex];
+			const searchRange = new Range(
+				searchStartPosition.lineNumber,
+				searchStartPosition.column,
+				cell.textBuffer.getLineCount(),
+				cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount())
+			);
+
+			const result = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1);
+			if (result.length > 0) {
+				return { cell, match: result[0] };
+			}
+
+			// Move to the next cell
+			cellIndex++;
+			searchStartPosition = { lineNumber: 1, column: 1 }; // Reset position to start of the next cell
+		}
+
+		return null;
+	}
+	//#endregion
 }
 
 class OutputSequence implements ISequence {

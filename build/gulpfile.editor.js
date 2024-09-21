@@ -29,19 +29,17 @@ const editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
-		exclude: ['vs/css', 'vs/nls'],
+		exclude: ['vs/css'],
 		prepend: [
-			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' },
-			{ path: 'out-editor-build/vs/nls.js', amdModuleId: 'vs/nls' }
+			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' }
 		],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
-		exclude: ['vs/nls'],
+		exclude: [],
 		prepend: [
 			{ path: 'vs/loader.js' },
-			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
 		dest: 'vs/base/worker/workerMain.js'
@@ -79,14 +77,17 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 			extrausages
 		],
 		shakeLevel: 2, // 0-Files, 1-InnerFile, 2-ClassMembers
-		importIgnorePattern: /(^vs\/css!)/,
+		importIgnorePattern: /\.css$/,
 		destRoot: path.join(root, 'out-editor-src'),
-		redirects: []
+		redirects: {
+			'@vscode/tree-sitter-wasm': '../node_modules/@vscode/tree-sitter-wasm/wasm/tree-sitter-web',
+		}
 	});
 });
 
 // Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
-const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true }));
+// Disable NLS task to remove english strings to preserve backwards compatibility when we removed the `vs/nls!` AMD plugin.
+const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true, preserveEnglish: true }));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
 	{
@@ -99,7 +100,6 @@ const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimi
 				paths: {
 					'vs': 'out-editor-build/vs',
 					'vs/css': 'out-editor-build/vs/css.build',
-					'vs/nls': 'out-editor-build/vs/nls.build',
 					'vscode': 'empty:'
 				}
 			},
@@ -124,7 +124,6 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 			'vs/base/worker/workerMain.ts',
 		],
 		renames: {
-			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
 });
@@ -136,7 +135,8 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	let result;
 	if (process.platform === 'win32') {
 		result = cp.spawnSync(`..\\node_modules\\.bin\\tsc.cmd`, {
-			cwd: path.join(__dirname, '../out-editor-esm')
+			cwd: path.join(__dirname, '../out-editor-esm'),
+			shell: true
 		});
 	} else {
 		result = cp.spawnSync(`node`, [`../node_modules/.bin/tsc`], {
@@ -198,46 +198,8 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 			}
 
 			console.log(`Open in VS Code the folder at '${destPath}' and you can analyze the compilation error`);
-			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `yarn run gulp editor-distro` on your machine to further analyze the compilation problem.');
+			throw new Error('Standalone Editor compilation failed. If this is the build machine, simply launch `npm run gulp editor-distro` on your machine to further analyze the compilation problem.');
 		});
-	}
-});
-
-/**
- * Go over all .js files in `/out-monaco-editor-core/esm/` and make sure that all imports
- * use `.js` at the end in order to be ESM compliant.
- */
-const appendJSToESMImportsTask = task.define('append-js-to-esm-imports', () => {
-	const SRC_DIR = path.join(__dirname, '../out-monaco-editor-core/esm');
-	const files = util.rreddir(SRC_DIR);
-	for (const file of files) {
-		const filePath = path.join(SRC_DIR, file);
-		if (!/\.js$/.test(filePath)) {
-			continue;
-		}
-
-		const contents = fs.readFileSync(filePath).toString();
-		const lines = contents.split(/\r\n|\r|\n/g);
-		const /** @type {string[]} */result = [];
-		for (const line of lines) {
-			if (!/^import/.test(line) && !/^export \* from/.test(line)) {
-				// not an import
-				result.push(line);
-				continue;
-			}
-			if (/^import '[^']+\.css';/.test(line)) {
-				// CSS import
-				result.push(line);
-				continue;
-			}
-			const modifiedLine = (
-				line
-					.replace(/^import(.*)\'([^']+)\'/, `import$1'$2.js'`)
-					.replace(/^export \* from \'([^']+)\'/, `export * from '$1.js'`)
-			);
-			result.push(modifiedLine);
-		}
-		fs.writeFileSync(filePath, result.join('\n'));
 	}
 });
 
@@ -413,7 +375,6 @@ gulp.task('editor-distro',
 			task.series(
 				createESMSourcesAndResourcesTask,
 				compileEditorESMTask,
-				appendJSToESMImportsTask
 			)
 		),
 		finalEditorResourcesTask
@@ -430,7 +391,6 @@ gulp.task('editor-esm',
 		extractEditorSrcTask,
 		createESMSourcesAndResourcesTask,
 		compileEditorESMTask,
-		appendJSToESMImportsTask,
 	)
 );
 

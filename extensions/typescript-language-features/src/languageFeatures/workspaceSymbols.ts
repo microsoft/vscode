@@ -94,7 +94,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		}
 
 		const uri = this.client.toResource(item.file);
-		if (uri.scheme === fileSchemes.chatCodeBlock) {
+		if (fileSchemes.isOfScheme(uri, fileSchemes.chatCodeBlock, fileSchemes.chatBackingCodeBlock)) {
 			return;
 		}
 

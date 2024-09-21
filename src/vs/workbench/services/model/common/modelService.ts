@@ -3,27 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { URI } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ModelService } from '../../../../editor/common/services/modelService.js';
+import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class WorkbenchModelService extends ModelService {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextResourcePropertiesService resourcePropertiesService: ITextResourcePropertiesService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageService languageService: ILanguageService,
 		@IPathService private readonly _pathService: IPathService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(configurationService, resourcePropertiesService, undoRedoService, languageService, languageConfigurationService);
+		super(configurationService, resourcePropertiesService, undoRedoService, instantiationService);
 	}
 
 	protected override _schemaShouldMaintainUndoRedoElements(resource: URI) {

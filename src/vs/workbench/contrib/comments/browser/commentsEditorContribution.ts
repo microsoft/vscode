@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import 'vs/css!./media/review';
-import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CommentController, ID } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { accessibilityHelpIsShown, accessibleViewCurrentProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
-import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { CommentsInputContentProvider } from 'vs/workbench/contrib/comments/browser/commentsInputContentProvider';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import './media/review.css';
+import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICommentService } from './commentService.js';
+import { ctxCommentEditorFocused, SimpleCommentEditor } from './simpleCommentEditor.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { CommentController, ID } from './commentsController.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { accessibilityHelpIsShown, accessibleViewCurrentProviderId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { CommentCommandId } from '../common/commentCommandIds.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
+import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -44,7 +45,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!controller) {
 			return Promise.resolve();
 		}
-		controller.nextCommentThread();
+		controller.nextCommentThread(true);
 	},
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.Alt | KeyCode.F9,
@@ -62,10 +63,78 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!controller) {
 			return Promise.resolve();
 		}
-		controller.previousCommentThread();
+		controller.previousCommentThread(true);
 	},
 	weight: KeybindingWeight.EditorContrib,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.NextCommentedRange,
+			title: {
+				value: nls.localize('comments.NextCommentedRange', "Go to Next Commented Range"),
+				original: 'Go to Next Commented Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		controller.nextCommentThread(false);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.PreviousCommentedRange,
+			title: {
+				value: nls.localize('comments.previousCommentedRange', "Go to Previous Commented Range"),
+				original: 'Go to Previous Commented Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		controller.previousCommentThread(false);
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -175,6 +244,51 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		category: 'Comments'
 	},
 	when: CommentContextKeys.activeCursorHasCommentingRange
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.FocusCommentOnCurrentLine,
+			title: {
+				value: nls.localize('comments.focusCommentOnCurrentLine', "Focus Comment on Current Line"),
+				original: 'Focus Comment on Current Line'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			precondition: CommentContextKeys.activeCursorHasComment,
+		});
+	}
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		const position = activeEditor.getSelection();
+		const notificationService = accessor.get(INotificationService);
+		let error = false;
+		try {
+			const commentAtLine = controller.getCommentsAtLine(position);
+			if (commentAtLine.length === 0) {
+				error = true;
+			} else {
+				await controller.revealCommentThread(commentAtLine[0].commentThread.threadId, undefined, false, CommentWidgetFocus.Widget);
+			}
+		} catch (e) {
+			error = true;
+		}
+		if (error) {
+			notificationService.error(nls.localize('comments.focusCommand.error', "The cursor must be on a line with a comment to focus the comment"));
+		}
+	}
 });
 
 CommandsRegistry.registerCommand({

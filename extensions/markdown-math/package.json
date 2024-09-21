@@ -56,6 +56,16 @@
           "meta.embedded.math.markdown": "latex",
           "punctuation.definition.math.end.markdown": "latex"
         }
+      },
+      {
+        "scopeName": "markdown.math.codeblock",
+        "path": "./syntaxes/md-math-fence.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "latex"
+        }
       }
     ],
     "notebookRenderer": [
@@ -99,7 +109,7 @@
     "build-notebook": "node ./esbuild"
   },
   "dependencies": {
-    "@vscode/markdown-it-katex": "^1.0.3"
+    "@vscode/markdown-it-katex": "^1.1.0"
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",
