@@ -6,7 +6,7 @@
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
+import { EditorExtensions, IEditorControl, IEditorFactoryRegistry, IEditorSerializer } from '../../../common/editor.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
 import { NotebookEditorInputOptions } from '../../notebook/common/notebookEditorInput.js';
-import { ReplEditor } from './replEditor.js';
+import { isReplEditorControl, ReplEditor, ReplEditorControl } from './replEditor.js';
 import { ReplEditorInput } from './replEditorInput.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -46,6 +46,9 @@ import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from '../../notebook/browser/con
 import * as icons from '../../notebook/browser/notebookIcons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { INotebookEditorOptions } from '../../notebook/browser/notebookBrowser.js';
+import { InlineChatController } from '../../inlineChat/browser/inlineChatController.js';
+import { ReplEditorAccessibilityHelp } from './replEditorAccessibilityHelp.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions; label?: string };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -193,6 +196,8 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 registerWorkbenchContribution2(ReplWindowWorkingCopyEditorHandler.ID, ReplWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribution, WorkbenchPhase.BlockRestore);
 
+AccessibleViewRegistry.register(new ReplEditorAccessibilityHelp());
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -243,14 +248,14 @@ registerAction2(class extends Action2 {
 		const bulkEditService = accessor.get(IBulkEditService);
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const notebookEditorService = accessor.get(INotebookEditorService);
-		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let editorControl: IEditorControl | undefined;
 		if (context) {
 			const resourceUri = URI.revive(context);
 			const editors = editorService.findEditors(resourceUri);
 			for (const found of editors) {
 				if (found.editor.typeId === ReplEditorInput.ID) {
 					const editor = await editorService.openEditor(found.editor, found.groupId);
-					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+					editorControl = editor?.getControl();
 					break;
 				}
 			}
@@ -259,7 +264,7 @@ registerAction2(class extends Action2 {
 			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		}
 
-		if (editorControl) {
+		if (isReplEditorControl(editorControl)) {
 			executeReplInput(bulkEditService, historyService, notebookEditorService, editorControl);
 		}
 	}
@@ -269,11 +274,11 @@ async function executeReplInput(
 	bulkEditService: IBulkEditService,
 	historyService: IInteractiveHistoryService,
 	notebookEditorService: INotebookEditorService,
-	editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget }) {
+	editorControl: ReplEditorControl) {
 
-	if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+	if (editorControl && editorControl.notebookEditor && editorControl.activeCodeEditor) {
 		const notebookDocument = editorControl.notebookEditor.textModel;
-		const textModel = editorControl.codeEditor.getModel();
+		const textModel = editorControl.activeCodeEditor.getModel();
 		const activeKernel = editorControl.notebookEditor.activeKernel;
 		const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
@@ -283,6 +288,12 @@ async function executeReplInput(
 
 			if (isFalsyOrWhitespace(value)) {
 				return;
+			}
+
+			// Just accept any existing inline chat hunk
+			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
+			if (ctrl) {
+				ctrl.acceptHunk();
 			}
 
 			historyService.replaceLast(notebookDocument.uri, value);

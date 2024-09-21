@@ -66,6 +66,7 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 
 suite('InteractiveChatController', function () {
 
@@ -157,6 +158,10 @@ suite('InteractiveChatController', function () {
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
+			[IChatEditingService, new class extends mock<IChatEditingService>() {
+				override onDidCreateEditingSession: Event<IChatEditingSession> = Event.None;
+				override onDidDisposeEditingSession: Event<IChatEditingSession> = Event.None;
+			}],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop

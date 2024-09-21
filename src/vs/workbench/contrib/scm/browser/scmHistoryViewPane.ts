@@ -173,6 +173,7 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 			title: localize('referencePicker', "History Item Reference Picker"),
 			icon: Codicon.gitBranch,
 			viewId: HISTORY_VIEW_PANE_ID,
+			precondition: ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
@@ -192,9 +193,10 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 		super({
 			id: 'workbench.scm.action.graph.revealCurrentHistoryItem',
 			title: localize('goToCurrentHistoryItem', "Go to Current History Item"),
-			viewId: HISTORY_VIEW_PANE_ID,
-			f1: false,
 			icon: Codicon.target,
+			viewId: HISTORY_VIEW_PANE_ID,
+			precondition: ContextKeys.SCMHistoryItemCount.notEqualsTo(0),
+			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryTitle,
 				group: 'navigation',
@@ -713,12 +715,16 @@ class SCMHistoryViewModel extends Disposable {
 	 */
 	readonly repository = latestChangedValue(this, [this._firstRepository, this._graphRepository]);
 	readonly onDidChangeHistoryItemsFilter = observableSignal(this);
+	readonly isViewModelEmpty = observableValue(this, false);
 
 	private readonly _repositoryState = new Map<ISCMRepository, RepositoryState>();
 	private readonly _repositoryFilterState = new Map<string, HistoryItemRefsFilter>();
 
+	private readonly _scmHistoryItemCountCtx: IContextKey<number>;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ISCMService private readonly _scmService: ISCMService,
 		@ISCMViewService private readonly _scmViewService: ISCMViewService,
@@ -730,6 +736,8 @@ class SCMHistoryViewModel extends Disposable {
 
 		this._extensionService.onWillStop(this._saveHistoryItemsFilterState, this, this._store);
 		this._storageService.onWillSaveState(this._saveHistoryItemsFilterState, this, this._store);
+
+		this._scmHistoryItemCountCtx = ContextKeys.SCMHistoryItemCount.bindTo(this._contextKeyService);
 
 		// Closed repository cleanup
 		this._register(autorun(reader => {
@@ -807,6 +815,8 @@ class SCMHistoryViewModel extends Disposable {
 		const historyProvider = repository?.provider.historyProvider.get();
 
 		if (!repository || !historyProvider) {
+			this._scmHistoryItemCountCtx.set(0);
+			this.isViewModelEmpty.set(true, undefined);
 			return [];
 		}
 
@@ -841,6 +851,9 @@ class SCMHistoryViewModel extends Disposable {
 
 			state = { historyItemsFilter: historyItemRefs, viewModels, loadMore: false };
 			this._repositoryState.set(repository, state);
+
+			this._scmHistoryItemCountCtx.set(viewModels.length);
+			this.isViewModelEmpty.set(viewModels.length === 0, undefined);
 		}
 
 		return state.viewModels;
@@ -1246,6 +1259,11 @@ export class SCMHistoryViewPane extends ViewPane {
 				});
 			});
 
+			this._visibilityDisposables.add(autorun(reader => {
+				this._treeViewModel.isViewModelEmpty.read(reader);
+				this._onDidChangeViewWelcomeState.fire();
+			}));
+
 			// Repository change
 			let isFirstRun = true;
 			this._visibilityDisposables.add(autorunWithStore((reader, store) => {
@@ -1337,6 +1355,10 @@ export class SCMHistoryViewPane extends ViewPane {
 		const fakeKeyboardEvent = new KeyboardEvent('keydown');
 		this._tree.focusFirst(fakeKeyboardEvent);
 		this._tree.domFocus();
+	}
+
+	override shouldShowWelcome(): boolean {
+		return this._treeViewModel?.isViewModelEmpty.get() === true;
 	}
 
 	async refresh(): Promise<void> {

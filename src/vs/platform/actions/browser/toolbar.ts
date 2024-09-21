@@ -315,6 +315,11 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
 	 * id is used.
 	 */
 	resetMenu?: undefined;
+
+	/**
+	 * Customize the debounce delay for menu updates
+	 */
+	eventDebounceDelay?: number;
 }
 
 /**
@@ -357,7 +362,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
 		const updateToolbar = () => {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];

@@ -203,6 +203,12 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				default: false,
 				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
 				restricted: true
+			},
+			'http.electronFetch': {
+				type: 'boolean',
+				default: true,
+				description: localize('electronFetch', "Controls whether use of Electron's fetch implementation instead of Node.js' should be enabled. All local extensions will get Electron's fetch implementation for the global fetch API."),
+				restricted: true
 			}
 		}
 	};

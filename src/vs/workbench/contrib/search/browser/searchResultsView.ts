@@ -18,7 +18,7 @@ import { ISearchConfigurationProperties } from '../../../services/search/common/
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { SearchView } from './searchView.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, MatchInNotebook, TextSearchResult, AI_TEXT_SEARCH_RESULT_ID } from './searchModel.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, TextSearchResult, AI_TEXT_SEARCH_RESULT_ID } from './searchModel.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -115,9 +115,13 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 		return { label, disposables };
 	}
 
-	renderElement(element: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
-		if (element.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
-			templateData.label.setLabel(nls.localize('searchFolderMatch.aiText.label', "AI Results"));
+	async renderElement(node: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
+		if (node.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
+			templateData.label.setLabel(nls.localize({
+				key: 'searchFolderMatch.aiText.label',
+				comment: ['This is displayed before the AI text search results, where {0} will be in the place of the AI name (ie: Copilot)']
+			}, '{0} Results', aiName));
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
 		}
@@ -402,7 +406,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const preview = match.preview();
 		const replace = this.searchView.model.isReplaceActive() &&
 			!!this.searchView.model.replaceString &&
-			!(match instanceof MatchInNotebook && match.isReadonly());
+			!match.isReadonly();
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
@@ -413,7 +417,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
-		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
+		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly());
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';

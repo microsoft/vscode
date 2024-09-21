@@ -37,7 +37,7 @@ import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IAsyncDataTreeViewState, IAsyncFindProvider } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { fuzzyScore, FuzzyScore } from '../../../../../base/common/filters.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -53,7 +53,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { AbstractTreePart, ITreeFindToggleContribution } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { basename, relativePath } from '../../../../../base/common/resources.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -154,7 +154,17 @@ export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
 }
 
+const explorerFuzzyMatch = {
+	id: 'fuzzyMatch',
+	title: 'Fuzzy Match',
+	icon: Codicon.searchFuzzy,
+	isChecked: false
+};
+
 class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
+
+	readonly toggles: ITreeFindToggleContribution[] = [explorerFuzzyMatch];
+	readonly placeholder: string = nls.localize('type to search files', "Type to search files");
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -166,20 +176,23 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 	) { }
 
-	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken): AsyncIterable<ExplorerItem> {
+	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: ITreeFindToggleContribution[]): AsyncIterable<ExplorerItem> {
+		const isFuzzyMatch = toggleStates.find(t => t.id === explorerFuzzyMatch.id)?.isChecked!!;
+
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
 		const folderPromises = Promise.all(workspaceFolders.map(async folder => {
 			// Get exclude settings used for search
-			const excludePatterns = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.uri })) || {};
+			const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.uri })) || {};
 
 			const result = await this.searchService.fileSearch({
 				folderQueries: [{ folder: folder.uri }],
 				type: QueryType.File,
-				filePattern: pattern,
-				maxResults: 100,
+				shouldGlobMatchFilePattern: !isFuzzyMatch,
+				filePattern: isFuzzyMatch ? pattern : `**/*${pattern}*`,
+				maxResults: 512,
 				sortByScore: true,
 				cacheKey: `explorerfindprovider:${sessionId}`,
-				excludePattern: excludePatterns,
+				excludePattern: searchExcludePattern,
 			}, token);
 
 			return { folder: folder.uri, result };
@@ -194,19 +207,23 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 			return;
 		}
 
-		yield* this.createResultItems(pattern, folderResults);
+		yield* this.createResultItems(folderResults, pattern, isFuzzyMatch);
 	}
 
-	private async *createResultItems(pattern: string, folderResults: { folder: URI; result: ISearchComplete }[]): AsyncIterable<ExplorerItem> {
+	private async *createResultItems(folderResults: { folder: URI; result: ISearchComplete }[], pattern: string, isFuzzyMatch: boolean): AsyncIterable<ExplorerItem> {
 		const lowercasePattern = pattern.toLowerCase();
+
 		for (const { folder, result } of folderResults) {
 			const folderRoot = new ExplorerItem(folder, this.fileService, this.configurationService, this.filesConfigService, undefined);
+
 			for (const file of result.results) {
-				// Make sure the file search results are actually good matches
-				// Only support contigous matches for now
-				const fileName = basename(file.resource);
-				if (!fileName.toLowerCase().includes(lowercasePattern)) {
-					continue;
+				// If this is a fuzzy search, results can be very poor, so we need to filter them out
+				if (isFuzzyMatch) {
+					const baseName = basename(file.resource);
+					const score = fuzzyScore(pattern, lowercasePattern, 0, baseName, baseName.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+					if (!score) {
+						break; // Results are sorted by score, so we can stop here
+					}
 				}
 
 				const item = this.createItem(file.resource, folderRoot);

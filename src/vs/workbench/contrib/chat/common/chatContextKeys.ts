@@ -17,6 +17,8 @@ export const CONTEXT_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('chat
 
 export const CONTEXT_RESPONSE = new RawContextKey<boolean>('chatResponse', false, { type: 'boolean', description: localize('chatResponse', "The chat item is a response.") });
 export const CONTEXT_REQUEST = new RawContextKey<boolean>('chatRequest', false, { type: 'boolean', description: localize('chatRequest', "The chat item is a request") });
+export const CONTEXT_ITEM_ID = new RawContextKey<string>('chatItemId', '', { type: 'string', description: localize('chatItemId', "The id of the chat item.") });
+export const CONTEXT_LAST_ITEM_ID = new RawContextKey<string[]>('chatLastItemId', [], { type: 'string', description: localize('chatLastItemId', "The id of the last chat item.") });
 
 export const CONTEXT_CHAT_EDIT_APPLIED = new RawContextKey<boolean>('chatEditApplied', false, { type: 'boolean', description: localize('chatEditApplied', "True when the chat text edits have been applied.") });
 
