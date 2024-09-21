@@ -91,11 +91,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof parcelWatcher.subscribe === 'function', testErrorMessage('@parcel/watcher'));
 	});
 
-	test('@bpasero/watcher', async () => {
-		const parcelWatcher2 = await import('@bpasero/watcher');
-		assert.ok(typeof parcelWatcher2.subscribe === 'function', testErrorMessage('@bpasero/watcher'));
-	});
-
 	test('@vscode/deviceid', async () => {
 		const deviceIdPackage = await import('@vscode/deviceid');
 		assert.ok(typeof deviceIdPackage.getDeviceId === 'function', testErrorMessage('@vscode/deviceid'));
