@@ -77,7 +77,7 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 interface IChatInputPartOptions {
 	renderFollowups: boolean;
-	renderStyle?: 'default' | 'compact';
+	renderStyle?: 'compact';
 	menus: {
 		executeToolbar: MenuId;
 		inputSideToolbar?: MenuId;

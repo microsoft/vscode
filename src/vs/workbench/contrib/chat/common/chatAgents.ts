@@ -78,10 +78,16 @@ export interface IChatAgentData {
 	supportsToolReferences?: boolean;
 }
 
+export interface IChatWelcomeMessageContent2 {
+	icon: ThemeIcon;
+	title: string;
+	message: IMarkdownString;
+}
+
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
-	provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
+	provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatWelcomeMessageContent2 | undefined>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
@@ -522,7 +528,7 @@ export class MergedChatAgent implements IChatAgent {
 		return [];
 	}
 
-	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> {
+	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatWelcomeMessageContent2 | undefined> {
 		if (this.impl.provideWelcomeMessage) {
 			return this.impl.provideWelcomeMessage(location, token);
 		}

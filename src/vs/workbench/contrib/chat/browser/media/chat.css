@@ -1045,3 +1045,46 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 }
+
+.interactive-session .chat-welcome-view {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+
+	& > .chat-welcome-view-icon .codicon {
+		font-size: 44px;
+	}
+
+	& > .chat-welcome-view-title {
+		font-size: 24px;
+		margin-top: 10px;
+		font-weight: 500;
+	}
+
+	& > .chat-welcome-view-message {
+		opacity: 0.7;
+		text-align: center;
+		max-width: min(70%, 300px);
+		margin-top: 15px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	& > .chat-welcome-view-tips {
+		opacity: 0.7;
+		max-width: 250px;
+		margin-top: 10px;
+
+		.rendered-markdown p {
+			display: flex;
+			gap: 8px;
+
+			.codicon {
+				padding-top: 1px;
+			}
+		}
+	}
+}

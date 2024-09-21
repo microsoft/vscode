@@ -18,9 +18,8 @@ import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offset
 import { IRange } from '../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent2, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -539,7 +538,7 @@ export interface IChatModel {
 	readonly initState: ChatModelInitState;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
-	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
+	readonly welcomeMessage: IChatWelcomeMessageContent2 | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IChatRequestModel[];
@@ -771,8 +770,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
-	private _welcomeMessage: ChatWelcomeMessageModel | undefined;
-	get welcomeMessage(): ChatWelcomeMessageModel | undefined {
+	private _welcomeMessage: IChatWelcomeMessageContent2 | undefined;
+	get welcomeMessage(): IChatWelcomeMessageContent2 | undefined {
 		return this._welcomeMessage;
 	}
 
@@ -859,7 +858,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		private readonly _initialLocation: ChatAgentLocation,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -881,10 +879,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			return [];
 		}
 
-		if (obj.welcomeMessage) {
-			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = this.instantiationService.createInstance(ChatWelcomeMessageModel, content, []);
-		}
+		// if (obj.welcomeMessage) {
+		// 	const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
+		// 	this._welcomeMessage = this.instantiationService.createInstance(ChatWelcomeMessageModel, content, []);
+		// }
 
 		try {
 			return requests.map((raw: ISerializableChatRequestData) => {
@@ -965,17 +963,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
-	initialize(welcomeMessage: ChatWelcomeMessageModel | undefined): void {
+	initialize(welcomeMessage: IChatWelcomeMessageContent2 | undefined): void {
 		if (this.initState !== ChatModelInitState.Initializing) {
 			// Must call startInitialize before initialize, and only call it once
 			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
 		}
 
 		this._initState = ChatModelInitState.Initialized;
-		if (!this._welcomeMessage) {
-			// Could also have loaded the welcome message from persisted data
-			this._welcomeMessage = welcomeMessage;
-		}
+		this._welcomeMessage = welcomeMessage;
 
 		this._isInitializedDeferred.complete();
 		this._onDidChange.fire({ kind: 'initialize' });
@@ -1130,13 +1125,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			responderUsername: this.responderUsername,
 			responderAvatarIconUri: this.responderAvatarIcon,
 			initialLocation: this.initialLocation,
-			welcomeMessage: this._welcomeMessage?.content.map(c => {
-				if (Array.isArray(c)) {
-					return c;
-				} else {
-					return c.value;
-				}
-			}),
+			welcomeMessage: [],
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				const message = {
 					...r.message,

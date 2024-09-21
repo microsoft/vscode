@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/chat.css';
-import './media/chatAgentHover.css';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -25,24 +27,27 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, IChatListItemRendererOptions } from './chat.js';
-import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
-import { ChatInputPart } from './chatInputPart.js';
-import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
-import { ChatEditorOptions } from './chatOptions.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent2 } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
-import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
+import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel, IChatWelcomeMessageContent } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatImageDropAndPaste } from './chatImagePaste.js';
-import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
+import { ChatInputPart } from './chatInputPart.js';
+import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
+import './media/chat.css';
+import './media/chatAgentHover.css';
 
 const $ = dom.$;
 
@@ -141,6 +146,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
+	private welcomeMessageContainer!: HTMLElement;
+	private persistedWelcomeMessage: IChatWelcomeMessageContent2 | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -194,7 +201,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private readonly _location: IChatWidgetLocationOptions;
-
 	get location() {
 		return this._location.location;
 	}
@@ -217,7 +223,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ILogService private readonly logService: ILogService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
@@ -351,6 +358,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderStyle = this.viewOptions.renderStyle;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view', { style: { display: 'none' } }));
+		this.renderWelcomeViewContentIfNeeded();
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
@@ -433,6 +442,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					};
 				});
 
+			this.renderWelcomeViewContentIfNeeded();
+			dom.setVisibility(treeItems.length === 0, this.welcomeMessageContainer);
+			dom.setVisibility(treeItems.length !== 0, this.listContainer);
+
 			this._onWillMaybeChangeHeight.fire();
 
 			this.tree.setChildren(null, treeItems, {
@@ -470,6 +483,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.renderFollowups(undefined);
 			}
+		}
+	}
+
+	private renderWelcomeViewContentIfNeeded() {
+		// Get persisted welcome message from where?
+		const welcomeContent = this.viewModel?.model.welcomeMessage;
+		if (welcomeContent && this.welcomeMessageContainer.children.length === 0 && !this.viewOptions.renderStyle) {
+			const icon = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-icon'));
+			const title = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-title'));
+			const message = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-message'));
+			const tips = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-tips'));
+
+			icon.appendChild(renderIcon(welcomeContent.icon));
+			title.textContent = welcomeContent.title;
+			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
+			const messageResult = this._register(renderer.render(welcomeContent.message));
+			dom.append(message, messageResult.element);
+
+			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(copilot)'), { supportThemeIcons: true });
+			const tipsResult = this._register(renderer.render(tipsString));
+			tips.appendChild(tipsResult.element);
 		}
 	}
 
@@ -626,7 +660,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidChangeContentHeight.fire();
 	}
 
-	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' | 'minimal' }): void {
+	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'compact' | 'minimal' }): void {
 		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
 			this.location,
 			{
@@ -910,6 +944,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
+		this.welcomeMessageContainer.style.height = `${listHeight}px`;
 		this.renderer.layout(width);
 		if (lastElementVisible) {
 			revealLastElement(this.tree);

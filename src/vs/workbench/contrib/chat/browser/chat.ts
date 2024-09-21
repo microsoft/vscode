@@ -95,7 +95,7 @@ export interface IChatFileTreeInfo {
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
 export interface IChatListItemRendererOptions {
-	readonly renderStyle?: 'default' | 'compact' | 'minimal';
+	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
@@ -105,7 +105,7 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
-	renderStyle?: 'default' | 'compact' | 'minimal';
+	renderStyle?: 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;

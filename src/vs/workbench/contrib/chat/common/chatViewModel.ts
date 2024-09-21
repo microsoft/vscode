@@ -288,8 +288,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this.updateCodeBlockTextModels(response);
 	}
 
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
-		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
+		return [...this._items];
 	}
 
 	override dispose() {
