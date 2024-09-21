@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IChatToolInvocation } from '../chatService.js';
-import { IToolData } from '../languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolData } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -25,14 +25,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		public readonly toolData: IToolData,
 		public readonly parameters: any,
 		public readonly agentDisplayName: string,
-		private _requiresConfirmation: boolean = false) { }
+		public readonly invocationMessage: string,
+		private _confirmationMessages: IToolConfirmationMessages | undefined) { }
 
-	public get requiresConfirmation(): boolean {
-		return this._requiresConfirmation;
+	public get confirmationMessages(): IToolConfirmationMessages | undefined {
+		return this._confirmationMessages;
 	}
 
 	public confirm(confirmed: boolean): void {
-		this._requiresConfirmation = false;
+		this._confirmationMessages = undefined;
 		this._confirmDeferred.complete(confirmed);
 	}
 

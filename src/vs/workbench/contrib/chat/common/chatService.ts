@@ -20,7 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, IToolInvocation } from './languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolData } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -195,7 +195,8 @@ export interface IChatConfirmation {
 export interface IChatToolInvocation {
 	toolData: IToolData;
 	parameters: any;
-	requiresConfirmation?: boolean;
+	confirmationMessages?: IToolConfirmationMessages;
+	invocationMessage: string;
 	agentDisplayName: string;
 
 	// Maybe there's two types, and one gets serialized into the other?

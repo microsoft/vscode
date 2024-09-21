@@ -167,7 +167,6 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelTool {
-		// TODO@API should it be LanguageModelToolResult | string?
 		invoke(options: LanguageModelToolInvocationOptions, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 	}
 

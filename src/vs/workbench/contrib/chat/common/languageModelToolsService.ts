@@ -12,6 +12,7 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -29,11 +30,8 @@ export interface IToolData {
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
-
-	confirmationTitle?: string;
-	messageTemplate?: string;
-	progressTemplate?: string;
 	supportedContentTypes: string[];
+	requiresConfirmation?: boolean;
 }
 
 interface IToolEntry {
@@ -58,8 +56,15 @@ export interface IToolResult {
 	[contentType: string]: any;
 }
 
+export interface IToolConfirmationMessages {
+	title: string;
+	message: string;
+}
+
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	provideToolConfirmationMessages?(participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages>;
+	provideToolInvocationMessage(parameters: any, token: CancellationToken): Promise<string>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -199,8 +204,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
 			const request = model.getRequests().at(-1)!;
 
+			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
+			const confirmationMessagesP = tool.impl.provideToolConfirmationMessages ?
+				tool.impl.provideToolConfirmationMessages!(participantName, dto.parameters, token) :
+				{
+					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
+					message: localize('toolConfirmMessage', "{0} will use {1}.", participantName, `"${tool.data.displayName ?? tool.data.id}"`),
+				};
+			const [invocationMessage, confirmationMessages] = await Promise.all([
+				tool.impl.provideToolInvocationMessage(dto.parameters, token),
+				confirmationMessagesP
+			]);
 			// how to get agent name
-			toolInvocation = new ChatToolInvocation(tool.data, dto.parameters, 'GitHub Copilot', true);
+			toolInvocation = new ChatToolInvocation(tool.data, dto.parameters, participantName, invocationMessage, confirmationMessages);
 			token.onCancellationRequested(() => {
 				toolInvocation!.confirm(false);
 			});

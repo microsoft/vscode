@@ -68,6 +68,7 @@ import { ChatEditingService } from './chatEditingService.js';
 import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { truncate } from '../../../../base/common/strings.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -299,11 +300,19 @@ class BuiltinChatTools implements IWorkbenchContribution {
 					}
 				}
 			},
-			confirmationTitle: 'Run a script in the terminal',
-			messageTemplate: '{{participantName}} will run this command in the terminal: `{{command}}`',
-			progressTemplate: 'Running in terminal: `{{command}}`',
+			requiresConfirmation: true,
+			supportedContentTypes: ['text/plain'],
 		});
 		languageModelToolsService.registerToolImplementation('vscode_runInTerminal', {
+			provideToolConfirmationMessages: async (participantName: string, parameters, token) => {
+				return {
+					title: 'Run a script in the terminal',
+					message: `${participantName} will run this command in the terminal: \`${truncate(parameters.command, 50)}\``,
+				};
+			},
+			provideToolInvocationMessage: async (parameters, token) => {
+				return `Running in terminal: \`${truncate(parameters.command, 30)}\``;
+			},
 			invoke: async (invocation, countTokens, token) => {
 				let terminal = await terminalService.getActiveOrCreateInstance();
 				const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;

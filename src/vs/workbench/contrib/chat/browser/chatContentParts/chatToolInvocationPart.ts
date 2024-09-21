@@ -29,12 +29,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	) {
 		super();
 
-		if (toolInvocation.requiresConfirmation) {
-			const title = toolInvocation.toolData.confirmationTitle ??
-				localize('useTool', "Use '{0}'", toolInvocation.toolData.displayName ?? toolInvocation.toolData.name ?? toolInvocation.toolData.id);
-			const message = toolInvocation.toolData.messageTemplate ?
-				this.resolveConfirmTemplate(toolInvocation.toolData.messageTemplate) :
-				'some default messsage';
+		if (toolInvocation.confirmationMessages) {
+			const title = toolInvocation.confirmationMessages.title;
+			const message = toolInvocation.confirmationMessages.message;
 			const confirmWidget = this._register(instantiationService.createInstance(
 				ChatConfirmationWidget,
 				title,
@@ -46,9 +43,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this._onNeedsRerender.fire();
 			}));
 		} else {
-			const message = toolInvocation.toolData.progressTemplate ?
-				this.resolveConfirmTemplate(toolInvocation.toolData.progressTemplate) :
-				'some default messsage';
+			const message = toolInvocation.invocationMessage;
 			const progressMessage: IChatProgressMessage = {
 				kind: 'progressMessage',
 				content: { value: message }
@@ -58,21 +53,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 	}
 
-	private resolveConfirmTemplate(message: string) {
-		for (const param of Object.keys(this.toolInvocation.parameters)) {
-			const value = this.toolInvocation.parameters[param];
-			if (typeof value === 'string') {
-				message = message.replace(`{{${param}}}`, value.slice(0, 30));
-			}
-		}
-
-		message = message.replace('{{participantName}}', this.toolInvocation.agentDisplayName);
-
-		return message;
-	}
-
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'toolInvocation' && other.requiresConfirmation === this.toolInvocation.requiresConfirmation;
+		return other.kind === 'toolInvocation' && (!!other.confirmationMessages === !!this.toolInvocation.confirmationMessages);
 	}
 
 	addDisposable(disposable: IDisposable): void {
