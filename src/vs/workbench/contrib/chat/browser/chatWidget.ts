@@ -365,7 +365,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderStyle = this.viewOptions.renderStyle;
 
 		this.container = dom.append(parent, $('.interactive-session'));
-		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view', { style: { display: 'none' } }));
+		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view', { style: 'display: none' }));
 		this.renderWelcomeViewContentIfNeeded();
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle });
@@ -450,8 +450,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				});
 
 			this.renderWelcomeViewContentIfNeeded();
-			dom.setVisibility(treeItems.length === 0, this.welcomeMessageContainer);
-			dom.setVisibility(treeItems.length !== 0, this.listContainer);
 
 			this._onWillMaybeChangeHeight.fire();
 
@@ -485,8 +483,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups, lastItem);
-			} else if (lastItem && !treeItems.length) {
-				this.renderFollowups(lastItem.sampleQuestions);
+			} else if (!treeItems.length && this.viewModel) {
+				this.renderFollowups(this.viewModel.model.sampleQuestions);
 			} else {
 				this.renderFollowups(undefined);
 			}
@@ -511,6 +509,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(copilot)'), { supportThemeIcons: true });
 			const tipsResult = this._register(renderer.render(tipsString));
 			tips.appendChild(tipsResult.element);
+		}
+
+		if (!this.viewOptions.renderStyle && this.viewModel) {
+			const treeItems = this.viewModel.getItems();
+			dom.setVisibility(treeItems.length === 0, this.welcomeMessageContainer);
+			dom.setVisibility(treeItems.length !== 0, this.listContainer);
 		}
 	}
 
@@ -951,7 +955,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
-		this.welcomeMessageContainer.style.height = `${listHeight}px`;
+
+		// Push the welcome message down so it doesn't change position when followups appear
+		const followupsOffset = 100 - this.inputPart.followupsHeight;
+		this.welcomeMessageContainer.style.height = `${listHeight - followupsOffset}px`;
+		this.welcomeMessageContainer.style.paddingBottom = `${followupsOffset}px`;
 		this.renderer.layout(width);
 		if (lastElementVisible) {
 			revealLastElement(this.tree);

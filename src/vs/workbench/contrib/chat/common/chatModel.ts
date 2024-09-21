@@ -539,6 +539,7 @@ export interface IChatModel {
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
 	readonly welcomeMessage: IChatWelcomeMessageContent2 | undefined;
+	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IChatRequestModel[];
@@ -775,6 +776,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._welcomeMessage;
 	}
 
+	private _sampleQuestions: IChatFollowup[] | undefined;
+	get sampleQuestions(): IChatFollowup[] | undefined {
+		return this._sampleQuestions;
+	}
+
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
 	private _sessionId: string;
@@ -963,7 +969,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
-	initialize(welcomeMessage: IChatWelcomeMessageContent2 | undefined): void {
+	initialize(welcomeMessage: IChatWelcomeMessageContent2 | undefined, sampleQuestions: IChatFollowup[] | undefined): void {
 		if (this.initState !== ChatModelInitState.Initializing) {
 			// Must call startInitialize before initialize, and only call it once
 			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
@@ -971,6 +977,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		this._initState = ChatModelInitState.Initialized;
 		this._welcomeMessage = welcomeMessage;
+		this._sampleQuestions = sampleQuestions;
 
 		this._isInitializedDeferred.complete();
 		this._onDidChange.fire({ kind: 'initialize' });

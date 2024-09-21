@@ -748,6 +748,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 6px;
 	align-items: start;
+
+	/* When it overlaps the welcome message, it should hide it */
+	background-color: var(--vscode-chat-list-background);
 }
 
 .interactive-session-followups .monaco-button {
@@ -806,7 +809,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* #region Quick Chat */
 
 .quick-input-widget .interactive-session .interactive-input-part {
-	padding: 8px 6px 6px 6px;
+	padding: 8px 6px 8px 6px;
 	margin: 0 3px;
 }
 
@@ -1051,6 +1054,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+	overflow: hidden;
 
 	& > .chat-welcome-view-icon .codicon {
 		font-size: 44px;
@@ -1065,7 +1069,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	& > .chat-welcome-view-message {
 		opacity: 0.7;
 		text-align: center;
-		max-width: min(70%, 300px);
+		max-width: 350px;
+		padding: 0 20px;
 		margin-top: 15px;
 
 		a {
@@ -1081,6 +1086,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.rendered-markdown p {
 			display: flex;
 			gap: 8px;
+			margin: 6px 0 0 0;
 
 			.codicon {
 				padding-top: 1px;
