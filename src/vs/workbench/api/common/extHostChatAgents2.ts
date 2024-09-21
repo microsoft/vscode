@@ -554,13 +554,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
-	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
+	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
 
-		return await agent.provideWelcomeMessage(typeConvert.ChatLocation.to(location), token);
+		return await agent.provideWelcomeMessage(token);
 	}
 
 	async $provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined> {
@@ -641,12 +641,12 @@ class ExtHostChatAgent {
 			.filter(f => !(f && 'message' in f));
 	}
 
-	async provideWelcomeMessage(location: vscode.ChatLocation, token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
+	async provideWelcomeMessage(token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
 		if (!this._welcomeMessageProvider?.provideWelcomeMessage) {
 			return undefined;
 		}
 
-		const content = await this._welcomeMessageProvider.provideWelcomeMessage(location, token);
+		const content = await this._welcomeMessageProvider.provideWelcomeMessage(token);
 		const icon = content?.icon; // typescript
 		if (!content || !ThemeIcon.isThemeIcon(icon)) {
 			return undefined;

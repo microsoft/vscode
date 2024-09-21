@@ -14,7 +14,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatWelcomeMessageContent>;
+		provideWelcomeMessage?(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent>;
 		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
