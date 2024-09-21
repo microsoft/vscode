@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
+import { Dimension, getActiveWindow } from '../../../../base/browser/dom.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { codiconsLibrary } from '../../../../base/common/codiconsLibrary.js';
 import { Lazy } from '../../../../base/common/lazy.js';
@@ -51,12 +51,13 @@ export class TerminalIconPicker extends Disposable {
 	}
 
 	async pickIcons(instanceId: number): Promise<ThemeIcon | undefined> {
-		let target = getActiveDocument().body;
-		const terminalTab = getActiveDocument().getElementById(`terminal-tab-instance-${instanceId}`);
-		if (terminalTab) {
-			target = terminalTab;
-		}
-		const dimension = new Dimension(486, 260);
+		const window = getActiveWindow();
+		const doc = window.document;
+		const body = doc.body;
+
+		// Position icon picker at the terminal tab if available
+		const target = doc.getElementById(`terminal-tab-instance-${instanceId}`) ?? body;
+
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
 				resolve(e);
@@ -65,7 +66,7 @@ export class TerminalIconPicker extends Disposable {
 			this._iconSelectBox.clearInput();
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: target,
+				target,
 				position: {
 					hoverPosition: HoverPosition.LEFT
 				},
@@ -79,11 +80,11 @@ export class TerminalIconPicker extends Disposable {
 			if (hoverWidget) {
 				this._register(hoverWidget);
 			}
-			this._iconSelectBox.layout(dimension);
+			this._iconSelectBox.layout(new Dimension(486, 260));
 			this._iconSelectBox.focus();
 			// Force a rerender to make the position correct
 			setTimeout(() => {
-				getActiveWindow().dispatchEvent(new Event('resize'));
+				window.dispatchEvent(new Event('resize'));
 			}, 10);
 		});
 	}
