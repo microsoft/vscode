@@ -307,12 +307,10 @@ export class Response extends Disposable implements IResponse {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
 				return localize('editsSummary', "Made changes.");
-			} else if (part.kind === 'progressMessage' || part.kind === 'codeblockUri') {
+			} else if (part.kind === 'progressMessage' || part.kind === 'codeblockUri' || part.kind === 'toolInvocation') {
 				return '';
 			} else if (part.kind === 'confirmation') {
 				return `${part.title}\n${part.message}`;
-			} else if (part.kind === 'toolInvocation') {
-				return `Called tool: ${part.toolData.id}`;
 			} else {
 				return part.content.value;
 			}

@@ -166,8 +166,24 @@ declare module 'vscode' {
 		supportedContentTypes: string[];
 	}
 
+	export interface LanguageModelToolProvideConfirmationMessageOptions {
+		participantName: string;
+		parameters: any;
+	}
+
+	export interface LanguageModelToolConfirmationMessages {
+		title: string;
+		message: string;
+	}
+
 	export interface LanguageModelTool {
 		invoke(options: LanguageModelToolInvocationOptions, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+
+		/**
+		 * This can be implemented to customize the message shown to the user when a tool requires confirmation.
+		 */
+		provideToolConfirmationMessages?(options: LanguageModelToolProvideConfirmationMessageOptions, token: CancellationToken): Thenable<LanguageModelToolConfirmationMessages>;
+		provideToolInvocationMessage(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 
 	export interface ChatLanguageModelToolReference {

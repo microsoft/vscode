@@ -63,7 +63,7 @@ export interface IToolConfirmationMessages {
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	provideToolConfirmationMessages?(participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages>;
+	provideToolConfirmationMessages(participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined>;
 	provideToolInvocationMessage(parameters: any, token: CancellationToken): Promise<string>;
 }
 
@@ -204,19 +204,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
 			const request = model.getRequests().at(-1)!;
 
+			// TODO if a tool requiresConfirmation but is not being invoked inside a chat session, we can show some other UI, like a modal notification
 			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
-			const confirmationMessagesP = tool.impl.provideToolConfirmationMessages ?
-				tool.impl.provideToolConfirmationMessages!(participantName, dto.parameters, token) :
-				{
+
+			const getConfirmationMessages = async (): Promise<IToolConfirmationMessages | undefined> => {
+				if (!tool.data.requiresConfirmation) {
+					return undefined;
+				}
+
+				return (await tool.impl!.provideToolConfirmationMessages(participantName, dto.parameters, token)) ?? {
 					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
 					message: localize('toolConfirmMessage', "{0} will use {1}.", participantName, `"${tool.data.displayName ?? tool.data.id}"`),
 				};
+			};
 			const [invocationMessage, confirmationMessages] = await Promise.all([
 				tool.impl.provideToolInvocationMessage(dto.parameters, token),
-				confirmationMessagesP
+				getConfirmationMessages()
 			]);
-			// how to get agent name
-			toolInvocation = new ChatToolInvocation(tool.data, dto.parameters, participantName, invocationMessage, confirmationMessages);
+			toolInvocation = new ChatToolInvocation(invocationMessage, confirmationMessages);
 			token.onCancellationRequested(() => {
 				toolInvocation!.confirm(false);
 			});

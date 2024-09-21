@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IChatToolInvocation } from '../chatService.js';
-import { IToolConfirmationMessages, IToolData } from '../languageModelToolsService.js';
+import { IToolConfirmationMessages } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly kind: 'toolInvocation' = 'toolInvocation';
@@ -22,9 +22,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	constructor(
-		public readonly toolData: IToolData,
-		public readonly parameters: any,
-		public readonly agentDisplayName: string,
 		public readonly invocationMessage: string,
 		private _confirmationMessages: IToolConfirmationMessages | undefined) { }
 

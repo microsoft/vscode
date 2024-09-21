@@ -43,7 +43,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this._onNeedsRerender.fire();
 			}));
 		} else {
-			const message = toolInvocation.invocationMessage;
+			const message = toolInvocation.invocationMessage + '…';
 			const progressMessage: IChatProgressMessage = {
 				kind: 'progressMessage',
 				content: { value: message }

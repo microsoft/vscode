@@ -12,7 +12,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
@@ -119,6 +119,28 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		return extensionResult;
+	}
+
+	async $provideToolConfirmationMessages(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined> {
+		const item = this._registeredTools.get(toolId);
+		if (!item) {
+			throw new Error(`Unknown tool ${toolId}`);
+		}
+
+		if (!item.tool.provideToolConfirmationMessages) {
+			return undefined;
+		}
+
+		return await item.tool.provideToolConfirmationMessages({ participantName, parameters }, token);
+	}
+
+	async $provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string> {
+		const item = this._registeredTools.get(toolId);
+		if (!item) {
+			throw new Error(`Unknown tool ${toolId}`);
+		}
+
+		return await item.tool.provideToolInvocationMessage(parameters, token);
 	}
 
 	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {

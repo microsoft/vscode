@@ -20,7 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolConfirmationMessages, IToolData } from './languageModelToolsService.js';
+import { IToolConfirmationMessages } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -193,17 +193,19 @@ export interface IChatConfirmation {
 }
 
 export interface IChatToolInvocation {
-	toolData: IToolData;
-	parameters: any;
 	confirmationMessages?: IToolConfirmationMessages;
 	invocationMessage: string;
-	agentDisplayName: string;
 
 	// Maybe there's two types, and one gets serialized into the other?
 	confirm(confirmed: boolean): void;
 	complete(): void;
 	confirmed: Promise<boolean>;
 	kind: 'toolInvocation';
+}
+
+export interface IChatToolInvocationSerialized {
+	invocationMessage: string;
+	kind: 'toolInvocationSerialized';
 }
 
 export type IChatProgress =

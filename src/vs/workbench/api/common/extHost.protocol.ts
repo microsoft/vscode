@@ -56,7 +56,7 @@ import { IChatProgressResponseContent } from '../../contrib/chat/common/chatMode
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatToolInvocation, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from '../../contrib/chat/common/chatVariables.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
-import { IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolConfirmationMessages, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import { CellExecutionUpdateType } from '../../contrib/notebook/common/notebookExecutionService.js';
@@ -1366,6 +1366,9 @@ export interface ExtHostLanguageModelToolsShape {
 	$onDidChangeTools(tools: IToolDataDto[]): void;
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
+
+	$provideToolConfirmationMessages(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined>;
+	$provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
