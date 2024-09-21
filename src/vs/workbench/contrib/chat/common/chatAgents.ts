@@ -78,13 +78,13 @@ export interface IChatAgentData {
 	supportsToolReferences?: boolean;
 }
 
-export interface IChatWelcomeMessageContent2 {
+export interface IChatWelcomeMessageContent {
 	icon: ThemeIcon;
 	title: string;
 	message: IMarkdownString;
 }
 
-export function isChatWelcomeMessageContent(obj: any): obj is IChatWelcomeMessageContent2 {
+export function isChatWelcomeMessageContent(obj: any): obj is IChatWelcomeMessageContent {
 	return obj &&
 		ThemeIcon.isThemeIcon(obj.icon) &&
 		typeof obj.title === 'string' &&
@@ -94,7 +94,7 @@ export function isChatWelcomeMessageContent(obj: any): obj is IChatWelcomeMessag
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
-	provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatWelcomeMessageContent2 | undefined>;
+	provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
@@ -535,7 +535,7 @@ export class MergedChatAgent implements IChatAgent {
 		return [];
 	}
 
-	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatWelcomeMessageContent2 | undefined> {
+	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined> {
 		if (this.impl.provideWelcomeMessage) {
 			return this.impl.provideWelcomeMessage(location, token);
 		}

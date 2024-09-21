@@ -29,15 +29,15 @@ import { WorkbenchObjectTree } from '../../../../platform/list/browser/listServi
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent2, isChatWelcomeMessageContent } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
-import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from '../common/chatViewModel.js';
+import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
@@ -149,7 +149,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private welcomeMessageContainer!: HTMLElement;
-	private persistedWelcomeMessage: IChatWelcomeMessageContent2 | undefined;
+	private persistedWelcomeMessage: IChatWelcomeMessageContent | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -456,11 +456,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
-							// TODO? We can give the welcome message a proper VM or get rid of the rest of the VMs
-							((isWelcomeVM(element) && this.viewModel) ? `_${ChatModelInitState[this.viewModel.initState]}` : '') +
+						return element.dataId +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
-							`${(isRequestVM(element) || isWelcomeVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
+							`${(isRequestVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
@@ -570,7 +568,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderer = this._register(scopedInstantiationService.createInstance(
 			ChatListItemRenderer,
 			this.editorOptions,
-			this.location,
 			options,
 			rendererDelegate,
 			this._codeBlockModelCollection,

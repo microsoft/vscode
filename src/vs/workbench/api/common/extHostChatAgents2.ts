@@ -19,7 +19,7 @@ import { URI } from '../../../base/common/uri.js';
 import { Location } from '../../../editor/common/languages.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, IChatWelcomeMessageContent2 } from '../../contrib/chat/common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult, IChatAgentResultTimings, IChatWelcomeMessageContent } from '../../contrib/chat/common/chatAgents.js';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -554,7 +554,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
-	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatWelcomeMessageContent2 | undefined> {
+	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -641,7 +641,7 @@ class ExtHostChatAgent {
 			.filter(f => !(f && 'message' in f));
 	}
 
-	async provideWelcomeMessage(location: vscode.ChatLocation, token: CancellationToken): Promise<IChatWelcomeMessageContent2 | undefined> {
+	async provideWelcomeMessage(location: vscode.ChatLocation, token: CancellationToken): Promise<IChatWelcomeMessageContent | undefined> {
 		if (!this._welcomeMessageProvider?.provideWelcomeMessage) {
 			return undefined;
 		}

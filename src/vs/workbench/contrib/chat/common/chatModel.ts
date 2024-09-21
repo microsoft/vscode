@@ -19,7 +19,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent2, reviveSerializedAgent } from './chatAgents.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
@@ -538,7 +538,7 @@ export interface IChatModel {
 	readonly initState: ChatModelInitState;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
-	readonly welcomeMessage: IChatWelcomeMessageContent2 | undefined;
+	readonly welcomeMessage: IChatWelcomeMessageContent | undefined;
 	readonly sampleQuestions: IChatFollowup[] | undefined;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
@@ -574,7 +574,6 @@ export interface ISerializableChatRequestData {
 
 export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
-	welcomeMessage: (string | IChatFollowup[])[] | undefined;
 	requests: ISerializableChatRequestData[];
 	requesterUsername: string;
 	responderUsername: string;
@@ -771,8 +770,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
-	private _welcomeMessage: IChatWelcomeMessageContent2 | undefined;
-	get welcomeMessage(): IChatWelcomeMessageContent2 | undefined {
+	private _welcomeMessage: IChatWelcomeMessageContent | undefined;
+	get welcomeMessage(): IChatWelcomeMessageContent | undefined {
 		return this._welcomeMessage;
 	}
 
@@ -969,7 +968,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
-	initialize(welcomeMessage: IChatWelcomeMessageContent2 | undefined, sampleQuestions: IChatFollowup[] | undefined): void {
+	initialize(welcomeMessage?: IChatWelcomeMessageContent, sampleQuestions?: IChatFollowup[]): void {
 		if (this.initState !== ChatModelInitState.Initializing) {
 			// Must call startInitialize before initialize, and only call it once
 			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
@@ -1132,7 +1131,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			responderUsername: this.responderUsername,
 			responderAvatarIconUri: this.responderAvatarIcon,
 			initialLocation: this.initialLocation,
-			welcomeMessage: [],
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				const message = {
 					...r.message,
@@ -1188,42 +1186,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidDispose.fire();
 
 		super.dispose();
-	}
-}
-
-export type IChatWelcomeMessageContent = IMarkdownString | IChatFollowup[];
-
-export interface IChatWelcomeMessageModel {
-	readonly id: string;
-	readonly content: IChatWelcomeMessageContent[];
-	readonly sampleQuestions: IChatFollowup[];
-	readonly username: string;
-	readonly avatarIcon?: ThemeIcon;
-
-}
-
-export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
-	private static nextId = 0;
-
-	private _id: string;
-	public get id(): string {
-		return this._id;
-	}
-
-	constructor(
-		public readonly content: IChatWelcomeMessageContent[],
-		public readonly sampleQuestions: IChatFollowup[],
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-	) {
-		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
-	}
-
-	public get username(): string {
-		return this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)?.fullName ?? '';
-	}
-
-	public get avatarIcon(): ThemeIcon | undefined {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.metadata.themeIcon;
 	}
 }
 

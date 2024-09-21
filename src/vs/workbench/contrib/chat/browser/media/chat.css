@@ -748,9 +748,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 6px;
 	align-items: start;
-
-	/* When it overlaps the welcome message, it should hide it */
-	background-color: var(--vscode-chat-list-background);
 }
 
 .interactive-session-followups .monaco-button {
@@ -795,10 +792,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
 	border: none;
-}
-
-.interactive-welcome .value .interactive-session-followups {
-	margin-bottom: 16px;
 }
 
 .interactive-item-container .monaco-toolbar .codicon {
