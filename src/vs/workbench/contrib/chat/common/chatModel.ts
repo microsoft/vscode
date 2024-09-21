@@ -73,9 +73,10 @@ export interface IChatTextEditGroup {
 }
 
 /**
- * "Normal" progress kinds that are rendered as parts of the stream of content.
+ * Progress kinds that are included in the history of a response.
+ * Excludes "internal" types that are included in history.
  */
-export type IChatProgressResponseContent =
+export type IChatProgressHistoryResponseContent =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatResponseCodeblockUriPart
@@ -86,8 +87,18 @@ export type IChatProgressResponseContent =
 	| IChatWarningMessage
 	| IChatTask
 	| IChatTextEditGroup
-	| IChatConfirmation
+	| IChatConfirmation;
+
+/**
+ * "Normal" progress kinds that are rendered as parts of the stream of content.
+ */
+export type IChatProgressResponseContent =
+	| IChatProgressHistoryResponseContent
 	| IChatToolInvocation;
+
+export function toChatHistoryContent(content: ReadonlyArray<IChatProgressResponseContent>): IChatProgressHistoryResponseContent[] {
+	return content.filter(c => c.kind !== 'toolInvocation');
+}
 
 export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>;
 

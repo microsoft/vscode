@@ -196,7 +196,6 @@ export interface IChatToolInvocation {
 	confirmationMessages?: IToolConfirmationMessages;
 	invocationMessage: string;
 
-	// Maybe there's two types, and one gets serialized into the other?
 	confirm(confirmed: boolean): void;
 	complete(): void;
 	confirmed: Promise<boolean>;
