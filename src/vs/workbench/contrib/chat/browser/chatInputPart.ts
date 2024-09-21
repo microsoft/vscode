@@ -77,7 +77,7 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 interface IChatInputPartOptions {
 	renderFollowups: boolean;
-	renderStyle?: 'default' | 'compact';
+	renderStyle?: 'compact';
 	menus: {
 		executeToolbar: MenuId;
 		inputSideToolbar?: MenuId;
@@ -135,6 +135,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
 		return this._inputPartHeight;
+	}
+
+	private _followupsHeight: number = 0;
+	get followupsHeight() {
+		return this._followupsHeight;
 	}
 
 	private _inputEditor!: CodeEditorWidget;
@@ -883,6 +888,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		this._followupsHeight = data.followupsHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
