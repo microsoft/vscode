@@ -387,6 +387,7 @@ export class SearchView extends ViewPane {
 		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
 		this.viewModel = searchModel;
+		this.tree.setInput(this.viewModel.searchResult);
 
 		await this.onSearchResultsChanged();
 		this.refreshInputs();
