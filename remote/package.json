@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
-    "@bpasero/watcher": "https://github.com/bpasero/watcher.git#3e5e50c275590703f3eb46fac777b720e515d0d5",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@parcel/watcher": "2.1.0",
