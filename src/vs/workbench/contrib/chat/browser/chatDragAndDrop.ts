@@ -11,6 +11,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -20,6 +21,7 @@ import { IChatWidgetStyles } from './chatWidget.js';
 
 enum ChatDragAndDropType {
 	FILE,
+	IMAGE
 }
 
 export class ChatDragAndDrop extends Themable {
@@ -32,7 +34,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly contianer: HTMLElement,
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -76,10 +79,10 @@ export class ChatDragAndDrop extends Themable {
 		this.updateDropFeedback(e, undefined);
 	}
 
-	private onDrop(e: DragEvent): void {
+	private async onDrop(e: DragEvent): Promise<void> {
 		this.updateDropFeedback(e, undefined);
 
-		const contexts = this.getAttachContext(e);
+		const contexts = await this.getAttachContext(e);
 		if (contexts.length === 0) {
 			return;
 		}
@@ -109,7 +112,9 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private getActiveDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
+		if (containsDragType(e, DataTransfers.FILES, 'image') && this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+			return ChatDragAndDropType.IMAGE;
+		} else if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE;
 		}
 
@@ -119,11 +124,18 @@ export class ChatDragAndDrop extends Themable {
 	private getDropTypeName(type: ChatDragAndDropType): string {
 		switch (type) {
 			case ChatDragAndDropType.FILE: return localize('file', 'File');
+			case ChatDragAndDropType.IMAGE: return localize('image', 'Image');
 		}
 	}
 
-	private getAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
+	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
 		switch (this.getActiveDropType(e)) {
+
+			case ChatDragAndDropType.IMAGE: {
+				const data = extractEditorsDropData(e);
+				const contexts = data.map(editorInput => getImageAttachContext(editorInput));
+				return coalesce(contexts);
+			}
 
 			case ChatDragAndDropType.FILE: {
 				const data = extractEditorsDropData(e);
@@ -183,4 +195,26 @@ function getFileAttachContext(resource: URI): IChatRequestVariableEntry | undefi
 		isFile: true,
 		isDynamic: true
 	};
+}
+
+function getImageAttachContext(editor: EditorInput | IDraggedResourceEditorInput): IChatRequestVariableEntry | undefined {
+	if (!editor.resource) {
+		return undefined;
+	}
+
+	if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(editor.resource.path)) {
+		const fileName = basename(editor.resource);
+		return {
+			id: editor.resource.toString(),
+			name: fileName,
+			fullName: editor.resource.path,
+			value: editor.resource,
+			icon: Codicon.fileMedia,
+			isDynamic: true,
+			isImage: true,
+			isFile: false
+		};
+	}
+
+	return undefined;
 }

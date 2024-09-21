@@ -346,4 +346,21 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.defaultProfile.workspaces[0].toString(), workspace.toString());
 	});
 
+	test('can create transient and persistent profiles with same name', async () => {
+		const profile1 = await testObject.createNamedProfile('name', { transient: true });
+		const profile2 = await testObject.createNamedProfile('name', { transient: true });
+		const profile3 = await testObject.createNamedProfile('name');
+
+		assert.deepStrictEqual(profile1.name, 'name');
+		assert.deepStrictEqual(!!profile1.isTransient, true);
+		assert.deepStrictEqual(profile2.name, 'name');
+		assert.deepStrictEqual(!!profile2.isTransient, true);
+		assert.deepStrictEqual(profile3.name, 'name');
+		assert.deepStrictEqual(!!profile3.isTransient, false);
+		assert.deepStrictEqual(testObject.profiles.length, 4);
+		assert.deepStrictEqual(testObject.profiles[1].id, profile3.id);
+		assert.deepStrictEqual(testObject.profiles[2].id, profile1.id);
+		assert.deepStrictEqual(testObject.profiles[3].id, profile2.id);
+	});
+
 });

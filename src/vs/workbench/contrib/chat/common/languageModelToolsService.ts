@@ -33,6 +33,7 @@ export interface IToolData {
 	confirmationTitle?: string;
 	messageTemplate?: string;
 	progressTemplate?: string;
+	supportedContentTypes: string[];
 }
 
 interface IToolEntry {
@@ -46,6 +47,7 @@ export interface IToolInvocation {
 	parameters: any;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
+	requestedContentTypes: string[];
 }
 
 export interface IToolInvocationContext {
@@ -54,7 +56,6 @@ export interface IToolInvocationContext {
 
 export interface IToolResult {
 	[contentType: string]: any;
-	string: string;
 }
 
 export interface IToolImpl {
@@ -106,6 +107,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	registerToolData(toolData: IToolData): IDisposable {
 		if (this._tools.has(toolData.id)) {
 			throw new Error(`Tool "${toolData.id}" is already registered.`);
+		}
+
+		// Ensure that text/plain is supported
+		if (!toolData.supportedContentTypes.includes('text/plain')) {
+			toolData.supportedContentTypes.push('text/plain');
 		}
 
 		this._tools.set(toolData.id, { data: toolData });

@@ -39,6 +39,7 @@ export interface IChatRequestVariableEntry {
 	isDynamic?: boolean;
 	isFile?: boolean;
 	isTool?: boolean;
+	isImage?: boolean;
 }
 
 export interface IChatRequestVariableData {

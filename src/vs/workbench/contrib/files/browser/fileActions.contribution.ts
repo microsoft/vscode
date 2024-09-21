@@ -18,7 +18,7 @@ import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from '../../../browser/actions/workspaceCommands.js';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, REOPEN_WITH_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { AutoSaveAfterShortDelayContext } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { WorkbenchListDoubleSelection } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchListDoubleSelection, WorkbenchTreeFindOpen } from '../../../../platform/list/browser/listService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DirtyWorkingCopiesContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, WorkbenchStateContext, WorkspaceFolderCountContext, SidebarFocusContext, ActiveEditorCanRevertContext, ActiveEditorContext, ResourceContextKey, ActiveEditorAvailableEditorIdsContext, MultipleEditorsSelectedInGroupContext, TwoEditorsSelectedInGroupContext, SelectedEditorsInGroupFileOrUntitledResourceContextKey } from '../../../common/contextkeys.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
@@ -64,7 +64,7 @@ const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash, WorkbenchTreeFindOpen.toNegated()),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
@@ -77,7 +77,7 @@ const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
@@ -88,7 +88,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext, ExplorerResourceMoveableToTrash.toNegated(), WorkbenchTreeFindOpen.toNegated()),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -617,7 +617,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 10,
 	command: {
 		id: ADD_ROOT_FOLDER_COMMAND_ID,
-		title: ADD_ROOT_FOLDER_LABEL
+		title: ADD_ROOT_FOLDER_LABEL,
+		precondition: WorkbenchTreeFindOpen.toNegated()
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext, ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
 });
@@ -627,7 +628,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 30,
 	command: {
 		id: REMOVE_ROOT_FOLDER_COMMAND_ID,
-		title: REMOVE_ROOT_FOLDER_LABEL
+		title: REMOVE_ROOT_FOLDER_LABEL,
+		precondition: WorkbenchTreeFindOpen.toNegated()
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext, ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))))
 });
@@ -638,7 +640,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: RENAME_ID,
 		title: TRIGGER_RENAME_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	},
 	when: ExplorerRootContext.toNegated()
 });
@@ -649,12 +651,12 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,
 		title: MOVE_FILE_TO_TRASH_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	},
 	alt: {
 		id: DELETE_FILE_ID,
 		title: nls.localize('deleteFile', "Delete Permanently"),
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash)
 });
@@ -665,7 +667,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: DELETE_FILE_ID,
 		title: nls.localize('deleteFile', "Delete Permanently"),
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated()),
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceMoveableToTrash.toNegated())
 });

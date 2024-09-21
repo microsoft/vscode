@@ -22,7 +22,7 @@ import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionCo
 import { insertNewCell } from '../insertCellActions.js';
 import { CellEditState } from '../../notebookBrowser.js';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from '../../../common/notebookCommon.js';
-import { NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from '../../../common/notebookContextKeys.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -165,7 +165,6 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('focusNextChatWidget', 'Focus Next Cell Chat Widget'),
 				keybinding: {
 					when: ContextKeyExpr.and(
-						NOTEBOOK_EDITOR_FOCUSED,
 						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.and(
 							ContextKeyExpr.has(InputFocusedContextKey),
@@ -178,7 +177,11 @@ registerAction2(class extends NotebookCellAction {
 					weight: KeybindingWeight.EditorCore + 7,
 					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 				},
-				f1: false
+				f1: false,
+				precondition: ContextKeyExpr.or(
+					ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK.negate(), NOTEBOOK_CELL_EDITOR_FOCUSED),
+					ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_CELL_EDITOR_FOCUSED.negate()),
+				)
 			});
 	}
 

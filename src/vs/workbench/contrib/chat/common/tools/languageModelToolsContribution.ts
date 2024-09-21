@@ -26,6 +26,7 @@ interface IRawToolContribution {
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
+	supportedContentTypes?: string[];
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -98,6 +99,13 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				when: {
 					markdownDescription: localize('condition', "Condition which must be true for this tool to be enabled. Note that a tool may still be invoked by another extension even when its `when` condition is false."),
 					type: 'string'
+				},
+				supportedContentTypes: {
+					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's required that tools support `text/plain`, and that is assumed even if not specified here. Another example could be the contentType exported by the `@vscode/prompt-tsx` library."),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
 				}
 			}
 		}
@@ -153,6 +161,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						...rawTool,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
+						supportedContentTypes: rawTool.supportedContentTypes ? rawTool.supportedContentTypes : [],
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.id), disposable);

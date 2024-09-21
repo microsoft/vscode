@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -33,8 +33,9 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { SubmenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { assertType } from '../../../../../base/common/types.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { toAction } from '../../../../../base/common/actions.js';
 
 export interface IChatViewTitleActionContext {
 	chatView: ChatViewPane;
@@ -84,7 +85,7 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'navigation',
+				group: 'open',
 				order: 1
 			}
 		});
@@ -381,6 +382,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextMenuService contextmenuService: IContextMenuService
 	) {
 
 		// TODO@jrieken this isn't proper
@@ -397,17 +399,19 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			return instantiationService.createInstance(class extends SubmenuEntryActionViewItem {
+			const dropdownAction = toAction({ id: agent.id, label: agent.fullName ?? agent.name, run() { } });
 
-				override render(container: HTMLElement): void {
-					super.render(container);
-					assertType(this.element);
+			const primaryAction = instantiationService.createInstance(MenuItemAction, {
+				id: CHAT_OPEN_ACTION_ID,
+				title: agent.fullName ?? agent.name,
+				icon: agent.metadata.themeIcon,
+			}, undefined, undefined, undefined, undefined);
 
-					const icon = ThemeIcon.asClassNameArray(agent.metadata.themeIcon!);
-					this.element.classList.add(...icon);
-				}
-
-			}, action, options);
+			return instantiationService.createInstance(
+				DropdownWithPrimaryActionViewItem,
+				primaryAction, dropdownAction, action.actions,
+				'', options
+			);
 
 		}, agentService.onDidChangeAgents));
 	}
