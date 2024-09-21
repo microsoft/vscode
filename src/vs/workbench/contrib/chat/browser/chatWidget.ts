@@ -27,12 +27,12 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent2 } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent2, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
-import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel, IChatWelcomeMessageContent } from '../common/chatModel.js';
+import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
@@ -92,6 +92,8 @@ export interface IChatWidgetLocationOptions {
 export function isQuickChat(widget: IChatWidget): boolean {
 	return 'viewContext' in widget && 'isQuickChat' in widget.viewContext && Boolean(widget.viewContext.isQuickChat);
 }
+
+const PersistWelcomeMessageContentKey = 'chat.welcomeMessageContent';
 
 export class ChatWidget extends Disposable implements IChatWidget {
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
@@ -317,6 +319,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			return null;
 		}));
+
+		const loadedWelcomeContent = storageService.getObject(PersistWelcomeMessageContentKey, StorageScope.APPLICATION);
+		if (isChatWelcomeMessageContent(loadedWelcomeContent)) {
+			this.persistedWelcomeMessage = loadedWelcomeContent;
+		}
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -478,7 +485,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups, lastItem);
-			} else if (lastItem && isWelcomeVM(lastItem)) {
+			} else if (lastItem && !treeItems.length) {
 				this.renderFollowups(lastItem.sampleQuestions);
 			} else {
 				this.renderFollowups(undefined);
@@ -488,7 +495,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private renderWelcomeViewContentIfNeeded() {
 		// Get persisted welcome message from where?
-		const welcomeContent = this.viewModel?.model.welcomeMessage;
+		const welcomeContent = this.viewModel?.model.welcomeMessage ?? this.persistedWelcomeMessage;
 		if (welcomeContent && this.welcomeMessageContainer.children.length === 0 && !this.viewOptions.renderStyle) {
 			const icon = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-icon'));
 			const title = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-title'));
@@ -1057,6 +1064,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	saveState(): void {
 		this.inputPart.saveState();
+
+		if (this.viewModel?.model.welcomeMessage) {
+			this.storageService.store(PersistWelcomeMessageContentKey, this.viewModel?.model.welcomeMessage, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
 	}
 
 	getViewState(): IChatViewState {

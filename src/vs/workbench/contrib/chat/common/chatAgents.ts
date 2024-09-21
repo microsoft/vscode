@@ -84,6 +84,13 @@ export interface IChatWelcomeMessageContent2 {
 	message: IMarkdownString;
 }
 
+export function isChatWelcomeMessageContent(obj: any): obj is IChatWelcomeMessageContent2 {
+	return obj &&
+		ThemeIcon.isThemeIcon(obj.icon) &&
+		typeof obj.title === 'string' &&
+		isMarkdownString(obj.message);
+}
+
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
