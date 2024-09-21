@@ -259,7 +259,8 @@ class ChatAddAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatInput,
-				group: 'navigation@0'
+				group: 'navigation',
+				order: 1
 			}
 		});
 	}
