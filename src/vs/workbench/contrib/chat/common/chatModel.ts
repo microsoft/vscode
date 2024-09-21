@@ -884,11 +884,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			return [];
 		}
 
-		// if (obj.welcomeMessage) {
-		// 	const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-		// 	this._welcomeMessage = this.instantiationService.createInstance(ChatWelcomeMessageModel, content, []);
-		// }
-
 		try {
 			return requests.map((raw: ISerializableChatRequestData) => {
 				const parsedRequest =

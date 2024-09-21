@@ -490,7 +490,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderWelcomeViewContentIfNeeded() {
-		// Get persisted welcome message from where?
 		const welcomeContent = this.viewModel?.model.welcomeMessage ?? this.persistedWelcomeMessage;
 		if (welcomeContent && this.welcomeMessageContainer.children.length === 0 && !this.viewOptions.renderStyle) {
 			const icon = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-icon'));
