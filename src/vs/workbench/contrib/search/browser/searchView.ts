@@ -2347,7 +2347,7 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 
 		}
 
-		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults) {
+		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
 			// as long as there is a query present, we can load AI results
 			ret.push(searchResult.aiTextSearchResult);
 		}
