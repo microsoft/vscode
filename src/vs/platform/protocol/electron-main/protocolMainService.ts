@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session } from 'electron';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { COI, FileAccess, Schemas } from 'vs/base/common/network';
-import { basename, extname, normalize } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { COI, FileAccess, Schemas } from '../../../base/common/network.js';
+import { basename, extname, normalize } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { ILogService } from '../../log/common/log.js';
+import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
 type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 

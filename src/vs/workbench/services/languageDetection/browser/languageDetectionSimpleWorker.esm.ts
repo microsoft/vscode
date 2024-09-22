@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageDetectionSimpleWorker } from './languageDetectionSimpleWorker';
-import { bootstrapSimpleWorker } from 'vs/base/common/worker/simpleWorkerBootstrap';
-import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { create } from './languageDetectionSimpleWorker.js';
+import { bootstrapSimpleWorker } from '../../../../base/common/worker/simpleWorkerBootstrap.js';
 
-bootstrapSimpleWorker<IEditorWorkerHost>(host => new LanguageDetectionSimpleWorker(host, () => { return {}; }));
+bootstrapSimpleWorker(create);

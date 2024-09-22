@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { DeferredPromise, raceCancellationError } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { isNumber } from 'vs/base/common/types';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import * as arrays from '../../../../base/common/arrays.js';
+import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { isNumber } from '../../../../base/common/types.js';
+import { URI, URI as uri } from '../../../../base/common/uri.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from './search.js';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from './searchHelpers.js';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -105,6 +105,11 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 		};
 		return this.doSearch(query, token, onProviderProgress);
+	}
+
+	async getAIName(): Promise<string | undefined> {
+		const provider = this.getSearchProvider(QueryType.aiText).get(Schemas.file);
+		return await provider?.getAIName();
 	}
 
 	textSearchSplitSyncAsync(
@@ -271,6 +276,9 @@ export class SearchService extends Disposable implements ISearchService {
 			return [];
 		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
+			if (query.onlyFileScheme && scheme !== Schemas.file) {
+				return;
+			}
 			const schemeFQs = fqs.get(scheme)!;
 			let provider = this.getSearchProvider(query.type).get(scheme);
 

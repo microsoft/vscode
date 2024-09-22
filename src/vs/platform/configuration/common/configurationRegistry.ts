@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as types from 'vs/base/common/types';
-import * as nls from 'vs/nls';
-import { getLanguageTagSettingPlainKey } from 'vs/platform/configuration/common/configuration';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { PolicyName } from 'vs/platform/policy/common/policy';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { distinct } from '../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import * as types from '../../../base/common/types.js';
+import * as nls from '../../../nls.js';
+import { getLanguageTagSettingPlainKey } from './configuration.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import { PolicyName } from '../../policy/common/policy.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export enum EditPresentationTypes {
 	Multiline = 'multilineText',
@@ -863,7 +863,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 	return overrideIdentifiers.reduce((result, overrideIdentifier) => `${result}[${overrideIdentifier}]`, '');
 }
 
-export function getDefaultValue(type: string | string[] | undefined): any {
+export function getDefaultValue(type: string | string[] | undefined) {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
 	switch (t) {
 		case 'boolean':

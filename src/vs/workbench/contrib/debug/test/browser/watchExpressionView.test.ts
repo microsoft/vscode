@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { WatchExpressionsRenderer } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
-import { Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockDebugService, MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverService';
-import { IDebugService, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import * as dom from '../../../../../base/browser/dom.js';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { WatchExpressionsRenderer } from '../../browser/watchExpressionsView.js';
+import { Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
+import { MockDebugService, MockSession } from '../common/mockDebug.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IDebugService, IViewModel } from '../../common/debug.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
 const $ = dom.$;
 
 function assertWatchVariable(disposables: Pick<DisposableStore, "add">, watchExpressionsRenderer: WatchExpressionsRenderer, displayType: boolean) {
@@ -80,9 +81,13 @@ suite('Debug - Watch Debug View', () => {
 	let watchExpressionsRenderer: WatchExpressionsRenderer;
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let expressionRenderer: DebugExpressionRenderer;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
+		configurationService = instantiationService.createInstance(TestConfigurationService);
+		instantiationService.stub(IConfigurationService, configurationService);
+		expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 		const debugService = new MockDebugService();
 		instantiationService.stub(IHoverService, NullHoverService);
 		debugService.getViewModel = () => <IViewModel>{ focusedStackFrame: undefined, getSelectedExpression: () => undefined };
@@ -91,24 +96,16 @@ suite('Debug - Watch Debug View', () => {
 	});
 
 	test('watch expressions with display type', () => {
-		configurationService = new TestConfigurationService({
-			debug: {
-				showVariableTypes: true
-			}
-		});
+		configurationService.setUserConfiguration('debug', { showVariableTypes: true });
 		instantiationService.stub(IConfigurationService, configurationService);
-		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, null as any);
+		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, expressionRenderer);
 		assertWatchVariable(disposables, watchExpressionsRenderer, true);
 	});
 
 	test('watch expressions', () => {
-		configurationService = new TestConfigurationService({
-			debug: {
-				showVariableTypes: false
-			}
-		});
+		configurationService.setUserConfiguration('debug', { showVariableTypes: false });
 		instantiationService.stub(IConfigurationService, configurationService);
-		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, null as any);
+		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, expressionRenderer);
 		assertWatchVariable(disposables, watchExpressionsRenderer, false);
 	});
 });

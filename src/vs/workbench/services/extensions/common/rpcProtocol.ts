@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CharCode } from 'vs/base/common/charCode';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledObject } from 'vs/base/common/marshalling';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { CanceledLazyPromise, LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
-import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import * as errors from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledObject } from '../../../../base/common/marshalling.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IURITransformer, transformIncomingURIs } from '../../../../base/common/uriIpc.js';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
+import { CanceledLazyPromise, LazyPromise } from './lazyPromise.js';
+import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from './proxyIdentifier.js';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;

@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/compositepart';
-import { localize } from 'vs/nls';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { IDisposable, dispose, DisposableStore, MutableDisposable, } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { isCancellationError } from 'vs/base/common/errors';
-import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IAction } from 'vs/base/common/actions';
-import { Part, IPartOptions } from 'vs/workbench/browser/part';
-import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IComposite } from 'vs/workbench/common/composite';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IProgressIndicator, IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IHoverService } from 'vs/platform/hover/browser/hover';
+import './media/compositepart.css';
+import { localize } from '../../../nls.js';
+import { defaultGenerator } from '../../../base/common/idGenerator.js';
+import { IDisposable, dispose, DisposableStore, MutableDisposable, } from '../../../base/common/lifecycle.js';
+import { Emitter } from '../../../base/common/event.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js';
+import { IAction } from '../../../base/common/actions.js';
+import { Part, IPartOptions } from '../part.js';
+import { Composite, CompositeRegistry } from '../composite.js';
+import { IComposite } from '../../common/composite.js';
+import { IWorkbenchLayoutService } from '../../services/layout/browser/layoutService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
+import { IProgressIndicator, IEditorProgressService } from '../../../platform/progress/common/progress.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { Dimension, append, $, hide, show } from '../../../base/browser/dom.js';
+import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
+import { assertIsDefined } from '../../../base/common/types.js';
+import { createActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { AbstractProgressScope, ScopedProgressIndicator } from '../../services/progress/browser/progressIndicator.js';
+import { WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaultStyles.js';
+import { IBoundarySashes } from '../../../base/browser/ui/sash/sash.js';
+import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import type { IHoverService } from '../../../platform/hover/browser/hover.js';
 
 export interface ICompositeTitleLabel {
 

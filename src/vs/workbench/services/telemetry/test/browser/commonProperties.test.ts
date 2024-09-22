@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
-import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { resolveWorkbenchCommonProperties } from '../../browser/workbenchCommonProperties.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('Browser Telemetry - common properties', function () {
 

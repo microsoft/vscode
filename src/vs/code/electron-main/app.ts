@@ -4,124 +4,122 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
-import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
+import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { parse } from 'vs/base/common/jsonc';
-import { getPathLabel } from 'vs/base/common/labels';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
-import { join, posix } from 'vs/base/common/path';
-import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
-import { getDelayedChannel, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
-import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron';
-import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
-import { Server as NodeIPCServer } from 'vs/base/parts/ipc/node/ipc.net';
-import { IProxyAuthService, ProxyAuthService } from 'vs/platform/native/electron-main/auth';
-import { localize } from 'vs/nls';
-import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
-import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
-import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
-import { EncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
-import { ExtensionHostStarter } from 'vs/platform/extensions/electron-main/extensionHostStarter';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-main/externalTerminal';
-import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
-import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
-import { IFileService } from 'vs/platform/files/common/files';
-import { DiskFileSystemProviderChannel } from 'vs/platform/files/electron-main/diskFileSystemProviderServer';
-import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IProcessMainService, IIssueMainService } from 'vs/platform/issue/common/issue';
-import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
-import { ProcessMainService } from 'vs/platform/issue/electron-main/processMainService';
-import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
-import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
-import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IStateService } from 'vs/platform/state/node/state';
-import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
-import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
-import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
-import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
-import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
-import { SnapUpdateService } from 'vs/platform/update/electron-main/updateService.snap';
-import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
-import { IOpenURLOptions, IURLService } from 'vs/platform/url/common/url';
-import { URLHandlerChannelClient, URLHandlerRouter } from 'vs/platform/url/common/urlIpc';
-import { NativeURLService } from 'vs/platform/url/common/urlService';
-import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
-import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
-import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { PolicyChannel } from 'vs/platform/policy/common/policyIpc';
-import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
-import { RequestChannel } from 'vs/platform/request/common/requestIpc';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IExtensionsScannerService } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
-import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
-import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
-import { Promises, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
-import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
-import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
-import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
-import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/electronPtyHostStarter';
-import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
-import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
-import { Lazy } from 'vs/base/common/lazy';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
-import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
-import { normalizeNFC } from 'vs/base/common/normalization';
-import { ICSSDevelopmentService, CSSDevelopmentService } from 'vs/platform/cssDev/node/cssDevService';
+import { VSBuffer } from '../../base/common/buffer.js';
+import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
+import { Event } from '../../base/common/event.js';
+import { parse } from '../../base/common/jsonc.js';
+import { getPathLabel } from '../../base/common/labels.js';
+import { Disposable, DisposableStore } from '../../base/common/lifecycle.js';
+import { Schemas, VSCODE_AUTHORITY } from '../../base/common/network.js';
+import { join, posix } from '../../base/common/path.js';
+import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from '../../base/common/platform.js';
+import { assertType } from '../../base/common/types.js';
+import { URI } from '../../base/common/uri.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { registerContextMenuListener } from '../../base/parts/contextmenu/electron-main/contextmenu.js';
+import { getDelayedChannel, ProxyChannel, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
+import { Server as ElectronIPCServer } from '../../base/parts/ipc/electron-main/ipc.electron.js';
+import { Client as MessagePortClient } from '../../base/parts/ipc/electron-main/ipc.mp.js';
+import { Server as NodeIPCServer } from '../../base/parts/ipc/node/ipc.net.js';
+import { IProxyAuthService, ProxyAuthService } from '../../platform/native/electron-main/auth.js';
+import { localize } from '../../nls.js';
+import { IBackupMainService } from '../../platform/backup/electron-main/backup.js';
+import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
+import { IDiagnosticsService } from '../../platform/diagnostics/common/diagnostics.js';
+import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
+import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
+import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
+import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
+import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
+import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
+import { getResolvedShellEnv } from '../../platform/shell/node/shellEnv.js';
+import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from '../../platform/extensions/common/extensionHostStarter.js';
+import { ExtensionHostStarter } from '../../platform/extensions/electron-main/extensionHostStarter.js';
+import { IExternalTerminalMainService } from '../../platform/externalTerminal/electron-main/externalTerminal.js';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from '../../platform/externalTerminal/node/externalTerminalService.js';
+import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from '../../platform/files/common/diskFileSystemProviderClient.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { DiskFileSystemProviderChannel } from '../../platform/files/electron-main/diskFileSystemProviderServer.js';
+import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
+import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
+import { IProcessMainService, IIssueMainService } from '../../platform/issue/common/issue.js';
+import { IssueMainService } from '../../platform/issue/electron-main/issueMainService.js';
+import { ProcessMainService } from '../../platform/issue/electron-main/processMainService.js';
+import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from '../../platform/keyboardLayout/electron-main/keyboardLayoutMainService.js';
+import { ILaunchMainService, LaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
+import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
+import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
+import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
+import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
+import { ISignService } from '../../platform/sign/common/sign.js';
+import { IStateService } from '../../platform/state/node/state.js';
+import { StorageDatabaseChannel } from '../../platform/storage/electron-main/storageIpc.js';
+import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from '../../platform/storage/electron-main/storageMainService.js';
+import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
+import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
+import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
+import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { IUpdateService } from '../../platform/update/common/update.js';
+import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
+import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
+import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
+import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
+import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
+import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
+import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
+import { NativeURLService } from '../../platform/url/common/urlService.js';
+import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
+import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
+import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
+import { isFolderToOpen, isWorkspaceToOpen, IWindowOpenable } from '../../platform/window/common/window.js';
+import { IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
+import { ICodeWindow } from '../../platform/window/electron-main/window.js';
+import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
+import { ActiveWindowManager } from '../../platform/windows/node/windowTracker.js';
+import { hasWorkspaceFileExtension } from '../../platform/workspace/common/workspace.js';
+import { IWorkspacesService } from '../../platform/workspaces/common/workspaces.js';
+import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from '../../platform/workspaces/electron-main/workspacesHistoryMainService.js';
+import { WorkspacesMainService } from '../../platform/workspaces/electron-main/workspacesMainService.js';
+import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from '../../platform/workspaces/electron-main/workspacesManagementMainService.js';
+import { IPolicyService } from '../../platform/policy/common/policy.js';
+import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
+import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
+import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
+import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
+import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
+import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
+import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
+import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
+import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
+import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
+import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
+import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
+import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
+import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
+import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
+import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
+import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
+import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from '../../platform/remote/common/electronRemoteResources.js';
+import { Lazy } from '../../base/common/lazy.js';
+import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindows.js';
+import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
+import { normalizeNFC } from '../../base/common/normalization.js';
+import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -916,14 +914,14 @@ export class CodeApplication extends Disposable {
 			} else {
 				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
-				const window = firstOrDefault(await windowsMainService.open({
+				const window = (await windowsMainService.open({
 					context: OpenContext.LINK,
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
 					gotoLineMode: true
 					// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-				}));
+				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
@@ -935,14 +933,14 @@ export class CodeApplication extends Disposable {
 		if (shouldOpenInNewWindow) {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
-			const window = firstOrDefault(await windowsMainService.open({
+			const window = (await windowsMainService.open({
 				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
 				gotoLineMode: true,
 				remoteAuthority: getRemoteAuthority(uri)
-			}));
+			})).at(0);
 
 			await window?.ready();
 
@@ -1106,6 +1104,11 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
+		if (this.productService.quality !== 'stable') {
+			// extensions signature verification service
+			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		}
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1147,9 +1150,12 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
-		// Request
-		const requestService = new RequestChannel(accessor.get(IRequestService));
-		sharedProcessClient.then(client => client.registerChannel('request', requestService));
+		if (this.productService.quality !== 'stable') {
+			// Extension signature verification service
+			const extensionSignatureVerificationService = accessor.get(IExtensionSignatureVerificationService);
+			sharedProcessClient.then(client => client.registerChannel('signatureVerificationService',
+				ProxyChannel.fromService(extensionSignatureVerificationService, disposables)));
+		}
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
