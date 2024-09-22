@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { localize } from 'vs/nls';
-import { isWeb } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Codicon } from 'vs/base/common/codicons';
-import Severity from 'vs/base/common/severity';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from '../../../services/remote/common/remoteAgentService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { localize } from '../../../../nls.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import { IBannerService } from '../../../services/banner/browser/bannerService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import Severity from '../../../../base/common/severity.js';
 
 
 const REMOTE_UNSUPPORTED_CONNECTION_CHOICE_KEY = 'remote.unsupportedConnectionChoice';

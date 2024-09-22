@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
-import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { setUnexpectedErrorHandler } from '../../common/errors.js';
+import { Emitter, Event } from '../../common/event.js';
+import { DisposableStore } from '../../common/lifecycle.js';
+import { autorun, autorunHandleChanges, derived, derivedDisposable, IObservable, IObserver, ISettableObservable, ITransaction, keepObserved, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../common/observable.js';
+import { BaseObservable } from '../../common/observableInternal/base.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('observables', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1123,6 +1125,31 @@ suite('observables', () => {
 		]);
 	});
 
+	test('bug: Event.fromObservable always should get events', () => {
+		const emitter = new Emitter();
+		const log = new Log();
+		let i = 0;
+		const obs = observableFromEvent(emitter.event, () => i);
+
+		i++;
+		emitter.fire(1);
+
+		const evt2 = Event.fromObservable(obs);
+		const d = evt2(e => {
+			log.log(`event fired ${e}`);
+		});
+
+		i++;
+		emitter.fire(2);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 2"]);
+
+		i++;
+		emitter.fire(3);
+		assert.deepStrictEqual(log.getAndClearEntries(), ["event fired 3"]);
+
+		d.dispose();
+	});
+
 	test('dont run autorun after dispose', () => {
 		const log = new Log();
 		const myObservable = new LoggingObservableValue('myObservable', 0, log);
@@ -1235,6 +1262,140 @@ suite('observables', () => {
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				'rejected {\"state\":\"error\"}'
 			]);
+		});
+
+		test('derived as lazy', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+			let i = 0;
+			const d = derivedDisposable(() => {
+				const id = i++;
+				log.log('myDerived ' + id);
+				return {
+					dispose: () => log.log(`disposed ${id}`)
+				};
+			});
+
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 0', 'disposed 0']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 1', 'disposed 1']);
+
+			d.keepObserved(store);
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 2']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ['disposed 2']);
+		});
+	});
+
+	test('observableValue', () => {
+		const log = new Log();
+		const myObservable1 = observableValue<number>('myObservable1', 0);
+		const myObservable2 = observableValue<number, { message: string }>('myObservable2', 0);
+
+		const d = autorun(reader => {
+			/** @description update */
+			const v1 = myObservable1.read(reader);
+			const v2 = myObservable2.read(reader);
+			log.log('autorun, myObservable1:' + v1 + ', myObservable2:' + v2);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		// Doesn't trigger the autorun, because no delta was provided and the value did not change
+		myObservable1.set(0, undefined);
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+		]);
+
+		// Triggers the autorun. The value did not change, but a delta value was provided
+		myObservable2.set(0, undefined, { message: 'change1' });
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		d.dispose();
+	});
+
+	suite('autorun error handling', () => {
+		test('immediate throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				myObservable.read(reader);
+				throw new Error('foobar');
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+				"error: foobar"
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
+		});
+
+		test('late throw', () => {
+			const log = new Log();
+
+			setUnexpectedErrorHandler(e => {
+				log.log(`error: ${e.message}`);
+			});
+
+			const myObservable = new LoggingObservableValue('myObservable', 0, log);
+
+			const d = autorun(reader => {
+				const value = myObservable.read(reader);
+				if (value >= 1) {
+					throw new Error('foobar');
+				}
+			});
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.firstObserverAdded",
+				"myObservable.get",
+			]);
+
+			myObservable.set(1, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 1)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			myObservable.set(2, undefined);
+
+			assert.deepStrictEqual(log.getAndClearEntries(), [
+				"myObservable.set (value 2)",
+				"myObservable.get",
+				"error: foobar",
+			]);
+
+			d.dispose();
 		});
 	});
 });

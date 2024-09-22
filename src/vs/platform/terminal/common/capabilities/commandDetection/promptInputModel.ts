@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { throttle } from 'vs/base/common/decorators';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../log/common/log.js';
+import type { ITerminalCommand } from '../capabilities.js';
+import { throttle } from '../../../../../base/common/decorators.js';
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
@@ -23,7 +21,7 @@ const enum PromptInputState {
  * A model of the prompt input state using shell integration and analyzing the terminal buffer. This
  * may not be 100% accurate but provides a best guess.
  */
-export interface IPromptInputModel {
+export interface IPromptInputModel extends IPromptInputModelState {
 	readonly onDidStartInput: Event<IPromptInputModelState>;
 	readonly onDidChangeInput: Event<IPromptInputModelState>;
 	readonly onDidFinishInput: Event<IPromptInputModelState>;
@@ -31,10 +29,6 @@ export interface IPromptInputModel {
 	 * Fires immediately before {@link onDidFinishInput} when a SIGINT/Ctrl+C/^C is detected.
 	 */
 	readonly onDidInterrupt: Event<IPromptInputModelState>;
-
-	readonly value: string;
-	readonly cursorIndex: number;
-	readonly ghostTextIndex: number;
 
 	/**
 	 * Gets the prompt input as a user-friendly string where `|` is the cursor position and `[` and
@@ -44,9 +38,35 @@ export interface IPromptInputModel {
 }
 
 export interface IPromptInputModelState {
+	/**
+	 * The full prompt input include ghost text.
+	 */
 	readonly value: string;
+	/**
+	 * The prompt input up to the cursor index, this will always exclude the ghost text.
+	 */
+	readonly prefix: string;
+	/**
+	 * The prompt input from the cursor to the end, this _does not_ include ghost text.
+	 */
+	readonly suffix: string;
+	/**
+	 * The index of the cursor in {@link value}.
+	 */
 	readonly cursorIndex: number;
+	/**
+	 * The index of the start of ghost text in {@link value}. This is -1 when there is no ghost
+	 * text.
+	 */
 	readonly ghostTextIndex: number;
+}
+
+export interface ISerializedPromptInputModel {
+	readonly modelState: IPromptInputModelState;
+	readonly commandStartX: number;
+	readonly lastPromptLine: string | undefined;
+	readonly continuationPrompt: string | undefined;
+	readonly lastUserInput: string;
 }
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
@@ -54,12 +74,15 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	private _commandStartMarker: IMarker | undefined;
 	private _commandStartX: number = 0;
+	private _lastPromptLine: string | undefined;
 	private _continuationPrompt: string | undefined;
 
 	private _lastUserInput: string = '';
 
 	private _value: string = '';
 	get value() { return this._value; }
+	get prefix() { return this._value.substring(0, this._cursorIndex); }
+	get suffix() { return this._value.substring(this._cursorIndex, this._ghostTextIndex === -1 ? undefined : this._ghostTextIndex); }
 
 	private _cursorIndex: number = 0;
 	get cursorIndex() { return this._cursorIndex; }
@@ -88,13 +111,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			this._xterm.onCursorMove,
 			this._xterm.onData,
 			this._xterm.onWriteParsed,
-		)(() => {
-			try {
-				this._sync();
-			} catch (e) {
-				this._logService.error('Error while syncing prompt input model', e);
-			}
-		}));
+		)(() => this._sync()));
 		this._register(this._xterm.onData(e => this._handleUserInput(e)));
 
 		this._register(onCommandStart(e => this._handleCommandStart(e as { marker: IMarker })));
@@ -115,6 +132,12 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	setContinuationPrompt(value: string): void {
 		this._continuationPrompt = value;
+		this._sync();
+	}
+
+	setLastPromptLine(value: string): void {
+		this._lastPromptLine = value;
+		this._sync();
 	}
 
 	setConfidentCommandLine(value: string): void {
@@ -141,6 +164,26 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		return result;
 	}
 
+	serialize(): ISerializedPromptInputModel {
+		return {
+			modelState: this._createStateObject(),
+			commandStartX: this._commandStartX,
+			lastPromptLine: this._lastPromptLine,
+			continuationPrompt: this._continuationPrompt,
+			lastUserInput: this._lastUserInput
+		};
+	}
+
+	deserialize(serialized: ISerializedPromptInputModel): void {
+		this._value = serialized.modelState.value;
+		this._cursorIndex = serialized.modelState.cursorIndex;
+		this._ghostTextIndex = serialized.modelState.ghostTextIndex;
+		this._commandStartX = serialized.commandStartX;
+		this._lastPromptLine = serialized.lastPromptLine;
+		this._continuationPrompt = serialized.continuationPrompt;
+		this._lastUserInput = serialized.lastUserInput;
+	}
+
 	private _handleCommandStart(command: { marker: IMarker }) {
 		if (this._state === PromptInputState.Input) {
 			return;
@@ -153,6 +196,17 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		this._cursorIndex = 0;
 		this._onDidStartInput.fire(this._createStateObject());
 		this._onDidChangeInput.fire(this._createStateObject());
+
+		// Trigger a sync if prompt terminator is set as that could adjust the command start X
+		if (this._lastPromptLine) {
+			if (this._commandStartX !== this._lastPromptLine.length) {
+				const line = this._xterm.buffer.active.getLine(this._commandStartMarker.line);
+				if (line?.translateToString(true).startsWith(this._lastPromptLine)) {
+					this._commandStartX = this._lastPromptLine.length;
+					this._sync();
+				}
+			}
+		}
 	}
 
 	private _handleCommandExecuted() {
@@ -181,6 +235,14 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 	@throttle(0)
 	private _sync() {
+		try {
+			this._doSync();
+		} catch (e) {
+			this._logService.error('Error while syncing prompt input model', e);
+		}
+	}
+
+	private _doSync() {
 		if (this._state !== PromptInputState.Input) {
 			return;
 		}
@@ -200,8 +262,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		let value = commandLine;
-		let cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.length + 1;
 		let ghostTextIndex = -1;
+		let cursorIndex: number;
+		if (absoluteCursorY === commandStartY) {
+			cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
+		} else {
+			cursorIndex = commandLine.trimEnd().length;
+		}
 
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
@@ -210,21 +277,33 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			ghostTextIndex = this._scanForGhostText(buffer, line, cursorIndex);
 		}
 
-		// IDEA: Detect line continuation if it's not set
-
 		// From command start line to cursor line
 		for (let y = commandStartY + 1; y <= absoluteCursorY; y++) {
 			line = buffer.getLine(y);
-			let lineText = line?.translateToString(true);
+			const lineText = line?.translateToString(true);
 			if (lineText && line) {
+				// Check if the line wrapped without a new line (continuation)
+				if (line.isWrapped) {
+					value += lineText;
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					if (absoluteCursorY === y) {
+						cursorIndex += relativeCursorIndex;
+					} else {
+						cursorIndex += lineText.length;
+					}
+				}
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
-				// user likely just pressed enter
-				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
-					lineText = this._trimContinuationPrompt(lineText);
-					value += `\n${lineText}`;
-					cursorIndex += (absoluteCursorY === y
-						? this._getRelativeCursorIndex(this._getContinuationPromptCellWidth(line, lineText), buffer, line)
-						: lineText.length + 1);
+				// user likely just pressed enter.
+				else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
+					const trimmedLineText = this._trimContinuationPrompt(lineText);
+					value += `\n${trimmedLineText}`;
+					if (absoluteCursorY === y) {
+						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
+						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
+						cursorIndex += relativeCursorIndex + 1;
+					} else {
+						cursorIndex += trimmedLineText.length + 1;
+					}
 				} else {
 					break;
 				}
@@ -278,26 +357,36 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 				}
 			}
 
-			// Adjust trimmed whitespace value based on cursor position
+			const valueLines = value.split('\n');
+			const isMultiLine = valueLines.length > 1;
 			const valueEndTrimmed = value.trimEnd();
-			if (valueEndTrimmed.length < value.length) {
-				// Handle space key
-				if (this._lastUserInput === ' ') {
-					this._lastUserInput = '';
-					if (cursorIndex > valueEndTrimmed.length && cursorIndex > this._cursorIndex) {
-						trailingWhitespace++;
+			if (!isMultiLine) {
+				// Adjust trimmed whitespace value based on cursor position
+				if (valueEndTrimmed.length < value.length) {
+					// Handle space key
+					if (this._lastUserInput === ' ') {
+						this._lastUserInput = '';
+						if (cursorIndex > valueEndTrimmed.length && cursorIndex > this._cursorIndex) {
+							trailingWhitespace++;
+						}
 					}
+					trailingWhitespace = Math.max(cursorIndex - valueEndTrimmed.length, trailingWhitespace, 0);
 				}
-				trailingWhitespace = Math.max(cursorIndex - valueEndTrimmed.length, trailingWhitespace, 0);
+
+				// Handle case where a non-space character is inserted in the middle of trailing whitespace
+				const charBeforeCursor = cursorIndex === 0 ? '' : value[cursorIndex - 1];
+				if (trailingWhitespace > 0 && cursorIndex === this._cursorIndex + 1 && this._lastUserInput !== '' && charBeforeCursor !== ' ') {
+					trailingWhitespace = this._value.length - this._cursorIndex;
+				}
 			}
 
-			// Handle case where a non-space character is inserted in the middle of trailing whitespace
-			const charBeforeCursor = cursorIndex === 0 ? '' : value[cursorIndex - 1];
-			if (trailingWhitespace > 0 && cursorIndex === this._cursorIndex + 1 && this._lastUserInput !== '' && charBeforeCursor !== ' ') {
-				trailingWhitespace = this._value.length - this._cursorIndex;
+			if (isMultiLine) {
+				valueLines[valueLines.length - 1] = valueLines.at(-1)?.trimEnd() ?? '';
+				const continuationOffset = (valueLines.length - 1) * (this._continuationPrompt?.length ?? 0);
+				trailingWhitespace = Math.max(0, cursorIndex - value.length - continuationOffset);
 			}
 
-			value = valueEndTrimmed + ' '.repeat(trailingWhitespace);
+			value = valueLines.map(e => e.trimEnd()).join('\n') + ' '.repeat(trailingWhitespace);
 		}
 
 		if (this._value !== value || this._cursorIndex !== cursorIndex || this._ghostTextIndex !== ghostTextIndex) {
@@ -387,6 +476,8 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _createStateObject(): IPromptInputModelState {
 		return Object.freeze({
 			value: this._value,
+			prefix: this.prefix,
+			suffix: this.suffix,
 			cursorIndex: this._cursorIndex,
 			ghostTextIndex: this._ghostTextIndex
 		});

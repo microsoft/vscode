@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ISpeechService } from '../common/speechService.js';
 
 export class SpeechAccessibilitySignalContribution extends Disposable implements IWorkbenchContribution {
 
@@ -17,6 +17,7 @@ export class SpeechAccessibilitySignalContribution extends Disposable implements
 		@ISpeechService private readonly _speechService: ISpeechService,
 	) {
 		super();
+
 		this._register(this._speechService.onDidStartSpeechToTextSession(() => this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStarted)));
 		this._register(this._speechService.onDidEndSpeechToTextSession(() => this._accessibilitySignalService.playSignal(AccessibilitySignal.voiceRecordingStopped)));
 	}

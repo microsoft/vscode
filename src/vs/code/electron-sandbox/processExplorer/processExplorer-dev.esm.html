@@ -1,0 +1,42 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="
+				default-src
+					'none'
+				;
+				img-src
+					'self'
+					data:
+				;
+				script-src
+					'self'
+					blob:
+					'nonce-0c6a828f1297'
+				;
+				style-src
+					'self'
+					'unsafe-inline'
+				;
+				connect-src
+					'self'
+					https:
+				;
+				font-src
+					'self'
+				;
+		">
+	</head>
+
+	<body aria-label="">
+		<div id="process-list"></div>
+	</body>
+
+	<!-- Startup (do not modify order of script tags!) -->
+	<script src="../../../../bootstrap-window.js"></script>
+	<script src="./processExplorer.js"></script>
+</html>

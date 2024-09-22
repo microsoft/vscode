@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { MainContext, MainThreadDownloadServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { MainContext, MainThreadDownloadServiceShape } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IDownloadService } from '../../../platform/download/common/download.js';
+import { UriComponents, URI } from '../../../base/common/uri.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDownloadService)
 export class MainThreadDownloadService extends Disposable implements MainThreadDownloadServiceShape {

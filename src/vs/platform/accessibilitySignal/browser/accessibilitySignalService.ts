@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CachedFunction } from 'vs/base/common/cache';
-import { getStructuralKey } from 'vs/base/common/equals';
-import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
-import { derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
-import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { CachedFunction } from '../../../base/common/cache.js';
+import { getStructuralKey } from '../../../base/common/equals.js';
+import { Event, IValueWithChangeEvent } from '../../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { FileAccess } from '../../../base/common/network.js';
+import { derived, observableFromEvent, ValueWithChangeEventFromObservable } from '../../../base/common/observable.js';
+import { localize } from '../../../nls.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalService>('accessibilitySignalService');
 
@@ -25,7 +25,7 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
-
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number;
 	/**
 	 * Avoid this method and prefer `.playSignal`!
 	 * Only use it when you want to play the sound regardless of enablement, e.g. in the settings quick pick.
@@ -66,7 +66,7 @@ export interface IAccessbilitySignalOptions {
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(
+	private readonly screenReaderAttached = observableFromEvent(this,
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -144,7 +144,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	private getVolumeInPercent(): number {
-		const volume = this.configurationService.getValue<number>('accessibilitySignals.volume');
+		const volume = this.configurationService.getValue<number>('accessibility.signalOptions.volume');
 		if (typeof volume !== 'number') {
 			return 50;
 		}
@@ -201,7 +201,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	private readonly _signalConfigValue = new CachedFunction((signal: AccessibilitySignal) => observableConfigValue<{
 		sound: EnabledState;
 		announcement: EnabledState;
-	}>(signal.settingsKey, this.configurationService));
+	}>(signal.settingsKey, { sound: 'off', announcement: 'off' }, this.configurationService));
 
 	private readonly _signalEnabledState = new CachedFunction(
 		{ getCacheKey: getStructuralKey },
@@ -238,6 +238,21 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 	public onSoundEnabledChanged(signal: AccessibilitySignal): Event<void> {
 		return this.getEnabledState(signal, false).onDidChange;
+	}
+
+	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number {
+		if (!this.configurationService.getValue('accessibility.signalOptions.debouncePositionChanges')) {
+			return 0;
+		}
+		let value: { sound: number; announcement: number };
+		if (signal.name === AccessibilitySignal.errorAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.errorAtPosition');
+		} else if (signal.name === AccessibilitySignal.warningAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.warningAtPosition');
+		} else {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.general');
+		}
+		return modality === 'sound' ? value.sound : value.announcement;
 	}
 }
 
@@ -279,6 +294,7 @@ export class Sound {
 
 	public static readonly error = Sound.register({ fileName: 'error.mp3' });
 	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly success = Sound.register({ fileName: 'success.mp3' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
@@ -325,7 +341,7 @@ export class AccessibilitySignal {
 		public readonly legacySoundSettingsKey: string | undefined,
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
-		public readonly announcementMessage: string | undefined,
+		public readonly announcementMessage: string | undefined
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -342,6 +358,7 @@ export class AccessibilitySignal {
 		settingsKey: string;
 		legacyAnnouncementSettingsKey?: string;
 		announcementMessage?: string;
+		delaySettingsKey?: string;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
 		const signal = new AccessibilitySignal(
@@ -365,12 +382,14 @@ export class AccessibilitySignal {
 		sound: Sound.error,
 		announcementMessage: localize('accessibility.signals.positionHasError', 'Error'),
 		settingsKey: 'accessibility.signals.positionHasError',
+		delaySettingsKey: 'accessibility.signalOptions.delays.errorAtPosition'
 	});
 	public static readonly warningAtPosition = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.positionHasWarning.name', 'Warning at Position'),
 		sound: Sound.warning,
 		announcementMessage: localize('accessibility.signals.positionHasWarning', 'Warning'),
 		settingsKey: 'accessibility.signals.positionHasWarning',
+		delaySettingsKey: 'accessibility.signalOptions.delays.warningAtPosition'
 	});
 
 	public static readonly errorOnLine = AccessibilitySignal.register({
@@ -465,6 +484,13 @@ export class AccessibilitySignal {
 		legacyAnnouncementSettingsKey: 'accessibility.alert.terminalCommandFailed',
 		announcementMessage: localize('accessibility.signals.terminalCommandFailed', 'Command Failed'),
 		settingsKey: 'accessibility.signals.terminalCommandFailed',
+	});
+
+	public static readonly terminalCommandSucceeded = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.terminalCommandSucceeded', 'Terminal Command Succeeded'),
+		sound: Sound.success,
+		announcementMessage: localize('accessibility.signals.terminalCommandSucceeded', 'Command Succeeded'),
+		settingsKey: 'accessibility.signals.terminalCommandSucceeded',
 	});
 
 	public static readonly terminalBell = AccessibilitySignal.register({
@@ -589,13 +615,3 @@ export class AccessibilitySignal {
 	});
 }
 
-export function observableConfigValue<T>(key: string, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key),
-	);
-}

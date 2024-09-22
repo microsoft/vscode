@@ -3,28 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Codicon } from 'vs/base/common/codicons';
-import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { localize } from '../../../../nls.js';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from './terminal.js';
+import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
+import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from '../../../common/configuration.js';
 
 // Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
 // they need to be declared at part of the rest of the terminal configuration
-import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
-import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
-import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
-import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
-import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalAccessibilityConfiguration } from '../../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalCommandGuideConfiguration } from '../../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalInitialHintConfiguration } from '../../terminalContrib/chat/common/terminalInitialHintConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalStickyScrollConfiguration } from '../../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalSuggestConfiguration } from '../../terminalContrib/suggest/common/terminalSuggestConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalTypeAheadConfiguration } from '../../terminalContrib/typeAhead/common/terminalTypeAheadConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalZoomConfiguration } from '../../terminalContrib/zoom/common/terminal.zoom.js'; // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
 	'`\${cwdFolder}`: ' + localize('cwdFolder', "the terminal's current working directory, displayed for multi-root workspaces or in a single root workspace when the value differs from the initial working directory. On Windows, this will only be displayed when shell integration is enabled."),
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched"),
+	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched"),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when surrounded by variables with values or static text.", '(` - `)'),
@@ -462,6 +465,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.ExperimentalWindowsUseConptyDll]: {
+			markdownDescription: localize('terminal.integrated.experimentalWindowsUseConptyDll', "Whether to use the experimental conpty.dll shipped with VS Code, instead of the one bundled with Windows."),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.SplitCwd]: {
 			description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),
 			type: 'string',
@@ -622,6 +630,8 @@ const terminalConfiguration: IConfigurationNode = {
 			]
 		},
 		...terminalAccessibilityConfiguration,
+		...terminalCommandGuideConfiguration,
+		...terminalInitialHintConfiguration,
 		...terminalStickyScrollConfiguration,
 		...terminalSuggestConfiguration,
 		...terminalTypeAheadConfiguration,

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getRandomElement } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { CancellationError, ErrorNoTelemetry } from 'vs/base/common/errors';
-import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import * as strings from 'vs/base/common/strings';
-import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { getRandomElement } from '../../../common/arrays.js';
+import { CancelablePromise, createCancelablePromise, timeout } from '../../../common/async.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
+import { memoize } from '../../../common/decorators.js';
+import { CancellationError, ErrorNoTelemetry } from '../../../common/errors.js';
+import { Emitter, Event, EventMultiplexer, Relay } from '../../../common/event.js';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { revive } from '../../../common/marshalling.js';
+import * as strings from '../../../common/strings.js';
+import { isFunction, isUndefinedOrNull } from '../../../common/types.js';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -426,18 +426,18 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		const id = request.id;
 
 		promise.then(data => {
-			this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseSuccess });
+			this.sendResponse({ id, data, type: ResponseType.PromiseSuccess });
 		}, err => {
 			if (err instanceof Error) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
+						stack: err.stack ? err.stack.split('\n') : undefined
 					}, type: ResponseType.PromiseError
 				});
 			} else {
-				this.sendResponse(<IRawResponse>{ id, data: err, type: ResponseType.PromiseErrorObj });
+				this.sendResponse({ id, data: err, type: ResponseType.PromiseErrorObj });
 			}
 		}).finally(() => {
 			disposable.dispose();
@@ -458,7 +458,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		const id = request.id;
 		const event = channel.listen(this.ctx, request.name, request.arg);
-		const disposable = event(data => this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.EventFire }));
+		const disposable = event(data => this.sendResponse({ id, data, type: ResponseType.EventFire }));
 
 		this.activeRequests.set(request.id, disposable);
 	}
@@ -484,7 +484,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			console.error(`Unknown channel: ${request.channelName}`);
 
 			if (request.type === RequestType.Promise) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id: request.id,
 					data: { name: 'Unknown channel', message: `Channel name '${request.channelName}' timed out after ${this.timeoutDelay}ms`, stack: undefined },
 					type: ResponseType.PromiseError
@@ -569,7 +569,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<any> {
+	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<unknown> {
 		const id = this.lastRequestId++;
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };

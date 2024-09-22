@@ -313,7 +313,7 @@ export class MarkdownItEngine implements IMdParser {
 	private _addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
 		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
-			const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
+			const title = this._tokenToPlainText(tokens[idx + 1]);
 			let slug = this.slugifier.fromHeading(title);
 
 			if (this._slugCount.has(slug.value)) {
@@ -332,6 +332,21 @@ export class MarkdownItEngine implements IMdParser {
 				return self.renderToken(tokens, idx, options);
 			}
 		};
+	}
+
+	private _tokenToPlainText(token: Token): string {
+		if (token.children) {
+			return token.children.map(x => this._tokenToPlainText(x)).join('');
+		}
+
+		switch (token.type) {
+			case 'text':
+			case 'emoji':
+			case 'code_inline':
+				return token.content;
+			default:
+				return '';
+		}
 	}
 
 	private _addLinkRenderer(md: MarkdownIt): void {

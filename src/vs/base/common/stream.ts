@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from './cancellation.js';
+import { onUnexpectedError } from './errors.js';
+import { DisposableStore, toDisposable } from './lifecycle.js';
 
 /**
  * The payload that flows in readable stream events.

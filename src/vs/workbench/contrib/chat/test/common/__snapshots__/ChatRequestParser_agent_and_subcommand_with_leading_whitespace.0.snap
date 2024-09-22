@@ -32,7 +32,7 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        extensionPublisherDisplayName: "",
+        publisherDisplayName: "",
         extensionDisplayName: "",
         extensionPublisherId: "",
         locations: [ "panel" ],
@@ -42,7 +42,8 @@
             name: "subCommand",
             description: ""
           }
-        ]
+        ],
+        disambiguation: [  ]
       },
       kind: "agent"
     },

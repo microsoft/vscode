@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ILoggerService } from 'vs/platform/log/common/log';
-import { LogService } from 'vs/platform/log/common/logService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
+import { localize } from '../../../nls.js';
+import { ILoggerService } from '../../../platform/log/common/log.js';
+import { LogService } from '../../../platform/log/common/logService.js';
+import { IExtHostInitDataService } from './extHostInitDataService.js';
 
 export class ExtHostLogService extends LogService {
 

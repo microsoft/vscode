@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
-import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { NotebookChatController } from '../../controller/chat/notebookChatController.js';
+import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { CellContentPart } from '../cellPart.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
+import { NotebookCellExecutionState } from '../../../common/notebookCommon.js';
+import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_GENERATED_BY_CHAT, NOTEBOOK_CELL_HAS_ERROR_DIAGNOSTICS } from '../../../common/notebookContextKeys.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 
 export class CellContextKeyPart extends CellContentPart {
 	private cellContextKeyManager: CellContextKeyManager;
@@ -57,7 +58,7 @@ export class CellContextKeyManager extends Disposable {
 		private readonly notebookEditor: INotebookEditorDelegate,
 		private element: ICellViewModel | undefined,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -101,7 +102,9 @@ export class CellContextKeyManager extends Disposable {
 
 		if (element instanceof CodeCellViewModel) {
 			this.elementDisposables.add(element.onDidChangeOutputs(() => this.updateForOutputs()));
-			this.elementDisposables.add(element.cellDiagnostics.onDidDiagnosticsChange(() => this.updateForDiagnostics()));
+			this.elementDisposables.add(autorun(reader => {
+				this.cellHasErrorDiagnostics.set(!!reader.readObservable(element.excecutionError));
+			}));
 		}
 
 		this.elementDisposables.add(this.notebookEditor.onDidChangeActiveCell(() => this.updateForFocusState()));
@@ -119,7 +122,6 @@ export class CellContextKeyManager extends Disposable {
 			this.updateForCollapseState();
 			this.updateForOutputs();
 			this.updateForChat();
-			this.updateForDiagnostics();
 
 			this.cellLineNumbers.set(this.element!.lineNumbers);
 			this.cellResource.set(this.element!.uri.toString());
@@ -244,11 +246,5 @@ export class CellContextKeyManager extends Disposable {
 		}
 
 		this.cellGeneratedByChat.set(chatController.isCellGeneratedByChat(this.element));
-	}
-
-	private updateForDiagnostics() {
-		if (this.element instanceof CodeCellViewModel) {
-			this.cellHasErrorDiagnostics.set(!!this.element.cellDiagnostics.ErrorDetails);
-		}
 	}
 }

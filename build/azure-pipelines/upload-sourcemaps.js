@@ -8,6 +8,7 @@ const path = require("path");
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
 const util = require("../lib/util");
+const amd_1 = require("../lib/amd");
 // @ts-ignore
 const deps = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
@@ -25,13 +26,16 @@ function src(base, maps = `${base}/**/*.map`) {
     }));
 }
 function main() {
+    if ((0, amd_1.isAMD)()) {
+        return Promise.resolve(); // in AMD we run into some issues, but we want to unblock the build for recovery
+    }
     const sources = [];
     // vscode client maps (default)
     if (!base) {
         const vs = src('out-vscode-min'); // client source-maps only
         sources.push(vs);
         const productionDependencies = deps.getProductionDependencies(root);
-        const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
+        const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => `./${d}/**/*.map`);
         const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
             .pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
             .pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));

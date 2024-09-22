@@ -2,17 +2,18 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { stub } from 'sinon';
-import { DeferredPromise, timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from 'vs/base/common/lifecycle';
-import { observableValue, transaction } from 'vs/base/common/observable';
-import { MicrotaskDelay } from 'vs/base/common/symbols';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { tail2 } from '../../common/arrays.js';
+import { DeferredPromise, timeout } from '../../common/async.js';
+import { CancellationToken } from '../../common/cancellation.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
+import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event.js';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, DisposableTracker } from '../../common/lifecycle.js';
+import { observableValue, transaction } from '../../common/observable.js';
+import { MicrotaskDelay } from '../../common/symbols.js';
+import { runWithFakedTimers } from './timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 namespace Samples {
 
@@ -366,6 +367,31 @@ suite('Event', function () {
 		assert.strictEqual(hit, true);
 		assert.deepStrictEqual(allError, [9]);
 
+	});
+
+	test('throw ListenerLeakError', () => {
+
+		const store = new DisposableStore();
+		const allError: any[] = [];
+
+		const a = ds.add(new Emitter<undefined>({
+			onListenerError(e) { allError.push(e); },
+			leakWarningThreshold: 3,
+		}));
+
+		for (let i = 0; i < 11; i++) {
+			a.event(() => { }, undefined, store);
+		}
+
+		assert.deepStrictEqual(allError.length, 5);
+		const [start, tail] = tail2(allError);
+		assert.ok(tail instanceof ListenerRefusalError);
+
+		for (const item of start) {
+			assert.ok(item instanceof ListenerLeakError);
+		}
+
+		store.dispose();
 	});
 
 	test('reusing event function and context', function () {

@@ -17,6 +17,15 @@
 	border-top-width: 0; /* no border when main editor area is hiden */
 }
 
+.monaco-workbench .part.panel.top {
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+.monaco-workbench.nomaineditorarea .part.panel.top {
+	border-bottom-width: 0; /* no border when main editor area is hiden */
+}
+
 .monaco-workbench .part.panel.right {
 	border-left-width: 1px;
 	border-left-style: solid;
@@ -80,4 +89,12 @@
 .monaco-workbench .part.basepanel.left .global-actions .codicon-panel-restore::before {
 	display: inline-block;
 	transform: rotate(90deg);
+}
+
+/* Rotate icons when panel is on left */
+.monaco-workbench .part.basepanel.top .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.top .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.top .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(180deg);
 }

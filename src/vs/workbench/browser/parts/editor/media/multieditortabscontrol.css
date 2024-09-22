@@ -134,6 +134,11 @@
 	color: var(--vscode-tab-activeForeground);
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab.selected:not(.active) {
+	background-color: var(--vscode-tab-selectedBackground);
+	color: var(--vscode-tab-selectedForeground);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.active) {
 	box-shadow: none;
 }
@@ -269,6 +274,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected.tab-border-top > .tab-border-top-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title:not(.two-tab-bars) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars .tabs-and-actions-container:not(:first-child)  .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
@@ -279,7 +285,8 @@
 	width: 100%;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected.tab-border-top > .tab-border-top-container {
 	z-index: 6;
 	top: 0;
 	height: 1px;
