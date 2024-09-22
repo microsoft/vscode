@@ -503,7 +503,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const messageResult = this._register(renderer.render(welcomeContent.message));
 			dom.append(message, messageResult.element);
 
-			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n@ to chat with extensions", '$(attach)'), { supportThemeIcons: true });
+			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(plus)'), { supportThemeIcons: true });
 			const tipsResult = this._register(renderer.render(tipsString));
 			tips.appendChild(tipsResult.element);
 		}

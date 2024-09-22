@@ -197,6 +197,7 @@ class AttachContextAction extends Action2 {
 					when: AttachContextAction._cdt,
 					id: MenuId.ChatInput,
 					group: 'navigation',
+					order: 2
 				},
 			]
 		});

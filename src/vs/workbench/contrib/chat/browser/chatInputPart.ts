@@ -70,6 +70,7 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IChatViewState } from './chatWidget.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 
 const $ = dom.$;
 
@@ -523,6 +524,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
