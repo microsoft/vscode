@@ -70,6 +70,7 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IChatViewState } from './chatWidget.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 
 const $ = dom.$;
 
@@ -77,7 +78,7 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 interface IChatInputPartOptions {
 	renderFollowups: boolean;
-	renderStyle?: 'default' | 'compact';
+	renderStyle?: 'compact';
 	menus: {
 		executeToolbar: MenuId;
 		inputSideToolbar?: MenuId;
@@ -135,6 +136,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
 		return this._inputPartHeight;
+	}
+
+	private _followupsHeight: number = 0;
+	get followupsHeight() {
+		return this._followupsHeight;
 	}
 
 	private _inputEditor!: CodeEditorWidget;
@@ -518,6 +524,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
@@ -883,6 +890,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		this._followupsHeight = data.followupsHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
