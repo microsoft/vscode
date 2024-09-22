@@ -11,19 +11,19 @@
   },
   "enabledApiProposals": [
     "documentPaste",
-    "diffContentOptions",
-    "dropMetadata"
+    "diffContentOptions"
   ],
   "activationEvents": [
     "onNotebook:jupyter-notebook",
-    "onNotebookSerializer:interactive"
+    "onNotebookSerializer:interactive",
+    "onNotebookSerializer:repl"
   ],
   "extensionKind": [
     "workspace",
     "ui"
   ],
-  "main": "./out/ipynbMain.js",
-  "browser": "./dist/browser/ipynbMain.js",
+  "main": "./out/ipynbMain.node.js",
+  "browser": "./dist/browser/ipynbMain.browser.js",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -39,6 +39,12 @@
             "scope": "resource",
             "markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
             "default": true
+          },
+          "ipynb.experimental.serialization": {
+            "type": "boolean",
+            "scope": "resource",
+            "markdownDescription": "%ipynb.experimental.serialization%",
+            "default": false
           }
         }
       }
@@ -61,6 +67,11 @@
       {
         "command": "notebook.cellOutput.copy",
         "title": "%copyCellOutput.title%",
+        "category": "Notebook"
+      },
+      {
+        "command": "notebook.cellOutput.openInTextEditor",
+        "title": "%openCellOutput.title%",
         "category": "Notebook"
       }
     ],
@@ -108,12 +119,24 @@
         {
           "command": "notebook.cellOutput.copy",
           "when": "notebookCellHasOutputs"
+        },
+        {
+          "command": "notebook.cellOutput.openInTextEditor",
+          "when": "false"
         }
       ],
       "webview/context": [
         {
           "command": "notebook.cellOutput.copy",
           "when": "webviewId == 'notebook.output' && webviewSection == 'image'"
+        },
+        {
+          "command": "notebook.cellOutput.copy",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
+        },
+        {
+          "command": "notebook.cellOutput.openInTextEditor",
+          "when": "webviewId == 'notebook.output' && webviewSection == 'text'"
         }
       ]
     }

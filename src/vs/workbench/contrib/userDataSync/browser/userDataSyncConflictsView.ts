@@ -3,29 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, IViewDescriptorService } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
-import { TreeViewPane } from 'vs/workbench/browser/parts/views/treeView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataSyncService, Change, MergeState, IUserDataSyncResource, IResourcePreview, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getSyncAreaLabel, IUserDataSyncConflictsView, IUserDataSyncWorkbenchService, SYNC_CONFLICTS_VIEW_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { basename, isEqual } from 'vs/base/common/resources';
-import * as DOM from 'vs/base/browser/dom';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Codicon } from 'vs/base/common/codicons';
-import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { ITreeItem, TreeItemCollapsibleState, TreeViewItemHandleArg, IViewDescriptorService } from '../../../common/views.js';
+import { localize } from '../../../../nls.js';
+import { TreeViewPane } from '../../../browser/parts/views/treeView.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUserDataSyncService, Change, MergeState, IUserDataSyncResource, IResourcePreview, IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { getSyncAreaLabel, IUserDataSyncConflictsView, IUserDataSyncWorkbenchService, SYNC_CONFLICTS_VIEW_ID } from '../../../services/userDataSync/common/userDataSync.js';
+import { basename, isEqual } from '../../../../base/common/resources.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
 
 type UserDataSyncConflictResource = IUserDataSyncResource & IResourcePreview;
 
@@ -44,12 +46,14 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IAccessibleViewInformationService accessibleViewVisibilityService: IAccessibleViewInformationService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, notificationService, hoverService, accessibleViewVisibilityService);
 		this._register(this.userDataSyncService.onDidChangeConflicts(() => this.treeView.refresh()));
 		this.registerActions();
 	}
@@ -88,7 +92,7 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 					label: { label: basename(resource.remoteResource), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
 					description: getSyncAreaLabel(resource.syncResource),
 					collapsibleState: TreeItemCollapsibleState.None,
-					command: { id: `workbench.actions.sync.openConflicts`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+					command: { id: `workbench.actions.sync.openConflicts`, title: '', arguments: [{ $treeViewId: '', $treeItemHandle: handle } satisfies TreeViewItemHandleArg] },
 					contextValue: `sync-conflict-resource`
 				};
 				children.push(treeItem);

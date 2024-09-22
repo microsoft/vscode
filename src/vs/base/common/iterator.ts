@@ -44,9 +44,10 @@ export namespace Iterable {
 		return iterable[Symbol.iterator]().next().value;
 	}
 
-	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => unknown): boolean {
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
 		for (const element of iterable) {
-			if (predicate(element)) {
+			if (predicate(element, i++)) {
 				return true;
 			}
 		}
@@ -79,6 +80,13 @@ export namespace Iterable {
 		let index = 0;
 		for (const element of iterable) {
 			yield fn(element, index++);
+		}
+	}
+
+	export function* flatMap<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => Iterable<R>): Iterable<R> {
+		let index = 0;
+		for (const element of iterable) {
+			yield* fn(element, index++);
 		}
 	}
 

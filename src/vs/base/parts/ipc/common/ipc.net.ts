@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IIPCLogger, IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from '../../../common/buffer.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { IIPCLogger, IMessagePassingProtocol, IPCClient } from './ipc.js';
 
 export const enum SocketDiagnosticsEventType {
 	Created = 'created',
@@ -597,6 +597,8 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	override dispose(): void {
 		super.dispose();
 		const socket = this.protocol.getSocket();
+		// should be sent gracefully with a .flush(), but try to send it out as a
+		// last resort here if nothing else:
 		this.protocol.sendDisconnect();
 		this.protocol.dispose();
 		socket.end();
@@ -808,6 +810,7 @@ export interface PersistentProtocolOptions {
 export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _isReconnecting: boolean;
+	private _didSendDisconnect?: boolean;
 
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
 	private _outgoingMsgId: number;
@@ -827,6 +830,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _socketDisposables: DisposableStore;
 
 	private readonly _loadEstimator: ILoadEstimator;
@@ -909,9 +913,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	sendDisconnect(): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
-		this._socketWriter.write(msg);
-		this._socketWriter.flush();
+		if (!this._didSendDisconnect) {
+			this._didSendDisconnect = true;
+			const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
+			this._socketWriter.write(msg);
+			this._socketWriter.flush();
+		}
 	}
 
 	sendPause(): void {

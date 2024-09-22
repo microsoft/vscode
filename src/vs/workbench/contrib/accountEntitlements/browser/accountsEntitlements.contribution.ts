@@ -3,86 +3,71 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, } from 'vs/platform/configuration/common/configurationRegistry';
-import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { isWeb } from 'vs/base/common/platform';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { applicationConfigurationNodeBase } from '../../../common/configuration.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService, asText } from '../../../../platform/request/common/request.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
-const configurationKey = 'workbench.accounts.experimental.showEntitlements';
+const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements';
 
 type EntitlementEnablementClassification = {
-	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if the account entitlement is enabled' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the entitlement is enabled' };
 	owner: 'bhavyaus';
-	comment: 'Reporting when the account entitlement is shown';
+	comment: 'Reporting when the entitlement is shown';
 };
 
 type EntitlementActionClassification = {
 	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed by the entitlement action' };
 	owner: 'bhavyaus';
-	comment: 'Reporting the account entitlement action';
+	comment: 'Reporting the entitlement action';
 };
 
-class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
+class EntitlementsContribution extends Disposable implements IWorkbenchContribution {
+
 	private isInitialized = false;
-	private contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(this.contextService);
+	private showAccountsBadgeContextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(this.contextService);
+	private readonly accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
-		@IContextKeyService readonly contextService: IContextKeyService,
-		@ICommandService readonly commandService: ICommandService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@IAuthenticationService readonly authenticationService: IAuthenticationService,
-		@IProductService readonly productService: IProductService,
-		@IStorageService readonly storageService: IStorageService,
-		@IExtensionManagementService readonly extensionManagementService: IExtensionManagementService,
-		@IActivityService readonly activityService: IActivityService,
-		@IExtensionService readonly extensionService: IExtensionService,
-		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IRequestService readonly requestService: IRequestService,
-	) {
+		@IContextKeyService private readonly contextService: IContextKeyService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IProductService private readonly productService: IProductService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IActivityService private readonly activityService: IActivityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IRequestService private readonly requestService: IRequestService) {
 		super();
 
 		if (!this.productService.gitHubEntitlement || isWeb) {
 			return;
 		}
 
-		// if previously shown, do not show again.
-		const showEntitlements = this.storageService.getBoolean(configurationKey, StorageScope.APPLICATION, true);
-		if (!showEntitlements) {
-			return;
-		}
-
-		const setting = this.configurationService.inspect<boolean>(configurationKey);
-		if (!setting.value) {
-			return;
-		}
-
-		this.extensionManagementService.getInstalled().then(exts => {
+		this.extensionManagementService.getInstalled().then(async exts => {
 			const installed = exts.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
 			if (installed) {
-				this.storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				this.contextKey.set(false);
-				return;
+				this.disableEntitlements();
 			} else {
 				this.registerListeners();
 			}
@@ -90,35 +75,42 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerListeners() {
+
+		if (this.storageService.getBoolean(accountsBadgeConfigKey, StorageScope.APPLICATION) === false) {
+			// we have already shown the entitlements. Do not show again
+			return;
+		}
+
 		this._register(this.extensionService.onDidChangeExtensions(async (result) => {
 			for (const ext of result.added) {
 				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, ext.identifier)) {
-					this.storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-					this.contextKey.set(false);
+					this.disableEntitlements();
 					return;
 				}
 			}
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async (e) => {
-			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added?.length && !this.isInitialized) {
-				this.onSessionChange(e.event.added[0]);
+			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added?.length) {
+				await this.enableEntitlements(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed?.length) {
-				this.contextKey.set(false);
+				this.showAccountsBadgeContextKey.set(false);
+				this.accountsMenuBadgeDisposable.clear();
 			}
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
-			if (e.id === this.productService.gitHubEntitlement!.providerId && !this.isInitialized) {
-				const session = await this.authenticationService.getSessions(e.id);
-				this.onSessionChange(session[0]);
+			if (e.id === this.productService.gitHubEntitlement!.providerId) {
+				await this.enableEntitlements((await this.authenticationService.getSessions(e.id))[0]);
 			}
 		}));
 	}
 
-	private async onSessionChange(session: AuthenticationSession) {
+	private async getEntitlementsInfo(session: AuthenticationSession): Promise<[enabled: boolean, org: string | undefined]> {
 
-		this.isInitialized = true;
+		if (this.isInitialized) {
+			return [false, ''];
+		}
 
 		const context = await this.requestService.request({
 			type: 'GET',
@@ -129,11 +121,11 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}, CancellationToken.None);
 
 		if (context.res.statusCode && context.res.statusCode !== 200) {
-			return;
+			return [false, ''];
 		}
 		const result = await asText(context);
 		if (!result) {
-			return;
+			return [false, ''];
 		}
 
 		let parsedResult: any;
@@ -142,25 +134,63 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}
 		catch (err) {
 			//ignore
-			return;
+			return [false, ''];
 		}
 
 		if (!(this.productService.gitHubEntitlement!.enablementKey in parsedResult) || !parsedResult[this.productService.gitHubEntitlement!.enablementKey]) {
+			this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>('entitlements.enabled', { enabled: false });
+			return [false, ''];
+		}
+		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>('entitlements.enabled', { enabled: true });
+		this.isInitialized = true;
+		const orgs: { login: string; name: string }[] = parsedResult['organization_list'] as { login: string; name: string }[];
+		return [true, orgs && orgs.length > 0 ? (orgs[0].name ? orgs[0].name : orgs[0].login) : undefined];
+	}
+
+	private async enableEntitlements(session: AuthenticationSession | undefined) {
+		if (!session) {
 			return;
 		}
 
-		this.contextKey.set(true);
-		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(configurationKey, { enabled: true });
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
+		if (installed) {
+			this.disableEntitlements();
+			return;
+		}
 
-		const orgs = parsedResult['organization_login_list'] as any[];
-		const menuTitle = orgs ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
+		const showAccountsBadge = this.configurationService.inspect<boolean>(accountsBadgeConfigKey).value ?? false;
+
+		const [enabled, org] = await this.getEntitlementsInfo(session);
+		if (enabled && showAccountsBadge) {
+			this.createAccountsBadge(org);
+			this.showAccountsBadgeContextKey.set(showAccountsBadge);
+			this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
+		}
+	}
+
+	private disableEntitlements() {
+		this.storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.showAccountsBadgeContextKey.set(false);
+		this.accountsMenuBadgeDisposable.clear();
+	}
+
+	private async createAccountsBadge(org: string | undefined) {
+
+		const menuTitle = org ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', org) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
 
 		const badge = new NumberBadge(1, () => menuTitle);
-		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
-		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
+		this.accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 
+		this.contextService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set([accountsBadgeConfigKey]))) {
+				if (!this.contextService.getContextKeyValue<boolean>(accountsBadgeConfigKey)) {
+					this.accountsMenuBadgeDisposable.clear();
+				}
+			}
+		});
 
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'workbench.action.entitlementAction',
@@ -169,7 +199,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 					menu: {
 						id: MenuId.AccountsContext,
 						group: '5_AccountsEntitlements',
-						when: ContextKeyExpr.equals(configurationKey, true),
+						when: ContextKeyExpr.equals(accountsBadgeConfigKey, true),
 					}
 				});
 			}
@@ -201,18 +231,13 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 					});
 				}
 
-				accountsMenuBadgeDisposable.clear();
-				const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
+				const contextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(contextKeyService);
 				contextKey.set(false);
-				storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
-		});
+		}));
 	}
 }
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(AccountsEntitlement, LifecyclePhase.Eventually);
-
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -227,3 +252,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+registerWorkbenchContribution2('workbench.contrib.entitlements', EntitlementsContribution, WorkbenchPhase.BlockRestore);

@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { ChecksumPair, IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { FileAccess, AppResourcePath } from 'vs/base/common/network';
-import { IChecksumService } from 'vs/platform/checksum/common/checksumService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { Codicon } from 'vs/base/common/codicons';
+import { localize } from '../../../../nls.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ChecksumPair, IIntegrityService, IntegrityTestResult } from '../common/integrity.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { FileAccess, AppResourcePath } from '../../../../base/common/network.js';
+import { IChecksumService } from '../../../../platform/checksum/common/checksumService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 interface IStorageData {
 	readonly dontShowPrompt: boolean;
@@ -75,8 +73,7 @@ export class IntegrityService implements IIntegrityService {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 		@IChecksumService private readonly checksumService: IChecksumService,
-		@ILogService private readonly logService: ILogService,
-		@IBannerService private readonly bannerService: IBannerService
+		@ILogService private readonly logService: ILogService
 	) {
 		this._compute();
 	}
@@ -89,9 +86,9 @@ export class IntegrityService implements IIntegrityService {
 
 		this.logService.warn(`
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!	Installation has been modified on disk and is UNSUPPORTED. Please reinstall !!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+----------------------------------------------
+***	Installation has been modified on disk ***
+----------------------------------------------
 
 `);
 
@@ -100,7 +97,6 @@ export class IntegrityService implements IIntegrityService {
 			return; // Do not prompt
 		}
 
-		this._showBanner();
 		this._showNotification();
 	}
 
@@ -144,22 +140,6 @@ export class IntegrityService implements IIntegrityService {
 			expected: expected,
 			isPure: (actual === expected)
 		};
-	}
-
-	private _showBanner(): void {
-		const checksumFailMoreInfoUrl = this.productService.checksumFailMoreInfoUrl;
-
-		this.bannerService.show({
-			id: 'installation.corrupt',
-			message: localize('integrity.banner', "Your {0} installation appears to be corrupt. Please reinstall.", this.productService.nameShort),
-			icon: Codicon.warning,
-			actions: checksumFailMoreInfoUrl ? [
-				{
-					label: localize('integrity.moreInformation', "More Information"),
-					href: checksumFailMoreInfoUrl
-				}
-			] : undefined
-		});
 	}
 
 	private _showNotification(): void {

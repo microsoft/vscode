@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
-import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IUserDataProfile, toUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
+import { merge } from '../../common/userDataProfilesManifestMerge.js';
+import { ISyncUserDataProfile } from '../../common/userDataSync.js';
 
 suite('UserDataProfilesManifestMerge', () => {
 

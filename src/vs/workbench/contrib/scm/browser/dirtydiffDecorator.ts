@@ -3,61 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import 'vs/css!./media/dirtydiffDecorator';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as ext from 'vs/workbench/common/contributions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IColorTheme, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { ICodeEditor, IEditorMouseEvent, isCodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
-import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { rot } from 'vs/base/common/numbers';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { basename } from 'vs/base/common/resources';
-import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition, shouldSynchronizeModel } from 'vs/editor/common/model';
-import { equals, sortedDiff } from 'vs/base/common/arrays';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ISplice } from 'vs/base/common/sequence';
-import * as dom from 'vs/base/browser/dom';
-import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { Color } from 'vs/base/common/color';
-import { ResourceMap } from 'vs/base/common/map';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
+import './media/dirtydiffDecorator.css';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import * as ext from '../../../common/contributions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ISCMService, ISCMRepository } from '../common/scm.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { IColorTheme, themeColorFromId, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { editorErrorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { ICodeEditor, IEditorMouseEvent, isCodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorContributionInstantiation } from '../../../../editor/browser/editorExtensions.js';
+import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { rot } from '../../../../base/common/numbers.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { EmbeddedDiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/embeddedDiffEditorWidget.js';
+import { IDiffEditorOptions, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Action, IAction, ActionRunner } from '../../../../base/common/actions.js';
+import { IActionBarOptions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { basename } from '../../../../base/common/resources.js';
+import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { ScrollType, IEditorContribution, IDiffEditorModel, IEditorModel, IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
+import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition, shouldSynchronizeModel } from '../../../../editor/common/model.js';
+import { equals, sortedDiff } from '../../../../base/common/arrays.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { ISplice } from '../../../../base/common/sequence.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
+import { gotoNextLocation, gotoPreviousLocation } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IChange } from '../../../../editor/common/diff/legacyLinesDiffComputer.js';
+import { Color } from '../../../../base/common/color.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IQuickDiffService, QuickDiff } from '../common/quickDiff.js';
+import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from './dirtyDiffSwitcher.js';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -787,7 +787,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number' || !this.widget.provider)) {
 			index = this.model.findNextClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
+			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex + 1, providerChanges.length)];
 		}
@@ -807,7 +807,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (this.editor.hasModel() && (typeof lineNumber === 'number')) {
 			index = this.model.findPreviousClosestChange(typeof lineNumber === 'number' ? lineNumber : this.editor.getPosition().lineNumber, true, this.widget.provider);
 		} else {
-			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value;
+			const providerChanges: number[] = this.model.mapChanges.get(this.widget.provider) ?? this.model.mapChanges.values().next().value!;
 			const mapIndex = providerChanges.findIndex(value => value === this.widget!.index);
 			index = providerChanges[rot(mapIndex - 1, providerChanges.length)];
 		}
@@ -1013,37 +1013,17 @@ const editorGutterAddedBackground = registerColor('editorGutter.addedBackground'
 	hcLight: '#48985D'
 }, nls.localize('editorGutterAddedBackground', "Editor gutter background color for lines that are added."));
 
-const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', {
-	dark: editorErrorForeground,
-	light: editorErrorForeground,
-	hcDark: editorErrorForeground,
-	hcLight: editorErrorForeground
-}, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
+const editorGutterDeletedBackground = registerColor('editorGutter.deletedBackground', editorErrorForeground, nls.localize('editorGutterDeletedBackground', "Editor gutter background color for lines that are deleted."));
 
-const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground', {
-	dark: editorGutterModifiedBackground,
-	light: editorGutterModifiedBackground,
-	hcDark: editorGutterModifiedBackground,
-	hcLight: editorGutterModifiedBackground
-}, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));
+const minimapGutterModifiedBackground = registerColor('minimapGutter.modifiedBackground', editorGutterModifiedBackground, nls.localize('minimapGutterModifiedBackground', "Minimap gutter background color for lines that are modified."));
 
-const minimapGutterAddedBackground = registerColor('minimapGutter.addedBackground', {
-	dark: editorGutterAddedBackground,
-	light: editorGutterAddedBackground,
-	hcDark: editorGutterAddedBackground,
-	hcLight: editorGutterAddedBackground
-}, nls.localize('minimapGutterAddedBackground', "Minimap gutter background color for lines that are added."));
+const minimapGutterAddedBackground = registerColor('minimapGutter.addedBackground', editorGutterAddedBackground, nls.localize('minimapGutterAddedBackground', "Minimap gutter background color for lines that are added."));
 
-const minimapGutterDeletedBackground = registerColor('minimapGutter.deletedBackground', {
-	dark: editorGutterDeletedBackground,
-	light: editorGutterDeletedBackground,
-	hcDark: editorGutterDeletedBackground,
-	hcLight: editorGutterDeletedBackground
-}, nls.localize('minimapGutterDeletedBackground', "Minimap gutter background color for lines that are deleted."));
+const minimapGutterDeletedBackground = registerColor('minimapGutter.deletedBackground', editorGutterDeletedBackground, nls.localize('minimapGutterDeletedBackground', "Minimap gutter background color for lines that are deleted."));
 
-const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', { dark: transparent(editorGutterModifiedBackground, 0.6), light: transparent(editorGutterModifiedBackground, 0.6), hcDark: transparent(editorGutterModifiedBackground, 0.6), hcLight: transparent(editorGutterModifiedBackground, 0.6) }, nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
-const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', { dark: transparent(editorGutterAddedBackground, 0.6), light: transparent(editorGutterAddedBackground, 0.6), hcDark: transparent(editorGutterAddedBackground, 0.6), hcLight: transparent(editorGutterAddedBackground, 0.6) }, nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
-const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', { dark: transparent(editorGutterDeletedBackground, 0.6), light: transparent(editorGutterDeletedBackground, 0.6), hcDark: transparent(editorGutterDeletedBackground, 0.6), hcLight: transparent(editorGutterDeletedBackground, 0.6) }, nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
+const overviewRulerModifiedForeground = registerColor('editorOverviewRuler.modifiedForeground', transparent(editorGutterModifiedBackground, 0.6), nls.localize('overviewRulerModifiedForeground', 'Overview ruler marker color for modified content.'));
+const overviewRulerAddedForeground = registerColor('editorOverviewRuler.addedForeground', transparent(editorGutterAddedBackground, 0.6), nls.localize('overviewRulerAddedForeground', 'Overview ruler marker color for added content.'));
+const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.deletedForeground', transparent(editorGutterDeletedBackground, 0.6), nls.localize('overviewRulerDeletedForeground', 'Overview ruler marker color for deleted content.'));
 
 class DirtyDiffDecorator extends Disposable {
 
@@ -1318,9 +1298,9 @@ export class DirtyDiffModel extends Disposable {
 		this.triggerDiff();
 	}
 
-	private triggerDiff(): Promise<any> {
+	private triggerDiff(): Promise<void> {
 		if (!this.diffDelayer) {
-			return Promise.resolve(null);
+			return Promise.resolve();
 		}
 
 		return this.diffDelayer
@@ -1568,12 +1548,12 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.onDidChangeConfiguration();
 
 		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
-		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
+		this._register(onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this));
 		this.onDidChangeDiffWidthConfiguration();
 
 		const onDidChangeDiffVisibilityConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterVisibility'));
-		onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibiltiyConfiguration, this);
-		this.onDidChangeDiffVisibiltiyConfiguration();
+		this._register(onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibilityConfiguration, this));
+		this.onDidChangeDiffVisibilityConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1596,7 +1576,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.setViewState({ ...this.viewState, width });
 	}
 
-	private onDidChangeDiffVisibiltiyConfiguration(): void {
+	private onDidChangeDiffVisibilityConfiguration(): void {
 		const visibility = this.configurationService.getValue<'always' | 'hover'>('scm.diffDecorationsGutterVisibility');
 		this.setViewState({ ...this.viewState, visibility });
 	}

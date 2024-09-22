@@ -5,15 +5,15 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes';
+import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor, asStatusBarItemIdentifier } from './extHostTypes.js';
 import type * as vscode from 'vscode';
-import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto, ExtHostStatusBarShape, StatusBarItemDto } from './extHost.protocol';
-import { localize } from 'vs/nls';
-import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { isNumber } from 'vs/base/common/types';
+import { MainContext, MainThreadStatusBarShape, IMainContext, ICommandDto, ExtHostStatusBarShape, StatusBarItemDto } from './extHost.protocol.js';
+import { localize } from '../../../nls.js';
+import { CommandsConverter } from './extHostCommands.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { MarkdownString } from './extHostTypeConverters.js';
+import { isNumber } from '../../../base/common/types.js';
 
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
@@ -46,6 +46,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _latestCommandRegistration?: DisposableStore;
 	private readonly _staleCommandRegistrations = new DisposableStore();
 	private _command?: {

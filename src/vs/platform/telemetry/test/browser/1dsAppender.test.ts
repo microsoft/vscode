@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type { ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
-import * as assert from 'assert';
-import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
-import { IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { OneDataSystemWebAppender } from '../../browser/1dsAppender.js';
+import { IAppInsightsCore } from '../../common/1dsAppender.js';
 
 class AppInsightsCoreMock implements IAppInsightsCore {
 	pluginVersionString: string = 'Test Runner';
@@ -28,14 +29,17 @@ suite('AIAdapter', () => {
 	const prefix = 'prefix';
 
 
+	teardown(() => {
+		adapter.flush();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		appInsightsMock = new AppInsightsCoreMock();
 		adapter = new OneDataSystemWebAppender(false, prefix, undefined!, () => appInsightsMock);
 	});
 
-	teardown(() => {
-		adapter.flush();
-	});
 
 	test('Simple event', () => {
 		adapter.log('testEvent');

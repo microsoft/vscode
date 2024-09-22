@@ -4,28 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentService, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService, IChatProgress, InteractiveSessionVoteDirection, ChatUserAction } from 'vs/workbench/contrib/chat/common/chatService';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatCodeBlockContextProviderService, showChatView } from '../../../chat/browser/chat.js';
+import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { TerminalChatWidget } from './terminalChatWidget.js';
 
-
-import { ChatModel, ChatRequestModel, IChatRequestVariableData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TerminalChatContextKeys, TerminalChatResponseTypes } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
+import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
 
 const enum Message {
 	NONE = 0,
@@ -39,84 +38,110 @@ const enum Message {
 }
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.Chat';
+	static readonly ID = 'terminal.chat';
 
 	static get(instance: ITerminalInstance): TerminalChatController | null {
 		return instance.getContribution<TerminalChatController>(TerminalChatController.ID);
 	}
 	/**
-	 * Currently focused chat widget. This is used to track action context since
-	 * 'active terminals' are only tracked for non-detached terminal instanecs.
+	 * Currently focused chat widget. This is used to track action context since 'active terminals'
+	 * are only tracked for non-detached terminal instanecs.
 	 */
 	static activeChatWidget?: TerminalChatController;
+
+	private static _storageKey = 'terminal-inline-chat-history';
+	private static _promptHistory: string[] = [];
+
+	/**
+	 * The chat widget for the controller, this is lazy as we don't want to instantiate it until
+	 * both it's required and xterm is ready.
+	 */
 	private _chatWidget: Lazy<TerminalChatWidget> | undefined;
+
+	/**
+	 * The chat widget for the controller, this will be undefined if xterm is not ready yet (ie. the
+	 * terminal is still initializing).
+	 */
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
-	private readonly _requestActiveContextKey!: IContextKey<boolean>;
-	private readonly _terminalAgentRegisteredContextKey!: IContextKey<boolean>;
-	private readonly _responseTypeContextKey!: IContextKey<TerminalChatResponseTypes | undefined>;
-	private readonly _responseSupportsIssueReportingContextKey!: IContextKey<boolean>;
-	private readonly _sessionResponseVoteContextKey!: IContextKey<string | undefined>;
+	private readonly _requestActiveContextKey: IContextKey<boolean>;
+	private readonly _responseContainsCodeBlockContextKey: IContextKey<boolean>;
+	private readonly _responseContainsMulitpleCodeBlocksContextKey: IContextKey<boolean>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
-	private _currentRequest: ChatRequestModel | undefined;
-
-	private _lastInput: string | undefined;
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
 		return this._lastResponseContent;
 	}
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
-	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
+	get onDidHide() { return this.chatWidget?.onDidHide ?? Event.None; }
 
-	private _terminalAgentId = 'terminal';
+	private _terminalAgentName = 'terminal';
 
-	private _model: ChatModel | undefined;
+	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+
+	get scopedContextKeyService(): IContextKeyService {
+		return this._chatWidget?.value.inlineChatWidget.scopedContextKeyService ?? this._contextKeyService;
+	}
+
+	private _sessionCtor: CancelablePromise<void> | undefined;
+	private _historyOffset: number = -1;
+	private _historyCandidate: string = '';
+	private _historyUpdate: (prompt: string) => void;
+
+	private _currentRequestId: string | undefined;
+	private _activeRequestCts?: CancellationTokenSource;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IConfigurationService private _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
-		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
-		this._responseTypeContextKey = TerminalChatContextKeys.responseType.bindTo(this._contextKeyService);
-		this._responseSupportsIssueReportingContextKey = TerminalChatContextKeys.responseSupportsIssueReporting.bindTo(this._contextKeyService);
-		this._sessionResponseVoteContextKey = TerminalChatContextKeys.sessionResponseVote.bindTo(this._contextKeyService);
+		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
+		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 
-		if (!this._chatAgentService.getAgent(this._terminalAgentId)) {
-			this._register(this._chatAgentService.onDidChangeAgents(() => {
-				if (this._chatAgentService.getAgent(this._terminalAgentId)) {
-					this._terminalAgentRegisteredContextKey.set(true);
+		this._register(this._chatCodeBlockContextProviderService.registerProvider({
+			getCodeBlockContext: (editor) => {
+				if (!editor || !this._chatWidget?.hasValue || !this.hasFocus()) {
+					return;
 				}
-			}));
-		} else {
-			this._terminalAgentRegisteredContextKey.set(true);
-		}
+				return {
+					element: editor,
+					code: editor.getValue(),
+					codeBlockIndex: 0,
+					languageId: editor.getModel()!.getLanguageId()
+				};
+			}
+		}, 'terminal'));
+
+		TerminalChatController._promptHistory = JSON.parse(this._storageService.get(TerminalChatController._storageKey, StorageScope.PROFILE, '[]'));
+		this._historyUpdate = (prompt: string) => {
+			const idx = TerminalChatController._promptHistory.indexOf(prompt);
+			if (idx >= 0) {
+				TerminalChatController._promptHistory.splice(idx, 1);
+			}
+			TerminalChatController._promptHistory.unshift(prompt);
+			this._historyOffset = -1;
+			this._historyCandidate = '';
+			this._storageService.store(TerminalChatController._storageKey, JSON.stringify(TerminalChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
+		};
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		if (!this._configurationService.getValue(TerminalSettingId.ExperimentalInlineChat)) {
-			return;
-		}
 		this._chatWidget = new Lazy(() => {
-
-			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance));
+			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance, xterm));
 			this._register(chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatWidget = this;
 				if (!isDetachedTerminalInstance(this._instance)) {
@@ -130,53 +155,27 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
-
 			return chatWidget;
 		});
 	}
 
-	acceptFeedback(helpful?: boolean): void {
-		const providerId = this._chatService.getProviderInfos()?.[0]?.id;
-		if (!providerId || !this._currentRequest || !this._model) {
-			return;
-		}
-		let action: ChatUserAction;
-		if (helpful === undefined) {
-			action = { kind: 'bug' };
-		} else {
-			this._sessionResponseVoteContextKey.set(helpful ? 'up' : 'down');
-			action = { kind: 'vote', direction: helpful ? InteractiveSessionVoteDirection.Up : InteractiveSessionVoteDirection.Down };
-		}
-		// TODO:extract into helper method
-		for (const request of this._model.getRequests()) {
-			if (request.response?.response.value || request.response?.result) {
-				this._chatService.notifyUserAction({
-					providerId,
-					sessionId: request.session.sessionId,
-					requestId: request.id,
-					agentId: request.response?.agent?.id,
-					result: request.response?.result,
-					action
-				});
-			}
-		}
-		this._chatWidget?.rawValue?.inlineChatWidget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
-	}
+	private async _createSession(): Promise<void> {
+		this._sessionCtor = createCancelablePromise<void>(async token => {
+			if (!this._model.value) {
+				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
 
-	cancel(): void {
-		if (this._currentRequest) {
-			this._model?.cancelRequest(this._currentRequest);
-		}
-		this._requestActiveContextKey.set(false);
-		this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
-		this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
-		this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
+				if (!this._model.value) {
+					throw new Error('Failed to start chat session');
+				}
+			}
+		});
+		this._register(toDisposable(() => this._sessionCtor?.cancel()));
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
 
 	private _updatePlaceholder(): void {
-		const inlineChatWidget = this._chatWidget?.rawValue?.inlineChatWidget;
+		const inlineChatWidget = this._chatWidget?.value.inlineChatWidget;
 		if (inlineChatWidget) {
 			inlineChatWidget.placeholder = this._getPlaceholderText();
 		}
@@ -197,117 +196,70 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	clear(): void {
-		if (this._currentRequest) {
-			this._model?.cancelRequest(this._currentRequest);
-		}
-		this._model?.dispose();
-		this._model = undefined;
-		this._chatWidget?.rawValue?.hide();
-		this._chatWidget?.rawValue?.setValue(undefined);
-		this._responseTypeContextKey.reset();
-		this._sessionResponseVoteContextKey.reset();
+		this.cancel();
+		this._model.clear();
+		this._responseContainsCodeBlockContextKey.reset();
 		this._requestActiveContextKey.reset();
+		this._chatWidget?.value.hide();
+		this._chatWidget?.value.setValue(undefined);
 	}
 
-	private updateModel(): void {
-		const providerInfo = this._chatService.getProviderInfos()?.[0];
-		if (!providerInfo) {
+	async acceptInput(isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+		assertType(this._chatWidget);
+		if (!this._model.value) {
+			await this.reveal();
+		}
+		assertType(this._model.value);
+		const lastInput = this._chatWidget.value.inlineChatWidget.value;
+		if (!lastInput) {
 			return;
 		}
-		this._model ??= this._chatService.startSession(providerInfo.id, CancellationToken.None);
-	}
-
-	async acceptInput(): Promise<void> {
-		this.updateModel();
-		this._lastInput = this._chatWidget?.rawValue?.input();
-		if (!this._lastInput) {
-			return;
-		}
-		const accessibilityRequestId = this._chatAccessibilityService.acceptRequest();
+		const model = this._model.value;
+		this._chatWidget.value.inlineChatWidget.setChatModel(model);
+		this._historyUpdate(lastInput);
+		this._activeRequestCts?.cancel();
+		this._activeRequestCts = new CancellationTokenSource();
+		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
-		const cancellationToken = new CancellationTokenSource().token;
 		let responseContent = '';
-		let firstCodeBlock: string | undefined;
-		let shellType: string | undefined;
-		const progressCallback = (progress: IChatProgress) => {
-			if (cancellationToken.isCancellationRequested) {
-				return;
-			}
-
-			if (progress.kind === 'content' || progress.kind === 'markdownContent') {
-				responseContent += progress.content;
-			}
-			if (this._currentRequest) {
-				this._model?.acceptResponseProgress(this._currentRequest, progress);
-			}
-			if (!firstCodeBlock) {
-				const firstCodeBlockContent = marked.lexer(responseContent).filter(token => token.type === 'code')?.[0]?.raw;
-				if (firstCodeBlockContent) {
-					const regex = /```(?<language>[\w\n]+)\n(?<content>[\s\S]*?)```/g;
-					const match = regex.exec(firstCodeBlockContent);
-					firstCodeBlock = match?.groups?.content.trim();
-					shellType = match?.groups?.language;
-					if (firstCodeBlock) {
-						this._chatWidget?.rawValue?.renderTerminalCommand(firstCodeBlock, shellType);
-						this._chatAccessibilityService.acceptResponse(firstCodeBlock, accessibilityRequestId);
-						this._responseTypeContextKey.set(TerminalChatResponseTypes.TerminalCommand);
-						this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
-						this._messages.fire(Message.ACCEPT_INPUT);
-					}
-				}
-			}
-		};
-
-		await this._model?.waitForInitialization();
-		const request: IParsedChatRequest = {
-			text: this._lastInput,
-			parts: []
-		};
-		const requestVarData: IChatRequestVariableData = {
-			variables: []
-		};
-		this._currentRequest = this._model?.addRequest(request, requestVarData);
-		const requestProps: IChatAgentRequest = {
-			sessionId: this._model!.sessionId,
-			requestId: this._currentRequest!.id,
-			agentId: this._terminalAgentId,
-			message: this._lastInput,
-			variables: { variables: [] },
-		};
+		const response = await this._chatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput, isVoiceInput);
+		this._currentRequestId = response?.requestId;
+		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
 		try {
-			const task = this._chatAgentService.invokeAgent(this._terminalAgentId, requestProps, progressCallback, [], cancellationToken);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateChatMessage(undefined);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateFollowUps(undefined);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(true);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo(localize('thinking', "Thinking\u2026"));
-			await task;
-		} catch (e) {
-
+			this._requestActiveContextKey.set(true);
+			if (response) {
+				store.add(response.onDidChange(async () => {
+					responseContent += response.response.value;
+					if (response.isCanceled) {
+						this._requestActiveContextKey.set(false);
+						responsePromise.complete(undefined);
+						return;
+					}
+					if (response.isComplete) {
+						this._requestActiveContextKey.set(false);
+						this._requestActiveContextKey.set(false);
+						const containsCode = responseContent.includes('```');
+						this._chatWidget!.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: response!.requestId }, false, containsCode);
+						const firstCodeBlock = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
+						const secondCodeBlock = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(1);
+						this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
+						this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
+						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
+						responsePromise.complete(response);
+					}
+				}));
+			}
+			await responsePromise.p;
+			return response;
+		} catch {
+			return;
 		} finally {
-			this._requestActiveContextKey.set(false);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateProgress(false);
-			this._chatWidget?.rawValue?.inlineChatWidget.updateInfo('');
-			this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
-			if (this._currentRequest) {
-				this._model?.completeResponse(this._currentRequest);
-			}
-			this._lastResponseContent = responseContent;
-			if (!firstCodeBlock && this._currentRequest) {
-				this._chatAccessibilityService.acceptResponse(responseContent, accessibilityRequestId);
-				this._chatWidget?.rawValue?.renderMessage(responseContent, this._currentRequest.id);
-				this._responseTypeContextKey.set(TerminalChatResponseTypes.Message);
-				this._chatWidget?.rawValue?.inlineChatWidget.updateToolbar(true);
-				this._messages.fire(Message.ACCEPT_INPUT);
-			}
-			const supportIssueReporting = this._currentRequest?.response?.agent?.metadata?.supportIssueReporting;
-			if (supportIssueReporting !== undefined) {
-				this._responseSupportsIssueReportingContextKey.set(supportIssueReporting);
-			}
+			store.dispose();
 		}
 	}
 
 	updateInput(text: string, selectAll = true): void {
-		const widget = this._chatWidget?.rawValue?.inlineChatWidget;
+		const widget = this._chatWidget?.value.inlineChatWidget;
 		if (widget) {
 			widget.value = text;
 			if (selectAll) {
@@ -317,56 +269,111 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	getInput(): string {
-		return this._chatWidget?.rawValue?.input() ?? '';
+		return this._chatWidget?.value.input() ?? '';
 	}
 
 	focus(): void {
-		this._chatWidget?.rawValue?.focus();
+		this._chatWidget?.value.focus();
 	}
 
 	hasFocus(): boolean {
-		return !!this._chatWidget?.rawValue?.hasFocus();
+		return this._chatWidget?.rawValue?.hasFocus() ?? false;
 	}
 
-	acceptCommand(shouldExecute: boolean): void {
-		this._chatWidget?.rawValue?.acceptCommand(shouldExecute);
+	populateHistory(up: boolean) {
+		if (!this._chatWidget?.value) {
+			return;
+		}
+
+		const len = TerminalChatController._promptHistory.length;
+		if (len === 0) {
+			return;
+		}
+
+		if (this._historyOffset === -1) {
+			// remember the current value
+			this._historyCandidate = this._chatWidget.value.inlineChatWidget.value;
+		}
+
+		const newIdx = this._historyOffset + (up ? 1 : -1);
+		if (newIdx >= len) {
+			// reached the end
+			return;
+		}
+
+		let entry: string;
+		if (newIdx < 0) {
+			entry = this._historyCandidate;
+			this._historyOffset = -1;
+		} else {
+			entry = TerminalChatController._promptHistory[newIdx];
+			this._historyOffset = newIdx;
+		}
+
+		this._chatWidget.value.inlineChatWidget.value = entry;
+		this._chatWidget.value.inlineChatWidget.selectAll();
 	}
 
-	reveal(): void {
-		this._chatWidget?.rawValue?.reveal();
+	cancel(): void {
+		this._sessionCtor?.cancel();
+		this._sessionCtor = undefined;
+		this._activeRequestCts?.cancel();
+		this._requestActiveContextKey.set(false);
+		const model = this._chatWidget?.value.inlineChatWidget.getChatModel();
+		if (!model?.sessionId) {
+			return;
+		}
+		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
+	}
+
+	async acceptCommand(shouldExecute: boolean): Promise<void> {
+		const code = await this.chatWidget?.inlineChatWidget.getCodeBlockInfo(0);
+		if (!code) {
+			return;
+		}
+		this._chatWidget?.value.acceptCommand(code.textEditorModel.getValue(), shouldExecute);
+	}
+
+	async reveal(): Promise<void> {
+		await this._createSession();
+		this._chatWidget?.value.reveal();
+		this._chatWidget?.value.focus();
 	}
 
 	async viewInChat(): Promise<void> {
-		const providerInfo = this._chatService.getProviderInfos()?.[0];
-		if (!providerInfo) {
+		//TODO: is this necessary? better way?
+		const widget = await showChatView(this._viewsService);
+		const currentRequest = this.chatWidget?.inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
+		if (!widget || !currentRequest?.response) {
 			return;
 		}
-		const widget = await this._chatWidgetService.revealViewForProvider(providerInfo.id);
-		if (widget && widget.viewModel && this._model) {
-			for (const request of this._model.getRequests()) {
-				if (request.response?.response.value || request.response?.result) {
-					this._chatService.addCompleteRequest(widget.viewModel.sessionId,
-						request.message as IParsedChatRequest,
-						request.variableData,
-						{
-							message: request.response.response.value,
-							result: request.response.result,
-							followups: request.response.followups
-						});
-				}
-			}
-			widget.focusLastMessage();
-		} else if (!this._model) {
-			widget?.focusInput();
-		}
-	}
 
-	override dispose() {
-		if (this._currentRequest) {
-			this._model?.cancelRequest(this._currentRequest);
+		const message: IChatProgress[] = [];
+		for (const item of currentRequest.response.response.value) {
+			if (item.kind === 'textEditGroup') {
+				for (const group of item.edits) {
+					message.push({
+						kind: 'textEdit',
+						edits: group,
+						uri: item.uri
+					});
+				}
+			} else {
+				message.push(item);
+			}
 		}
-		super.dispose();
-		this.clear();
-		this._chatWidget?.rawValue?.dispose();
+
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+			// DEBT: Add hardcoded agent name until its removed
+			`@${this._terminalAgentName} ${currentRequest.message.text}`,
+			currentRequest.variableData,
+			currentRequest.attempt,
+			{
+				message,
+				result: currentRequest.response!.result,
+				followups: currentRequest.response!.followups
+			});
+		widget.focusLastMessage();
+		this._chatWidget?.rawValue?.hide();
 	}
 }

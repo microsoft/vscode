@@ -5,15 +5,15 @@
 use crate::util::errors::{wrap, WrappedError};
 
 use flate2::read::GzDecoder;
-use std::fs;
-use std::io::Seek;
+use std::fs::{self, File};
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
 use super::errors::wrapdbg;
 use super::io::ReportCopyProgress;
 
-fn should_skip_first_segment(file: &fs::File) -> Result<bool, WrappedError> {
+fn should_skip_first_segment(file: &fs::File) -> Result<(bool, u64), WrappedError> {
 	// unfortunately, we need to re-read the archive here since you cannot reuse
 	// `.entries()`. But this will generally only look at one or two files, so this
 	// should be acceptably speedy... If not, we could hardcode behavior for
@@ -39,30 +39,35 @@ fn should_skip_first_segment(file: &fs::File) -> Result<bool, WrappedError> {
 			.to_owned()
 	};
 
-	let mut had_multiple = false;
+	let mut num_entries = 1;
+	let mut had_different_prefixes = false;
 	for file in entries.flatten() {
-		had_multiple = true;
-		if let Ok(name) = file.path() {
-			if name.iter().next() != Some(&first_name) {
-				return Ok(false);
+		if !had_different_prefixes {
+			if let Ok(name) = file.path() {
+				if name.iter().next() != Some(&first_name) {
+					had_different_prefixes = true;
+				}
 			}
 		}
+
+		num_entries += 1;
 	}
 
-	Ok(had_multiple) // prefix removal is invalid if there's only a single file
+	Ok((!had_different_prefixes && num_entries > 1, num_entries)) // prefix removal is invalid if there's only a single file
 }
 
 pub fn decompress_tarball<T>(
-	path: &Path,
+	mut tar_gz: File,
 	parent_path: &Path,
 	mut reporter: T,
 ) -> Result<(), WrappedError>
 where
 	T: ReportCopyProgress,
 {
-	let mut tar_gz = fs::File::open(path)
-		.map_err(|e| wrap(e, format!("error opening file {}", path.display())))?;
-	let skip_first = should_skip_first_segment(&tar_gz)?;
+	let (skip_first, num_entries) = should_skip_first_segment(&tar_gz)?;
+	let report_progress_every = num_entries / 20;
+	let mut entries_so_far = 0;
+	let mut last_reported_at = 0;
 
 	// reset since skip logic read the tar already:
 	tar_gz
@@ -71,12 +76,19 @@ where
 
 	let tar = GzDecoder::new(tar_gz);
 	let mut archive = Archive::new(tar);
-
-	let results = archive
+	archive
 		.entries()
-		.map_err(|e| wrap(e, format!("error opening archive {}", path.display())))?
+		.map_err(|e| wrap(e, "error opening archive"))?
 		.filter_map(|e| e.ok())
-		.map(|mut entry| {
+		.try_for_each::<_, Result<_, WrappedError>>(|mut entry| {
+			// approximate progress based on where we are in the archive:
+			entries_so_far += 1;
+			if entries_so_far - last_reported_at > report_progress_every {
+				reporter.report_progress(entries_so_far, num_entries);
+				entries_so_far += 1;
+				last_reported_at = entries_so_far;
+			}
+
 			let entry_path = entry
 				.path()
 				.map_err(|e| wrap(e, "error reading entry path"))?;
@@ -95,12 +107,21 @@ where
 			entry
 				.unpack(&path)
 				.map_err(|e| wrapdbg(e, format!("error unpacking {}", path.display())))?;
-			Ok(path)
-		})
-		.collect::<Result<Vec<PathBuf>, WrappedError>>()?;
 
-	// Tarballs don't have a way to get the number of entries ahead of time
-	reporter.report_progress(results.len() as u64, results.len() as u64);
+			Ok(())
+		})?;
+
+	reporter.report_progress(num_entries, num_entries);
 
 	Ok(())
+}
+
+pub fn has_gzip_header(path: &Path) -> std::io::Result<(File, bool)> {
+	let mut file = fs::File::open(path)?;
+	let mut header = [0; 2];
+	let _ = file.read_exact(&mut header);
+
+	file.rewind()?;
+
+	Ok((file, header[0] == 0x1f && header[1] == 0x8b))
 }

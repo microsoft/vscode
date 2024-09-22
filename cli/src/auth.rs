@@ -60,7 +60,7 @@ impl Display for AuthProvider {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			AuthProvider::Microsoft => write!(f, "Microsoft Account"),
-			AuthProvider::Github => write!(f, "Github Account"),
+			AuthProvider::Github => write!(f, "GitHub Account"),
 		}
 	}
 }
@@ -144,7 +144,7 @@ impl StoredCredential {
 				let res = match res {
 					Ok(r) => r,
 					Err(e) => {
-						warning!(log, "failed to check Github token: {}", e);
+						warning!(log, "failed to check GitHub token: {}", e);
 						return false;
 					}
 				};
@@ -154,7 +154,7 @@ impl StoredCredential {
 				}
 
 				let err = StatusError::from_res(res).await;
-				debug!(log, "github token looks expired: {:?}", err);
+				debug!(log, "GitHub token looks expired: {:?}", err);
 				true
 			}
 		}
@@ -287,7 +287,7 @@ impl StorageImplementation for ThreadKeyringStorage {
 
 #[derive(Default)]
 struct KeyringStorage {
-	// keywring storage can be split into multiple entries due to entry length limits
+	// keyring storage can be split into multiple entries due to entry length limits
 	// on Windows https://github.com/microsoft/vscode-cli/issues/358
 	entries: Vec<keyring::Entry>,
 }
@@ -480,6 +480,7 @@ impl Auth {
 		&self,
 		provider: Option<AuthProvider>,
 		access_token: Option<String>,
+		refresh_token: Option<String>,
 	) -> Result<StoredCredential, AnyError> {
 		let provider = match provider {
 			Some(p) => p,
@@ -490,8 +491,12 @@ impl Auth {
 			Some(t) => StoredCredential {
 				provider,
 				access_token: t,
-				refresh_token: None,
-				expires_at: None,
+				// if a refresh token is given, assume it's valid now but refresh it
+				// soon in order to get the real expiry time.
+				expires_at: refresh_token
+					.as_ref()
+					.map(|_| Utc::now() + chrono::Duration::minutes(5)),
+				refresh_token,
 			},
 			None => self.do_device_code_flow_with_provider(provider).await?,
 		};
@@ -678,7 +683,7 @@ impl Auth {
 		if !*IS_INTERACTIVE_CLI {
 			info!(
 				self.log,
-				"Using Github for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
+				"Using GitHub for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
 				APPLICATION_NAME
 			);
 			return Ok(AuthProvider::Github);
@@ -718,7 +723,7 @@ impl Auth {
 
 			match &init_code_json.message {
 				Some(m) => self.log.result(m),
-				None => self.log.result(&format!(
+				None => self.log.result(format!(
 					"To grant access to the server, please log into {} and use code {}",
 					init_code_json.verification_uri, init_code_json.user_code
 				)),

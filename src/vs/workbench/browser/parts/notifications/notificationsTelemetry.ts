@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService, NotificationMessage, NotificationPriority } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { hash } from 'vs/base/common/hash';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { INotificationService, NotificationMessage, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { hash } from '../../../../base/common/hash.js';
 
 export interface NotificationMetrics {
 	readonly id: string;
@@ -17,7 +17,7 @@ export interface NotificationMetrics {
 
 export type NotificationMetricsClassification = {
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the source of the notification.' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the notification is silent or not.' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the notification is silent or not.' };
 	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the notification.' };
 	owner: 'bpasero';
 	comment: 'Helps us gain insights to what notifications are being shown, how many, and if they are silent or not.';

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { ISplice } from 'vs/base/common/sequence';
-import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
+import { CancellationToken } from './cancellation.js';
+import { CancellationError } from './errors.js';
+import { ISplice } from './sequence.js';
 
 /**
  * Returns the last element of an array.
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
 	return array[array.length - (1 + n)];
 }
 
@@ -341,7 +341,7 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
  * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	return <T[]>array.filter(e => !!e);
+	return array.filter((e): e is T => !!e);
 }
 
 /**
@@ -361,7 +361,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts 
 /**
  * @deprecated Use `Array.copyWithin` instead
  */
-export function move(array: any[], from: number, to: number): void {
+export function move(array: unknown[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
 }
 
@@ -385,7 +385,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
  * Removes duplicates from the given array. The optional keyFn allows to specify
  * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknown = value => value): T[] {
 	const seen = new Set<any>();
 
 	return array.filter(element => {
@@ -413,18 +413,6 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 	};
 }
 
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[0] : notFoundValue;
-}
-
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[array.length - 1] : notFoundValue;
-}
-
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
@@ -433,13 +421,6 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	}
 
 	return result;
-}
-
-/**
- * @deprecated Use `[].flat()`
- */
-export function flatten<T>(arr: T[][]): T[] {
-	return (<T[]>[]).concat(...arr);
 }
 
 export function range(to: number): number[];
@@ -858,4 +839,52 @@ export class CallbackIterable<T> {
 		});
 		return result;
 	}
+}
+
+/**
+ * Represents a re-arrangement of items in an array.
+ */
+export class Permutation {
+	constructor(private readonly _indexMap: readonly number[]) { }
+
+	/**
+	 * Returns a permutation that sorts the given array according to the given compare function.
+	 */
+	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
+		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
+		return new Permutation(sortIndices);
+	}
+
+	/**
+	 * Returns a new array with the elements of the given array re-arranged according to this permutation.
+	 */
+	apply<T>(arr: readonly T[]): T[] {
+		return arr.map((_, index) => arr[this._indexMap[index]]);
+	}
+
+	/**
+	 * Returns a new permutation that undoes the re-arrangement of this permutation.
+	*/
+	inverse(): Permutation {
+		const inverseIndexMap = this._indexMap.slice();
+		for (let i = 0; i < this._indexMap.length; i++) {
+			inverseIndexMap[this._indexMap[i]] = i;
+		}
+		return new Permutation(inverseIndexMap);
+	}
+}
+
+/**
+ * Asynchronous variant of `Array.find()`, returning the first element in
+ * the array for which the predicate returns true.
+ *
+ * This implementation does not bail early and waits for all promises to
+ * resolve before returning.
+ */
+export async function findAsync<T>(array: readonly T[], predicate: (element: T, index: number) => Promise<boolean>): Promise<T | undefined> {
+	const results = await Promise.all(array.map(
+		async (element, index) => ({ element, ok: await predicate(element, index) })
+	));
+
+	return results.find(r => r.ok)?.element;
 }

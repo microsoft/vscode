@@ -3,24 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
-import { getCodeActions } from './codeAction';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancelablePromise, createCancelablePromise, TimeoutTimer } from '../../../../base/common/async.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorOption, ShowLightbulbIconMode } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Selection } from '../../../common/core/selection.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { CodeActionProvider, CodeActionTriggerType } from '../../../common/languages.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IMarkerService } from '../../../../platform/markers/common/markers.js';
+import { IEditorProgressService, Progress } from '../../../../platform/progress/common/progress.js';
+import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types.js';
+import { getCodeActions } from './codeAction.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
@@ -171,6 +174,7 @@ export class CodeActionModel extends Disposable {
 		contextKeyService: IContextKeyService,
 		private readonly _progressService?: IEditorProgressService,
 		private readonly _configurationService?: IConfigurationService,
+		private readonly _telemetryService?: ITelemetryService
 	) {
 		super();
 		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
@@ -235,7 +239,7 @@ export class CodeActionModel extends Disposable {
 						}
 
 						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
+						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
@@ -314,13 +318,59 @@ export class CodeActionModel extends Disposable {
 							}
 						}
 					}
-					// temporarilly hiding here as this is enabled/disabled behind a setting.
+
+					// Case for manual triggers - specifically Source Actions and Refactors
+					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
+						const sw = new StopWatch();
+						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+
+						// Telemetry for duration of each code action on save.
+						if (this._telemetryService) {
+							type RenderActionMenu = {
+								codeActions: number;
+								duration: number;
+							};
+
+							type RenderActionMenuClassification = {
+								owner: 'justschen';
+								comment: 'Information about how long it took for code actions to be received from the provider and shown in the UI.';
+								codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of valid code actions received from TS.' };
+								duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration it took for TS to return the action to run for each kind. ' };
+							};
+
+							this._telemetryService.publicLog2<RenderActionMenu, RenderActionMenuClassification>('codeAction.invokedDurations', {
+								codeActions: codeActions.validActions.length,
+								duration: sw.elapsed()
+							});
+						}
+
+						return codeActions;
+					}
+
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}
-				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
+				const newState = new CodeActionsState.Triggered(trigger.trigger, startPosition, actions);
+				let isManualToAutoTransition = false;
+				if (this._state.type === CodeActionsState.Type.Triggered) {
+					// Check if the current state is manual and the new state is automatic
+					isManualToAutoTransition = this._state.trigger.type === CodeActionTriggerType.Invoke &&
+						newState.type === CodeActionsState.Type.Triggered &&
+						newState.trigger.type === CodeActionTriggerType.Auto &&
+						this._state.position !== newState.position;
+				}
+
+				// Do not trigger state if current state is manual and incoming state is automatic
+				if (!isManualToAutoTransition) {
+					this.setState(newState);
+				} else {
+					// Reset the new state after getting code actions back.
+					setTimeout(() => {
+						this.setState(newState);
+					}, 500);
+				}
 			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {

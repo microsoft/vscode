@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { EndOfLineSequence, FindMatch, SearchData } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { getMapForWordSeparators } from '../../../common/core/wordCharacterClassifier.js';
+import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
+import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { createTextModel } from '../testTextModel.js';
 
 // --------- Find
 suite('TextModelSearch', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
+	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS, []);
 
 	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepStrictEqual(actual, new FindMatch(expectedRange, expectedMatches));

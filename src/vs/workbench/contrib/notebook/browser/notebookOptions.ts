@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { CodeWindow } from 'vs/base/browser/window';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isObject } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { BareFontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from '../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../common/notebookExecutionStateService.js';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -40,12 +41,18 @@ export interface NotebookDisplayOptions { // TODO @Yoyokrazy rename to a more ge
 	outputWordWrap: boolean;
 	outputLineLimit: number;
 	outputLinkifyFilePaths: boolean;
+	outputMinimalError: boolean;
 	fontSize: number;
 	outputFontSize: number;
 	outputFontFamily: string;
 	outputLineHeight: number;
 	markupFontSize: number;
-	editorOptionsCustomizations: any | undefined;
+	markdownLineHeight: number;
+	editorOptionsCustomizations: Partial<{
+		'editor.indentSize': 'tabSize' | number;
+		'editor.tabSize': number;
+		'editor.insertSpaces': boolean;
+	}> | undefined;
 }
 
 export interface NotebookLayoutConfiguration {
@@ -90,6 +97,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly fontSize?: boolean;
 	readonly outputFontSize?: boolean;
 	readonly markupFontSize?: boolean;
+	readonly markdownLineHeight?: boolean;
 	readonly fontFamily?: boolean;
 	readonly outputFontFamily?: boolean;
 	readonly editorOptionsCustomizations?: boolean;
@@ -98,6 +106,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly outputWordWrap?: boolean;
 	readonly outputScrolling?: boolean;
 	readonly outputLinkifyFilePaths?: boolean;
+	readonly minimalError?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({
@@ -128,11 +137,11 @@ export class NotebookOptions extends Disposable {
 
 	constructor(
 		readonly targetWindow: CodeWindow,
-		private readonly configurationService: IConfigurationService,
-		private readonly notebookExecutionStateService: INotebookExecutionStateService,
-		private readonly codeEditorService: ICodeEditorService,
 		private isReadonly: boolean,
-		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean }
+		private readonly overrides: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean } | undefined,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
@@ -152,7 +161,13 @@ export class NotebookOptions extends Disposable {
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
-		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
+		const markdownLineHeight = this.configurationService.getValue<number>(NotebookSetting.markdownLineHeight);
+		let editorOptionsCustomizations = this.configurationService.getValue<Partial<{
+			'editor.indentSize': 'tabSize' | number;
+			'editor.tabSize': number;
+			'editor.insertSpaces': boolean;
+		}>>(NotebookSetting.cellEditorOptionsCustomizations) ?? {};
+		editorOptionsCustomizations = isObject(editorOptionsCustomizations) ? editorOptionsCustomizations : {};
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 
 		// TOOD @rebornix remove after a few iterations of deprecated setting
@@ -196,6 +211,7 @@ export class NotebookOptions extends Disposable {
 		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
 		const linkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths) ?? true;
+		const minimalErrors = this.configurationService.getValue<boolean>(NotebookSetting.minimalErrorRendering);
 
 		const editorTopPadding = this._computeEditorTopPadding();
 
@@ -233,6 +249,7 @@ export class NotebookOptions extends Disposable {
 			outputFontFamily,
 			outputLineHeight,
 			markupFontSize,
+			markdownLineHeight,
 			editorOptionsCustomizations,
 			focusIndicatorGap: 3,
 			interactiveWindowCollapseCodeCells,
@@ -240,7 +257,8 @@ export class NotebookOptions extends Disposable {
 			outputScrolling: outputScrolling,
 			outputWordWrap: outputWordWrap,
 			outputLineLimit: outputLineLimit,
-			outputLinkifyFilePaths: linkifyFilePaths
+			outputLinkifyFilePaths: linkifyFilePaths,
+			outputMinimalError: minimalErrors
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -397,6 +415,7 @@ export class NotebookOptions extends Disposable {
 		const fontSize = e.affectsConfiguration('editor.fontSize');
 		const outputFontSize = e.affectsConfiguration(NotebookSetting.outputFontSize);
 		const markupFontSize = e.affectsConfiguration(NotebookSetting.markupFontSize);
+		const markdownLineHeight = e.affectsConfiguration(NotebookSetting.markdownLineHeight);
 		const fontFamily = e.affectsConfiguration('editor.fontFamily');
 		const outputFontFamily = e.affectsConfiguration(NotebookSetting.outputFontFamily);
 		const editorOptionsCustomizations = e.affectsConfiguration(NotebookSetting.cellEditorOptionsCustomizations);
@@ -405,6 +424,7 @@ export class NotebookOptions extends Disposable {
 		const outputScrolling = e.affectsConfiguration(NotebookSetting.outputScrolling);
 		const outputWordWrap = e.affectsConfiguration(NotebookSetting.outputWordWrap);
 		const outputLinkifyFilePaths = e.affectsConfiguration(NotebookSetting.LinkifyOutputFilePaths);
+		const minimalError = e.affectsConfiguration(NotebookSetting.minimalErrorRendering);
 
 		if (
 			!cellStatusBarVisibility
@@ -424,6 +444,7 @@ export class NotebookOptions extends Disposable {
 			&& !fontSize
 			&& !outputFontSize
 			&& !markupFontSize
+			&& !markdownLineHeight
 			&& !fontFamily
 			&& !outputFontFamily
 			&& !editorOptionsCustomizations
@@ -431,7 +452,8 @@ export class NotebookOptions extends Disposable {
 			&& !outputLineHeight
 			&& !outputScrolling
 			&& !outputWordWrap
-			&& !outputLinkifyFilePaths) {
+			&& !outputLinkifyFilePaths
+			&& !minimalError) {
 			return;
 		}
 
@@ -509,6 +531,10 @@ export class NotebookOptions extends Disposable {
 			configuration.markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		}
 
+		if (markdownLineHeight) {
+			configuration.markdownLineHeight = this.configurationService.getValue<number>(NotebookSetting.markdownLineHeight);
+		}
+
 		if (outputFontFamily) {
 			configuration.outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
 		}
@@ -538,6 +564,10 @@ export class NotebookOptions extends Disposable {
 			configuration.outputLinkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths);
 		}
 
+		if (minimalError) {
+			configuration.outputMinimalError = this.configurationService.getValue<boolean>(NotebookSetting.minimalErrorRendering);
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -559,6 +589,7 @@ export class NotebookOptions extends Disposable {
 			fontSize,
 			outputFontSize,
 			markupFontSize,
+			markdownLineHeight,
 			fontFamily,
 			outputFontFamily,
 			editorOptionsCustomizations,
@@ -566,7 +597,8 @@ export class NotebookOptions extends Disposable {
 			outputLineHeight,
 			outputScrolling,
 			outputWordWrap,
-			outputLinkifyFilePaths: outputLinkifyFilePaths
+			outputLinkifyFilePaths,
+			minimalError
 		});
 	}
 
@@ -775,11 +807,13 @@ export class NotebookOptions extends Disposable {
 			outputFontSize: this._layoutConfiguration.outputFontSize,
 			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
+			markdownLineHeight: this._layoutConfiguration.markdownLineHeight,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
 			outputLinkifyFilePaths: this._layoutConfiguration.outputLinkifyFilePaths,
+			minimalError: this._layoutConfiguration.outputMinimalError
 		};
 	}
 
@@ -797,11 +831,13 @@ export class NotebookOptions extends Disposable {
 			outputFontSize: this._layoutConfiguration.outputFontSize,
 			outputFontFamily: this._layoutConfiguration.outputFontFamily,
 			markupFontSize: this._layoutConfiguration.markupFontSize,
+			markdownLineHeight: this._layoutConfiguration.markdownLineHeight,
 			outputLineHeight: this._layoutConfiguration.outputLineHeight,
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
-			outputLinkifyFilePaths: false
+			outputLinkifyFilePaths: false,
+			minimalError: false
 		};
 	}
 

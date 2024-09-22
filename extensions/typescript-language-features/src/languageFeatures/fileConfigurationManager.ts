@@ -5,12 +5,12 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../tsServer/protocol/protocol';
-import { API } from '../tsServer/api';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../configuration/fileSchemes';
 import { isTypeScriptDocument } from '../configuration/languageIds';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { Disposable } from '../utils/dispose';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -191,14 +191,16 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
-			// @ts-expect-error until 5.3 #56090
+			autoImportSpecifierExcludeRegexes: preferencesConfig.get<string[]>('autoImportSpecifierExcludeRegexes'),
 			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
 			interactiveInlayHints: true,
+			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
 			...getInlayHintsPreferences(config),
+			...this.getOrganizeImportsPreferences(preferencesConfig),
 		};
 
 		return preferences;
@@ -208,21 +210,42 @@ export default class FileConfigurationManager extends Disposable {
 		switch (config.get<string>('quoteStyle')) {
 			case 'single': return 'single';
 			case 'double': return 'double';
-			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
+			default: return 'auto';
 		}
 	}
 
 	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
 		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
-			const slashNormalized = p.replace(/\\/g, '/');
-			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			const isRelative = /^\.\.?($|[\/\\])/.test(p);
+			// In TypeScript < 5.3, the first path component cannot be a wildcard, so we need to prefix
+			// it with a path root (e.g. `/` or `c:\`)
+			const wildcardPrefix = this.client.apiVersion.gte(API.v540)
+				? ''
+				: path.parse(this.client.toTsFilePath(workspaceFolder)!).root;
 			return path.isAbsolute(p) ? p :
-				p.startsWith('*') ? '/' + slashNormalized :
-					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
-						'/**/' + slashNormalized;
+				p.startsWith('*') ? wildcardPrefix + p :
+					isRelative ? this.client.toTsFilePath(vscode.Uri.joinPath(workspaceFolder, p))! :
+						wildcardPrefix + '**' + path.sep + p;
 		});
 	}
+
+	private getOrganizeImportsPreferences(config: vscode.WorkspaceConfiguration): Proto.UserPreferences {
+		return {
+			// More specific settings
+			organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
+			organizeImportsCaseFirst: withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower'>('organizeImports.caseFirst', 'default'), 'default'),
+			organizeImportsCollation: config.get<'ordinal' | 'unicode'>('organizeImports.collation'),
+			organizeImportsIgnoreCase: withDefaultAsUndefined(config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity'), 'auto'),
+			organizeImportsLocale: config.get<string>('organizeImports.locale'),
+			organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
+			organizeImportsTypeOrder: withDefaultAsUndefined(config.get<'auto' | 'last' | 'inline' | 'first'>('organizeImports.typeOrder', 'auto'), 'auto'),
+		};
+	}
+}
+
+function withDefaultAsUndefined<T, O extends T>(value: T, def: O): Exclude<T, O> | undefined {
+	return value === def ? undefined : value as Exclude<T, O>;
 }
 
 export class InlayHintSettingNames {

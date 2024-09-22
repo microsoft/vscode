@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { basename, dirname, join, normalize, sep } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { rtrim } from 'vs/base/common/strings';
-import { Promises, readdirSync } from 'vs/base/node/pfs';
+import { CancellationToken } from '../common/cancellation.js';
+import { basename, dirname, join, normalize, sep } from '../common/path.js';
+import { isLinux } from '../common/platform.js';
+import { rtrim } from '../common/strings.js';
+import { Promises, readdirSync } from './pfs.js';
 
 /**
  * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
@@ -58,7 +59,7 @@ export function realcaseSync(path: string): string | null {
 	return null;
 }
 
-export async function realcase(path: string): Promise<string | null> {
+export async function realcase(path: string, token?: CancellationToken): Promise<string | null> {
 	if (isLinux) {
 		// This method is unsupported on OS that have case sensitive
 		// file system where the same path can exist in different forms
@@ -73,11 +74,15 @@ export async function realcase(path: string): Promise<string | null> {
 
 	const name = (basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
 	try {
+		if (token?.isCancellationRequested) {
+			return null;
+		}
+
 		const entries = await Promises.readdir(dir);
 		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search
 		if (found.length === 1) {
 			// on a case sensitive filesystem we cannot determine here, whether the file exists or not, hence we need the 'file exists' precondition
-			const prefix = await realcase(dir);   // recurse
+			const prefix = await realcase(dir, token);   // recurse
 			if (prefix) {
 				return join(prefix, found[0]);
 			}
@@ -85,7 +90,7 @@ export async function realcase(path: string): Promise<string | null> {
 			// must be a case sensitive $filesystem
 			const ix = found.indexOf(name);
 			if (ix >= 0) {	// case sensitive
-				const prefix = await realcase(dir);   // recurse
+				const prefix = await realcase(dir, token);   // recurse
 				if (prefix) {
 					return join(prefix, found[ix]);
 				}
@@ -114,7 +119,7 @@ export async function realpath(path: string): Promise<string> {
 		// to not resolve links but to simply see if the path is read accessible or not.
 		const normalizedPath = normalizePath(path);
 
-		await Promises.access(normalizedPath, fs.constants.R_OK);
+		await fs.promises.access(normalizedPath, fs.constants.R_OK);
 
 		return normalizedPath;
 	}

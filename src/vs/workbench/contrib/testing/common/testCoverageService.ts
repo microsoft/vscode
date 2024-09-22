@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, observableValue } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestRunTaskResults } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { TestingConfigKeys } from './configuration.js';
+import { Testing } from './constants.js';
+import { TestCoverage } from './testCoverage.js';
+import { TestId } from './testId.js';
+import { ITestRunTaskResults } from './testResult.js';
+import { ITestResultService } from './testResultService.js';
+import { TestingContextKeys } from './testingContextKeys.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 export const ITestCoverageService = createDecorator<ITestCoverageService>('testCoverageService');
 
@@ -27,6 +30,16 @@ export interface ITestCoverageService {
 	 * currently in the editor.
 	 */
 	readonly selected: IObservable<TestCoverage | undefined>;
+
+	/**
+	 * Filter to per-test coverage from the given test ID.
+	 */
+	readonly filterToTest: ISettableObservable<TestId | undefined>;
+
+	/**
+	 * Whether inline coverage is shown.
+	 */
+	readonly showInline: ISettableObservable<boolean>;
 
 	/**
 	 * Opens a test coverage report from a task, optionally focusing it in the editor.
@@ -41,19 +54,50 @@ export interface ITestCoverageService {
 
 export class TestCoverageService extends Disposable implements ITestCoverageService {
 	declare readonly _serviceBrand: undefined;
-	private readonly _isOpenKey: IContextKey<boolean>;
 	private readonly lastOpenCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	public readonly selected = observableValue<TestCoverage | undefined>('testCoverage', undefined);
+	public readonly filterToTest = observableValue<TestId | undefined>('filterToTest', undefined);
+	public readonly showInline = observableValue('inlineCoverage', false);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITestResultService resultService: ITestResultService,
+		@IConfigurationService configService: IConfigurationService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
-		this._isOpenKey = TestingContextKeys.isTestCoverageOpen.bindTo(contextKeyService);
+
+		const toolbarConfig = observableConfigValue(TestingConfigKeys.CoverageToolbarEnabled, true, configService);
+		this._register(bindContextKey(
+			TestingContextKeys.coverageToolbarEnabled,
+			contextKeyService,
+			reader => toolbarConfig.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.inlineCoverageEnabled,
+			contextKeyService,
+			reader => this.showInline.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.isTestCoverageOpen,
+			contextKeyService,
+			reader => !!this.selected.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.hasPerTestCoverage,
+			contextKeyService,
+			reader => !Iterable.isEmpty(this.selected.read(reader)?.allPerTestIDs()),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.isCoverageFilteredToTest,
+			contextKeyService,
+			reader => !!this.filterToTest.read(reader),
+		));
 
 		this._register(resultService.onResultsChanged(evt => {
 			if ('completed' in evt) {
@@ -76,21 +120,16 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 	public async openCoverage(task: ITestRunTaskResults, focus = true) {
 		this.lastOpenCts.value?.cancel();
 		const cts = this.lastOpenCts.value = new CancellationTokenSource();
-		const getCoverage = task.coverage.get();
-		if (!getCoverage) {
+		const coverage = task.coverage.get();
+		if (!coverage) {
 			return;
 		}
 
-		try {
-			const coverage = await getCoverage(cts.token);
-			this.selected.set(coverage, undefined);
-			this._isOpenKey.set(true);
-		} catch (e) {
-			if (!cts.token.isCancellationRequested) {
-				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {0}', String(e)));
-			}
-			return;
-		}
+		transaction(tx => {
+			// todo: may want to preserve this if coverage for that test in the new run?
+			this.filterToTest.set(undefined, tx);
+			this.selected.set(coverage, tx);
+		});
 
 		if (focus && !cts.token.isCancellationRequested) {
 			this.viewsService.openView(Testing.CoverageViewId, true);
@@ -99,7 +138,6 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 
 	/** @inheritdoc */
 	public closeCoverage() {
-		this._isOpenKey.set(false);
 		this.selected.set(undefined, undefined);
 	}
 }

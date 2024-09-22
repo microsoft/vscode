@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { Emitter, Event } from './event.js';
+import { Disposable, IDisposable } from './lifecycle.js';
+import * as nls from '../../nls.js';
 
 export interface ITelemetryData {
 	readonly from?: string;
@@ -258,14 +258,14 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
+export function toAction(props: { id: string; label: string; tooltip?: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,
+		tooltip: props.tooltip ?? props.label,
 		class: props.class,
 		enabled: props.enabled ?? true,
 		checked: props.checked,
 		run: async (...args: unknown[]) => props.run(...args),
-		tooltip: props.label
 	};
 }

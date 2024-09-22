@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { distinct } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionsWorkbenchService } from '../common/extensions.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { localize } from '../../../../nls.js';
+import { distinct } from '../../../../base/common/arrays.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 
 export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.checkForDeprecatedExtensions();
@@ -45,7 +44,7 @@ export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenc
 		}
 		const local = await this.extensionsWorkbenchService.queryLocal();
 		const previouslyNotified = this.getNotifiedDeprecatedExtensions();
-		const toNotify = local.filter(e => !!e.deprecationInfo).filter(e => !previouslyNotified.includes(e.identifier.id.toLowerCase()));
+		const toNotify = local.filter(e => !!e.deprecationInfo && e.local && this.extensionEnablementService.isEnabled(e.local)).filter(e => !previouslyNotified.includes(e.identifier.id.toLowerCase()));
 		if (toNotify.length) {
 			this.notificationService.prompt(
 				Severity.Warning,
@@ -54,12 +53,7 @@ export class DeprecatedExtensionsChecker extends Disposable implements IWorkbenc
 					label: localize('showDeprecated', "Show Deprecated Extensions"),
 					run: async () => {
 						this.setNotifiedDeprecatedExtensions(toNotify.map(e => e.identifier.id.toLowerCase()));
-						const action = this.instantiationService.createInstance(SearchExtensionsAction, toNotify.map(extension => `@id:${extension.identifier.id}`).join(' '));
-						try {
-							await action.run();
-						} finally {
-							action.dispose();
-						}
+						await this.extensionsWorkbenchService.openSearch(toNotify.map(extension => `@id:${extension.identifier.id}`).join(' '));
 					}
 				}, {
 					label: localize('neverShowAgain', "Don't Show Again"),

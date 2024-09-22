@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/path';
-import * as Json from 'vs/base/common/json';
-import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
-import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { URI } from 'vs/base/common/uri';
-import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
-import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
-import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { CharCode } from 'vs/base/common/charCode';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { basename } from '../../../../base/common/path.js';
+import * as Json from '../../../../base/common/json.js';
+import { Color } from '../../../../base/common/color.js';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_SCOPE_CLOSE_PAREN, THEME_SCOPE_OPEN_PAREN, themeScopeRegex, THEME_SCOPE_WILDCARD, VS_HC_LIGHT_THEME } from './workbenchThemeService.js';
+import { convertSettings } from './themeCompatibility.js';
+import * as nls from '../../../../nls.js';
+import * as types from '../../../../base/common/types.js';
+import * as resources from '../../../../base/common/resources.js';
+import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry.js';
+import { ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
+import { URI } from '../../../../base/common/uri.js';
+import { parse as parsePList } from './plistParser.js';
+import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
+import { MatcherWithPriority, Matcher, createMatchers } from './textMateScopeMatcher.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ThemeConfiguration } from './themeConfiguration.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -45,6 +45,10 @@ export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDe
 
 export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope };
 
+interface IColorOrDefaultMap {
+	[id: string]: Color | typeof DEFAULT_COLOR_CONFIG_VALUE;
+}
+
 export class ColorThemeData implements IWorkbenchColorTheme {
 
 	static readonly STORAGE_KEY = 'colorThemeData';
@@ -65,7 +69,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private themeTokenColors: ITextMateThemingRule[] = [];
 	private customTokenColors: ITextMateThemingRule[] = [];
 	private colorMap: IColorMap = {};
-	private customColorMap: IColorMap = {};
+	private customColorMap: IColorOrDefaultMap = {};
 
 	private semanticTokenRules: SemanticTokenRule[] = [];
 	private customSemanticTokenRules: SemanticTokenRule[] = [];
@@ -132,15 +136,20 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		let color: Color | undefined = this.customColorMap[colorId];
-		if (color) {
-			return color;
+		const customColor = this.customColorMap[colorId];
+		if (customColor instanceof Color) {
+			return customColor;
 		}
-		color = this.colorMap[colorId];
-		if (useDefault !== false && types.isUndefined(color)) {
-			color = this.getDefault(colorId);
+		if (customColor === undefined) { /* !== DEFAULT_COLOR_CONFIG_VALUE */
+			const color = this.colorMap[colorId];
+			if (color !== undefined) {
+				return color;
+			}
 		}
-		return color;
+		if (useDefault !== false) {
+			return this.getDefault(colorId);
+		}
+		return undefined;
 	}
 
 	private getTokenStyle(type: string, modifiers: string[], language: string, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
@@ -236,7 +245,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return undefined;
 	}
 
-	private getTokenColorIndex(): TokenColorIndex {
+	public getTokenColorIndex(): TokenColorIndex {
 		// collect all colors that tokens can have
 		if (!this.tokenColorIndex) {
 			const index = new TokenColorIndex();
@@ -346,7 +355,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public defines(colorId: ColorIdentifier): boolean {
-		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
+		const customColor = this.customColorMap[colorId];
+		if (customColor instanceof Color) {
+			return true;
+		}
+		return customColor === undefined /* !== DEFAULT_COLOR_CONFIG_VALUE */ && this.colorMap.hasOwnProperty(colorId);
 	}
 
 	public setCustomizations(settings: ThemeConfiguration) {
@@ -372,7 +385,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private overwriteCustomColors(colors: IColorCustomizations) {
 		for (const id in colors) {
 			const colorVal = colors[id];
-			if (typeof colorVal === 'string') {
+			if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) {
+				this.customColorMap[id] = DEFAULT_COLOR_CONFIG_VALUE;
+			} else if (typeof colorVal === 'string') {
 				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
 		}
@@ -437,7 +452,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getThemeSpecificColors(colors: IThemeScopableCustomizations): IThemeScopedCustomizations | undefined {
-		let themeSpecificColors;
+		let themeSpecificColors: IThemeScopedCustomizations | undefined;
 		for (const key in colors) {
 			const scopedColors = colors[key];
 			if (this.isThemeScope(key) && scopedColors instanceof Object && !Array.isArray(scopedColors)) {
@@ -446,7 +461,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					const themeId = themeScope.substring(1, themeScope.length - 1);
 					if (this.isThemeScopeMatch(themeId)) {
 						if (!themeSpecificColors) {
-							themeSpecificColors = {} as IThemeScopedCustomizations;
+							themeSpecificColors = {};
 						}
 						const scopedThemeSpecificColors = scopedColors as IThemeScopedCustomizations;
 						for (const subkey in scopedThemeSpecificColors) {
@@ -716,8 +731,10 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			}
 			// new JSON color themes format
 			for (const colorId in colors) {
-				const colorHex = colors[colorId];
-				if (typeof colorHex === 'string') { // ignore colors tht are null
+				const colorVal = colors[colorId];
+				if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) { // ignore colors that are set to to default
+					delete result.colors[colorId];
+				} else if (typeof colorVal === 'string') {
 					result.colors[colorId] = Color.fromHex(colors[colorId]);
 				}
 			}

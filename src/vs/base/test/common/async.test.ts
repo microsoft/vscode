@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as async from 'vs/base/common/async';
-import * as MicrotaskDelay from "vs/base/common/symbols";
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import * as async from '../../common/async.js';
+import * as MicrotaskDelay from "../../common/symbols.js";
+import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
+import { isCancellationError } from '../../common/errors.js';
+import { Event } from '../../common/event.js';
+import { URI } from '../../common/uri.js';
+import { runWithFakedTimers } from './timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 
 suite('Async', () => {
 
@@ -1556,6 +1556,125 @@ suite('Async', () => {
 
 			// only the last task executed
 			assert.strictEqual(counter, 4);
+		});
+	});
+
+	suite('AsyncIterableObject', function () {
+
+
+		test('onReturn NOT called', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
+
+		});
+
+		test('onReturn called on break', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn called on return', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			await (async function test() {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					return;
+				}
+			})();
+
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+
+		test('onReturn called on throwing', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			try {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					throw new Error();
+				}
+			} catch (e) {
+
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+		});
+	});
+
+	suite('AsyncIterableSource', function () {
+
+		test('onReturn is wired up', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn is wired up 2', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
 		});
 	});
 });

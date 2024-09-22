@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { commonPrefixLength } from 'vs/base/common/arrays';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./breadcrumbsWidget';
+import * as dom from '../../dom.js';
+import { IMouseEvent } from '../../mouseEvent.js';
+import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
+import { commonPrefixLength } from '../../../common/arrays.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../common/scrollable.js';
+import './breadcrumbsWidget.css';
 
 export abstract class BreadcrumbsItem {
 	abstract dispose(): void;
@@ -57,6 +57,7 @@ export class BreadcrumbsWidget {
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
+	private _pendingDimLayout: IDisposable | undefined;
 	private _pendingLayout: IDisposable | undefined;
 	private _dimension: dom.Dimension | undefined;
 
@@ -100,6 +101,7 @@ export class BreadcrumbsWidget {
 	dispose(): void {
 		this._disposables.dispose();
 		this._pendingLayout?.dispose();
+		this._pendingDimLayout?.dispose();
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
@@ -112,11 +114,12 @@ export class BreadcrumbsWidget {
 		if (dim && dom.Dimension.equals(dim, this._dimension)) {
 			return;
 		}
-		this._pendingLayout?.dispose();
 		if (dim) {
 			// only measure
-			this._pendingLayout = this._updateDimensions(dim);
+			this._pendingDimLayout?.dispose();
+			this._pendingDimLayout = this._updateDimensions(dim);
 		} else {
+			this._pendingLayout?.dispose();
 			this._pendingLayout = this._updateScrollbar();
 		}
 	}
@@ -188,13 +191,13 @@ export class BreadcrumbsWidget {
 		this._focus(this._items.indexOf(item!), payload);
 	}
 
-	focusPrev(payload?: any): any {
+	focusPrev(payload?: any): void {
 		if (this._focusedItemIdx > 0) {
 			this._focus(this._focusedItemIdx - 1, payload);
 		}
 	}
 
-	focusNext(payload?: any): any {
+	focusNext(payload?: any): void {
 		if (this._focusedItemIdx + 1 < this._nodes.length) {
 			this._focus(this._focusedItemIdx + 1, payload);
 		}

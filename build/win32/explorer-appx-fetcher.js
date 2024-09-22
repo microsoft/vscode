@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.downloadExplorerAppx = void 0;
+exports.downloadExplorerAppx = downloadExplorerAppx;
 const fs = require("fs");
 const debug = require("debug");
 const extract = require("extract-zip");
@@ -36,7 +36,6 @@ async function downloadExplorerAppx(outDir, quality = 'stable', targetArch = 'x6
     d(`unpacking from ${fileName}`);
     await extract(artifact, { dir: fs.realpathSync(outDir) });
 }
-exports.downloadExplorerAppx = downloadExplorerAppx;
 async function main(outputDir) {
     const arch = process.env['VSCODE_ARCH'];
     if (!outputDir) {

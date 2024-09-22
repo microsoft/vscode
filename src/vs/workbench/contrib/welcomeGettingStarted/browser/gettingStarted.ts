@@ -3,73 +3,74 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, reset } from 'vs/base/browser/dom';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { coalesce, equals, flatten } from 'vs/base/common/arrays';
-import { Delayer, Throttler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { splitRecentLabel } from 'vs/base/common/labels';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILink, LinkedText } from 'vs/base/common/linkedText';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas, matchesScheme } from 'vs/base/common/network';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { assertIsDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/gettingStarted';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
-import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
-import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IEditorOpenContext, IEditorSerializer } from 'vs/workbench/common/editor';
-import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
-import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
-import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
-import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
-import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { GettingStartedIndexList } from './gettingStartedList';
+import { $, Dimension, addDisposableListener, append, clearNode, reset } from '../../../../base/browser/dom.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { coalesce, equals } from '../../../../base/common/arrays.js';
+import { Delayer, Throttler } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { splitRecentLabel } from '../../../../base/common/labels.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
+import { parse } from '../../../../base/common/marshalling.js';
+import { Schemas, matchesScheme } from '../../../../base/common/network.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import './media/gettingStarted.css';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from '../../../../platform/telemetry/common/telemetry.js';
+import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IWindowOpenable } from '../../../../platform/window/common/window.js';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from '../../../../platform/workspace/common/workspace.js';
+import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
+import { OpenRecentAction } from '../../../browser/actions/windowActions.js';
+import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from '../../../browser/actions/workspaceActions.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { IEditorOpenContext, IEditorSerializer } from '../../../common/editor.js';
+import { IWebviewElement, IWebviewService } from '../../webview/browser/webview.js';
+import './gettingStartedColors.js';
+import { GettingStartedDetailsRenderer } from './gettingStartedDetailsRenderer.js';
+import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from './gettingStartedIcons.js';
+import { GettingStartedInput } from './gettingStartedInput.js';
+import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
+import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
+import { startEntries } from '../common/gettingStartedContent.js';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { GettingStartedIndexList } from './gettingStartedList.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -121,10 +122,10 @@ export class GettingStartedPage extends EditorPane {
 	private editorInput!: GettingStartedInput;
 	private inProgressScroll = Promise.resolve();
 
-	private dispatchListeners: DisposableStore = new DisposableStore();
-	private stepDisposables: DisposableStore = new DisposableStore();
-	private detailsPageDisposables: DisposableStore = new DisposableStore();
-	private mediaDisposables: DisposableStore = new DisposableStore();
+	private readonly dispatchListeners: DisposableStore = new DisposableStore();
+	private readonly stepDisposables: DisposableStore = new DisposableStore();
+	private readonly detailsPageDisposables: DisposableStore = new DisposableStore();
+	private readonly mediaDisposables: DisposableStore = new DisposableStore();
 
 	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
@@ -132,6 +133,7 @@ export class GettingStartedPage extends EditorPane {
 	private gettingStartedCategories!: IResolvedWalkthrough[];
 
 	private currentWalkthrough: IResolvedWalkthrough | undefined;
+	private prevWalkthrough: IResolvedWalkthrough | undefined;
 
 	private categoriesPageScrollbar: DomScrollableElement | undefined;
 	private detailsPageScrollbar: DomScrollableElement | undefined;
@@ -159,7 +161,8 @@ export class GettingStartedPage extends EditorPane {
 
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
-	private categoriesSlideDisposables: DisposableStore;
+	private readonly categoriesSlideDisposables: DisposableStore;
+	private showFeaturedWalkthrough = true;
 
 	constructor(
 		group: IEditorGroup,
@@ -172,7 +175,7 @@ export class GettingStartedPage extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IThemeService themeService: IThemeService,
+		@IWorkbenchThemeService protected override readonly themeService: IWorkbenchThemeService,
 		@IStorageService private storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -185,7 +188,8 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService) {
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+	) {
 
 		super(GettingStartedPage.ID, group, telemetryService, themeService, storageService);
 
@@ -345,7 +349,13 @@ export class GettingStartedPage extends EditorPane {
 		this.dispatchListeners.clear();
 
 		this.container.querySelectorAll('[x-dispatch]').forEach(element => {
-			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
+			const dispatch = element.getAttribute('x-dispatch') ?? '';
+			let command, argument;
+			if (dispatch.startsWith('openLink:https')) {
+				[command, argument] = ['openLink', dispatch.replace('openLink:', '')];
+			} else {
+				[command, argument] = dispatch.split(':');
+			}
 			if (command) {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 					e.stopPropagation();
@@ -427,18 +437,15 @@ export class GettingStartedPage extends EditorPane {
 			case 'nextSection': {
 				const next = this.currentWalkthrough?.next;
 				if (next) {
+					this.prevWalkthrough = this.currentWalkthrough;
 					this.scrollToCategory(next);
 				} else {
 					console.error('Error scrolling to next section of', this.currentWalkthrough);
 				}
 				break;
 			}
-			case 'openExtensionPage': {
-				this.commandService.executeCommand('extension.open', argument);
-				break;
-			}
-			case 'hideExtension': {
-				this.hideExtension(argument);
+			case 'openLink': {
+				this.openerService.open(argument);
 				break;
 			}
 			default: {
@@ -453,11 +460,6 @@ export class GettingStartedPage extends EditorPane {
 		if (!selectedCategory) { throw Error('Could not find category with ID ' + categoryId); }
 		this.setHiddenCategories([...this.getHiddenCategories().add(categoryId)]);
 		this.gettingStartedList?.rerender();
-	}
-
-	private hideExtension(extensionId: string) {
-		this.setHiddenCategories([...this.getHiddenCategories().add(extensionId)]);
-		this.registerDispatchListeners();
 	}
 
 	private markAllStepsComplete() {
@@ -511,13 +513,13 @@ export class GettingStartedPage extends EditorPane {
 
 	private currentMediaComponent: string | undefined = undefined;
 	private currentMediaType: string | undefined = undefined;
-	private async buildMediaComponent(stepId: string) {
+	private async buildMediaComponent(stepId: string, forceRebuild: boolean = false) {
 		if (!this.currentWalkthrough) {
 			throw Error('no walkthrough selected');
 		}
 		const stepToExpand = assertIsDefined(this.currentWalkthrough.steps.find(step => step.id === stepId));
 
-		if (this.currentMediaComponent === stepId) { return; }
+		if (!forceRebuild && this.currentMediaComponent === stepId) { return; }
 		this.currentMediaComponent = stepId;
 
 		this.stepDisposables.clear();
@@ -540,10 +542,10 @@ export class GettingStartedPage extends EditorPane {
 
 			if (stepToExpand.media.type === 'svg') {
 				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ title: undefined, options: { disableServiceWorker: true }, contentOptions: {}, extension: undefined }));
-				this.webview.mountTo(this.stepMediaComponent);
+				this.webview.mountTo(this.stepMediaComponent, this.window);
 			} else if (stepToExpand.media.type === 'markdown') {
 				this.webview = this.mediaDisposables.add(this.webviewService.createWebviewElement({ options: {}, contentOptions: { localResourceRoots: [stepToExpand.media.root], allowScripts: true }, title: '', extension: undefined }));
-				this.webview.mountTo(this.stepMediaComponent);
+				this.webview.mountTo(this.stepMediaComponent, this.window);
 			}
 		}
 
@@ -560,7 +562,7 @@ export class GettingStartedPage extends EditorPane {
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
 
 			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
-				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				const hrefs = stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)).flat();
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
@@ -592,7 +594,7 @@ export class GettingStartedPage extends EditorPane {
 			}));
 
 			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
-				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				const hrefs = stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)).flat();
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
 					if (href.startsWith('http')) {
@@ -634,7 +636,7 @@ export class GettingStartedPage extends EditorPane {
 
 			if (serializedContextKeyExprs) {
 				const contextKeyExprs = coalesce(serializedContextKeyExprs.map(expr => ContextKeyExpr.deserialize(expr)));
-				const watchingKeys = new Set(flatten(contextKeyExprs.map(expr => expr.keys())));
+				const watchingKeys = new Set(contextKeyExprs.flatMap(expr => expr.keys()));
 
 				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
 					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
@@ -679,12 +681,16 @@ export class GettingStartedPage extends EditorPane {
 
 			postTrueKeysMessage();
 
-			this.stepDisposables.add(this.webview.onMessage(e => {
+			this.stepDisposables.add(this.webview.onMessage(async e => {
 				const message: string = e.message as string;
 				if (message.startsWith('command:')) {
 					this.openerService.open(message, { allowCommands: true });
 				} else if (message.startsWith('setTheme:')) {
-					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
+					const themeId = message.slice('setTheme:'.length);
+					const theme = (await this.themeService.getColorThemes()).find(theme => theme.settingsId === themeId);
+					if (theme) {
+						this.themeService.setColorTheme(theme.id, ConfigurationTarget.USER);
+					}
 				} else {
 					console.error('Unexpected message', message);
 				}
@@ -700,6 +706,14 @@ export class GettingStartedPage extends EditorPane {
 			const toSelect = this.editorInput.selectedCategory + '#' + id;
 			this.selectStep(toSelect);
 		}
+	}
+
+	private provideScreenReaderUpdate(): string {
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.Walkthrough)) {
+			const kbLabel = this.keybindingService.lookupKeybinding(AccessibleViewAction.id)?.getAriaLabel();
+			return kbLabel ? localize('acessibleViewHint', "Inspect this in the accessible view ({0}).\n", kbLabel) : localize('acessibleViewHintNoKbOpen', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.\n");
+		}
+		return '';
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true) {
@@ -726,8 +740,12 @@ export class GettingStartedPage extends EditorPane {
 
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
-			this.buildMediaComponent(id);
+			this.buildMediaComponent(id, true);
 			this.gettingStartedService.progressByEvent('stepSelected:' + id);
+			const step = this.currentWalkthrough?.steps?.find(step => step.id === id);
+			if (step) {
+				stepElement.setAttribute('aria-label', `${this.provideScreenReaderUpdate()} ${step.title}`);
+			}
 		} else {
 			this.editorInput.selectedStep = undefined;
 		}
@@ -748,7 +766,7 @@ export class GettingStartedPage extends EditorPane {
 
 		this.categoriesSlide = $('.gettingStartedSlideCategories.gettingStartedSlide');
 
-		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('welcome', "Welcome")));
+		const prevButton = $('button.prev-button.button-link', { 'x-dispatch': 'scrollPrev' }, $('span.scroll-button.codicon.codicon-chevron-left'), $('span.moreText', {}, localize('goBack', "Go Back")));
 		this.stepsSlide = $('.gettingStartedSlideDetails.gettingStartedSlide', {}, prevButton);
 
 		this.stepsContent = $('.gettingStartedDetailsContent', {});
@@ -823,7 +841,6 @@ export class GettingStartedPage extends EditorPane {
 			else {
 				this.container.classList.add('noWalkthroughs');
 				reset(rightColumn);
-
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
 			layoutRecentList();
@@ -873,15 +890,15 @@ export class GettingStartedPage extends EditorPane {
 			const telemetryNotice = $('p.telemetry-notice');
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
-		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory) {
+		} else if (!this.productService.openToWelcomeMainPage && !someStepsComplete && !this.hasScrolledToFirstCategory && this.showFeaturedWalkthrough) {
 			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
 			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
 				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-				this.hasScrolledToFirstCategory = true;
 				if (first) {
+					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
@@ -1018,7 +1035,7 @@ export class GettingStartedPage extends EditorPane {
 			const featuredBadge = $('.featured-badge', {});
 			const descriptionContent = $('.description-content', {},);
 
-			if (category.isFeatured) {
+			if (category.isFeatured && this.showFeaturedWalkthrough) {
 				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-full')));
 				reset(descriptionContent, ...renderLabelWithIcons(category.description));
 			}
@@ -1026,7 +1043,7 @@ export class GettingStartedPage extends EditorPane {
 			const titleContent = $('h3.category-title.max-lines-3', { 'x-category-title-for': category.id });
 			reset(titleContent, ...renderLabelWithIcons(category.title));
 
-			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
+			return $('button.getting-started-category' + (category.isFeatured && this.showFeaturedWalkthrough ? '.featured' : ''),
 				{
 					'x-dispatch': 'selectCategory:' + category.id,
 					'title': category.description
@@ -1264,8 +1281,8 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
-		while (container.firstChild) { container.removeChild(container.firstChild); }
+	private buildMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
+		while (container.firstChild) { container.firstChild.remove(); }
 
 		for (const linkedText of text) {
 			if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
@@ -1334,12 +1351,15 @@ export class GettingStartedPage extends EditorPane {
 			throw Error('could not find category with ID ' + categoryID);
 		}
 
+		const descriptionContainer = $('.category-description.description.max-lines-3', { 'x-category-description-for': category.id });
+		this.buildMarkdownDescription(descriptionContainer, parseDescription(category.description));
+
 		const categoryDescriptorComponent =
 			$('.getting-started-category',
 				{},
 				$('.category-description-container', {},
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, ...renderLabelWithIcons(category.title)),
-					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, ...renderLabelWithIcons(category.description))));
+					descriptionContainer));
 
 		const stepListContainer = $('.step-list-container');
 
@@ -1390,7 +1410,7 @@ export class GettingStartedPage extends EditorPane {
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
-					this.buildStepMarkdownDescription(container, step.description);
+					this.buildMarkdownDescription(container, step.description);
 
 					const stepTitle = $('h3.step-title.max-lines-3', { 'x-step-title-for': step.id });
 					reset(stepTitle, ...renderLabelWithIcons(step.title));
@@ -1487,20 +1507,26 @@ export class GettingStartedPage extends EditorPane {
 
 	private async scrollPrev() {
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
-			this.currentWalkthrough = undefined;
-			this.editorInput.selectedCategory = undefined;
-			this.editorInput.selectedStep = undefined;
-			this.editorInput.showTelemetryNotice = false;
+			if (this.prevWalkthrough && this.prevWalkthrough !== this.currentWalkthrough) {
+				this.currentWalkthrough = this.prevWalkthrough;
+				this.prevWalkthrough = undefined;
+				this.makeCategoryVisibleWhenAvailable(this.currentWalkthrough.id);
+			} else {
+				this.currentWalkthrough = undefined;
+				this.editorInput.selectedCategory = undefined;
+				this.editorInput.selectedStep = undefined;
+				this.editorInput.showTelemetryNotice = false;
 
-			if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
-				// extensions may have changed in the time since we last displayed the walkthrough list
-				// rebuild the list
-				this.buildCategoriesSlide();
+				if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
+					// extensions may have changed in the time since we last displayed the walkthrough list
+					// rebuild the list
+					this.buildCategoriesSlide();
+				}
+
+				this.selectStep(undefined);
+				this.setSlide('categories');
+				this.container.focus();
 			}
-
-			this.selectStep(undefined);
-			this.setSlide('categories');
-			this.container.focus();
 		});
 	}
 
@@ -1528,7 +1554,8 @@ export class GettingStartedPage extends EditorPane {
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
-			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = 'block';
+			const showGoBackButton = this.editorInput.showWelcome || this.prevWalkthrough;
+			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = showGoBackButton ? 'block' : 'none';
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);

@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
-import { ReadableStream } from 'vs/base/common/stream';
-import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions, IFileReadLimits } from 'vs/platform/files/common/files';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkingCopy, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { IFileOperationUndoRedoInfo } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ISaveOptions, IRevertOptions, SaveReason } from '../../../common/editor.js';
+import { ReadableStream } from '../../../../base/common/stream.js';
+import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions, IFileReadLimits } from '../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { ITextBufferFactory, ITextModel, ITextSnapshot } from '../../../../editor/common/model.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { areFunctions, isUndefinedOrNull } from '../../../../base/common/types.js';
+import { IWorkingCopy, IWorkingCopySaveEvent } from '../../workingCopy/common/workingCopy.js';
+import { IUntitledTextEditorModelManager } from '../../untitled/common/untitledTextEditorService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { IFileOperationUndoRedoInfo } from '../../workingCopy/common/workingCopyFileService.js';
 
 export const ITextFileService = createDecorator<ITextFileService>('textFileService');
 
@@ -132,6 +132,11 @@ export interface IReadTextFileEncodingOptions {
 	readonly autoGuessEncoding?: boolean;
 
 	/**
+	 * The optional candidateGuessEncodings parameter limits the allowed encodings to guess from.
+	 */
+	readonly candidateGuessEncodings?: string[];
+
+	/**
 	 * The optional acceptTextOnly parameter allows to fail this request early if the file
 	 * contents are not textual.
 	 */
@@ -195,7 +200,7 @@ export interface ISaveErrorHandler {
 	/**
 	 * Called whenever a save fails.
 	 */
-	onSaveError(error: Error, model: ITextFileEditorModel): void;
+	onSaveError(error: Error, model: ITextFileEditorModel, options: ITextFileSaveAsOptions): void;
 }
 
 /**
@@ -385,7 +390,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Runs the registered save participants on the provided model.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, token: CancellationToken): Promise<void>;
+	runSaveParticipants(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Waits for the model to be ready to be disposed. There may be conditions

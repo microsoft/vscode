@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as network from 'vs/base/common/network';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { Match, FileMatch, FileMatchOrMatch, ISearchViewModelWorkbenchService, MatchInNotebook } from 'vs/workbench/contrib/search/browser/searchModel';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { Range } from 'vs/editor/common/core/range';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
-import { Promises } from 'vs/base/common/async';
-import { SaveSourceRegistry } from 'vs/workbench/common/editor';
-import { CellUri, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as network from '../../../../base/common/network.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { IReplaceService } from './replace.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { Match, FileMatch, FileMatchOrMatch, ISearchViewModelWorkbenchService, MatchInNotebook } from './searchModel.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { dirname } from '../../../../base/common/resources.js';
+import { Promises } from '../../../../base/common/async.js';
+import { SaveSourceRegistry } from '../../../common/editor.js';
+import { CellUri, IResolvedNotebookEditorModel } from '../../notebook/common/notebookCommon.js';
+import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -72,7 +72,7 @@ class ReplacePreviewModel extends Disposable {
 
 	async resolve(replacePreviewUri: URI): Promise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
+		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches(true).filter(match => match.resource.toString() === fileResource.toString())[0];
 		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
 		const sourceModel = ref.object.textEditorModel;
 		const sourceModelLanguageId = sourceModel.getLanguageId();
@@ -200,15 +200,15 @@ export class ReplaceService implements IReplaceService {
 		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
-			if (arg instanceof MatchInNotebook) {
-				if (!arg.isReadonly()) {
+			if (!arg.isReadonly()) {
+				if (arg instanceof MatchInNotebook) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
 					const match = <MatchInNotebook>arg;
 					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
+				} else {
+					const match = <Match>arg;
+					edits.push(this.createEdit(match, match.replaceString, resource));
 				}
-			} else {
-				const match = <Match>arg;
-				edits.push(this.createEdit(match, match.replaceString, resource));
 			}
 		}
 

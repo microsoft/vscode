@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getChromiumSysroot = exports.getVSCodeSysroot = void 0;
+exports.getVSCodeSysroot = getVSCodeSysroot;
+exports.getChromiumSysroot = getChromiumSysroot;
 const child_process_1 = require("child_process");
 const os_1 = require("os");
 const fs = require("fs");
@@ -28,9 +29,9 @@ const ghDownloadHeaders = {
     Accept: 'application/octet-stream',
 };
 function getElectronVersion() {
-    const yarnrc = fs.readFileSync(path.join(REPO_ROOT, '.yarnrc'), 'utf8');
-    const electronVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
-    const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
+    const npmrc = fs.readFileSync(path.join(REPO_ROOT, '.npmrc'), 'utf8');
+    const electronVersion = /^target="(.*)"$/m.exec(npmrc)[1];
+    const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
     return { electronVersion, msBuildId };
 }
 function getSha(filename) {
@@ -156,7 +157,6 @@ async function getVSCodeSysroot(arch) {
     fs.writeFileSync(stamp, expectedName);
     return result;
 }
-exports.getVSCodeSysroot = getVSCodeSysroot;
 async function getChromiumSysroot(arch) {
     const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${getElectronVersion().electronVersion}/script/sysroots.json`;
     const sysrootDictLocation = `${(0, os_1.tmpdir)()}/sysroots.json`;
@@ -214,5 +214,4 @@ async function getChromiumSysroot(arch) {
     fs.writeFileSync(stamp, url);
     return sysroot;
 }
-exports.getChromiumSysroot = getChromiumSysroot;
 //# sourceMappingURL=install-sysroot.js.map

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from './outline.js';
 
 
 // --- commands
