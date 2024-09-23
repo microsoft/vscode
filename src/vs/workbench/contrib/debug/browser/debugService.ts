@@ -756,7 +756,7 @@ export class DebugService implements IDebugService {
 		}));
 	}
 
-	async restartSession(session: IDebugSession, restartData?: any): Promise<any> {
+	async restartSession(session: IDebugSession, restartData?: any): Promise<void> {
 		if (session.saveBeforeRestart) {
 			await saveAllBeforeDebugStart(this.configurationService, this.editorService);
 		}
@@ -1158,7 +1158,7 @@ export class DebugService implements IDebugService {
 		await this.sendExceptionBreakpoints();
 	}
 
-	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
+	async sendAllBreakpoints(session?: IDebugSession): Promise<void> {
 		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.originalUri.toString())
 			.map(bp => this.sendBreakpoints(bp.originalUri, false, session));
 

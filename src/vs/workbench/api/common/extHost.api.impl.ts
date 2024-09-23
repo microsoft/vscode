@@ -108,6 +108,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
+import { ExtHostCodeMapper } from './extHostCodeMapper.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -191,6 +192,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService, extHostFileSystemInfo, extHostDocumentsAndEditors));
 	const extHostLanguages = rpcProtocol.set(ExtHostContext.ExtHostLanguages, new ExtHostLanguages(rpcProtocol, extHostDocuments, extHostCommands.converter, uriTransformer));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation, extHostTelemetry));
+	const extHostCodeMapper = rpcProtocol.set(ExtHostContext.ExtHostCodeMapper, new ExtHostCodeMapper(rpcProtocol));
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostLogService, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, createExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
@@ -210,7 +212,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -300,7 +302,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { silent: true } as any));
 			},
 			get onDidChangeSessions(): vscode.Event<vscode.AuthenticationSessionsChangeEvent> {
-				return _asExtensionEvent(extHostAuthentication.onDidChangeSessions);
+				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
@@ -1003,22 +1005,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
 				let options: FileSystemWatcherCreateOptions | undefined = undefined;
 
-				if (typeof optionsOrIgnoreCreate === 'boolean') {
+				if (optionsOrIgnoreCreate && typeof optionsOrIgnoreCreate !== 'boolean') {
+					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
+					options = {
+						...optionsOrIgnoreCreate,
+						correlate: true
+					};
+				} else {
 					options = {
 						ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
 						ignoreChangeEvents: Boolean(ignoreChange),
 						ignoreDeleteEvents: Boolean(ignoreDelete),
 						correlate: false
 					};
-				} else if (optionsOrIgnoreCreate) {
-					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
-					options = {
-						...optionsOrIgnoreCreate,
-						correlate: true
-					};
 				}
 
-				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, options);
+				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extension, pattern, options);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
@@ -1438,6 +1440,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerMappedEditsProvider(selector: vscode.DocumentSelector, provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
+			},
+			registerMappedEditsProvider2(provider: vscode.MappedEditsProvider2) {
+				checkProposedApiEnabled(extension, 'mappedEditsProvider');
+				return extHostCodeMapper.registerMappedEditsProvider(extension, provider);
 			},
 			createChatParticipant(id: string, handler: vscode.ChatExtendedRequestHandler) {
 				return extHostChatAgents2.createChatAgent(extension, id, handler);

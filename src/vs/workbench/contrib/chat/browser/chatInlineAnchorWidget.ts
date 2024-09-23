@@ -6,10 +6,11 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -25,35 +26,44 @@ import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../plat
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { ExplorerFolderContext } from '../../files/common/files.js';
 import { ContentRefData } from '../common/annotations.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
+import { IChatWidgetService } from './chat.js';
 
 export class InlineAnchorWidget extends Disposable {
 
 	constructor(
 		element: HTMLAnchorElement,
 		data: ContentRefData,
+		@IContextKeyService originalContextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IFileService fileService: IFileService,
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@ILanguageService languageService: ILanguageService,
-		@IModelService modelService: IModelService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageService languageService: ILanguageService,
 		@IMenuService menuService: IMenuService,
+		@IModelService modelService: IModelService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
+		const anchorId = new Lazy(generateUuid);
 
 		element.classList.add('chat-inline-anchor-widget', 'show-file-icons');
-		element.replaceChildren();
 
-		const resourceLabel = this._register(new IconLabel(element, { supportHighlights: false, supportIcons: true }));
+		let iconText: string;
+		let iconClasses: string[];
 
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
@@ -63,8 +73,8 @@ export class InlineAnchorWidget extends Disposable {
 			contextMenuId = MenuId.ChatInlineSymbolAnchorContext;
 			contextMenuArg = location;
 
-			const icon = SymbolKinds.toIcon(data.symbol.kind);
-			resourceLabel.setLabel(`$(${icon.id}) ${data.symbol.name}`, undefined, {});
+			iconText = data.symbol.name;
+			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(data.symbol.kind))];
 
 			const model = modelService.getModel(location.uri);
 			if (model) {
@@ -82,20 +92,57 @@ export class InlineAnchorWidget extends Disposable {
 				this._register(languageFeaturesService.definitionProvider.onDidChange(updateContents));
 				this._register(languageFeaturesService.referenceProvider.onDidChange(updateContents));
 			}
+
+			this._register(dom.addDisposableListener(element, 'click', () => {
+				telemetryService.publicLog2<{
+					anchorId: string;
+				}, {
+					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
+					owner: 'mjbvz';
+					comment: 'Provides insight into the usage of Chat features.';
+				}>('chat.inlineAnchor.openSymbol', {
+					anchorId: anchorId.value
+				});
+			}));
 		} else {
 			location = data;
 			contextMenuId = MenuId.ChatInlineResourceAnchorContext;
 			contextMenuArg = location.uri;
 
+			const resourceContextKey = this._register(new ResourceContextKey(contextKeyService, fileService, languageService, modelService));
+			resourceContextKey.set(location.uri);
+
 			const label = labelService.getUriBasenameLabel(location.uri);
-			const title = location.range && data.kind !== 'symbol' ?
+			iconText = location.range && data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				label;
 
-			resourceLabel.setLabel(title, undefined, {
-				extraClasses: getIconClasses(modelService, languageService, location.uri)
-			});
+			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
+
+			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
+			fileService.stat(location.uri)
+				.then(stat => {
+					isFolderContext.set(stat.isDirectory);
+				})
+				.catch(() => { });
+
+			this._register(dom.addDisposableListener(element, 'click', () => {
+				telemetryService.publicLog2<{
+					anchorId: string;
+				}, {
+					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
+					owner: 'mjbvz';
+					comment: 'Provides insight into the usage of Chat features.';
+				}>('chat.inlineAnchor.openResource', {
+					anchorId: anchorId.value
+				});
+			}));
 		}
+
+		const iconEl = dom.$('span.icon');
+		iconEl.classList.add(...iconClasses);
+		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
@@ -130,6 +177,44 @@ export class InlineAnchorWidget extends Disposable {
 		}));
 	}
 }
+
+//#region Resource context menu
+
+registerAction2(class AddFileToChatAction extends Action2 {
+
+	static readonly id = 'chat.inlineResourceAnchor.addFileToChat';
+
+	constructor() {
+		super({
+			id: AddFileToChatAction.id,
+			title: {
+				...nls.localize2('actions.attach.label', "Add File to Chat"),
+			},
+			menu: [{
+				id: MenuId.ChatInlineResourceAnchorContext,
+				group: 'chat',
+				order: 1,
+				when: ExplorerFolderContext.negate(),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const variablesService = accessor.get(IChatVariablesService);
+
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		variablesService.attachContext('file', resource, widget.location);
+	}
+});
+
+//#endregion
+
+//#region Symbol context menu
 
 registerAction2(class GoToDefinitionAction extends Action2 {
 
@@ -204,3 +289,5 @@ registerAction2(class GoToReferencesAction extends Action2 {
 		await commandService.executeCommand('editor.action.goToReferences');
 	}
 });
+
+//#endregion

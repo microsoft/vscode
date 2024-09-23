@@ -7,7 +7,7 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { AutoOpenBarrier } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { localize2 } from '../../../../../nls.js';
@@ -16,18 +16,20 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '.
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ShellIntegrationOscPs } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
 import { ITerminalProcessManager, TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from '../../../terminal/common/terminal.js';
-import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { TerminalContextKeys, TerminalContextKeyStrings } from '../../../terminal/common/terminalContextKey.js';
 import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type CompressedPwshCompletion, type PwshCompletion } from './terminalSuggestAddon.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
+import { registerSendSequenceKeybinding } from '../../../terminal/browser/terminalKeybindings.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 
 const enum Constants {
 	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
@@ -199,6 +201,16 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 }
 
 registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestContribution);
+
+// #endregion
+
+// #region Keybindings
+
+registerSendSequenceKeybinding('\x1b[24~e', { // F12,e -> ctrl+space (Native suggest)
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)),
+	primary: KeyMod.CtrlCmd | KeyCode.Space,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+});
 
 // #endregion
 

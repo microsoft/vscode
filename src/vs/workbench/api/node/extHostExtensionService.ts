@@ -46,6 +46,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			return originalLookup.call(this, applyAlternatives(request), parent);
 		};
 
+		// ESM-uncomment-begin
 		const originalResolveFilename = node_module._resolveFilename;
 		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
 			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
@@ -57,6 +58,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			}
 			return originalResolveFilename.call(this, request, parent, isMain, options);
 		};
+		// ESM-uncomment-end
 
 		const applyAlternatives = (request: string) => {
 			for (const alternativeModuleName of that._alternatives) {
@@ -101,7 +103,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		// Do this when extension service exists, but extensions are not being activated yet.
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData);
+		await connectProxyResolver(this._extHostWorkspace, configProvider, this, this._logService, this._mainThreadTelemetryProxy, this._initData, this._store);
 		performance.mark('code/extHost/didInitProxyResolver');
 	}
 

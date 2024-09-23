@@ -5,11 +5,12 @@
 
 import { localize } from '../../../../nls.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { buttonForeground, editorInfoForeground, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonForeground, chartsBlue, chartsPurple, foreground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable, ColorIdentifier, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
 import { svgElem } from '../../../../base/browser/dom.js';
+import { compareHistoryItemRefs } from './util.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -20,8 +21,8 @@ const CIRCLE_STROKE_WIDTH = 2;
 /**
  * History item reference colors (local, remote, base)
  */
-export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', editorInfoForeground, localize('scmGraphHistoryItemRefColor', "History item reference color."));
-export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', '#B66DFF', localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
+export const historyItemRefColor = registerColor('scmGraph.historyItemRefColor', chartsBlue, localize('scmGraphHistoryItemRefColor', "History item reference color."));
+export const historyItemRemoteRefColor = registerColor('scmGraph.historyItemRemoteRefColor', chartsPurple, localize('scmGraphHistoryItemRemoteRefColor', "History item remote reference color."));
 export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRefColor', '#EA5C00', localize('scmGraphHistoryItemBaseRefColor', "History item base reference color."));
 
 /**
@@ -30,8 +31,8 @@ export const historyItemBaseRefColor = registerColor('scmGraph.historyItemBaseRe
 export const historyItemHoverDefaultLabelForeground = registerColor('scmGraph.historyItemHoverDefaultLabelForeground', foreground, localize('scmGraphHistoryItemHoverDefaultLabelForeground', "History item hover default label foreground color."));
 export const historyItemHoverDefaultLabelBackground = registerColor('scmGraph.historyItemHoverDefaultLabelBackground', transparent(foreground, 0.2), localize('scmGraphHistoryItemHoverDefaultLabelBackground', "History item hover default label background color."));
 export const historyItemHoverLabelForeground = registerColor('scmGraph.historyItemHoverLabelForeground', buttonForeground, localize('scmGraphHistoryItemHoverLabelForeground', "History item hover label foreground color."));
-export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
-export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
+export const historyItemHoverAdditionsForeground = registerColor('scmGraph.historyItemHoverAdditionsForeground', { light: '#587C0C', dark: '#81B88B', hcDark: '#A1E3AD', hcLight: '#374E06' }, localize('scmGraph.HistoryItemHoverAdditionsForeground', "History item hover additions foreground color."));
+export const historyItemHoverDeletionsForeground = registerColor('scmGraph.historyItemHoverDeletionsForeground', { light: '#AD0707', dark: '#C74E39', hcDark: '#C74E39', hcLight: '#AD0707' }, localize('scmGraph.HistoryItemHoverDeletionsForeground', "History item hover deletions foreground color."));
 
 /**
  * History graph color registry
@@ -41,6 +42,7 @@ export const colorRegistry: ColorIdentifier[] = [
 	registerColor('scmGraph.foreground2', '#DC267F', localize('scmGraphForeground2', "Source control graph foreground color (2).")),
 	registerColor('scmGraph.foreground3', '#994F00', localize('scmGraphForeground3', "Source control graph foreground color (3).")),
 	registerColor('scmGraph.foreground4', '#40B0A6', localize('scmGraphForeground4', "Source control graph foreground color (4).")),
+	registerColor('scmGraph.foreground5', '#B66DFF', localize('scmGraphForeground5', "Source control graph foreground color (5).")),
 ];
 
 function getLabelColorIdentifier(historyItem: ISCMHistoryItem, colorMap: Map<string, ColorIdentifier | undefined>): ColorIdentifier | undefined {
@@ -255,7 +257,9 @@ export function renderSCMHistoryGraphPlaceholder(columns: ISCMHistoryItemGraphNo
 export function toISCMHistoryItemViewModelArray(
 	historyItems: ISCMHistoryItem[],
 	colorMap = new Map<string, ColorIdentifier | undefined>(),
-	currentHistoryItemRef?: ISCMHistoryItemRef
+	currentHistoryItemRef?: ISCMHistoryItemRef,
+	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
+	currentHistoryItemBaseRef?: ISCMHistoryItemRef
 ): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
@@ -331,6 +335,10 @@ export function toISCMHistoryItemViewModelArray(
 
 				return { ...ref, color };
 			});
+
+		// Sort references
+		references.sort((ref1, ref2) =>
+			compareHistoryItemRefs(ref1, ref2, currentHistoryItemRef, currentHistoryItemRemoteRef, currentHistoryItemBaseRef));
 
 		viewModels.push({
 			historyItem: {

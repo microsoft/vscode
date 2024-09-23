@@ -1443,6 +1443,27 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.installUnsigned',
+			title: localize('install', "Install"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '0_install',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.not('extensionDisallowInstall'), ContextKeyExpr.has('extensionIsUnsigned')),
+				order: 1
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
+					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+				if (extension) {
+					const action = instantiationService.createInstance(InstallAction, { installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases });
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installAndDonotSync',
 			title: localize('install installAndDonotSync', "Install (Do not Sync)"),
 			menu: {
@@ -1457,6 +1478,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
 				if (extension) {
 					const action = instantiationService.createInstance(InstallAction, {
+						installPreReleaseVersion: this.extensionsWorkbenchService.preferPreReleases,
 						isMachineScoped: true,
 					});
 					action.extension = extension;
@@ -1544,7 +1566,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
-			title: localize2('workbench.extensions.action.configure', 'Extension Settings'),
+			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1555,8 +1577,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.manageAccountPreferences',
+			title: localize2('workbench.extensions.action.changeAccountPreference', "Account Preferences"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasAccountPreferences')),
+				order: 2,
+			},
+			run: (accessor: ServicesAccessor, id: string) => accessor.get(ICommandService).executeCommand('_manageAccountPreferencesForExtension', id)
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configureKeybindings',
-			title: localize2('workbench.extensions.action.configureKeybindings', 'Extension Keyboard Shortcuts'),
+			title: localize2('workbench.extensions.action.configureKeybindings', 'Keyboard Shortcuts'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',

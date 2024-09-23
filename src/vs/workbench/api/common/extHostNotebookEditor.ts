@@ -14,10 +14,6 @@ export class ExtHostNotebookEditor {
 
 	public static readonly apiEditorsToExtHost = new WeakMap<vscode.NotebookEditor, ExtHostNotebookEditor>();
 
-	private _selections: vscode.NotebookRange[] = [];
-	private _visibleRanges: vscode.NotebookRange[] = [];
-	private _viewColumn?: vscode.ViewColumn;
-
 	private _visible: boolean = false;
 
 	private _editor?: vscode.NotebookEditor;
@@ -26,14 +22,11 @@ export class ExtHostNotebookEditor {
 		readonly id: string,
 		private readonly _proxy: MainThreadNotebookEditorsShape,
 		readonly notebookData: ExtHostNotebookDocument,
-		visibleRanges: vscode.NotebookRange[],
-		selections: vscode.NotebookRange[],
-		viewColumn: vscode.ViewColumn | undefined
-	) {
-		this._selections = selections;
-		this._visibleRanges = visibleRanges;
-		this._viewColumn = viewColumn;
-	}
+		private _visibleRanges: vscode.NotebookRange[],
+		private _selections: vscode.NotebookRange[],
+		private _viewColumn: vscode.ViewColumn | undefined,
+		private readonly viewType: string
+	) { }
 
 	get apiEditor(): vscode.NotebookEditor {
 		if (!this._editor) {
@@ -70,6 +63,12 @@ export class ExtHostNotebookEditor {
 				},
 				get viewColumn() {
 					return that._viewColumn;
+				},
+				get replOptions() {
+					if (that.viewType === 'repl') {
+						return { appendIndex: this.notebook.cellCount - 1 };
+					}
+					return undefined;
 				},
 				[Symbol.for('debug.description')]() {
 					return `NotebookEditor(${this.notebook.uri.toString()})`;

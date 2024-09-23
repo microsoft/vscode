@@ -21,7 +21,7 @@ export interface ISCMHistoryProvider {
 
 	readonly historyItemRefChanges: IObservable<ISCMHistoryItemRefsChangeEvent>;
 
-	provideHistoryItemRefs(): Promise<ISCMHistoryItemRef[] | undefined>;
+	provideHistoryItemRefs(historyItemsRefs?: string[]): Promise<ISCMHistoryItemRef[] | undefined>;
 	provideHistoryItems(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemRefsCommonAncestor(historyItemRefs: string[]): Promise<string | undefined>;
@@ -53,6 +53,7 @@ export interface ISCMHistoryItemRefsChangeEvent {
 	readonly added: readonly ISCMHistoryItemRef[];
 	readonly removed: readonly ISCMHistoryItemRef[];
 	readonly modified: readonly ISCMHistoryItemRef[];
+	readonly silent: boolean;
 }
 
 export interface ISCMHistoryItem {

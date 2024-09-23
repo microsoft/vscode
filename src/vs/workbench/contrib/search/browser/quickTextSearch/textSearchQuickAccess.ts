@@ -14,14 +14,14 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService.js';
+import { WorkbenchCompressibleAsyncDataTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService.js';
 import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
 import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from '../searchModel.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, SearchResult, searchComparer } from '../searchModel.js';
 import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -111,9 +111,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			tooltip: localize('goToSearch', "See in Search Panel")
 		}];
 		this.editorViewState.reset();
-		disposables.add(picker.onDidTriggerButton(() => {
+		disposables.add(picker.onDidTriggerButton(async () => {
 			if (this.searchModel.searchResult.count() > 0) {
-				this.moveToSearchViewlet(undefined);
+				await this.moveToSearchViewlet(undefined);
 			} else {
 				this._viewsService.openView(VIEW_ID, true);
 			}
@@ -200,25 +200,25 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			this.currentAsyncSearch = result.asyncResults;
 			await result.asyncResults;
 			const syncResultURIs = new ResourceSet(result.syncResults.map(e => e.resource));
-			return this.searchModel.searchResult.matches().filter(e => !syncResultURIs.has(e.resource));
+			return this.searchModel.searchResult.matches(false).filter(e => !syncResultURIs.has(e.resource));
 		};
 		return {
-			syncResults: this.searchModel.searchResult.matches(),
+			syncResults: this.searchModel.searchResult.matches(false),
 			asyncResults: getAsyncResults()
 		};
 	}
 
-	private moveToSearchViewlet(currentElem: RenderableMatch | undefined) {
+	private async moveToSearchViewlet(currentElem: RenderableMatch | undefined) {
 		// this function takes this._searchModel and moves it to the search viewlet's search model.
 		// then, this._searchModel will construct a new (empty) SearchModel.
 		this._viewsService.openView(VIEW_ID, false);
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
-		viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
+		await viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
 
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
-		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
+		const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = viewlet?.getControl();
 		if (currentElem) {
 			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
 			viewer.setSelection([currentElem], getSelectionKeyboardEvent());
@@ -255,7 +255,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					label: localize('QuickSearchSeeMoreFiles', "See More Files"),
 					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
-						this.moveToSearchViewlet(matches[limit]);
+						await this.moveToSearchViewlet(matches[limit]);
 					}
 				});
 				break;
@@ -290,7 +290,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 						label: localize('QuickSearchMore', "More"),
 						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
-							this.moveToSearchViewlet(element);
+							await this.moveToSearchViewlet(element);
 						}
 					});
 					break;
@@ -320,8 +320,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 							forcePinned: event.inBackground
 						});
 					},
-					trigger: (): TriggerAction => {
-						this.moveToSearchViewlet(element);
+					trigger: async (): Promise<TriggerAction> => {
+						await this.moveToSearchViewlet(element);
 						return TriggerAction.CLOSE_PICKER;
 					},
 					match: element

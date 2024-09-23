@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { revive } from '../../../../base/common/marshalling.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
@@ -140,7 +141,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicVariablePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly id: string, readonly modelDescription: string | undefined, readonly data: IChatRequestVariableValue, readonly fullName?: string, readonly icon?: ThemeIcon) { }
 
 	get referenceText(): string {
 		return this.text.replace(chatVariableLeader, '');
@@ -204,7 +205,9 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					(part as ChatRequestDynamicVariablePart).text,
 					(part as ChatRequestDynamicVariablePart).id,
 					(part as ChatRequestDynamicVariablePart).modelDescription,
-					revive((part as ChatRequestDynamicVariablePart).data)
+					revive((part as ChatRequestDynamicVariablePart).data),
+					(part as ChatRequestDynamicVariablePart).fullName,
+					(part as ChatRequestDynamicVariablePart).icon
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

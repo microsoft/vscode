@@ -14,7 +14,7 @@ import { IPointerHandlerHelper } from './controller/mouseHandler.js';
 import { PointerHandlerLastRenderData } from './controller/mouseTarget.js';
 import { PointerHandler } from './controller/pointerHandler.js';
 import { IContentWidget, IContentWidgetPosition, IEditorAriaOptions, IGlyphMarginWidget, IGlyphMarginWidgetPosition, IMouseTarget, IOverlayWidget, IOverlayWidgetPosition, IViewZoneChangeAccessor } from './editorBrowser.js';
-import { RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
+import { LineVisibleRanges, RenderingContext, RestrictedRenderingContext } from './view/renderingContext.js';
 import { ICommandDelegate, ViewController } from './view/viewController.js';
 import { ContentViewOverlays, MarginViewOverlays } from './view/viewOverlays.js';
 import { PartFingerprint, PartFingerprints, ViewPart } from './view/viewPart.js';
@@ -27,7 +27,7 @@ import { EditorScrollbar } from './viewParts/editorScrollbar/editorScrollbar.js'
 import { GlyphMarginWidgets } from './viewParts/glyphMargin/glyphMargin.js';
 import { IndentGuidesOverlay } from './viewParts/indentGuides/indentGuides.js';
 import { LineNumbersOverlay } from './viewParts/lineNumbers/lineNumbers.js';
-import { ViewLines } from './viewParts/lines/viewLines.js';
+import { ViewLines } from './viewParts/viewLines/viewLines.js';
 import { LinesDecorationsOverlay } from './viewParts/linesDecorations/linesDecorations.js';
 import { Margin } from './viewParts/margin/margin.js';
 import { MarginViewLineDecorationsOverlay } from './viewParts/marginDecorations/marginDecorations.js';
@@ -56,10 +56,11 @@ import { ViewContext } from '../common/viewModel/viewContext.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { IColorTheme, getThemeTypeSelector } from '../../platform/theme/common/themeService.js';
 import { ViewGpuContext } from './gpu/viewGpuContext.js';
-import { ViewLinesGpu } from './viewParts/linesGpu/viewLinesGpu.js';
+import { ViewLinesGpu } from './viewParts/viewLinesGpu/viewLinesGpu.js';
 import { AbstractEditContext } from './controller/editContext/editContextUtils.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
+import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
 
 
 export interface IContentWidgetData {
@@ -150,7 +151,7 @@ export class View extends ViewEventHandler {
 		this.domNode.setAttribute('role', 'code');
 
 		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
-			this._viewGpuContext = new ViewGpuContext();
+			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		}
 
 		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
@@ -214,7 +215,9 @@ export class View extends ViewEventHandler {
 		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._viewParts.push(this._overlayWidgets);
 
-		const rulers = new Rulers(this._context);
+		const rulers = this._viewGpuContext
+			? new RulersGpu(this._context, this._viewGpuContext)
+			: new Rulers(this._context);
 		this._viewParts.push(rulers);
 
 		const blockOutline = new BlockDecorations(this._context);
@@ -231,7 +234,9 @@ export class View extends ViewEventHandler {
 		}
 
 		this._linesContent.appendChild(contentViewOverlays.getDomNode());
-		this._linesContent.appendChild(rulers.domNode);
+		if ('domNode' in rulers) {
+			this._linesContent.appendChild(rulers.domNode);
+		}
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
@@ -263,9 +268,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		return experimentalEditContextEnabled
-			? this._instantiationService.createInstance(NativeEditContext, this._context, this._viewController)
-			: this._instantiationService.createInstance(TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
+		return this._instantiationService.createInstance(experimentalEditContextEnabled ? NativeEditContext : TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
 	}
 
 	private _updateEditContext(): void {
@@ -366,6 +369,10 @@ export class View extends ViewEventHandler {
 			visibleRangeForPosition: (position: Position) => {
 				this._flushAccumulatedAndRenderNow();
 				return this._viewLines.visibleRangeForPosition(position);
+			},
+			linesVisibleRangesForRange: (range: Range, includeNewLines: boolean): LineVisibleRanges[] | null => {
+				this._flushAccumulatedAndRenderNow();
+				return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 			}
 		};
 	}
@@ -554,7 +561,7 @@ export class View extends ViewEventHandler {
 					this._viewLinesGpu.onDidRender();
 				}
 
-				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines)];
+				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines, this._viewLinesGpu)];
 			},
 			prepareRender: (viewPartsToRender: ViewPart[], ctx: RenderingContext) => {
 				for (const viewPart of viewPartsToRender) {
