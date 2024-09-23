@@ -357,26 +357,26 @@ class BuiltinDynamicCompletions extends Disposable {
 					return null;
 				}
 
+				const result: CompletionList = { suggestions: [] };
 				const range = computeCompletionRanges(model, position, BuiltinDynamicCompletions.VariableNameDef, true);
-				if (!range) {
-					return null;
+
+				if (range) {
+					const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
+					result.suggestions.push({
+						label: `${chatVariableLeader}file`,
+						insertText: `${chatVariableLeader}file:`,
+						detail: localize('pickFileLabel', "Pick a file"),
+						range,
+						kind: CompletionItemKind.Text,
+						command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
+						sortText: 'z'
+					});
 				}
 
-				const result: CompletionList = { suggestions: [] };
-
-				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
-				result.suggestions.push({
-					label: `${chatVariableLeader}file`,
-					insertText: `${chatVariableLeader}file:`,
-					detail: localize('pickFileLabel', "Pick a file"),
-					range,
-					kind: CompletionItemKind.Text,
-					command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range: afterRange }] },
-					sortText: 'z'
-				});
-
-
-				await this.addFileEntries(widget, result, range, token);
+				const range2 = computeCompletionRanges(model, position, new RegExp(`${chatVariableLeader}[^\\s]*`, 'g'), true);
+				if (range2) {
+					await this.addFileEntries(widget, result, range2, token);
+				}
 
 				return result;
 			}
