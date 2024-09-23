@@ -32,7 +32,7 @@ const net = require('net');
 // ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
-const useElectronFetchDefault = true;
+const useElectronFetchDefault = false;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
