@@ -92,6 +92,29 @@ steps:
 
   - script: |
       set -e
+      includes=$(cat << 'EOF'
+      {
+        "target_defaults": {
+          "conditions": [
+            ["OS=='linux'", {
+              'cflags_cc!': [ '-std=gnu++17' ],
+              'cflags_cc': [ '-std=gnu++14' ],
+            }]
+          ]
+        }
+      }
+      EOF
+      )
+
+      if [ ! -d "$HOME/.gyp" ]; then
+        mkdir -p "$HOME/.gyp"
+      fi
+
+      echo "$includes" > "$HOME/.gyp/include.gypi"
+    displayName: Create global include.gypi
+
+  - script: |
+      set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
       source ./build/azure-pipelines/linux/setup-env.sh --skip-client-sysroot
@@ -170,7 +193,7 @@ steps:
     - script: |
         set -e
         EXPECTED_GLIBC_VERSION="2.17" \
-        EXPECTED_GLIBCXX_VERSION="3.4.19" \
+        EXPECTED_GLIBCXX_VERSION="3.4.20" \
         ./build/azure-pipelines/linux/verify-glibc-requirements.sh
       env:
         SEARCH_PATH: $(SERVER_UNARCHIVE_PATH)
