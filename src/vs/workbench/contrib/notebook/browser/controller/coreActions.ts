@@ -302,9 +302,8 @@ interface IMultiCellArgs {
 }
 
 function sendEntryTelemetry(accessor: ServicesAccessor, id: string, context?: any) {
-	const telemetryService = accessor.get(ITelemetryService);
-
 	if (context) {
+		const telemetryService = accessor.get(ITelemetryService);
 		if (context.source) {
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: id, from: context.source });
 		} else if (URI.isUri(context)) {
