@@ -269,7 +269,7 @@ export function registerChatCodeBlockActions() {
 				// Invoke the code mapper for all the code blocks in this response
 				const tokenSource = new CancellationTokenSource();
 				await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
-			});
+			}, { silent: true });
 		}
 	});
 
