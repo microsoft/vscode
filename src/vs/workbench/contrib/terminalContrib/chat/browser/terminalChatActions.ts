@@ -99,7 +99,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.inlineChatWidget.chatWidget.focusLastMessage();
+		contr?.chatWidget?.focusLastMessage();
 	}
 });
 
