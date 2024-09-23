@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { nulToken } from '../utils/cancellation';
-import { jsTsLanguageModes, isSupportedLanguageMode } from '../configuration/languageIds';
+import { isSupportedLanguageMode } from '../configuration/languageIds';
 import { DocumentSelector } from '../configuration/documentSelector';
 import { API } from '../tsServer/api';
 import type * as Proto from '../tsServer/protocol/protocol';
@@ -16,7 +16,7 @@ const minVersion = API.v570;
 const dummyDisposable = new vscode.Disposable(() => { });
 
 export function register(
-	_selector: DocumentSelector,
+	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
@@ -34,10 +34,13 @@ export function register(
 				): void;
 			} | undefined;
 			if (relatedAPI?.registerRelatedFilesProvider) {
-				for (const languageId of jsTsLanguageModes) {
+				for (const syntax of selector.syntax) {
+					if (!syntax.language) {
+						continue;
+					}
 					const id = {
 						extensionId: 'vscode.typescript-language-features',
-						languageId
+						languageId: syntax.language
 					};
 					relatedAPI.registerRelatedFilesProvider(id, async uri => {
 						let document;
