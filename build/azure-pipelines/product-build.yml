@@ -565,7 +565,7 @@ extends:
           dependsOn:
             - Compile
           pool:
-            name: 1es-ubuntu-20.04-x64
+            name: 1es-ubuntu-22.04-x64
             os: linux
           jobs:
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true) }}:
