@@ -7,6 +7,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -58,7 +59,7 @@ export interface IToolResult {
 
 export interface IToolConfirmationMessages {
 	title: string;
-	message: string;
+	message: string | IMarkdownString;
 }
 
 export interface IToolImpl {

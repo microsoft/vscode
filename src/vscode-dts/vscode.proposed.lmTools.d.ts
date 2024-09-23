@@ -173,7 +173,7 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolConfirmationMessages {
 		title: string;
-		message: string;
+		message: string | MarkdownString;
 	}
 
 	export interface LanguageModelTool {

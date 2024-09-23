@@ -131,7 +131,13 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
-		return await item.tool.provideToolConfirmationMessages({ participantName, parameters }, token);
+		const result = await item.tool.provideToolConfirmationMessages({ participantName, parameters }, token);
+		if (result) {
+			return {
+				title: result.title,
+				message: typeof result.message === 'string' ? result.message : typeConvert.MarkdownString.from(result.message),
+			};
+		}
 	}
 
 	async $provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
