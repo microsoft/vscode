@@ -151,7 +151,7 @@ export class ChatDragAndDrop extends Themable {
 		return undefined;
 	}
 
-	private isSupportedDndEvent(e: DragEvent): boolean {
+	private isDragEventSupported(e: DragEvent): boolean {
 		// if guessed drop type is undefined, it means the drop is not supported
 		const dropType = this.guessDropType(e);
 		return dropType !== undefined;
@@ -165,7 +165,7 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private getAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
-		if (!this.isSupportedDndEvent(e)) {
+		if (!this.isDragEventSupported(e)) {
 			return [];
 		}
 
