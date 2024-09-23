@@ -15,34 +15,56 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._isComplete;
 	}
 
-	private _confirmDeferred = new DeferredPromise<boolean>();
+	private _isCanceled: boolean | undefined;
+	public get isCanceled(): boolean | undefined {
+		return this._isCanceled;
+	}
 
-	public get confirmed(): Promise<boolean> {
-		return this._confirmDeferred.p;
+	private _confirmDeferred = new DeferredPromise<boolean>();
+	public get confirmed() {
+		return this._confirmDeferred;
+	}
+
+	private _isConfirmed: boolean | undefined;
+	public get isConfirmed(): boolean | undefined {
+		return this._isConfirmed;
 	}
 
 	constructor(
 		public readonly invocationMessage: string,
-		private _confirmationMessages: IToolConfirmationMessages | undefined) { }
+		private _confirmationMessages: IToolConfirmationMessages | undefined) {
+		if (!_confirmationMessages) {
+			// No confirmation needed
+			this._isConfirmed = true;
+			this._confirmDeferred.complete(true);
+		}
+
+		this._confirmDeferred.p.then(confirmed => {
+			this._isConfirmed = confirmed;
+			this._confirmationMessages = undefined;
+			if (!confirmed) {
+				// Spinner -> check
+				this.complete();
+			}
+		});
+	}
+
+	complete(): void {
+		if (this._isComplete) {
+			throw new Error('Invocation is already complete.');
+		}
+		this._isComplete = true;
+	}
 
 	public get confirmationMessages(): IToolConfirmationMessages | undefined {
 		return this._confirmationMessages;
-	}
-
-	public confirm(confirmed: boolean): void {
-		this._confirmationMessages = undefined;
-		this._confirmDeferred.complete(confirmed);
-	}
-
-	public complete(): void {
-		// Spinner -> check
-		this._isComplete = true;
 	}
 
 	public toJSON(): IChatToolInvocationSerialized {
 		return {
 			kind: 'toolInvocationSerialized',
 			invocationMessage: this.invocationMessage,
+			isConfirmed: this._isConfirmed ?? false
 		};
 	}
 }

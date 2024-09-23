@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
@@ -39,7 +40,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				[{ label: localize('continue', "Continue"), data: true }, { label: localize('cancel', "Cancel"), data: false, isSecondary: true }]));
 			this.domNode = confirmWidget.domNode;
 			this._register(confirmWidget.onDidClick(button => {
-				toolInvocation.confirm(button.data);
+				toolInvocation.confirmed.complete(button.data);
 				this._onNeedsRerender.fire();
 			}));
 		} else {
@@ -48,7 +49,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				kind: 'progressMessage',
 				content: { value: message }
 			};
-			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true));
+			const iconOverride = toolInvocation.isConfirmed === false ? Codicon.error : undefined;
+			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
 			this.domNode = progressPart.domNode;
 		}
 	}

@@ -224,13 +224,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
 			toolInvocation = new ChatToolInvocation(invocationMessage ?? defaultMessage, confirmationMessages);
 			token.onCancellationRequested(() => {
-				toolInvocation!.confirm(false);
+				toolInvocation!.confirmed.complete(false);
 			});
 			model.acceptResponseProgress(request, toolInvocation);
 			if (tool.data.requiresConfirmation) {
-				const userConfirmed = await toolInvocation.confirmed;
+				const userConfirmed = await toolInvocation.confirmed.p;
 				if (!userConfirmed) {
-					toolInvocation.complete();
 					throw new CancellationError();
 				}
 			}

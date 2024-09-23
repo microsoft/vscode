@@ -193,17 +193,20 @@ export interface IChatConfirmation {
 }
 
 export interface IChatToolInvocation {
+	/** Presence of this property says that confirmation is required */
 	confirmationMessages?: IToolConfirmationMessages;
+	confirmed: DeferredPromise<boolean>;
+	/** A 3-way: undefined=don't know yet. */
+	isConfirmed: boolean | undefined;
 	invocationMessage: string;
 
-	confirm(confirmed: boolean): void;
 	complete(): void;
-	confirmed: Promise<boolean>;
 	kind: 'toolInvocation';
 }
 
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string;
+	isConfirmed: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
