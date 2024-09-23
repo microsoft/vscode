@@ -86,7 +86,7 @@ export class ChatDragAndDrop extends Themable {
 	private onDrop(e: DragEvent): void {
 		this.updateDropFeedback(e, undefined);
 
-		const contexts = this.getAttachContexts(e);
+		const contexts = this.getAttachContext(e);
 		if (contexts.length === 0) {
 			return;
 		}
@@ -164,7 +164,7 @@ export class ChatDragAndDrop extends Themable {
 		}
 	}
 
-	private getAttachContexts(e: DragEvent): IChatRequestVariableEntry[] {
+	private getAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
 		if (!this.isSupportedDndEvent(e)) {
 			return [];
 		}
