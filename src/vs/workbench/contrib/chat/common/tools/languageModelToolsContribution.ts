@@ -27,6 +27,7 @@ interface IRawToolContribution {
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
 	supportedContentTypes?: string[];
+	requiresConfirmation?: boolean;
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -106,6 +107,10 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					items: {
 						type: 'string'
 					}
+				},
+				requiresConfirmation: {
+					description: localize('requiresConfirmation', "Whether this tool requires user confirmation before being executed."),
+					type: 'boolean'
 				}
 			}
 		}
