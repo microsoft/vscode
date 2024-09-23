@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { IChatToolInvocation } from '../chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService.js';
 import { IToolConfirmationMessages } from '../languageModelToolsService.js';
 
 export class ChatToolInvocation implements IChatToolInvocation {
@@ -37,5 +37,12 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public complete(): void {
 		// Spinner -> check
 		this._isComplete = true;
+	}
+
+	public toJSON(): IChatToolInvocationSerialized {
+		return {
+			kind: 'toolInvocationSerialized',
+			invocationMessage: this.invocationMessage,
+		};
 	}
 }

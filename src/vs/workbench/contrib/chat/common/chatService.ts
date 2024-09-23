@@ -225,7 +225,8 @@ export type IChatProgress =
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
-	| IChatToolInvocation;
+	| IChatToolInvocation
+	| IChatToolInvocationSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
