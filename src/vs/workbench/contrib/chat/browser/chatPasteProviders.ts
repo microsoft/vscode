@@ -15,7 +15,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('image');
 
-	public readonly pasteMimeTypes = ['Files']; // this should be `image/png` etc, but how mime types are checked in copyPasteController doesn't encompass this
+	public readonly pasteMimeTypes = ['image/*'];
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
 		// TODO: @justschen setup image data types
