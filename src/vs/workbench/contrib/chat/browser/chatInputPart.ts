@@ -901,6 +901,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.followupsDisposables.clear();
+		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
 			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, this.location, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
@@ -958,7 +959,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 32,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 30,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
 			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,

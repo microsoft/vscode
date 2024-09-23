@@ -700,7 +700,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 16px;
-	padding: 12px 0px;
+	padding: 0 0 12px 0px;
 	display: flex;
 	flex-direction: column;
 }
@@ -795,7 +795,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin: 8px 0;
+	margin-bottom: 8px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
@@ -1049,9 +1049,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill {
+	font-size: 12px;
 	display: inline-flex;
 	align-items: center;
-	padding: 2px 0px;
+	padding: 0 4px 0 2px;
 	border-radius: 2px;
 	margin-right: 1px;
 	user-select: none;
