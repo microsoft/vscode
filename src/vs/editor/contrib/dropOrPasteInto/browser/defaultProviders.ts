@@ -207,27 +207,9 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	public readonly pasteMimeTypes = ['Files']; // this should be `image/png` etc, but how mime types are checked in copyPasteController doesn't encompass this
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (context.triggerKind !== DocumentPasteTriggerKind.PasteAs && !context.only?.contains(this.kind)) {
-			return;
-		}
-
-		const entry = dataTransfer.get('image/png') || dataTransfer.get('image/jpeg') || dataTransfer.get('image/gif') || dataTransfer.get('image/webp');
-		const htmlText = 'Inserted Image';
-		const temp = entry?.asFile();
-		const buffer = temp?.data;
-
-		if (!htmlText || token.isCancellationRequested) {
-			return;
-		}
-
-		return {
-			dispose() { },
-			edits: [{
-				insertText: '',
-				title: localize('pasteImageLabel', 'Insert Image'),
-				kind: this.kind,
-			}],
-		};
+		// TODO: @justschen setup image data types
+		// const entry = dataTransfer.get('image/png') || dataTransfer.get('image/jpeg') || dataTransfer.get('image/gif') || dataTransfer.get('image/webp');
+		return;
 	}
 }
 
@@ -270,7 +252,7 @@ export class DefaultPasteProvidersFeature extends Disposable {
 		super();
 
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
-		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteImageProvider()));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));

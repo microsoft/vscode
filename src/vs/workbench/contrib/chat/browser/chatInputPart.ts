@@ -27,8 +27,10 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
@@ -86,6 +88,26 @@ interface IChatInputPartOptions {
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
+
+// TODO: @justschen
+// class ChatInputContentProvider extends Disposable implements ITextModelContentProvider {
+// 	constructor(
+// 		textModelService: ITextModelService,
+// 		private readonly modelService: IModelService,
+// 		private readonly languageService: ILanguageService,
+// 	) {
+// 		super();
+// 		this._register(textModelService.registerTextModelContentProvider(ChatInputPart.INPUT_SCHEME, this));
+// 	}
+
+// 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+// 		const existing = this.modelService.getModel(resource);
+// 		if (existing) {
+// 			return existing;
+// 		}
+// 		return this.modelService.createModel('', this.languageService.createById('chatSessionInput'), resource);
+// 	}
+// }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
@@ -614,7 +636,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this.modelService.createModel('', null, this.inputUri, false);
+			inputModel = this.modelService.createModel('', null, this.inputUri, true);
 			this._register(inputModel);
 		}
 
