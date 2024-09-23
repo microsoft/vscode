@@ -16,8 +16,25 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
+import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
+import '../common/chatColors.js';
+import { IChatEditingService } from '../common/chatEditingService.js';
+import { chatVariableLeader } from '../common/chatParserTypes.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatService } from '../common/chatServiceImpl.js';
+import { ChatSlashCommandService, IChatSlashCommandService } from '../common/chatSlashCommands.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
+import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
+import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
+import { ILanguageModelToolsService, LanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { ChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ChatCommandCenterRendering, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
@@ -33,8 +50,10 @@ import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
+import { ChatEditingService } from './chatEditingService.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
+import { ChatGettingStartedContribution } from './chatGettingStarted.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipantContributions.js';
 import { QuickChatService } from './chatQuick.js';
@@ -46,29 +65,6 @@ import './contrib/chatContextAttachments.js';
 import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
-import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
-import { chatVariableLeader } from '../common/chatParserTypes.js';
-import { IChatService } from '../common/chatService.js';
-import { ChatService } from '../common/chatServiceImpl.js';
-import { ChatSlashCommandService, IChatSlashCommandService } from '../common/chatSlashCommands.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
-import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
-import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
-import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
-import { ILanguageModelToolsService, IToolResult, LanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
-import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
-import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import '../common/chatColors.js';
-import { ChatGettingStartedContribution } from './chatGettingStarted.js';
-import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
-import { IChatEditingService } from '../common/chatEditingService.js';
-import { ChatEditingService } from './chatEditingService.js';
-import { ITerminalGroupService, ITerminalService } from '../../terminal/browser/terminal.js';
-import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { truncate } from '../../../../base/common/strings.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -277,75 +273,6 @@ registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, Langu
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatCommandCenterRendering.ID, ChatCommandCenterRendering, WorkbenchPhase.AfterRestored);
-
-class BuiltinChatTools implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.chatTools';
-
-	constructor(
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
-		@ITerminalService terminalService: ITerminalService,
-		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
-	) {
-		languageModelToolsService.registerToolData({
-			id: 'vscode_runInTerminal',
-			modelDescription: 'Run a command in the terminal',
-			displayName: 'Run in terminal',
-			parametersSchema: {
-				type: 'object',
-				required: ['command'],
-				properties: {
-					command: {
-						type: 'string',
-						description: 'The command to run in the terminal'
-					}
-				}
-			},
-			requiresConfirmation: true,
-			supportedContentTypes: ['text/plain'],
-		});
-		languageModelToolsService.registerToolImplementation('vscode_runInTerminal', {
-			provideToolConfirmationMessages: async (participantName: string, parameters, token) => {
-				return {
-					title: 'Run a script in the terminal',
-					message: `${participantName} will run this command in the terminal: \`${truncate(parameters.command, 50)}\``,
-				};
-			},
-			provideToolInvocationMessage: async (parameters, token) => {
-				return `Running in terminal: \`${truncate(parameters.command, 30)}\``;
-			},
-			invoke: async (invocation, countTokens, token) => {
-				let terminal = await terminalService.getActiveOrCreateInstance();
-				const unusableTerminal = terminal.xterm?.isStdinDisabled || terminal.shellLaunchConfig.isFeatureTerminal;
-				terminal = unusableTerminal ? await terminalService.createTerminal() : terminal;
-				terminalService.setActiveInstance(terminal);
-				await terminal.focusWhenReady(true);
-				terminalGroupService.showPanel(true);
-				let commandDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
-				const deferred = new DeferredPromise<IToolResult>();
-				const run = () => {
-					commandDetection?.onCommandFinished(command => {
-						deferred.complete({ string: command.getOutput() ?? 'nothing' });
-					});
-					terminal.runCommand(invocation.parameters.command, true);
-				};
-				if (commandDetection) {
-					run();
-				} else {
-					terminal.capabilities.onDidAddCapability(capability => {
-						commandDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
-						if (capability.id === TerminalCapability.CommandDetection) {
-							run();
-						}
-					});
-				}
-
-				return deferred.p;
-			},
-		});
-	}
-}
-
-registerWorkbenchContribution2(BuiltinChatTools.ID, BuiltinChatTools, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();
