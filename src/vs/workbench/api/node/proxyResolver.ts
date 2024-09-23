@@ -180,7 +180,7 @@ function monitorResponseProperties(mainThreadTelemetry: MainThreadTelemetryShape
 	const originalType = response.type;
 	Object.defineProperty(response, 'type', {
 		get() {
-			recordFetchFeatureUse(mainThreadTelemetry, 'type');
+			recordFetchFeatureUse(mainThreadTelemetry, 'typeProperty');
 			return originalType !== 'default' ? originalType : 'basic';
 		}
 	});
@@ -190,7 +190,7 @@ type FetchFeatureUseClassification = {
 	owner: 'chrmarti';
 	comment: 'Data about fetch API use';
 	url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the url property was used.' };
-	type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the type property was used.' };
+	typeProperty: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the type property was used.' };
 	data: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a data URL was used.' };
 	blob: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a blob URL was used.' };
 	integrity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the integrity property was used.' };
@@ -199,7 +199,7 @@ type FetchFeatureUseClassification = {
 
 type FetchFeatureUseEvent = {
 	url: number;
-	type: number;
+	typeProperty: number;
 	data: number;
 	blob: number;
 	integrity: number;
@@ -208,7 +208,7 @@ type FetchFeatureUseEvent = {
 
 const fetchFeatureUse: FetchFeatureUseEvent = {
 	url: 0,
-	type: 0,
+	typeProperty: 0,
 	data: 0,
 	blob: 0,
 	integrity: 0,
