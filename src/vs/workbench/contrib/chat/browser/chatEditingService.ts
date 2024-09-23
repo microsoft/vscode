@@ -26,6 +26,7 @@ import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -85,11 +86,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== ModifiedFileEntryState.Undecided);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
-		this._chatService.onDidDisposeSession((e) => {
+		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
-				this.killCurrentEditingSession();
+				this._killCurrentEditingSession();
 			}
-		});
+		}));
 	}
 
 	async startOrContinueEditingSession(chatSessionId: string, builder?: (stream: IChatEditingSessionStream) => Promise<void>, options?: { silent: boolean }): Promise<void> {
@@ -176,7 +177,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}
 	}
 
-	killCurrentEditingSession() {
+	private _killCurrentEditingSession() {
 		const currentSession = this._currentSessionObs.get();
 		if (currentSession) {
 			this._onDidDisposeEditingSession.fire(currentSession);
@@ -578,6 +579,15 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	override dispose() {
+		// Close out all open files
+		this._editorGroupsService.groups.forEach((g) => {
+			g.editors.forEach((e) => {
+				if (e instanceof MultiDiffEditorInput || e instanceof DiffEditorInput && (e.original.resource?.scheme === ModifiedFileEntry.scheme || e.original.resource?.scheme === ChatEditingTextModelContentProvider.scheme)) {
+					g.closeEditor(e);
+				}
+			});
+		});
+
 		super.dispose();
 		this._onDidDispose.fire();
 	}
@@ -655,8 +665,9 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
+	public static readonly scheme = 'modified-file-entry';
 	static lastEntryId = 0;
-	public readonly entryId = `modified-file-entry::${++ModifiedFileEntry.lastEntryId}`;
+	public readonly entryId = `${ModifiedFileEntry.scheme}::${++ModifiedFileEntry.lastEntryId}`;
 
 	public readonly docSnapshot: ITextModel;
 	public readonly doc: ITextModel;
