@@ -490,7 +490,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
