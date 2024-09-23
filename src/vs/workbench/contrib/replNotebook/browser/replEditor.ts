@@ -704,13 +704,19 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			activeCodeEditor: this._codeEditorWidget,
+			activeCodeEditor: this.getActiveCodeEditor(),
 			onDidChangeActiveEditor: Event.None
 		};
 	}
+
+	private getActiveCodeEditor(): ICodeEditor {
+		return this._codeEditorWidget.hasTextFocus() || !this._notebookWidget.value?.activeCodeEditor ?
+			this._codeEditorWidget :
+			this._notebookWidget.value?.activeCodeEditor;
+	}
 }
 
-export type ReplEditorControl = { activeCodeEditor: CodeEditorWidget; notebookEditor: NotebookEditorWidget | undefined };
+export type ReplEditorControl = { activeCodeEditor: ICodeEditor; notebookEditor: NotebookEditorWidget | undefined };
 
 export function isReplEditorControl(control: unknown): control is ReplEditorControl {
 	const candidate = control as ReplEditorControl;
