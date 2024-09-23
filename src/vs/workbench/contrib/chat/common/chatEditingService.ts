@@ -19,7 +19,7 @@ export interface IChatEditingService {
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	createEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
+	startOrContinueEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
 }
 
 export interface IChatEditingSession {
@@ -42,6 +42,7 @@ export interface IChatEditingSessionStream {
 }
 
 export const enum ChatEditingSessionState {
+	Initial = 0,
 	StreamingEdits = 1,
 	Idle = 2
 }

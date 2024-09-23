@@ -10,12 +10,16 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { FileKind } from '../../../../../platform/files/common/files.js';
+import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { localize } from '../../../../../nls.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
@@ -29,6 +33,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 		public readonly domNode: HTMLElement = dom.$('.chat-attached-context'),
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super();
 
@@ -39,8 +45,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		dom.setVisibility(Boolean(this.variables.length), this.domNode);
+		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
-		this.variables.forEach((attachment) => {
+		this.variables.forEach(async (attachment) => {
 			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
@@ -86,6 +93,48 @@ export class ChatAttachmentsContentPart extends Disposable {
 							});
 					}
 				}));
+			} else if (attachment.isImage) {
+				let buffer: Uint8Array;
+				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+
+				const hoverElement = dom.$('div.chat-attached-context-hover');
+				hoverElement.setAttribute('aria-label', ariaLabel);
+
+				// Custom label
+				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
+				widget.appendChild(pillIcon);
+				widget.appendChild(textLabel);
+
+				try {
+					if (attachment.value instanceof URI) {
+						const readFile = await this.fileService.readFile(attachment.value);
+						buffer = readFile.value.buffer;
+
+					} else {
+						buffer = attachment.value as Uint8Array;
+					}
+					await this.createImageElements(buffer, widget, hoverElement);
+				} catch (error) {
+					console.error('Error processing attachment:', error);
+				}
+
+				widget.style.position = 'relative';
+				widget.ariaLabel = ariaLabel;
+				widget.tabIndex = 0;
+
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+
+					// No delay for keyboard
+					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
+						const keyboardEvent = new StandardKeyboardEvent(event);
+						if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
+							this.hoverService.showManagedHover(widget);
+						}
+					}));
+				}
+
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
@@ -109,6 +158,23 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}
 			}
 		});
+	}
+
+	// Helper function to create and replace image
+	private async createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+		const blob = new Blob([buffer], { type: 'image/png' });
+		const url = URL.createObjectURL(blob);
+		const img = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
+		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
+
+		const existingPill = widget.querySelector('.chat-attached-context-pill');
+		if (existingPill) {
+			existingPill.replaceWith(pill);
+		}
+
+		// Update hover image
+		hoverElement.appendChild(img);
 	}
 }
 

@@ -375,6 +375,11 @@ export interface TextSearchProvider {
 
 export interface AITextSearchProvider {
 	/**
+	 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
+	 */
+	readonly name?: string;
+
+	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameter for this query.
 	 * @param options A set of options to consider while searching.
@@ -557,7 +562,11 @@ export class OldTextSearchProviderConverter implements TextSearchProviderNew {
 }
 
 export class OldAITextSearchProviderConverter implements AITextSearchProviderNew {
-	constructor(private provider: AITextSearchProvider) { }
+	public readonly name?: string;
+
+	constructor(private provider: AITextSearchProvider) {
+		this.name = this.provider.name;
+	}
 
 	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
 		const progressShim = (oldResult: TextSearchResult) => {

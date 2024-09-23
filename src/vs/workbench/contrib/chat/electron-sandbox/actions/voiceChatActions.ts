@@ -584,7 +584,7 @@ export class StartVoiceChatAction extends Action2 {
 					AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
 				),
 				group: 'navigation',
-				order: -1
+				order: 3
 			}]
 		});
 	}
@@ -624,7 +624,7 @@ export class StopListeningAction extends Action2 {
 				id: MenuId.ChatInput,
 				when: AnyScopedVoiceChatInProgress,
 				group: 'navigation',
-				order: -1
+				order: 3
 			}]
 		});
 	}
@@ -951,7 +951,7 @@ export class StopReadAloud extends Action2 {
 					id: MenuId.ChatInput,
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
-					order: -1
+					order: 3
 				},
 			]
 		});
@@ -1289,7 +1289,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 				id: MenuId.ChatInput,
 				when: HasSpeechProvider.negate(),
 				group: 'navigation',
-				order: -1
+				order: 3
 			}]
 		});
 	}

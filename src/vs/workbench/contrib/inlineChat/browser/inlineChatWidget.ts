@@ -50,7 +50,7 @@ import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../chat/common/chatContextKeys.js';
 import { ChatModel, IChatModel } from '../../chat/common/chatModel.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
-import { isResponseVM, isWelcomeVM } from '../../chat/common/chatViewModel.js';
+import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
@@ -155,10 +155,6 @@ export class InlineChatWidget {
 				renderFollowups: true,
 				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
 				filter: item => {
-					if (isWelcomeVM(item)) {
-						// filter welcome messages
-						return false;
-					}
 					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
 						// filter responses that
 						// - are just text edits(prevents the "Made Edits")
