@@ -225,7 +225,7 @@ export class ViewCursors extends ViewPart {
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
-		// Remove the following if statement when experimental edit context is made default sole implementation
+		// TODO: Remove the following if statement when experimental edit context is made default sole implementation
 		if (this._isComposingInput && !this._experimentalEditContextEnabled) {
 			// avoid double cursors
 			return TextEditorCursorBlinkingStyle.Hidden;
