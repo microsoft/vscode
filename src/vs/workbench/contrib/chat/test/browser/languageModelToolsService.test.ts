@@ -118,7 +118,7 @@ suite('LanguageModelToolsService', () => {
 			parameters: {
 				a: 1
 			},
-			context: { sessionId: 'a' },
+			context: undefined,
 			requestedContentTypes: ['text/plain']
 		};
 
