@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatWidgetService, IChatWidget, ChatTreeItem } from './chat.js';
 import { CONTEXT_IN_CHAT_SESSION } from '../common/chatContextKeys.js';
-import { ChatWelcomeMessageModel } from '../common/chatModel.js';
 import { isResponseVM } from '../common/chatViewModel.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
@@ -62,19 +61,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 	}
 
 	private _getContent(item: ChatTreeItem): string {
-		const isWelcome = item instanceof ChatWelcomeMessageModel;
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
-		if (isWelcome) {
-			const welcomeReplyContents = [];
-			for (const content of item.content) {
-				if (Array.isArray(content)) {
-					welcomeReplyContents.push(...content.map(m => m.message));
-				} else {
-					welcomeReplyContents.push((content as IMarkdownString).value);
-				}
-			}
-			responseContent = welcomeReplyContents.join('\n');
-		}
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;
 		}
@@ -108,4 +95,3 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		return;
 	}
 }
-

@@ -90,13 +90,10 @@ import { shouldPasteTerminalText } from '../common/terminalClipboard.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
-
-// HACK: This file should not depend on terminalContrib
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalAccessibilityCommandId } from '../../terminalContrib/accessibility/common/terminal.accessibility.js';
 import { openContextMenu } from './terminalContextMenu.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { TerminalContribCommandId } from '../terminalContribExports.js';
 
 const enum Constants {
 	/**
@@ -727,7 +724,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue('task.reconnection') === true); }
 
 	public static getXtermConstructor(keybindingService: IKeybindingService, contextKeyService: IContextKeyService) {
-		const keybinding = keybindingService.lookupKeybinding(TerminalAccessibilityCommandId.FocusAccessibleBuffer, contextKeyService);
+		const keybinding = keybindingService.lookupKeybinding(TerminalContribCommandId.A11yFocusAccessibleBuffer, contextKeyService);
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}

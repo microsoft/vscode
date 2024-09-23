@@ -182,6 +182,10 @@ export class Match {
 	getMatchString(): string {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}
+
+	public isReadonly() {
+		return this.aiContributed;
+	}
 }
 
 export class CellMatch {
@@ -312,8 +316,8 @@ export class MatchInNotebook extends Match {
 		return this._webviewIndex !== undefined;
 	}
 
-	public isReadonly() {
-		return (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
+	public override isReadonly() {
+		return super.isReadonly() || (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -460,7 +464,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasReadonlyMatches(): boolean {
-		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
+		return this.matches().some(m => m.isReadonly());
 	}
 
 	createMatches(isAiContributed: boolean): void {
@@ -740,7 +744,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => (match instanceof MatchInNotebook && match.isReadonly()));
+		return this.matches().every(match => match.isReadonly());
 	}
 
 	// #region strictly notebook methods
@@ -1475,7 +1479,7 @@ export class TextSearchResult extends Disposable {
 	private _otherFilesMatch: FolderMatch | null = null;
 	private _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResource> = TernarySearchTree.forUris<FolderMatchWorkspaceRoot>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	public resource = null;
-
+	public hidden = false;
 
 	public cachedSearchComplete: ISearchComplete | undefined;
 
@@ -1489,12 +1493,16 @@ export class TextSearchResult extends Disposable {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
-
 		this._register(this.onChange(e => {
 			if (e.removed) {
 				this._isDirty = !this.isEmpty();
 			}
 		}));
+	}
+
+	hide() {
+		this.hidden = true;
+		this.clear();
 	}
 
 	get isAIContributed() {
@@ -1631,12 +1639,12 @@ export class TextSearchResult extends Disposable {
 
 		this._folderMatches = (query && query.folderQueries || [])
 			.map(fq => fq.folder)
-			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query, false));
+			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query, this.isAIContributed));
 
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
 
 		if (this._allowOtherResults) {
-			this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query, false);
+			this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query, this.isAIContributed);
 		}
 
 		this._query = query;
@@ -1727,6 +1735,7 @@ export class TextSearchResult extends Disposable {
 		this.disposeMatches();
 		this._folderMatches = [];
 		this._otherFilesMatch = null;
+		this.cachedSearchComplete = undefined;
 	}
 
 	override async dispose(): Promise<void> {
@@ -1996,8 +2005,12 @@ export class SearchResult extends Disposable {
 			this._onChange.pause();
 			elementsToRemove.forEach((currentElement) => {
 				if (!arrayContainsElementOrParent(currentElement, removedElems)) {
-					currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement);
-					removedElems.push(currentElement);
+					if (currentElement instanceof TextSearchResult) {
+						currentElement.hide();
+					} else {
+						currentElement.parent().remove(<(FolderMatch | FileMatch)[] & Match & FileMatch[]>currentElement);
+						removedElems.push(currentElement);
+					}
 				}
 			}
 			);
@@ -2065,7 +2078,8 @@ export class SearchResult extends Disposable {
 
 
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
-		// Split up raw into a list per folder so we can do a batch add per folder.
+		this._plainTextSearchResult.hidden = false;
+		this._aiTextSearchResult.hidden = false;
 
 		if (ai) {
 			this._aiTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
@@ -2091,18 +2105,17 @@ export class SearchResult extends Disposable {
 		return this._plainTextSearchResult.replace(match);
 	}
 
-	matches(ai = false): FileMatch[] {
-		if (ai) {
+	matches(ai?: boolean): FileMatch[] {
+		if (ai === undefined) {
+			return this._plainTextSearchResult.matches().concat(this._aiTextSearchResult.matches());
+		} else if (ai === true) {
 			return this._aiTextSearchResult.matches();
 		}
 		return this._plainTextSearchResult.matches();
 	}
 
-	isEmpty(ai = false): boolean {
-		if (ai) {
-			return this._aiTextSearchResult.isEmpty();
-		}
-		return this._plainTextSearchResult.isEmpty();
+	isEmpty(): boolean {
+		return this._plainTextSearchResult.isEmpty() && this._aiTextSearchResult.isEmpty();
 	}
 
 	fileCount(): number {
@@ -2186,6 +2199,7 @@ export class SearchModel extends Disposable {
 	private searchCancelledForNewSearch: boolean = false;
 	private aiSearchCancelledForNewSearch: boolean = false;
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
+	private readonly _aiTextResultProviderName: Lazy<Promise<string | undefined>>;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -2198,6 +2212,16 @@ export class SearchModel extends Disposable {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 		this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
+
+		this._aiTextResultProviderName = new Lazy(async () => this.searchService.getAIName());
+	}
+
+	async getAITextResultProviderName(): Promise<string> {
+		const result = await this._aiTextResultProviderName.value;
+		if (!result) {
+			throw Error('Fetching AI name when no provider present.');
+		}
+		return result;
 	}
 
 	isReplaceActive(): boolean {
@@ -2335,6 +2359,10 @@ export class SearchModel extends Disposable {
 		return !!(this.searchResult.getCachedSearchComplete(true)) || !!(this.currentAICancelTokenSource);
 	}
 
+	get hasPlainResults(): boolean {
+		return !!(this.searchResult.getCachedSearchComplete(false)) || !!(this.currentCancelTokenSource);
+	}
+
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
 		asyncResults: Promise<ISearchComplete>;
 		syncResults: IFileMatch<URI>[];
@@ -2396,6 +2424,9 @@ export class SearchModel extends Disposable {
 					e => {
 						this.onSearchError(e, Date.now() - start, false);
 						throw e;
+					}).finally(() => {
+						this.currentCancelTokenSource?.dispose();
+						this.currentCancelTokenSource = null;
 					}),
 				syncResults
 			};

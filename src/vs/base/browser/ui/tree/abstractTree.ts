@@ -2625,8 +2625,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private readonly onDidChangeActiveNodesRelay = this.disposables.add(new Relay<ITreeNode<T, TFilterData>[]>());
 
 	get onDidChangeModel(): Event<void> { return Event.any(this.onDidChangeModelRelay.event, this.onDidSwapModel.event); }
-	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.model.onDidChangeCollapseState; }
-	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.model.onDidChangeRenderNodeCount; }
+	get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T, TFilterData>> { return this.onDidChangeCollapseStateRelay.event; }
+	get onDidChangeRenderNodeCount(): Event<ITreeNode<T, TFilterData>> { return this.onDidChangeRenderNodeCountRelay.event; }
 
 	private readonly _onWillRefilter = new Emitter<void>();
 	readonly onWillRefilter: Event<void> = this._onWillRefilter.event;

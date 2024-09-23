@@ -4,39 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isPatternInWord } from '../../../../../base/common/filters.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/core/wordHelper.js';
-import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from '../../../../../editor/common/languages.js';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
-import { SubmitAction } from '../actions/chatExecuteActions.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ChatInputPart } from '../chatInputPart.js';
-import { ChatDynamicVariableModel, SelectAndInsertFileAction } from './chatDynamicVariables.js';
-import { ChatAgentLocation, getFullyQualifiedId, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../common/chatAgents.js';
+import { IHistoryService } from '../../../../services/history/common/history.js';
+import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { ISearchService } from '../../../../services/search/common/search.js';
+import { ChatAgentLocation, IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IHistoryService } from '../../../../services/history/common/history.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { isPatternInWord } from '../../../../../base/common/filters.js';
-import { ISearchService } from '../../../../services/search/common/search.js';
-import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
+import { SubmitAction } from '../actions/chatExecuteActions.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatInputPart } from '../chatInputPart.js';
+import { ChatDynamicVariableModel, SelectAndInsertFileAction } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
 	constructor(
@@ -138,7 +139,7 @@ class AgentCompletions extends Disposable {
 							insertText: `${agentLabel} `,
 							detail: agent.description,
 							range: new Range(1, 1, 1, 1),
-							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: agent, widget } satisfies AssignSelectedAgentActionArgs] },
+							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: agent, widget, invokeProvider: subCommandProvider } satisfies AssignSelectedAgentActionArgs] },
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
 					})
@@ -146,7 +147,7 @@ class AgentCompletions extends Disposable {
 			}
 		}));
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		const subCommandProvider: CompletionItemProvider = {
 			_debugDisplayName: 'chatAgentSubcommand',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
@@ -194,7 +195,8 @@ class AgentCompletions extends Disposable {
 					})
 				};
 			}
-		}));
+		};
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, subCommandProvider));
 
 		// list subcommands when the query is empty, insert agent+subcommand
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
@@ -288,6 +290,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 interface AssignSelectedAgentActionArgs {
 	agent: IChatAgentData;
 	widget: IChatWidget;
+	invokeProvider?: CompletionItemProvider;
 }
 
 class AssignSelectedAgentAction extends Action2 {
@@ -307,6 +310,15 @@ class AssignSelectedAgentAction extends Action2 {
 		}
 
 		arg.widget.lastSelectedAgent = arg.agent;
+
+		if (arg.invokeProvider) {
+			const suggestCtrl = SuggestController.get(arg.widget.inputEditor);
+			if (!suggestCtrl) {
+				return;
+			}
+
+			suggestCtrl.triggerSuggest(new Set([arg.invokeProvider]), true);
+		}
 	}
 }
 registerAction2(AssignSelectedAgentAction);
@@ -486,6 +498,14 @@ export function computeCompletionRanges(model: ITextModel, position: Position, r
 		// inside a "normal" word
 		return;
 	}
+
+	if (!varWord && position.column > 1) {
+		const textBefore = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
+		if (textBefore !== ' ') {
+			return;
+		}
+	}
+
 	if (varWord && onlyOnWordStart) {
 		const wordBefore = model.getWordUntilPosition({ lineNumber: position.lineNumber, column: varWord.startColumn });
 		if (wordBefore.word) {
@@ -508,7 +528,7 @@ export function computeCompletionRanges(model: ITextModel, position: Position, r
 
 class VariableCompletions extends Disposable {
 
-	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
 
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,

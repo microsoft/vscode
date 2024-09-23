@@ -18,7 +18,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { clearChatEditor } from './chatClear.js';
-import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from '../chat.js';
+import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -36,6 +36,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { toAction } from '../../../../../base/common/actions.js';
+import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 
 export interface IChatViewTitleActionContext {
 	chatView: ChatViewPane;
@@ -245,10 +248,55 @@ class OpenChatEditorAction extends Action2 {
 	}
 }
 
+
+class ChatAddAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.addParticipant',
+			title: localize2('chatWith', "Chat With Extension"),
+			icon: Codicon.plus,
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 1
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const context: { widget?: IChatWidget } | undefined = args[0];
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const hasAgentOrCommand = extractAgentAndCommand(widget.parsedInput);
+		if (hasAgentOrCommand?.agentPart || hasAgentOrCommand?.commandPart) {
+			return;
+		}
+
+		const suggestCtrl = SuggestController.get(widget.inputEditor);
+		if (suggestCtrl) {
+			const curText = widget.inputEditor.getValue();
+			const newValue = curText ? `@ ${curText}` : '@';
+			if (!curText.startsWith('@')) {
+				widget.inputEditor.setValue(newValue);
+			}
+
+			widget.inputEditor.setPosition(new Position(1, 2));
+			suggestCtrl.triggerSuggest(undefined, true);
+		}
+	}
+}
+
 export function registerChatActions() {
 	registerAction2(OpenChatGlobalAction);
 	registerAction2(ChatHistoryAction);
 	registerAction2(OpenChatEditorAction);
+	registerAction2(ChatAddAction);
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {

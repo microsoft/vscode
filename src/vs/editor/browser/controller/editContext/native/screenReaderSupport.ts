@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
@@ -62,6 +63,11 @@ export class ScreenReaderSupport {
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
+		this._domNode.domNode.setAttribute('role', 'textbox');
+		this._domNode.domNode.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
+		this._domNode.domNode.setAttribute('aria-multiline', 'true');
+		this._domNode.domNode.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
+		this._domNode.domNode.setAttribute('aria-roledescription', localize('editor', "editor"));
 		this._domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;

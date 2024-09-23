@@ -9,6 +9,11 @@ declare module 'vscode' {
 	 */
 	export interface AITextSearchProviderNew {
 		/**
+		 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
+		 */
+		readonly name?: string;
+
+		/**
 		 * WARNING: VERY EXPERIMENTAL.
 		 *
 		 * Provide results that match the given text pattern.

@@ -72,7 +72,7 @@ class ReplacePreviewModel extends Disposable {
 
 	async resolve(replacePreviewUri: URI): Promise<ITextModel> {
 		const fileResource = toFileResource(replacePreviewUri);
-		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches().filter(match => match.resource.toString() === fileResource.toString())[0];
+		const fileMatch = <FileMatch>this.searchWorkbenchService.searchModel.searchResult.matches(true).filter(match => match.resource.toString() === fileResource.toString())[0];
 		const ref = this._register(await this.textModelResolverService.createModelReference(fileResource));
 		const sourceModel = ref.object.textEditorModel;
 		const sourceModelLanguageId = sourceModel.getLanguageId();
@@ -200,15 +200,15 @@ export class ReplaceService implements IReplaceService {
 		const edits: ResourceTextEdit[] = [];
 
 		if (arg instanceof Match) {
-			if (arg instanceof MatchInNotebook) {
-				if (!arg.isReadonly()) {
+			if (!arg.isReadonly()) {
+				if (arg instanceof MatchInNotebook) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
 					const match = <MatchInNotebook>arg;
 					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
+				} else {
+					const match = <Match>arg;
+					edits.push(this.createEdit(match, match.replaceString, resource));
 				}
-			} else {
-				const match = <Match>arg;
-				edits.push(this.createEdit(match, match.replaceString, resource));
 			}
 		}
 

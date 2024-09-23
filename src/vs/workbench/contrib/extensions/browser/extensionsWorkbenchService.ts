@@ -287,10 +287,6 @@ export class Extension implements IExtension {
 		return this.gallery && this.gallery.supportLink ? this.gallery.supportLink : undefined;
 	}
 
-	get contentsUrl(): URI | undefined {
-		return (this.gallery && this.productService.webUrl) ? resources.joinPath(URI.parse(this.productService.webUrl), 'marketplace', this.gallery.publisher, this.gallery.name, this.gallery.version) : undefined;
-	}
-
 	get state(): ExtensionState {
 		return this.stateProvider(this);
 	}
@@ -1365,7 +1361,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
 		if (invalidExtensions.length) {
-			if (invalidExtensions.some(e => e.local &&
+			if (invalidExtensions.some(e => e.local && e.local.manifest.engines &&
 				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
 			)) {
 				return {

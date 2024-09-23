@@ -479,10 +479,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session {
 	width: 100%;
-	margin-bottom: -10px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
+	margin-bottom: -10px;
 	padding: 8px 8px 12px 8px;
 	box-sizing: border-box;
 	cursor: text;
@@ -519,11 +519,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
 	height: 17px;
-	width: 70px;
+	width: 66px;
 	font-size: 11px;
 	background-color: var(--vscode-button-background);
 	border: var(--vscode-button-border);
 	color: var(--vscode-button-foreground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close {
+	width: 16px;
+	cursor: pointer;
+	font-size: 16px;
+	color: var(--vscode-descriptionForeground);
+	background-color: transparent;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary {
@@ -539,7 +547,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-and-side-toolbar {
 	display: flex;
-	flex-direction: column;
 	gap: 4px;
 	align-items: center;
 }
@@ -570,6 +577,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
+	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
 	align-items: center;
@@ -795,10 +803,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 }
 
-.interactive-welcome .value .interactive-session-followups {
-	margin-bottom: 16px;
-}
-
 .interactive-item-container .monaco-toolbar .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 	color: var(--vscode-icon-foreground) !important;
@@ -807,7 +811,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* #region Quick Chat */
 
 .quick-input-widget .interactive-session .interactive-input-part {
-	padding: 8px 6px 6px 6px;
+	padding: 8px 6px 8px 6px;
 	margin: 0 3px;
 }
 
@@ -1014,4 +1018,81 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: none;
 	padding: 0;
 	color: var(--vscode-textLink-foreground);
+}
+
+.chat-attached-context-hover .chat-attached-context-image {
+	height: auto;
+	max-height: 500px;
+	width: 100%;
+	display: block;
+}
+
+.chat-attached-context-attachment .chat-attached-context-pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 0px;
+	border-radius: 2px;
+	margin-right: 1px;
+	user-select: none;
+	outline: none;
+	border: none;
+}
+
+.chat-attached-context-attachment .chat-attached-context-pill-image {
+	width: 16px;
+	height: 16px;
+	border-radius: 2px;
+}
+
+.chat-attached-context-attachment .chat-attached-context-custom-text {
+	vertical-align: middle;
+	user-select: none;
+	outline: none;
+	border: none;
+}
+
+.interactive-session .chat-welcome-view {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+
+	& > .chat-welcome-view-icon .codicon {
+		font-size: 44px;
+	}
+
+	& > .chat-welcome-view-title {
+		font-size: 24px;
+		margin-top: 10px;
+		font-weight: 500;
+	}
+
+	& > .chat-welcome-view-message {
+		opacity: 0.7;
+		text-align: center;
+		max-width: 350px;
+		padding: 0 20px;
+		margin-top: 15px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	& > .chat-welcome-view-tips {
+		opacity: 0.7;
+		max-width: 250px;
+		margin-top: 10px;
+
+		.rendered-markdown p {
+			display: flex;
+			gap: 8px;
+			margin: 6px 0 0 0;
+
+			.codicon {
+				padding-top: 1px;
+			}
+		}
+	}
 }

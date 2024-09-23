@@ -246,8 +246,6 @@ export class SearchView extends ViewPane {
 					this.removeFileStats();
 				}
 				await this.refreshTree();
-			} else if (e.affectsConfiguration('search.aiResults')) {
-				await this.refreshHasAISetting();
 			}
 		}));
 
@@ -389,6 +387,7 @@ export class SearchView extends ViewPane {
 		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
 		this.viewModel = searchModel;
+		this.tree.setInput(this.viewModel.searchResult);
 
 		await this.onSearchResultsChanged();
 		this.refreshInputs();
@@ -524,7 +523,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged(async (event) => this.onSearchResultsChanged(event)));
+		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged(async (event) => await this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -657,13 +656,11 @@ export class SearchView extends ViewPane {
 
 	public shouldShowAIResults(): boolean {
 		const hasProvider = Constants.SearchContext.hasAIResultProvider.getValue(this.contextKeyService);
-		return !!(this.configurationService.getValue<boolean>('search.aiResults') && hasProvider);
+		return !!hasProvider;
 	}
 	private async onConfigurationUpdated(event?: IConfigurationChangeEvent): Promise<void> {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
 			return this.refreshTree();
-		} else if (event && event.affectsConfiguration('search.aiResults')) {
-			return this.refreshHasAISetting();
 		}
 	}
 
@@ -970,7 +967,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (focus instanceof Match) {
-				editable = (focus instanceof MatchInNotebook) ? !focus.isReadonly() : true;
+				editable = !focus.isReadonly();
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
@@ -2351,7 +2348,7 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 
 		}
 
-		if (this.searchView.shouldShowAIResults() && searchResult.query) {
+		if (this.searchView.shouldShowAIResults() && searchResult.searchModel.hasPlainResults && !searchResult.aiTextSearchResult.hidden) {
 			// as long as there is a query present, we can load AI results
 			ret.push(searchResult.aiTextSearchResult);
 		}
