@@ -7,20 +7,17 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import 'mocha';
 import { join, normalize } from 'path';
-import { commands, Uri, workspace, ConfigurationTarget } from 'vscode';
+import { commands, Uri } from 'vscode';
 
-async function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSitterResultsPath: string, fixture: string, done: any) {
+function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixture: string, done: any) {
 	const testFixurePath = join(fixturesPath, fixture);
-	const tokenizers = [{ command: '_workbench.captureSyntaxTokens', resultsPath }, { command: '_workbench.captureTreeSitterSyntaxTokens', resultsPath: treeSitterResultsPath }];
 
-	try {
-		await Promise.all(tokenizers.map(async (tokenizer) => {
-			const data = await commands.executeCommand(tokenizer.command, Uri.file(testFixurePath));
-
-			if (!fs.existsSync(tokenizer.resultsPath)) {
-				fs.mkdirSync(tokenizer.resultsPath);
+	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {
+		try {
+			if (!fs.existsSync(resultsPath)) {
+				fs.mkdirSync(resultsPath);
 			}
-			const resultPath = join(tokenizer.resultsPath, fixture.replace('.', '_') + '.json');
+			const resultPath = join(resultsPath, fixture.replace('.', '_') + '.json');
 			if (fs.existsSync(resultPath)) {
 				const previousData = JSON.parse(fs.readFileSync(resultPath).toString());
 				try {
@@ -43,11 +40,11 @@ async function assertUnchangedTokens(fixturesPath: string, resultsPath: string, 
 			} else {
 				fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
 			}
-		}));
-		done();
-	} catch (e) {
-		done(e);
-	}
+			done();
+		} catch (e) {
+			done(e);
+		}
+	}, done);
 }
 
 function hasThemeChange(d: any, p: any): boolean {
@@ -64,19 +61,11 @@ suite('colorization', () => {
 	const testPath = normalize(join(__dirname, '../test'));
 	const fixturesPath = join(testPath, 'colorize-fixtures');
 	const resultsPath = join(testPath, 'colorize-results');
-	const treeSitterResultsPath = join(testPath, 'colorize-tree-sitter-results');
-
-	suiteSetup(async function () {
-		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', ["typescript"], ConfigurationTarget.Global);
-	});
-	suiteTeardown(async function () {
-		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', [], ConfigurationTarget.Global);
-	});
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {
 		test(`colorize: ${fixture}`, function (done) {
 			commands.executeCommand('workbench.action.closeAllEditors').then(() => {
-				assertUnchangedTokens(fixturesPath, resultsPath, treeSitterResultsPath, fixture, done);
+				assertUnchangedTokens(fixturesPath, resultsPath, fixture, done);
 			});
 		});
 	}

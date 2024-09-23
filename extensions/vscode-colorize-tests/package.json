@@ -14,9 +14,7 @@
   },
   "icon": "media/icon.png",
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json",
-    "watch": "gulp watch-extension:vscode-colorize-tests",
-    "compile": "gulp compile-extension:vscode-colorize-tests"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json"
   },
   "dependencies": {
     "jsonc-parser": "^3.2.0"
@@ -53,17 +51,7 @@
         "path": "./producticons/test-product-icon-theme.json",
         "_watch": true
       }
-    ],
-    "configuration": {
-      "title": "Color Tests",
-      "properties": {
-        "editor.experimental.preferTreeSitter": {
-          "type": "array",
-          "default": ["typescript"],
-          "description": "Enable the experimental tree-sitter parser."
-        }
-      }
-    }
+    ]
   },
   "repository": {
     "type": "git",
