@@ -28,7 +28,6 @@ import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
@@ -71,7 +70,6 @@ import { IChatWidget } from './chat.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { PasteImageProvider } from './chatPasteProviders.js';
 import { IChatViewState } from './chatWidget.js';
 
 const $ = dom.$;
@@ -217,12 +215,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
-		this._register(this.languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider()));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
