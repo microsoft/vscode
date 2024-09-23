@@ -341,11 +341,17 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		}
 	}
 
+	// if title bar is non-empty, we must show it
 	if (!isTitleBarEmpty(configurationService)) {
 		return true;
 	}
 
-	// Hide custom title bar when native title/menu bar enabled and custom title bar is empty
+	// if custom menubar should be visible, we must show the title bar
+	if (isCustomMenuBarVisible(configurationService, window, menuBarToggled)) {
+		return true;
+	}
+
+	// hide custom title bar when native title/menu bar enabled
 	if (nativeBarEnabled) {
 		return false;
 	}
@@ -355,8 +361,8 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		return !inFullscreen;
 	}
 
-	// non-fullscreen native must show the title bar
-	if (isNative && !inFullscreen) {
+	// non-fullscreen native must show the custom title bar if not using the native title bar
+	if (isNative && !inFullscreen && !hasNativeTitlebar(configurationService)) {
 		return true;
 	}
 
@@ -365,7 +371,14 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 		return true;
 	}
 
-	// remaining behavior is based on menubar visibility
+	return false;
+}
+
+function isCustomMenuBarVisible(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+	if (useNativeMenuStyle(configurationService)) {
+		return false;
+	}
+	const inFullscreen = isFullscreen(window);
 	const menuBarVisibility = !isAuxiliaryWindow(window) ? getMenuBarVisibility(configurationService) : 'hidden';
 	switch (menuBarVisibility) {
 		case 'classic':

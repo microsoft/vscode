@@ -8,7 +8,7 @@ import { Event, Emitter } from '../../base/common/event.js';
 import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { IWorkingCopyBackupService } from '../services/workingCopy/common/workingCopyBackup.js';
-import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
+import { isWindows, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
@@ -385,10 +385,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.mainContainer, EventType.SCROLL, () => this.mainContainer.scrollTop = 0));
 
 		// Menubar visibility changes
-		const showingCustomMenu = (isWindows || isLinux || isWeb) && !useNativeMenuStyle(this.configurationService);
-		if (showingCustomMenu) {
-			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
-		}
+		this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowsBorder()));
@@ -420,16 +417,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (visible !== this.state.runtime.menuBar.toggled) {
 			this.state.runtime.menuBar.toggled = visible;
 
-			const menuBarVisibility = getMenuBarVisibility(this.configurationService);
-
-			// The menu bar toggles the title bar in web because it does not need to be shown for window controls only
-			if (isWeb && menuBarVisibility === 'toggle') {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
-			}
-
-			// The menu bar toggles the title bar in full screen for toggle and classic settings
-			else if (this.state.runtime.mainWindowFullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
-				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive()));
+			// The menu bar toggles the title bar in various circumstances, so let's just always check for this
+			// 1. in web because it does not need to be shown for window controls only
+			// 2. in full screen for toggle and classic settings
+			// 3. if "force custom menu style" is used and everything else is hidden from the custom title bar
+			const shouldShowTitleBar = shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled, this.isZenModeActive());
+			if (shouldShowTitleBar !== this.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
+				this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowTitleBar);
 			}
 
 			// Move layout call to any time the menubar
