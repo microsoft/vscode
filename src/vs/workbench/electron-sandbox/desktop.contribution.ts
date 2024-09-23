@@ -239,7 +239,7 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('forceCustomMenuStyle', "Force use of the custom menu style on Linux and Windows when {0} is set to `native`. Has no effect otherwise. Affects the application and context menu appearances.", '`#window.titleBarStyle#`'),
+				'markdownDescription': localize('forceCustomMenuStyle', "Force use of the custom menu style on Linux and Windows when {0} is set to `native`. Has no effect otherwise. Affects the application and context menu appearances. Changes require a full restart to apply.", '`#window.titleBarStyle#`'),
 			},
 			'window.experimentalControlOverlay': {
 				'type': 'boolean',
