@@ -92,29 +92,6 @@ steps:
 
   - script: |
       set -e
-      includes=$(cat << 'EOF'
-      {
-        "target_defaults": {
-          "conditions": [
-            ["OS=='linux'", {
-              'cflags_cc!': [ '-std=gnu++17' ],
-              'cflags_cc': [ '-std=gnu++14' ],
-            }]
-          ]
-        }
-      }
-      EOF
-      )
-
-      if [ ! -d "$HOME/.gyp" ]; then
-        mkdir -p "$HOME/.gyp"
-      fi
-
-      echo "$includes" > "$HOME/.gyp/include.gypi"
-    displayName: Create global include.gypi
-
-  - script: |
-      set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
       source ./build/azure-pipelines/linux/setup-env.sh --skip-client-sysroot
@@ -133,6 +110,7 @@ steps:
       NPM_REGISTRY: "$(NPM_REGISTRY)"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      VSCODE_SETUP_GLOBAL_GYP_CONFIG: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
 

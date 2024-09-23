@@ -64,6 +64,30 @@ function npmInstall(dir, opts) {
 	}
 }
 
+function setupGlobalGypConfig() {
+	const includes = `
+	{
+		"target_defaults": {
+			"conditions": [
+				["OS=='linux'", {
+					"cflags_cc!": [ "-std=gnu++17" ],
+					"cflags_cc": [ "-std=gnu++14" ],
+				}]
+			]
+		}
+	}
+	`;
+
+	const gypDir = path.join(os.homedir(), '.gyp');
+	const includeGypiPath = path.join(gypDir, 'include.gypi');
+
+	if (!fs.existsSync(gypDir)) {
+		fs.mkdirSync(gypDir, { recursive: true });
+	}
+
+	fs.writeFileSync(includeGypiPath, includes.trim());
+}
+
 function setNpmrcConfig(dir, env) {
 	const npmrcPath = path.join(root, dir, '.npmrc');
 	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
@@ -130,6 +154,10 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { opts.env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
 		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+
+		if (process.env['VSCODE_SETUP_GLOBAL_GYP_CONFIG']) {
+			setupGlobalGypConfig();
+		}
 
 		setNpmrcConfig('remote', opts.env);
 	}
