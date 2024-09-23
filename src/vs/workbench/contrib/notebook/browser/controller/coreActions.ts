@@ -157,16 +157,18 @@ export abstract class NotebookAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): Promise<void> {
 		let from;
-		if (context.source) {
-			from = context.source;
-		} else if (URI.isUri(context)) {
-			from = 'cellEditorContextMenu';
-		} else {
-			const contextJson = JSON.stringify(context);
-			if (contextJson.includes('"cellContainer"')) {
-				from = 'cellContainer';
+
+		if (context) {
+			if (context.source) {
+				from = context.source;
+			} else if (URI.isUri(context)) {
+				from = 'cellEditorContextMenu';
 			} else {
-				from = undefined;
+				if ('from' in context && context.from === 'cellContainer') {
+					from = 'cellContainer';
+				} else {
+					from = undefined;
+				}
 			}
 		}
 
@@ -265,15 +267,15 @@ export abstract class NotebookMultiCellAction extends Action2 {
 		if (editor) {
 			const selectedCellRange: ICellRange[] = editor.getSelections().length === 0 ? [editor.getFocus()] : editor.getSelections();
 
-			const contextJson = JSON.stringify(context);
-			const telemetryService = accessor.get(ITelemetryService);
-			if (contextJson.includes('"cellContainer"')) {
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
-			} else if (URI.isUri(context)) {
+			if (context) {
 				const telemetryService = accessor.get(ITelemetryService);
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
-			} else {
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+				if ('from' in context && context.from === 'cellContainer') {
+					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
+				} else if (URI.isUri(context)) {
+					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
+				} else {
+					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
+				}
 			}
 
 			return this.runWithContext(accessor, {
@@ -285,6 +287,10 @@ export abstract class NotebookMultiCellAction extends Action2 {
 	}
 }
 
+interface CellContainerContext {
+	from: string;
+}
+
 export abstract class NotebookCellAction<T = INotebookCellActionContext> extends NotebookAction {
 	protected isCellActionContext(context?: unknown): context is INotebookCellActionContext {
 		return !!context && !!(context as INotebookCellActionContext).notebookEditor && !!(context as INotebookCellActionContext).cell;
@@ -294,7 +300,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 		return undefined;
 	}
 
-	override async run(accessor: ServicesAccessor, context?: INotebookCellActionContext, ...additionalArgs: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: INotebookCellActionContext | CellContainerContext, ...additionalArgs: any[]): Promise<void> {
 		if (this.isCellActionContext(context)) {
 			const telemetryService = accessor.get(ITelemetryService);
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellToolbar' });
@@ -302,25 +308,25 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 			return this.runWithContext(accessor, context);
 		}
 
-		const contextFromArgs = this.getCellContextFromArgs(accessor, context, ...additionalArgs);
-
-		if (contextFromArgs) {
-			return this.runWithContext(accessor, contextFromArgs);
-		}
+		//! this is locked to undefined, will never ever evaluate to true
+		// const contextFromArgs = this.getCellContextFromArgs(accessor, context, ...additionalArgs);
+		// if (contextFromArgs) {
+		// 	return this.runWithContext(accessor, contextFromArgs);
+		// }
 
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-		if (this.isCellActionContext(activeEditorContext)) {
+		if (context) {
+
+			const telemetryService = accessor.get(ITelemetryService);
 			if (URI.isUri(context)) {
-				const telemetryService = accessor.get(ITelemetryService);
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
-			} else {
-				const contextJson = JSON.stringify(context);
-				const telemetryService = accessor.get(ITelemetryService);
-				if (contextJson.includes('"cellContainer"')) {
-					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
-				}
+			} else if ('from' in context && context.from === 'cellContainer') {
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
 			}
-			return this.runWithContext(accessor, activeEditorContext);
+
+			if (this.isCellActionContext(activeEditorContext)) {
+				return this.runWithContext(accessor, activeEditorContext);
+			}
 		}
 	}
 
