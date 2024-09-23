@@ -101,8 +101,7 @@ module.exports.indentationFilter = [
 
 	// except multiple specific files
 	'!**/package.json',
-	'!**/yarn.lock',
-	'!**/yarn-error.log',
+	'!**/package-lock.json',
 
 	// except multiple specific folders
 	'!**/codicon/**',

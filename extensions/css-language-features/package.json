@@ -30,7 +30,7 @@
     "compile": "npx gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
     "watch": "npx gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
     "test": "node ../../node_modules/mocha/bin/mocha",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"

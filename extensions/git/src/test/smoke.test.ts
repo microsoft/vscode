@@ -129,8 +129,7 @@ suite('git smoke test', function () {
 	});
 
 	test('rename/delete conflict', async function () {
-		cp.execSync('git branch test', { cwd });
-		cp.execSync('git checkout test', { cwd });
+		cp.execSync('git checkout -b test', { cwd });
 
 		fs.unlinkSync(file('app.js'));
 		cp.execSync('git add .', { cwd });
