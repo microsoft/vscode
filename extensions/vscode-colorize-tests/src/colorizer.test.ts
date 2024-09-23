@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import 'mocha';
 import { join, normalize } from 'path';
-import { commands, Uri } from 'vscode';
+import { commands, Uri, workspace,  ConfigurationTarget } from 'vscode';
 
 async function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSitterResultsPath: string, fixture: string, done: any) {
 	const testFixurePath = join(fixturesPath, fixture);
@@ -64,6 +64,13 @@ suite('colorization', () => {
 	const fixturesPath = join(testPath, 'colorize-fixtures');
 	const resultsPath = join(testPath, 'colorize-results');
 	const treeSitterResultsPath = join(testPath, 'colorize-tree-sitter-results');
+
+	suiteSetup(async function () {
+		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', ["typescript"], ConfigurationTarget.Global);
+	});
+	suiteTeardown(async function () {
+		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', [], ConfigurationTarget.Global);
+	});
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {
 		test(`colorize: ${fixture}`, function (done) {
