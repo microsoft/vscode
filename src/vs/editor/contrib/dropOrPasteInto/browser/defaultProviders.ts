@@ -200,19 +200,6 @@ class PasteHtmlProvider implements DocumentPasteEditProvider {
 	}
 }
 
-export class PasteImageProvider implements DocumentPasteEditProvider {
-
-	public readonly kind = new HierarchicalKind('image');
-
-	public readonly pasteMimeTypes = ['Files']; // this should be `image/png` etc, but how mime types are checked in copyPasteController doesn't encompass this
-
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		// TODO: @justschen setup image data types
-		// const entry = dataTransfer.get('image/png') || dataTransfer.get('image/jpeg') || dataTransfer.get('image/gif') || dataTransfer.get('image/webp');
-		return;
-	}
-}
-
 async function extractUriList(dataTransfer: IReadonlyVSDataTransfer): Promise<{ readonly uri: URI; readonly originalText: string }[]> {
 	const urlListEntry = dataTransfer.get(Mimes.uriList);
 	if (!urlListEntry) {
@@ -252,7 +239,6 @@ export class DefaultPasteProvidersFeature extends Disposable {
 		super();
 
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextPasteOrDropEditProvider()));
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));
