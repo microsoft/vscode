@@ -226,14 +226,16 @@
 	},
 	{
 		"c": "constructor",
-		"t": "entity.name.function storage.type variable",
+		"t": "variable entity.name.function storage.type",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -1001,14 +1003,16 @@
 	},
 	{
 		"c": "constructor",
-		"t": "entity.name.function storage.type variable",
+		"t": "variable entity.name.function storage.type",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -1688,14 +1692,14 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -1734,14 +1738,14 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -1780,14 +1784,14 @@
 	},
 	{
 		"c": "createWorld",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -1840,14 +1844,14 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -1896,16 +1900,16 @@
 	},
 	{
 		"c": "=>",
-		"t": "storage.type keyword.operator",
+		"t": "keyword.operator storage.type",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -1975,14 +1979,14 @@
 	},
 	{
 		"c": "random",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2112,14 +2116,14 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2139,7 +2143,7 @@
 	},
 	{
 		"c": "void",
-		"t": "support.type.primitive support.type",
+		"t": "support.type support.type.primitive",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -2220,14 +2224,14 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2276,16 +2280,16 @@
 	},
 	{
 		"c": "=>",
-		"t": "storage.type keyword.operator",
+		"t": "keyword.operator storage.type",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -2454,14 +2458,14 @@
 	},
 	{
 		"c": "draw",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2526,14 +2530,14 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2580,14 +2584,14 @@
 	},
 	{
 		"c": "setTimeout",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2607,16 +2611,16 @@
 	},
 	{
 		"c": "=>",
-		"t": "storage.type keyword.operator",
+		"t": "keyword.operator storage.type",
 		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4",
-			"dark_modern": "keyword.operator: #D4D4D4",
-			"hc_light": "keyword.operator: #000000",
-			"light_modern": "keyword.operator: #000000"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6",
+			"dark_modern": "storage.type: #569CD6",
+			"hc_light": "storage.type: #0F4A85",
+			"light_modern": "storage.type: #0000FF"
 		}
 	},
 	{
@@ -2645,14 +2649,14 @@
 	},
 	{
 		"c": "circleOfLife",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2737,14 +2741,14 @@
 	},
 	{
 		"c": "resolveNextGeneration",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2852,14 +2856,14 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -2945,14 +2949,14 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -3439,14 +3443,14 @@
 	},
 	{
 		"c": "countNeighbors",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -4057,14 +4061,14 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "entity.name.function variable variable",
+		"t": "variable variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -4300,14 +4304,14 @@
 	},
 	{
 		"c": "isAlive",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -4813,14 +4817,14 @@
 	},
 	{
 		"c": "travelWorld",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -5331,14 +5335,14 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -5348,14 +5352,14 @@
 	},
 	{
 		"c": "callback",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -5379,14 +5383,14 @@
 	},
 	{
 		"c": "Cell",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -5486,14 +5490,14 @@
 	},
 	{
 		"c": "push",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -5580,14 +5584,14 @@
 	},
 	{
 		"c": "draw",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -5979,14 +5983,14 @@
 	},
 	{
 		"c": "strokeRect",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -6435,14 +6439,14 @@
 	},
 	{
 		"c": "fillRect",
-		"t": "entity.name.function variable",
+		"t": "variable entity.name.function",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
+			"hc_black": "entity.name.function: #DCDCAA",
+			"dark_modern": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #5E2CBC",
+			"light_modern": "entity.name.function: #795E26"
 		}
 	},
 	{

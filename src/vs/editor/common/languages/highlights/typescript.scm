@@ -61,10 +61,10 @@
 (function_declaration
   name: (identifier) @entity.name.function)
 (method_definition
+  name: (property_identifier) @entity.name.function)
+(method_definition
   name: (property_identifier) @storage.type
   (#eq? @storage.type "constructor"))
-(method_definition
-  name: (property_identifier) @entity.name.function)
 (method_signature
   name: (property_identifier) @entity.name.function)
 
@@ -105,9 +105,9 @@
 
 ; Special identifiers
 
-(type_identifier) @entity.name.type
-(predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
 (predefined_type) @support.type
+(predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
+(type_identifier) @entity.name.type
 
 (("const")
   (variable_declarator

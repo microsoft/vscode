@@ -287,7 +287,7 @@ class Snapper {
 
 				tokens.push({
 					c: cursor.currentNode.text,
-					t: capture?.reverse()?.map(cap => cap.name).join(' ') ?? '',
+					t: capture?.map(cap => cap.name).join(' ') ?? '',
 					r: {
 						dark_plus: undefined,
 						light_plus: undefined,

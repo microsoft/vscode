@@ -9,13 +9,13 @@ import 'mocha';
 import { join, normalize } from 'path';
 import { commands, Uri } from 'vscode';
 
-function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSitterResultsPath: string, fixture: string, done: any) {
+async function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSitterResultsPath: string, fixture: string, done: any) {
 	const testFixurePath = join(fixturesPath, fixture);
 	const tokenizers = [{ command: '_workbench.captureSyntaxTokens', resultsPath }, { command: '_workbench.captureTreeSitterSyntaxTokens', resultsPath: treeSitterResultsPath }];
 
-	return Promise.all(tokenizers.map(tokenizer => {
-		return commands.executeCommand(tokenizer.command, Uri.file(testFixurePath)).then(data => {
-			try {
+	try {
+		await Promise.all(tokenizers.map(async (tokenizer) => {
+			const data = await commands.executeCommand(tokenizer.command, Uri.file(testFixurePath));
 				if (!fs.existsSync(tokenizer.resultsPath)) {
 					fs.mkdirSync(tokenizer.resultsPath);
 				}
@@ -42,12 +42,11 @@ function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSi
 				} else {
 					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
 				}
-				done();
-			} catch (e) {
-				done(e);
-			}
-		}, done);
-	}));
+		}));
+		done();
+	} catch (e) {
+		done(e);
+	}
 }
 
 function hasThemeChange(d: any, p: any): boolean {
