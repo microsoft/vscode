@@ -804,30 +804,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Chat editing session actions
 		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
 		const actions = [];
-		if (numberOfEditedEntries > 0) {
-			if (chatEditingSession.isVisible) {
-				actions.push({
+		// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+		if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
+			actions.push(
+				{
 					command: ChatEditingShowChangesAction.ID,
 					label: ChatEditingShowChangesAction.LABEL,
 					isSecondary: true
-				});
-			}
-
-			// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
-			if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
-				actions.push(
-					{
-						command: ChatEditingDiscardAllAction.ID,
-						label: ChatEditingDiscardAllAction.LABEL,
-						isSecondary: true
-					},
-					{
-						command: ChatEditingAcceptAllAction.ID,
-						label: ChatEditingAcceptAllAction.LABEL,
-						isSecondary: false
-					}
-				);
-			}
+				},
+				{
+					command: ChatEditingDiscardAllAction.ID,
+					label: ChatEditingDiscardAllAction.LABEL,
+					isSecondary: true
+				},
+				{
+					command: ChatEditingAcceptAllAction.ID,
+					label: ChatEditingAcceptAllAction.LABEL,
+					isSecondary: false
+				}
+			);
 		}
 
 		for (const action of actions) {
@@ -885,7 +880,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.followupsDisposables.clear();
-		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
 			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, this.location, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
