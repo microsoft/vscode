@@ -358,13 +358,13 @@ export function registerChatActions() {
 				keybinding: [
 					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
 					{
-						when: CONTEXT_CHAT_INPUT_CURSOR_AT_TOP,
+						when: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_QUICK_CHAT.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
 					// On win/linux, ctrl+up can always focus the chat list
 					{
-						when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
+						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), CONTEXT_IN_QUICK_CHAT.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
