@@ -693,7 +693,6 @@
 						"when": "hasNode",
 						"allow": [
 							"@parcel/watcher",
-							"@bpasero/watcher",
 							"@vscode/sqlite3",
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",

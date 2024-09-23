@@ -143,12 +143,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
-	private readonly _onDidRequestFocus = this._register(new Emitter<void>());
-	readonly onDidRequestFocus = this._onDidRequestFocus.event;
-	private readonly _onDidRequestSendText = this._register(new Emitter<string>());
-	readonly onDidRequestSendText = this._onDidRequestSendText.event;
-	private readonly _onDidRequestFreePort = this._register(new Emitter<string>());
-	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidRequestRefreshDimensions = this._register(new Emitter<void>());
 	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
@@ -792,6 +786,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 		this._webglAddon = undefined;
 		this._refreshImageAddon();
+		// WebGL renderer cell dimensions differ from the DOM renderer, make sure the terminal
+		// gets resized after the webgl addon is disposed
+		this._onDidRequestRefreshDimensions.fire();
 	}
 
 	getXtermTheme(theme?: IColorTheme): ITheme {

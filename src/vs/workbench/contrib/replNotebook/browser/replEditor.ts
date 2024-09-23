@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -22,7 +22,7 @@ import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOpt
 import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from '../../notebook/browser/notebookBrowser.js';
 import { NotebookEditorExtensionsRegistry } from '../../notebook/browser/notebookEditorExtensions.js';
 import { IBorrowValue, INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
-import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
+import { getDefaultNotebookCreationOptions, NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from '../../notebook/browser/contrib/cellStatusBar/executionStatusBarItemController.js';
 import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
@@ -37,13 +37,9 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
-import { ParameterHintsController } from '../../../../editor/contrib/parameterHints/browser/parameterHints.js';
-import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
-import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
-import { TabCompletionController } from '../../snippets/browser/tabCompletion.js';
 import { MarkerController } from '../../../../editor/contrib/gotoError/browser/gotoError.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -390,18 +386,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{
 				isSimpleWidget: false,
-				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-					MenuPreventer.ID,
-					SelectionClipboardContributionID,
-					ContextMenuController.ID,
-					SuggestController.ID,
-					ParameterHintsController.ID,
-					SnippetController2.ID,
-					TabCompletionController.ID,
-					ContentHoverController.ID,
-					GlyphHoverController.ID,
-					MarkerController.ID
-				])
+				contributions: getDefaultNotebookCreationOptions().cellEditorContributions
 			}
 		});
 
@@ -492,6 +477,12 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 				this._updateInputHint();
 			}
 		}));
+
+		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+			if (this.isVisible()) {
+				this._updateInputHint();
+			}
+		});
 
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this._contextKeyService);
 		if (input.resource && input.historyService.has(input.resource)) {
@@ -632,6 +623,15 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
+	private _hasConflictingDecoration() {
+		return Boolean(this._codeEditorWidget.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+	}
+
 	private _updateInputHint(): void {
 		if (!this._codeEditorWidget) {
 			return;
@@ -640,7 +640,8 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
 			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
-			this._codeEditorWidget.getModel()!.getValueLength() !== 0;
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
+			this._hasConflictingDecoration();
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
@@ -700,10 +701,18 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
+}
+
+export type ReplEditorControl = { activeCodeEditor: CodeEditorWidget; notebookEditor: NotebookEditorWidget | undefined };
+
+export function isReplEditorControl(control: unknown): control is ReplEditorControl {
+	const candidate = control as ReplEditorControl;
+	return candidate?.activeCodeEditor instanceof CodeEditorWidget && candidate?.notebookEditor instanceof NotebookEditorWidget;
 }

@@ -690,6 +690,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.readText(type);
 	}
 
+	async readImage(): Promise<Uint8Array> {
+		return clipboard.readImage().toPNG();
+	}
+
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
 		return clipboard.writeText(text, type);
 	}

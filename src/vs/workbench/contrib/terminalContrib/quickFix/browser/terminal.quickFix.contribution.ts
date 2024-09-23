@@ -18,7 +18,7 @@ import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { ITerminalQuickFixService } from './quickFix.js';
 import { TerminalQuickFixAddon } from './quickFixAddon.js';
-import { freePort, gitCreatePr, gitPull, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from './terminalQuickFixBuiltinActions.js';
+import { freePort, gitCreatePr, gitFastForwardPull, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from './terminalQuickFixBuiltinActions.js';
 import { TerminalQuickFixService } from './terminalQuickFixService.js';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
@@ -60,7 +60,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		// Register quick fixes
 		for (const actionOption of [
 			gitTwoDashes(),
-			gitPull(),
+			gitFastForwardPull(),
 			freePort((port: string, command: string) => this._instance.freePortKillProcess(port, command)),
 			gitSimilar(),
 			gitPushSetUpstream(),

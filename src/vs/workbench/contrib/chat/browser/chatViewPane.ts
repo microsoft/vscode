@@ -28,7 +28,6 @@ import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatViewTitleActionContext } from './actions/chatActions.js';
-import { CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -44,6 +43,8 @@ export class ChatViewPane extends ViewPane {
 	private readonly viewState: IViewPaneState;
 	private didProviderRegistrationFail = false;
 	private didUnregisterProvider = false;
+	// check to display the welcome view right away while awaiting chat agents to register
+	private isInitialized = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -68,6 +69,7 @@ export class ChatViewPane extends ViewPane {
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
+			this.isInitialized = true;
 			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
 				if (!this._widget?.viewModel) {
 					const sessionId = this.getSessionId();
@@ -101,7 +103,7 @@ export class ChatViewPane extends ViewPane {
 		};
 	}
 
-	private updateModel(model?: IChatModel | undefined): void {
+	private updateModel(model?: IChatModel | undefined, viewState?: IChatViewState): void {
 		this.modelDisposables.clear();
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId
@@ -111,8 +113,12 @@ export class ChatViewPane extends ViewPane {
 			throw new Error('Could not start chat session');
 		}
 
-		this._widget.setModel(model, { ...this.viewState });
+		if (viewState) {
+			this.updateViewState(viewState);
+		}
+
 		this.viewState.sessionId = model.sessionId;
+		this._widget.setModel(model, { ...this.viewState });
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -121,8 +127,7 @@ export class ChatViewPane extends ViewPane {
 		}
 
 		const noPersistedSessions = !this.chatService.hasSessions();
-		const chatParticipantRegistered = this.contextKeyService.contextMatchesRules(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED);
-		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail) || chatParticipantRegistered;
+		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail) || !this.isInitialized;
 	}
 
 	private getSessionId() {
@@ -193,13 +198,13 @@ export class ChatViewPane extends ViewPane {
 		this.updateModel(undefined);
 	}
 
-	loadSession(sessionId: string): void {
+	loadSession(sessionId: string, viewState?: IChatViewState): void {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
 		const newModel = this.chatService.getOrRestoreSession(sessionId);
-		this.updateModel(newModel);
+		this.updateModel(newModel, viewState);
 	}
 
 	focusInput(): void {
@@ -229,9 +234,10 @@ export class ChatViewPane extends ViewPane {
 		super.saveState();
 	}
 
-	private updateViewState(): void {
-		const widgetViewState = this._widget.getViewState();
-		this.viewState.inputValue = widgetViewState.inputValue;
-		this.viewState.inputState = widgetViewState.inputState;
+	private updateViewState(viewState?: IChatViewState): void {
+		const newViewState = viewState ?? this._widget.getViewState();
+		this.viewState.inputValue = newViewState.inputValue;
+		this.viewState.inputState = newViewState.inputState;
+		this.viewState.selectedLanguageModelId = newViewState.selectedLanguageModelId;
 	}
 }

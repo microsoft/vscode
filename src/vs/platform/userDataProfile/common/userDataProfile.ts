@@ -333,7 +333,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		if (!profileCreationPromise) {
 			profileCreationPromise = (async () => {
 				try {
-					const existing = this.profiles.find(p => p.name === name || p.id === id);
+					const existing = this.profiles.find(p => p.id === id || (!p.isTransient && !options?.transient && p.name === name));
 					if (existing) {
 						throw new Error(`Profile with ${name} name already exists`);
 					}
@@ -471,7 +471,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 		const workspace = this.getWorkspace(workspaceIdentifier);
 		if (URI.isUri(workspace)) {
-			await this.updateProfile(profile, { workspaces: profile.workspaces ? [...profile.workspaces, workspace] : [workspace] });
+			const workspaces = profile.workspaces ? [...profile.workspaces] : [];
+			if (!workspaces.some(w => this.uriIdentityService.extUri.isEqual(w, workspace))) {
+				workspaces.push(workspace);
+				await this.updateProfile(profile, { workspaces });
+			}
 		} else {
 			this.updateEmptyWindowAssociation(workspace, profile, false);
 			this.updateStoredProfiles(this.profiles);
@@ -501,7 +505,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		for (const profile of this.profiles) {
 			(<Mutable<IUserDataProfile>>profile).workspaces = undefined;
 		}
-		this.updateStoredProfiles(this.profiles);
+		this.updateProfiles([], [], this.profiles);
 		this._onDidResetWorkspaces.fire();
 	}
 

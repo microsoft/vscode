@@ -30,7 +30,7 @@ export class NotebookAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-export function getAccessibilityHelpText(): string {
+function getAccessibilityHelpText(): string {
 	return [
 		localize('notebook.overview', 'The notebook view is a collection of code and markdown cells. Code cells can be executed and will produce output directly below the cell.'),
 		localize('notebook.cell.edit', 'The Edit Cell command{0} will focus on the cell input.', '<keybinding:notebook.cell.edit>'),
@@ -45,7 +45,7 @@ export function getAccessibilityHelpText(): string {
 	].join('\n');
 }
 
-export function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {
+function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | IVisibleEditorPane) {
 	const helpText = getAccessibilityHelpText();
 	return new AccessibleContentProvider(
 		AccessibleViewProviderId.Notebook,
