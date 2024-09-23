@@ -388,8 +388,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					label: localize('noAnythingResults', "No matching results")
 				}] : this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
 				.then(picks => {
-					const cp = contentPattern;
-					console.log(cp);
 					if (picks.length > 0) {
 						this.searchModel.searchResult.toggleHighlights(true);
 					}

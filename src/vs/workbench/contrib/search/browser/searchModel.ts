@@ -2319,9 +2319,6 @@ export class SearchModel extends Disposable {
 		};
 		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource(callerToken);
 
-		this.currentCancelTokenSource.token.onCancellationRequested(e => {
-			console.log('cancellation requested: ', query.contentPattern.pattern);
-		});
 		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, asyncGenerateOnProgress);
 		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
