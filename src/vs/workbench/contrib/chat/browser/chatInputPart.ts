@@ -9,6 +9,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -22,13 +23,17 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -41,6 +46,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -54,7 +60,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
-import { IChatEditingSession } from '../common/chatEditingService.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -63,12 +69,9 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/la
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
-import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction } from './chatEditingService.js';
+import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
-import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { PasteImageProvider } from './chatPasteProviders.js';
 import { IChatViewState } from './chatWidget.js';
 
 const $ = dom.$;
@@ -77,7 +80,7 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 interface IChatInputPartOptions {
 	renderFollowups: boolean;
-	renderStyle?: 'default' | 'compact';
+	renderStyle?: 'compact';
 	menus: {
 		executeToolbar: MenuId;
 		inputSideToolbar?: MenuId;
@@ -85,6 +88,26 @@ interface IChatInputPartOptions {
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
+
+// TODO: @justschen
+// class ChatInputContentProvider extends Disposable implements ITextModelContentProvider {
+// 	constructor(
+// 		textModelService: ITextModelService,
+// 		private readonly modelService: IModelService,
+// 		private readonly languageService: ILanguageService,
+// 	) {
+// 		super();
+// 		this._register(textModelService.registerTextModelContentProvider(ChatInputPart.INPUT_SCHEME, this));
+// 	}
+
+// 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+// 		const existing = this.modelService.getModel(resource);
+// 		if (existing) {
+// 			return existing;
+// 		}
+// 		return this.modelService.createModel('', this.languageService.createById('chatSessionInput'), resource);
+// 	}
+// }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
@@ -135,6 +158,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
 		return this._inputPartHeight;
+	}
+
+	private _followupsHeight: number = 0;
+	get followupsHeight() {
+		return this._followupsHeight;
 	}
 
 	private _inputEditor!: CodeEditorWidget;
@@ -190,8 +218,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
+
+		this._register(this.languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider()));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
@@ -348,7 +379,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._onDidLoadInputState.fire(historyEntry.state);
 		if (previous) {
-			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
+			// Set cursor to the end of the first view line, so if wrapped, it's the point where the line wraps
+			const endOfFirstLine = this._inputEditor._getViewModel()?.getLineLength(1) ?? 1;
+			this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstLine });
 		} else {
 			const model = this._inputEditor.getModel();
 			if (!model) {
@@ -516,6 +549,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
 		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ContentHoverController.ID, GlyphHoverController.ID, CopyPasteController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
+		SuggestController.get(this._inputEditor)?.forceRenderingAbove();
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
@@ -605,7 +639,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this.modelService.createModel('', null, this.inputUri, false);
+			inputModel = this.modelService.createModel('', null, this.inputUri, true);
 			this._register(inputModel);
 		}
 
@@ -629,7 +663,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 
-			const atTop = position.column === 1 && position.lineNumber === 1;
+			const atTop = position.lineNumber === 1 && position.column - 1 <= (this._inputEditor._getViewModel()?.getLineLength(1) ?? 0);
 			this.chatCursorAtTop.set(atTop);
 
 			this.historyNavigationBackwardsEnablement.set(atTop);
@@ -794,17 +828,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Chat editing session actions
 		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
-		const actions = [
-			{
-				command: ChatEditingDiscardAllAction.ID,
-				label: ChatEditingDiscardAllAction.LABEL,
-				isSecondary: true
-			},
-			{
-				command: ChatEditingAcceptAllAction.ID,
-				label: ChatEditingAcceptAllAction.LABEL,
-			},
-		];
+		const actions = [];
+		// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+		if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
+			actions.push(
+				{
+					command: ChatEditingShowChangesAction.ID,
+					label: ChatEditingShowChangesAction.LABEL,
+					isSecondary: true
+				},
+				{
+					command: ChatEditingDiscardAllAction.ID,
+					label: ChatEditingDiscardAllAction.LABEL,
+					isSecondary: true
+				},
+				{
+					command: ChatEditingAcceptAllAction.ID,
+					label: ChatEditingAcceptAllAction.LABEL,
+					isSecondary: false
+				}
+			);
+		}
+
 		for (const action of actions) {
 			const button = this._register(new Button(actionsContainer, {
 				supportIcons: false,
@@ -816,6 +861,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			dom.append(actionsContainer, button.element);
 		}
+
+		const clearButton = new Button(actionsContainer, { supportIcons: true });
+		this._chatEditsDisposables.add(clearButton);
+		clearButton.icon = Codicon.close;
+		const disp = clearButton.onDidClick((e) => {
+			disp.dispose();
+			chatEditingSession.dispose();
+		});
+		dom.append(actionsContainer, clearButton.element);
 
 		// List of edited files
 		const entries: IChatCollapsibleListItem[] = editedFiles.map((entry) => ({
@@ -851,7 +905,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.followupsDisposables.clear();
-		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
 			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, this.location, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
@@ -881,6 +934,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
 		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight;
+		this._followupsHeight = data.followupsHeight;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;

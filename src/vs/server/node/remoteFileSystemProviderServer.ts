@@ -69,23 +69,21 @@ class SessionFileWatcher extends AbstractSessionFileWatcher {
 		environmentService: IServerEnvironmentService,
 		configurationService: IConfigurationService
 	) {
-		super(uriTransformer, sessionEmitter, logService, environmentService, configurationService);
+		super(uriTransformer, sessionEmitter, logService, environmentService);
 	}
 
 	protected override getRecursiveWatcherOptions(environmentService: IServerEnvironmentService): IRecursiveWatcherOptions | undefined {
-		const options = super.getRecursiveWatcherOptions(environmentService);
-
 		const fileWatcherPolling = environmentService.args['file-watcher-polling'];
 		if (fileWatcherPolling) {
 			const segments = fileWatcherPolling.split(delimiter);
 			const pollingInterval = Number(segments[0]);
 			if (pollingInterval > 0) {
 				const usePolling = segments.length > 1 ? segments.slice(1) : true;
-				return { ...options, usePolling, pollingInterval };
+				return { usePolling, pollingInterval };
 			}
 		}
 
-		return options;
+		return undefined;
 	}
 
 	protected override getExtraExcludes(environmentService: IServerEnvironmentService): string[] | undefined {

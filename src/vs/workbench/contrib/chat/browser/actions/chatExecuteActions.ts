@@ -163,7 +163,7 @@ export class CancelAction extends Action2 {
 			title: localize2('interactive.cancel.label', "Cancel"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.debugStop,
+			icon: Codicon.stopCircle,
 			menu: {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,

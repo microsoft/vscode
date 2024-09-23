@@ -32,7 +32,7 @@ const net = require('net');
 // ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
-const useElectronFetchDefault = true;
+const useElectronFetchDefault = false;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -44,7 +44,7 @@ export function connectProxyResolver(
 	disposables: DisposableStore,
 ) {
 
-	patchGlobalFetch(configProvider, initData, disposables);
+	patchGlobalFetch(configProvider, mainThreadTelemetry, initData, disposables);
 
 	const useHostProxy = initData.environment.useHostProxy;
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
@@ -112,7 +112,7 @@ const unsafeHeaders = [
 	'set-cookie',
 ];
 
-function patchGlobalFetch(configProvider: ExtHostConfigProvider, initData: IExtensionHostInitData, disposables: DisposableStore) {
+function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, disposables: DisposableStore) {
 	if (!initData.remote.isRemote && !(globalThis as any).__originalFetch) {
 		const originalFetch = globalThis.fetch;
 		(globalThis as any).__originalFetch = originalFetch;
@@ -124,25 +124,33 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, initData: IExte
 		}));
 		const electron = require('electron');
 		// https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
-		globalThis.fetch = function fetch(input: any /* RequestInfo */ | URL, init?: RequestInit) {
-			if (!useElectronFetch) {
-				return originalFetch(input, init);
-			}
-			// Limitations: https://github.com/electron/electron/pull/36733#issuecomment-1405615494
-			const urlStart = typeof input === 'string' ? input : 'cache' in input ? input.url : input.protocol;
-			if (urlStart.startsWith('data:') || urlStart.startsWith('blob:')) {
-				return originalFetch(input, init);
-			}
+		globalThis.fetch = async function fetch(input: any /* RequestInfo */ | URL, init?: RequestInit) {
 			function getRequestProperty(name: keyof any /* Request */ & keyof RequestInit) {
 				return init && name in init ? init[name] : typeof input === 'object' && 'cache' in input ? input[name] : undefined;
 			}
-			// net.fetch fails on manual redirect: https://github.com/electron/electron/issues/43715
-			if (getRequestProperty('redirect') === 'manual') {
-				return originalFetch(input, init);
-			}
 			// Limitations: https://github.com/electron/electron/pull/36733#issuecomment-1405615494
-			if (getRequestProperty('integrity')) {
-				return originalFetch(input, init);
+			// net.fetch fails on manual redirect: https://github.com/electron/electron/issues/43715
+			const urlString = typeof input === 'string' ? input : 'cache' in input ? input.url : input.toString();
+			const isDataUrl = urlString.startsWith('data:');
+			if (isDataUrl) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'data');
+			}
+			const isBlobUrl = urlString.startsWith('blob:');
+			if (isBlobUrl) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'blob');
+			}
+			const isManualRedirect = getRequestProperty('redirect') === 'manual';
+			if (isManualRedirect) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'manualRedirect');
+			}
+			const integrity = getRequestProperty('integrity');
+			if (integrity) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'integrity');
+			}
+			if (!useElectronFetch || isDataUrl || isBlobUrl || isManualRedirect || integrity) {
+				const response = await originalFetch(input, init);
+				monitorResponseProperties(mainThreadTelemetry, response, urlString);
+				return response;
 			}
 			// Unsupported headers: https://source.chromium.org/chromium/chromium/src/+/main:services/network/public/cpp/header_util.cc;l=32;drc=ee7299f8961a1b05a3554efcc496b6daa0d7f6e1
 			if (init?.headers) {
@@ -154,8 +162,70 @@ function patchGlobalFetch(configProvider: ExtHostConfigProvider, initData: IExte
 			}
 			// Support for URL: https://github.com/electron/electron/issues/43712
 			const electronInput = input instanceof URL ? input.toString() : input;
-			return electron.net.fetch(electronInput, init);
+			const response = await electron.net.fetch(electronInput, init);
+			monitorResponseProperties(mainThreadTelemetry, response, urlString);
+			return response;
 		};
+	}
+}
+
+function monitorResponseProperties(mainThreadTelemetry: MainThreadTelemetryShape, response: Response, urlString: string) {
+	const originalUrl = response.url;
+	Object.defineProperty(response, 'url', {
+		get() {
+			recordFetchFeatureUse(mainThreadTelemetry, 'url');
+			return originalUrl || urlString;
+		}
+	});
+	const originalType = response.type;
+	Object.defineProperty(response, 'type', {
+		get() {
+			recordFetchFeatureUse(mainThreadTelemetry, 'typeProperty');
+			return originalType !== 'default' ? originalType : 'basic';
+		}
+	});
+}
+
+type FetchFeatureUseClassification = {
+	owner: 'chrmarti';
+	comment: 'Data about fetch API use';
+	url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the url property was used.' };
+	typeProperty: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the type property was used.' };
+	data: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a data URL was used.' };
+	blob: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a blob URL was used.' };
+	integrity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the integrity property was used.' };
+	manualRedirect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a manual redirect was used.' };
+};
+
+type FetchFeatureUseEvent = {
+	url: number;
+	typeProperty: number;
+	data: number;
+	blob: number;
+	integrity: number;
+	manualRedirect: number;
+};
+
+const fetchFeatureUse: FetchFeatureUseEvent = {
+	url: 0,
+	typeProperty: 0,
+	data: 0,
+	blob: 0,
+	integrity: 0,
+	manualRedirect: 0,
+};
+
+let timer: NodeJS.Timeout | undefined;
+
+function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, feature: keyof typeof fetchFeatureUse) {
+	if (!fetchFeatureUse[feature]++) {
+		if (timer) {
+			clearTimeout(timer);
+		}
+		timer = setTimeout(() => {
+			mainThreadTelemetry.$publicLog2<FetchFeatureUseEvent, FetchFeatureUseClassification>('fetchFeatureUse', fetchFeatureUse);
+		}, 10000); // collect additional features for 10 seconds
+		timer.unref();
 	}
 }
 

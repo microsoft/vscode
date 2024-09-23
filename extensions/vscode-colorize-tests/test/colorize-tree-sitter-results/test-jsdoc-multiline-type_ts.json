@@ -1,0 +1,166 @@
+[
+	{
+		"c": "/**\n * @typedef {{\n *   id: number,\n *   fn: !Function,\n *   context: (!Object|undefined)\n * }}\n * @private\n */",
+		"t": "comment",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "goog",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ".",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "dom",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ".",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "animationFrame",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ".",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "Task_",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ";",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "/**\n * @typedef {{\n *   measureTask: goog.dom.animationFrame.Task_,\n *   mutateTask: goog.dom.animationFrame.Task_,\n *   state: (!Object|undefined),\n *   args: (!Array|undefined),\n *   isScheduled: boolean\n * }}\n * @private\n */",
+		"t": "comment",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "goog",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ".",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "dom",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ".",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "animationFrame",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ".",
+		"t": "punctuation.delimiter",
+		"r": {}
+	},
+	{
+		"c": "TaskSet_",
+		"t": "variable",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"hc_black": "variable: #9CDCFE",
+			"dark_modern": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_modern": "variable: #001080"
+		}
+	},
+	{
+		"c": ";",
+		"t": "punctuation.delimiter",
+		"r": {}
+	}
+]
