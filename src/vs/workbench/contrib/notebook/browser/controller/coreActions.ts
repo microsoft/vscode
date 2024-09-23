@@ -156,23 +156,6 @@ export abstract class NotebookAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: any, ...additionalArgs: any[]): Promise<void> {
-		let from;
-
-		if (context) {
-			if (context.source) {
-				from = context.source;
-			} else if (URI.isUri(context)) {
-				from = 'cellEditorContextMenu';
-			} else {
-				if ('from' in context && context.from === 'cellContainer') {
-					from = 'cellContainer';
-				} else {
-					from = undefined;
-				}
-			}
-		}
-
-
 		if (!this.isNotebookActionContext(context)) {
 			context = this.getEditorContextFromArgsOrActive(accessor, context, ...additionalArgs);
 			if (!context) {
@@ -180,10 +163,7 @@ export abstract class NotebookAction extends Action2 {
 			}
 		}
 
-		if (from !== undefined) {
-			const telemetryService = accessor.get(ITelemetryService);
-			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
-		}
+		sendEntryTelemetry(accessor, this.desc.id, context);
 
 		return this.runWithContext(accessor, context);
 	}
@@ -232,10 +212,6 @@ export abstract class NotebookMultiCellAction extends Action2 {
 
 	abstract runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void>;
 
-	private isCellToolbarContext(context?: unknown): context is INotebookCellToolbarActionContext {
-		return !!context && !!(context as INotebookActionContext).notebookEditor && (context as any).$mid === MarshalledId.NotebookCellActionContext;
-	}
-
 	/**
 	 * The action/command args are resolved in following order
 	 * `run(accessor, cellToolbarContext)` from cell toolbar
@@ -244,7 +220,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 	 */
 	async run(accessor: ServicesAccessor, ...additionalArgs: any[]): Promise<void> {
 		const context = additionalArgs[0];
-		const isFromCellToolbar = this.isCellToolbarContext(context);
+		const isFromCellToolbar = isCellToolbarContext(context);
 		const isFromEditorToolbar = isEditorCommandsContext(context);
 		const from = isFromCellToolbar ? 'cellToolbar' : (isFromEditorToolbar ? 'editorToolbar' : 'other');
 		const telemetryService = accessor.get(ITelemetryService);
@@ -255,7 +231,6 @@ export abstract class NotebookMultiCellAction extends Action2 {
 		}
 
 		// handle parsed args
-
 		const parsedArgs = this.parseArgs(accessor, ...additionalArgs);
 		if (parsedArgs) {
 			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
@@ -267,16 +242,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 		if (editor) {
 			const selectedCellRange: ICellRange[] = editor.getSelections().length === 0 ? [editor.getFocus()] : editor.getSelections();
 
-			if (context) {
-				const telemetryService = accessor.get(ITelemetryService);
-				if ('from' in context && context.from === 'cellContainer') {
-					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
-				} else if (URI.isUri(context)) {
-					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
-				} else {
-					telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: from });
-				}
-			}
+			sendEntryTelemetry(accessor, this.desc.id, context);
 
 			return this.runWithContext(accessor, {
 				ui: false,
@@ -315,19 +281,13 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 		// }
 
 		const activeEditorContext = this.getEditorContextFromArgsOrActive(accessor);
-		if (context) {
 
-			const telemetryService = accessor.get(ITelemetryService);
-			if (URI.isUri(context)) {
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellEditorContextMenu' });
-			} else if ('from' in context && context.from === 'cellContainer') {
-				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: this.desc.id, from: 'cellContainer' });
-			}
+		sendEntryTelemetry(accessor, this.desc.id, context);
 
-			if (this.isCellActionContext(activeEditorContext)) {
-				return this.runWithContext(accessor, activeEditorContext);
-			}
+		if (this.isCellActionContext(activeEditorContext)) {
+			return this.runWithContext(accessor, activeEditorContext);
 		}
+
 	}
 
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
@@ -339,6 +299,27 @@ interface IMultiCellArgs {
 	ranges: ICellRange[];
 	document?: URI;
 	autoReveal?: boolean;
+}
+
+function sendEntryTelemetry(accessor: ServicesAccessor, id: string, context?: any) {
+	const telemetryService = accessor.get(ITelemetryService);
+
+	if (context) {
+		if (context.source) {
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: id, from: context.source });
+		} else if (URI.isUri(context)) {
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: id, from: 'cellEditorContextMenu' });
+		} else if (context && 'from' in context && context.from === 'cellContainer') {
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: id, from: 'cellContainer' });
+		} else {
+			const from = isCellToolbarContext(context) ? 'cellToolbar' : (isEditorCommandsContext(context) ? 'editorToolbar' : 'other');
+			telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: id, from: from });
+		}
+	}
+}
+
+function isCellToolbarContext(context?: unknown): context is INotebookCellToolbarActionContext {
+	return !!context && !!(context as INotebookActionContext).notebookEditor && (context as any).$mid === MarshalledId.NotebookCellActionContext;
 }
 
 function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {
