@@ -618,9 +618,9 @@ registerAction2(class extends Action2 {
 					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib + 5
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -659,9 +659,9 @@ registerAction2(class extends Action2 {
 					SuggestContext.Visible.toNegated()
 				),
 				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib + 5
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -758,8 +758,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-			},
-			precondition: InteractiveWindowOpen
+			}
 		});
 	}
 
