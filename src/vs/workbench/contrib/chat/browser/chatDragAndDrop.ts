@@ -71,21 +71,28 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private onDragEnter(e: DragEvent): void {
-		const dropType = this.getActiveDropType(e);
-		this.updateDropFeedback(e, dropType);
+		const estimatedDropType = this.guessDropType(e);
+		if (estimatedDropType !== undefined) {
+			e.stopPropagation();
+			e.preventDefault();
+		}
+		this.updateDropFeedback(e, estimatedDropType);
 	}
 
 	private onDragLeave(e: DragEvent): void {
 		this.updateDropFeedback(e, undefined);
 	}
 
-	private async onDrop(e: DragEvent): Promise<void> {
+	private onDrop(e: DragEvent): void {
 		this.updateDropFeedback(e, undefined);
 
-		const contexts = await this.getAttachContext(e);
+		const contexts = this.getAttachContext(e);
 		if (contexts.length === 0) {
 			return;
 		}
+
+		e.stopPropagation();
+		e.preventDefault();
 
 		// Make sure to attach only new contexts
 		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
@@ -101,8 +108,6 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private updateDropFeedback(e: DragEvent, dropType: ChatDragAndDropType | undefined): void {
-		e.stopPropagation();
-
 		const showOverlay = dropType !== undefined;
 		if (e.dataTransfer) {
 			e.dataTransfer.dropEffect = showOverlay ? 'copy' : 'none';
@@ -111,14 +116,45 @@ export class ChatDragAndDrop extends Themable {
 		this.setOverlay(dropType);
 	}
 
-	private getActiveDropType(e: DragEvent): ChatDragAndDropType | undefined {
-		if (containsDragType(e, DataTransfers.FILES, 'image') && this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-			return ChatDragAndDropType.IMAGE;
+	private isImageDnd(e: DragEvent): boolean {
+		// Image detection should not have false positives, only false negatives are allowed
+		if (containsDragType(e, 'image')) {
+			return true;
+		}
+
+		if (containsDragType(e, DataTransfers.FILES)) {
+			const files = e.dataTransfer?.files;
+			if (files && files.length > 0) {
+				const file = files[0];
+				return file.type.startsWith('image/');
+			}
+
+			const items = e.dataTransfer?.items;
+			if (items && items.length > 0) {
+				const item = items[0];
+				return item.type.startsWith('image/');
+			}
+		}
+
+		return false;
+	}
+
+	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
+		// This is an esstimation based on the datatransfer types/items
+		if (this.isImageDnd(e)) {
+			const imageDndSupported = this.configurationService.getValue<boolean>('chat.experimental.imageAttachments');
+			return imageDndSupported ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE;
 		}
 
 		return undefined;
+	}
+
+	private isDragEventSupported(e: DragEvent): boolean {
+		// if guessed drop type is undefined, it means the drop is not supported
+		const dropType = this.guessDropType(e);
+		return dropType !== undefined;
 	}
 
 	private getDropTypeName(type: ChatDragAndDropType): string {
@@ -128,23 +164,27 @@ export class ChatDragAndDrop extends Themable {
 		}
 	}
 
-	private async getAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
-		switch (this.getActiveDropType(e)) {
-
-			case ChatDragAndDropType.IMAGE: {
-				const data = extractEditorsDropData(e);
-				const contexts = data.map(editorInput => getImageAttachContext(editorInput));
-				return coalesce(contexts);
-			}
-
-			case ChatDragAndDropType.FILE: {
-				const data = extractEditorsDropData(e);
-				const contexts = data.map(editorInput => getEditorAttachContext(editorInput));
-				return coalesce(contexts);
-			}
-
-			default: return [];
+	private getAttachContext(e: DragEvent): IChatRequestVariableEntry[] {
+		if (!this.isDragEventSupported(e)) {
+			return [];
 		}
+
+		const data = extractEditorsDropData(e);
+		return coalesce(data.map(editorInput => {
+			return this.resolveAttachContext(editorInput);
+		}));
+	}
+
+	private resolveAttachContext(editorInput: IDraggedResourceEditorInput): IChatRequestVariableEntry | undefined {
+		// Image
+		const imageContext = getImageAttachContext(editorInput);
+		if (imageContext) {
+			const isImageDndSupported = this.configurationService.getValue<boolean>('chat.experimental.imageAttachments');
+			return isImageDndSupported ? imageContext : undefined;
+		}
+
+		// File
+		return getEditorAttachContext(editorInput);
 	}
 
 	private setOverlay(type: ChatDragAndDropType | undefined): void {

@@ -73,12 +73,6 @@ export interface IUtilityProcessConfiguration {
 	readonly parentLifecycleBound?: number;
 
 	/**
-	 * Allow the utility process to force heap allocations inside
-	 * the V8 sandbox.
-	 */
-	readonly forceAllocationsToV8Sandbox?: boolean;
-
-	/**
 	 * HTTP 401 and 407 requests created via electron:net module
 	 * will be redirected to the main process and can be handled
 	 * via the app#login event.
@@ -242,7 +236,6 @@ export class UtilityProcess extends Disposable {
 		const args = this.configuration.args ?? [];
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
-		const forceAllocationsToV8Sandbox = this.configuration.forceAllocationsToV8Sandbox;
 		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration);
@@ -251,14 +244,12 @@ export class UtilityProcess extends Disposable {
 
 		// Fork utility process
 		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
-			forceAllocationsToV8Sandbox?: boolean;
 			respondToAuthRequestsFromMainProcess?: boolean;
 		}>({
 			serviceName,
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
-			forceAllocationsToV8Sandbox,
 			respondToAuthRequestsFromMainProcess,
 			stdio
 		}));
@@ -336,6 +327,46 @@ export class UtilityProcess extends Disposable {
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
+		}));
+
+		// V8 Error
+		this._register(Event.fromNodeEventEmitter(process, 'error', (type, location, report) => ({ type, location, report }))(({ type, location, report }) => {
+			this.log(`crashed due to ${type} from V8 at ${location}`, Severity.Info);
+
+			let addons: string[] = [];
+			try {
+				const reportJSON = JSON.parse(report);
+				addons = reportJSON.sharedObjects
+					.filter((sharedObject: string) => sharedObject.endsWith('.node'))
+					.map((addon: string) => {
+						const index = addon.indexOf('extensions') === -1 ? addon.indexOf('node_modules') : addon.indexOf('extensions');
+						return addon.substring(index);
+					});
+			} catch (e) {
+				// ignore
+			}
+
+			// Telemetry
+			type UtilityProcessV8ErrorClassification = {
+				processtype: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
+				error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of error from the utility process to understand the nature of the crash better.' };
+				location: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The source location that triggered the crash to understand the nature of the crash better.' };
+				addons: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The list of addons loaded in the utility process to understand the nature of the crash better' };
+				owner: 'deepak1556';
+				comment: 'Provides insight into V8 sandbox FATAL error caused by native addons.';
+			};
+			type UtilityProcessV8ErrorEvent = {
+				processtype: string;
+				error: string;
+				location: string;
+				addons: string[];
+			};
+			this.telemetryService.publicLog2<UtilityProcessV8ErrorEvent, UtilityProcessV8ErrorClassification>('utilityprocessv8error', {
+				processtype: configuration.type,
+				error: type,
+				location,
+				addons
+			});
 		}));
 
 		// Child process gone
