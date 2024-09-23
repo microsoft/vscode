@@ -1028,9 +1028,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill {
+	font-size: 12px;
 	display: inline-flex;
 	align-items: center;
-	padding: 2px 0px;
+	padding: 0 4px 0 2px;
 	border-radius: 2px;
 	margin-right: 1px;
 	user-select: none;
