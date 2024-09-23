@@ -958,7 +958,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 32,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 24,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
 			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,

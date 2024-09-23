@@ -700,9 +700,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 16px;
-	padding: 0 0 12px 0px;
+	padding: 4px 0 12px 0px;
 	display: flex;
 	flex-direction: column;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -794,9 +795,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 8px;
 }
 
-.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin-bottom: 8px;
-}
+/* .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 4px;
+} */
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
 	display: block;
