@@ -129,7 +129,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.metadata;
 	}
 
-	get isRepl() {
+	private get isRepl() {
 		return this.viewType === 'repl';
 	}
 
