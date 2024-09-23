@@ -483,15 +483,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
 	margin-bottom: -10px;
-	padding: 8px 8px 12px 8px;
+	padding: 4px 8px 14px 8px;
 	box-sizing: border-box;
-	cursor: text;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
@@ -515,27 +513,50 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	flex-wrap: wrap;
 	gap: 6px;
+	align-items: center;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
 	height: 17px;
-	width: 66px;
+	width: fit-content;
+	padding: 2px 6px;
 	font-size: 11px;
 	background-color: var(--vscode-button-background);
-	border: var(--vscode-button-border);
+	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-foreground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close {
-	width: 16px;
-	cursor: pointer;
+	width: 22px;
+	height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	font-size: 16px;
 	color: var(--vscode-descriptionForeground);
 	background-color: transparent;
+	border: none;
+	padding: 0;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary {
 	background-color: var(--vscode-button-secondaryBackground);
+	border: 1px solid var(--vscode-button-border);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
