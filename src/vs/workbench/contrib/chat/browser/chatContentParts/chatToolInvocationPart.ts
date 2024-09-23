@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,11 +20,50 @@ import { ChatProgressContentPart } from './chatProgressContentPart.js';
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
+	private _onDidChangeHeight = this._register(new Emitter<void>());
+	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	constructor(
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		context: IChatContentPartRenderContext,
+		renderer: MarkdownRenderer,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+
+		this.domNode = dom.$('.chat-tool-invocation-part');
+
+		const partStore = this._register(new DisposableStore());
+		const render = () => {
+			dom.clearNode(this.domNode);
+
+			const subPart = partStore.add(instantiationService.createInstance(ChatToolInvocationSubPart, toolInvocation, context, renderer));
+			this.domNode.appendChild(subPart.domNode);
+			partStore.add(subPart.onNeedsRerender(() => {
+				render();
+				this._onDidChangeHeight.fire();
+			}));
+		};
+		render();
+	}
+
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized';
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
+	}
+}
+
+class ChatToolInvocationSubPart extends Disposable {
+	public readonly domNode: HTMLElement;
+
 	private _onNeedsRerender = this._register(new Emitter<void>());
 	public readonly onNeedsRerender = this._onNeedsRerender.event;
 
 	constructor(
-		private readonly toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,
 		renderer: MarkdownRenderer,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -41,8 +81,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.domNode = confirmWidget.domNode;
 			this._register(confirmWidget.onDidClick(button => {
 				toolInvocation.confirmed.complete(button.data);
-				this._onNeedsRerender.fire();
 			}));
+			toolInvocation.confirmed.p.then(() => this._onNeedsRerender.fire());
 		} else {
 			const message = toolInvocation.invocationMessage + '…';
 			const progressMessage: IChatProgressMessage = {
@@ -53,15 +93,5 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
 			this.domNode = progressPart.domNode;
 		}
-	}
-
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		const thisHasConfirmationMessages = this.toolInvocation.kind === 'toolInvocation' && !!this.toolInvocation.confirmationMessages;
-		const otherHasConfirmationMessages = other.kind === 'toolInvocation' && !!other.confirmationMessages;
-		return other.kind === 'toolInvocation' && (thisHasConfirmationMessages === otherHasConfirmationMessages);
-	}
-
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
 	}
 }

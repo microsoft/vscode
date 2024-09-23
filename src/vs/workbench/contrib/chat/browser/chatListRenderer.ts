@@ -382,10 +382,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderConfirmationAction(element, templateData);
 		}
 
-		this.renderElementValue(element, index, templateData);
-	}
-
-	private renderElementValue(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		// Do a progressive render if
 		// - This the last response in the list
 		// - And it has some content
@@ -508,7 +504,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			value.forEach((data, index) => {
 				const context: IChatContentPartRenderContext = {
 					element,
-					index,
+					contentIndex: index,
 					content: value,
 					preceedingContentParts: parts,
 				};
@@ -598,7 +594,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// Nothing new to render, not done, keep waiting
 			this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
-			return false;
+			return true;
 		}
 
 		// Do an actual progressive render
@@ -633,7 +629,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				element,
 				content: contentForThisTurn,
 				preceedingContentParts,
-				index
+				contentIndex: index,
 			};
 			const newPart = this.renderChatContentPart(partToRender, templateData, context);
 			if (newPart) {
@@ -813,8 +809,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
 		const part = this.instantiationService.createInstance(ChatToolInvocationPart, toolInvocation, context, this.renderer);
-		part.addDisposable(part.onNeedsRerender(() => {
-			this.renderElementValue(context.element, context.index, templateData);
+		part.addDisposable(part.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
 		}));
 		return part;
 	}

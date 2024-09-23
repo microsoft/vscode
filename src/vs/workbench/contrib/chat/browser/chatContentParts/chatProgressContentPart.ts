@@ -30,7 +30,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	) {
 		super();
 
-		const followingContent = context.content.slice(context.index + 1);
+		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
 		const hideMessage = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
 		if (hideMessage) {

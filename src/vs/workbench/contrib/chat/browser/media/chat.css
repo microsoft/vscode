@@ -294,6 +294,10 @@
 	margin: 0 0 16px 0;
 }
 
+.interactive-item-container .value > .chat-tool-invocation .rendered-markdown p {
+	margin: 0 0 6px 0;
+}
+
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }
