@@ -24,6 +24,7 @@ import { IChatRequestVariableEntry, IChatResponseModel } from '../../../chat/com
 import { IChatResponseViewModel, IChatViewModel } from '../../../chat/common/chatViewModel.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IParsedChatRequest } from '../../../chat/common/chatParserTypes.js';
+import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -98,6 +99,7 @@ export class TerminalChatWidget extends Disposable implements IChatWidget {
 						}
 					}
 				},
+				secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				chatWidgetViewOptions: {
 					rendererOptions: { editableCodeBlock: true },
 					menus: {
