@@ -26,15 +26,12 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
 
 export class NativeEditContext extends AbstractEditContext {
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
-	// Store previous edit context selection so can access it when selection changes on typing
-	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
 
 	// Overflow guard container
 	private _parent: HTMLElement | undefined;
@@ -178,32 +175,34 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
-		this._previousEditContextSelection = new OffsetRange(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
 		if (!this._editContext) {
 			return;
 		}
-
-		const previousSelectionStartOffset = this._previousEditContextSelection.start;
-		const previousSelectionEndOffset = this._previousEditContextSelection.endExclusive;
+		const model = this._context.viewModel.model;
+		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
+		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
+		const offsetOfSelectionStart = model.getOffsetAt(this._primarySelection.getStartPosition());
+		const selectionEndOffset = offsetOfSelectionEnd - offsetOfStartOfText;
+		const selectionStartOffset = offsetOfSelectionStart - offsetOfStartOfText;
 
 		let replaceNextCharCnt = 0;
 		let replacePrevCharCnt = 0;
-		if (e.updateRangeEnd > previousSelectionEndOffset) {
-			replaceNextCharCnt = e.updateRangeEnd - previousSelectionEndOffset;
+		if (e.updateRangeEnd > selectionEndOffset) {
+			replaceNextCharCnt = e.updateRangeEnd - selectionEndOffset;
 		}
-		if (e.updateRangeStart < previousSelectionStartOffset) {
-			replacePrevCharCnt = previousSelectionStartOffset - e.updateRangeStart;
+		if (e.updateRangeStart < selectionStartOffset) {
+			replacePrevCharCnt = selectionStartOffset - e.updateRangeStart;
 		}
 		let text = '';
-		if (previousSelectionStartOffset < e.updateRangeStart) {
-			text += this._editContext.text.substring(previousSelectionStartOffset, e.updateRangeStart);
+		if (selectionStartOffset < e.updateRangeStart) {
+			text += this._editContext.text.substring(selectionStartOffset, e.updateRangeStart);
 		}
 		text += e.text;
-		if (previousSelectionEndOffset > e.updateRangeEnd) {
-			text += this._editContext.text.substring(e.updateRangeEnd, previousSelectionEndOffset);
+		if (selectionEndOffset > e.updateRangeEnd) {
+			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
 		}
 		const typeInput: ITypeData = {
 			text,
@@ -213,8 +212,10 @@ export class NativeEditContext extends AbstractEditContext {
 		};
 		this._onType(viewController, typeInput);
 
-		// The selection can be non empty so need to update the cursor states after typing (which makes the selection empty)
-		this._previousEditContextSelection = new OffsetRange(e.selectionStart, e.selectionEnd);
+		// It could be that the typed letter does not produce a change in the editor text,
+		// for example if an extension registers a custom typing command, and the typing operation does something else like scrolling
+		// Need to update the edit context to reflect this
+		this._updateEditContext();
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
