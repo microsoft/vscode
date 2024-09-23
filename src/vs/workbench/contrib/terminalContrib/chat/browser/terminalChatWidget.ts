@@ -12,18 +12,25 @@ import './media/terminalChatWidget.css';
 import { localize } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../../../chat/common/chatAgents.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
+import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetViewContext } from '../../../chat/browser/chat.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatWidgetContrib, IChatViewState } from '../../../chat/browser/chatWidget.js';
+import { IChatRequestVariableEntry, IChatResponseModel } from '../../../chat/common/chatModel.js';
+import { IChatResponseViewModel, IChatViewModel } from '../../../chat/common/chatViewModel.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { IParsedChatRequest } from '../../../chat/common/chatParserTypes.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
 	VerticalMargin = 30
 }
 
-export class TerminalChatWidget extends Disposable {
+export class TerminalChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _container: HTMLElement;
 
@@ -37,6 +44,21 @@ export class TerminalChatWidget extends Disposable {
 
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _visibleContextKey: IContextKey<boolean>;
+
+	onDidChangeViewModel!: Event<void>;
+	onDidAcceptInput!: Event<void>;
+	onDidSubmitAgent!: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
+	onDidChangeAgent!: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
+	onDidChangeParsedInput!: Event<void>;
+	onDidChangeContext!: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
+	location!: ChatAgentLocation;
+	viewContext!: IChatWidgetViewContext;
+	viewModel: IChatViewModel | undefined;
+	inputEditor!: ICodeEditor;
+	supportsFileReferences!: boolean;
+	parsedInput!: IParsedChatRequest;
+	lastSelectedAgent: IChatAgentData | undefined;
+	scopedContextKeyService!: IContextKeyService;
 
 	constructor(
 		private readonly _terminalElement: HTMLElement,
@@ -110,6 +132,80 @@ export class TerminalChatWidget extends Disposable {
 		}));
 
 		this.hide();
+		this.onDidChangeViewModel = this.inlineChatWidget.chatWidget.onDidChangeViewModel;
+		this.onDidAcceptInput = this.inlineChatWidget.chatWidget.onDidAcceptInput;
+		this.onDidSubmitAgent = this.inlineChatWidget.chatWidget.onDidSubmitAgent;
+		this.onDidChangeAgent = this.inlineChatWidget.chatWidget.onDidChangeAgent;
+		this.onDidChangeParsedInput = this.inlineChatWidget.chatWidget.onDidChangeParsedInput;
+		this.onDidChangeContext = this.inlineChatWidget.chatWidget.onDidChangeContext;
+		this.location = this.inlineChatWidget.chatWidget.location;
+		this.viewContext = this.inlineChatWidget.chatWidget.viewContext;
+		this.viewModel = this.inlineChatWidget.chatWidget.viewModel;
+		this.inputEditor = this.inlineChatWidget.chatWidget.inputEditor;
+		this.supportsFileReferences = this.inlineChatWidget.chatWidget.supportsFileReferences;
+		this.parsedInput = this.inlineChatWidget.chatWidget.parsedInput;
+		this.scopedContextKeyService = this.inlineChatWidget.chatWidget.scopedContextKeyService;
+	}
+
+	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
+		return this.inlineChatWidget.chatWidget.getContrib(id);
+	}
+	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
+		return this.inlineChatWidget.chatWidget.getSibling(item, type);
+	}
+	getFocus(): ChatTreeItem | undefined {
+		return this.inlineChatWidget.chatWidget.getFocus();
+	}
+	setInput(query?: string): void {
+		this.inlineChatWidget.chatWidget.setInput(query);
+	}
+	getInput(): string {
+		return this.inlineChatWidget.chatWidget.getInput();
+	}
+	logInputHistory(): void {
+		this.inlineChatWidget.chatWidget.logInputHistory();
+	}
+	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+		return this.inlineChatWidget.chatWidget.acceptInput(query, isVoiceInput);
+	}
+	acceptInputWithPrefix(prefix: string): void {
+		this.inlineChatWidget.chatWidget.acceptInputWithPrefix(prefix);
+	}
+	setInputPlaceholder(placeholder: string): void {
+		this.inlineChatWidget.chatWidget.setInputPlaceholder(placeholder);
+	}
+	resetInputPlaceholder(): void {
+		this.inlineChatWidget.chatWidget.resetInputPlaceholder();
+	}
+	focusLastMessage(): void {
+		this.inlineChatWidget.chatWidget.focusLastMessage();
+	}
+	focusInput(): void {
+		this.inlineChatWidget.chatWidget.focusInput();
+	}
+	hasInputFocus(): boolean {
+		return this.inlineChatWidget.chatWidget.hasInputFocus();
+	}
+	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
+		return this.inlineChatWidget.chatWidget.getCodeBlockInfoForEditor(uri);
+	}
+	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
+		return this.inlineChatWidget.chatWidget.getCodeBlockInfosForResponse(response);
+	}
+	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[] {
+		return this.inlineChatWidget.chatWidget.getFileTreeInfosForResponse(response);
+	}
+	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined {
+		return this.inlineChatWidget.chatWidget.getLastFocusedFileTreeForResponse(response);
+	}
+	setContext(overwrite: boolean, ...context: IChatRequestVariableEntry[]): void {
+		this.inlineChatWidget.chatWidget.setContext(overwrite, ...context);
+	}
+	clear(): void {
+		this.inlineChatWidget.chatWidget.clear();
+	}
+	getViewState(): IChatViewState {
+		return this.inlineChatWidget.chatWidget.getViewState();
 	}
 
 	private _dimension?: Dimension;
