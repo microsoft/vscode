@@ -9,7 +9,6 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IAction } from '../../../../base/common/actions.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -36,7 +35,7 @@ import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { ContentRefData } from '../common/annotations.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
 
 export class InlineAnchorWidget extends Disposable {
@@ -181,15 +180,15 @@ export class InlineAnchorWidget extends Disposable {
 
 //#region Resource context menu
 
-registerAction2(class GoToDefinitionAction extends Action2 {
+registerAction2(class AddFileToChatAction extends Action2 {
 
-	static readonly id = 'chat.inlineResourceAnchor.attachToContext';
+	static readonly id = 'chat.inlineResourceAnchor.addFileToChat';
 
 	constructor() {
 		super({
-			id: GoToDefinitionAction.id,
+			id: AddFileToChatAction.id,
 			title: {
-				...nls.localize2('actions.attach.label', "Attach File as Context"),
+				...nls.localize2('actions.attach.label', "Add File to Chat"),
 			},
 			menu: [{
 				id: MenuId.ChatInlineResourceAnchorContext,
@@ -202,19 +201,14 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
+		const variablesService = accessor.get(IChatVariablesService);
+
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
 		}
 
-		const context: IChatRequestVariableEntry = {
-			value: resource,
-			id: resource.toString(),
-			name: basename(resource),
-			isFile: true,
-			isDynamic: true
-		};
-		widget.setContext(true, context);
+		variablesService.attachContext('file', resource, widget.location);
 	}
 });
 

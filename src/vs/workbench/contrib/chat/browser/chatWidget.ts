@@ -29,6 +29,7 @@ import { WorkbenchObjectTree } from '../../../../platform/list/browser/listServi
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { TerminalChatController } from '../../terminal/terminalContribExports.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
@@ -504,7 +505,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const messageResult = this._register(renderer.render(welcomeContent.message));
 			dom.append(message, messageResult.element);
 
-			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(plus)'), { supportThemeIcons: true });
+			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(mention)'), { supportThemeIcons: true });
 			const tipsResult = this._register(renderer.render(tipsString));
 			tips.appendChild(tipsResult.element);
 		}
@@ -1097,8 +1098,8 @@ export class ChatWidgetService implements IChatWidgetService {
 	private _widgets: ChatWidget[] = [];
 	private _lastFocusedWidget: ChatWidget | undefined = undefined;
 
-	get lastFocusedWidget(): ChatWidget | undefined {
-		return this._lastFocusedWidget;
+	get lastFocusedWidget(): IChatWidget | undefined {
+		return TerminalChatController.activeChatController?.chatWidget ?? this._lastFocusedWidget;
 	}
 
 	constructor() { }

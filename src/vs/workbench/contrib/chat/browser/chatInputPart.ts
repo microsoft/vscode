@@ -87,6 +87,26 @@ interface IChatInputPartOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
+// TODO: @justschen
+// class ChatInputContentProvider extends Disposable implements ITextModelContentProvider {
+// 	constructor(
+// 		textModelService: ITextModelService,
+// 		private readonly modelService: IModelService,
+// 		private readonly languageService: ILanguageService,
+// 	) {
+// 		super();
+// 		this._register(textModelService.registerTextModelContentProvider(ChatInputPart.INPUT_SCHEME, this));
+// 	}
+
+// 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+// 		const existing = this.modelService.getModel(resource);
+// 		if (existing) {
+// 			return existing;
+// 		}
+// 		return this.modelService.createModel('', this.languageService.createById('chatSessionInput'), resource);
+// 	}
+// }
+
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
@@ -195,9 +215,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
+
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 

@@ -59,6 +59,7 @@ import { ContentHoverController } from '../../../../editor/contrib/hover/browser
 import { ReplEditorInput } from './replEditorInput.js';
 import { ReplInputHintContentWidget } from '../../interactive/browser/replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -356,7 +357,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._widgetDisposableStore.clear();
 
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, input, {
-			isEmbedded: true,
+			isReplHistory: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
@@ -704,13 +705,19 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			activeCodeEditor: this._codeEditorWidget,
+			activeCodeEditor: this.getActiveCodeEditor(),
 			onDidChangeActiveEditor: Event.None
 		};
 	}
+
+	private getActiveCodeEditor(): ICodeEditor {
+		return this._codeEditorWidget.hasTextFocus() || !this._notebookWidget.value?.activeCodeEditor ?
+			this._codeEditorWidget :
+			this._notebookWidget.value?.activeCodeEditor;
+	}
 }
 
-export type ReplEditorControl = { activeCodeEditor: CodeEditorWidget; notebookEditor: NotebookEditorWidget | undefined };
+export type ReplEditorControl = { activeCodeEditor: ICodeEditor; notebookEditor: NotebookEditorWidget | undefined };
 
 export function isReplEditorControl(control: unknown): control is ReplEditorControl {
 	const candidate = control as ReplEditorControl;

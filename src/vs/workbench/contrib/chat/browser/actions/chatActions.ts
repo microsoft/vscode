@@ -254,7 +254,7 @@ class ChatAddAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.addParticipant',
 			title: localize2('chatWith', "Chat With Extension"),
-			icon: Codicon.plus,
+			icon: Codicon.mention,
 			f1: false,
 			category: CHAT_CATEGORY,
 			menu: {

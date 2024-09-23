@@ -758,8 +758,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-			},
-			precondition: InteractiveWindowOpen
+			}
 		});
 	}
 
