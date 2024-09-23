@@ -27,10 +27,8 @@ import { EditorOptions } from '../../../../editor/common/config/editorOptions.js
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
