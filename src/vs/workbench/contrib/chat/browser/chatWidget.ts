@@ -1098,7 +1098,7 @@ export class ChatWidgetService implements IChatWidgetService {
 	private _lastFocusedWidget: ChatWidget | undefined = undefined;
 
 	get lastFocusedWidget(): IChatWidget | undefined {
-		return TerminalChatController.activeChatWidget?.chatWidget?.inlineChatWidget.chatWidget ?? this._lastFocusedWidget;
+		return TerminalChatController.activeChatController?.chatWidget ?? this._lastFocusedWidget;
 	}
 
 	constructor() { }
