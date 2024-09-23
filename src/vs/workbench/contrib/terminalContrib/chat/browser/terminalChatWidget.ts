@@ -17,6 +17,7 @@ import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.j
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
+import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -76,6 +77,7 @@ export class TerminalChatWidget extends Disposable {
 						}
 					}
 				},
+				secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				chatWidgetViewOptions: {
 					rendererOptions: { editableCodeBlock: true },
 					menus: {

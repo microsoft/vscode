@@ -65,6 +65,8 @@ import { ChatGettingStartedContribution } from './chatGettingStarted.js';
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatEditingService } from './chatEditingService.js';
+import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
+import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -287,6 +289,8 @@ registerMoveActions();
 registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
+
+registerEditorFeature(ChatPasteProvidersFeature);
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
