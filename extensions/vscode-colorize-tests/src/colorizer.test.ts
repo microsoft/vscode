@@ -9,42 +9,45 @@ import 'mocha';
 import { join, normalize } from 'path';
 import { commands, Uri } from 'vscode';
 
-function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixture: string, done: any) {
+function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSitterResultsPath: string, fixture: string, done: any) {
 	const testFixurePath = join(fixturesPath, fixture);
+	const tokenizers = [{ command: '_workbench.captureSyntaxTokens', resultsPath }, { command: '_workbench.captureTreeSitterSyntaxTokens', resultsPath: treeSitterResultsPath }];
 
-	return commands.executeCommand('_workbench.captureSyntaxTokens', Uri.file(testFixurePath)).then(data => {
-		try {
-			if (!fs.existsSync(resultsPath)) {
-				fs.mkdirSync(resultsPath);
-			}
-			const resultPath = join(resultsPath, fixture.replace('.', '_') + '.json');
-			if (fs.existsSync(resultPath)) {
-				const previousData = JSON.parse(fs.readFileSync(resultPath).toString());
-				try {
-					assert.deepStrictEqual(data, previousData);
-				} catch (e) {
-					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
-					if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
-						for (let i = 0; i < data.length; i++) {
-							const d = data[i];
-							const p = previousData[i];
-							if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
-								throw e;
-							}
-						}
-						// different but no tokenization ot color change: no failure
-					} else {
-						throw e;
-					}
+	return Promise.all(tokenizers.map(tokenizer => {
+		return commands.executeCommand(tokenizer.command, Uri.file(testFixurePath)).then(data => {
+			try {
+				if (!fs.existsSync(tokenizer.resultsPath)) {
+					fs.mkdirSync(tokenizer.resultsPath);
 				}
-			} else {
-				fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
+				const resultPath = join(tokenizer.resultsPath, fixture.replace('.', '_') + '.json');
+				if (fs.existsSync(resultPath)) {
+					const previousData = JSON.parse(fs.readFileSync(resultPath).toString());
+					try {
+						assert.deepStrictEqual(data, previousData);
+					} catch (e) {
+						fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
+						if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
+							for (let i = 0; i < data.length; i++) {
+								const d = data[i];
+								const p = previousData[i];
+								if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
+									throw e;
+								}
+							}
+							// different but no tokenization ot color change: no failure
+						} else {
+							throw e;
+						}
+					}
+				} else {
+					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
+				}
+				done();
+			} catch (e) {
+				done(e);
 			}
-			done();
-		} catch (e) {
-			done(e);
-		}
-	}, done);
+		}, done);
+	}));
 }
 
 function hasThemeChange(d: any, p: any): boolean {
@@ -61,11 +64,12 @@ suite('colorization', () => {
 	const testPath = normalize(join(__dirname, '../test'));
 	const fixturesPath = join(testPath, 'colorize-fixtures');
 	const resultsPath = join(testPath, 'colorize-results');
+	const treeSitterResultsPath = join(testPath, 'colorize-tree-sitter-results');
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {
 		test(`colorize: ${fixture}`, function (done) {
 			commands.executeCommand('workbench.action.closeAllEditors').then(() => {
-				assertUnchangedTokens(fixturesPath, resultsPath, fixture, done);
+				assertUnchangedTokens(fixturesPath, resultsPath, treeSitterResultsPath, fixture, done);
 			});
 		});
 	}
