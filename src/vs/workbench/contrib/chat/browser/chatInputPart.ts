@@ -9,6 +9,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -22,13 +23,16 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../editor/common/core/dimension.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -41,6 +45,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -54,7 +59,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
-import { IChatEditingSession } from '../common/chatEditingService.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -63,14 +68,9 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/la
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
-import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction } from './chatEditingService.js';
+import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
-import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
-import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IChatViewState } from './chatWidget.js';
-import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 
 const $ = dom.$;
 
@@ -803,17 +803,33 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Chat editing session actions
 		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
-		const actions = [
-			{
-				command: ChatEditingDiscardAllAction.ID,
-				label: ChatEditingDiscardAllAction.LABEL,
-				isSecondary: true
-			},
-			{
-				command: ChatEditingAcceptAllAction.ID,
-				label: ChatEditingAcceptAllAction.LABEL,
-			},
-		];
+		const actions = [];
+		if (numberOfEditedEntries > 0) {
+			if (chatEditingSession.isVisible) {
+				actions.push({
+					command: ChatEditingShowChangesAction.ID,
+					label: ChatEditingShowChangesAction.LABEL,
+					isSecondary: true
+				});
+			}
+
+			// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+			if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
+				actions.push(
+					{
+						command: ChatEditingDiscardAllAction.ID,
+						label: ChatEditingDiscardAllAction.LABEL,
+						isSecondary: true
+					},
+					{
+						command: ChatEditingAcceptAllAction.ID,
+						label: ChatEditingAcceptAllAction.LABEL,
+						isSecondary: false
+					}
+				);
+			}
+		}
+
 		for (const action of actions) {
 			const button = this._register(new Button(actionsContainer, {
 				supportIcons: false,
@@ -825,6 +841,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			dom.append(actionsContainer, button.element);
 		}
+
+		const clearButton = new Button(actionsContainer, { supportIcons: true });
+		this._chatEditsDisposables.add(clearButton);
+		clearButton.icon = Codicon.close;
+		const disp = clearButton.onDidClick((e) => {
+			disp.dispose();
+			chatEditingSession.dispose();
+		});
+		dom.append(actionsContainer, clearButton.element);
 
 		// List of edited files
 		const entries: IChatCollapsibleListItem[] = editedFiles.map((entry) => ({

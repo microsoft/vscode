@@ -249,17 +249,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
-		let onDidEditNewResourceDisposable: IDisposable | null = null;
+		let shouldRerenderEditingStateDisposable: IDisposable | null = null;
 		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
 			if (session.chatSessionId === this.viewModel?.sessionId) {
-				onDidEditNewResourceDisposable = this._register(session.onDidEditNewResource(() => {
+				shouldRerenderEditingStateDisposable = this._register(session.onDidChange(() => {
 					this.renderChatEditingSessionState(session);
 				}));
+				this.renderChatEditingSessionState(session);
 			}
 		}));
 		this._register(this.chatEditingService.onDidDisposeEditingSession((session) => {
 			if (session.chatSessionId === this.viewModel?.sessionId) {
-				onDidEditNewResourceDisposable?.dispose();
+				shouldRerenderEditingStateDisposable?.dispose();
 				this.renderChatEditingSessionState(null);
 			}
 		}));

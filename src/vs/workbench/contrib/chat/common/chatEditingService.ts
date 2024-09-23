@@ -19,20 +19,31 @@ export interface IChatEditingService {
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	startOrContinueEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void>;
+	startOrContinueEditingSession(chatSessionId: string, builder?: (stream: IChatEditingSessionStream) => Promise<void>, options?: { silent?: boolean }): Promise<void>;
 }
 
 export interface IChatEditingSession {
 	readonly chatSessionId: string;
-	readonly onDidEditNewResource: Event<URI>;
+	readonly onDidChange: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	readonly isVisible: boolean;
+	show(): Promise<void>;
+	accept(...uris: URI[]): Promise<void>;
+	reject(...uris: URI[]): Promise<void>;
+	dispose(): void;
+}
 
+export const enum ModifiedFileEntryState {
+	Undecided,
+	Accepted,
+	Rejected
 }
 
 export interface IModifiedFileEntry {
 	readonly originalURI: URI;
 	readonly modifiedURI: URI;
+	readonly state: IObservable<ModifiedFileEntryState>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 }
