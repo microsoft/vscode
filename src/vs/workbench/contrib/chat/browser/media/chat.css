@@ -1059,7 +1059,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 
 	& > .chat-welcome-view-icon .codicon {
-		font-size: 44px;
+		font-size: 40px;
 	}
 
 	& > .chat-welcome-view-title {
@@ -1084,6 +1084,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		opacity: 0.7;
 		max-width: 250px;
 		margin-top: 10px;
+
+		.rendered-markdown {
+			gap: 6px;
+			display: flex;
+			align-items: start;
+			flex-direction: column;
+		}
 
 		.rendered-markdown p {
 			display: flex;
