@@ -204,6 +204,9 @@ export interface IChatToolInvocation {
 	kind: 'toolInvocation';
 }
 
+/**
+ * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
+ */
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string;
 	isConfirmed: boolean;

@@ -33,6 +33,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
 
+		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
+		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
+		// when the model changes, or trying to make the model immutable and swap out one content part for a new one based on user actions in the view.
 		const partStore = this._register(new DisposableStore());
 		const render = () => {
 			dom.clearNode(this.domNode);
