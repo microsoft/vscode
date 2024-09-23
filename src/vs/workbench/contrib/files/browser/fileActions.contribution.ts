@@ -479,7 +479,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: NEW_FILE_COMMAND_ID,
 		title: NEW_FILE_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated())
 	},
 	when: ExplorerFolderContext
 });
@@ -490,7 +490,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: NEW_FOLDER_COMMAND_ID,
 		title: NEW_FOLDER_LABEL,
-		precondition: ExplorerResourceNotReadonlyContext
+		precondition: ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, WorkbenchTreeFindOpen.toNegated())
 	},
 	when: ExplorerFolderContext
 });
