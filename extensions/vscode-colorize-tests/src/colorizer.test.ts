@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import 'mocha';
 import { join, normalize } from 'path';
-import { commands, Uri, workspace,  ConfigurationTarget } from 'vscode';
+import { commands, Uri, workspace, ConfigurationTarget } from 'vscode';
 
 async function assertUnchangedTokens(fixturesPath: string, resultsPath: string, treeSitterResultsPath: string, fixture: string, done: any) {
 	const testFixurePath = join(fixturesPath, fixture);
@@ -16,32 +16,33 @@ async function assertUnchangedTokens(fixturesPath: string, resultsPath: string, 
 	try {
 		await Promise.all(tokenizers.map(async (tokenizer) => {
 			const data = await commands.executeCommand(tokenizer.command, Uri.file(testFixurePath));
-				if (!fs.existsSync(tokenizer.resultsPath)) {
-					fs.mkdirSync(tokenizer.resultsPath);
-				}
-				const resultPath = join(tokenizer.resultsPath, fixture.replace('.', '_') + '.json');
-				if (fs.existsSync(resultPath)) {
-					const previousData = JSON.parse(fs.readFileSync(resultPath).toString());
-					try {
-						assert.deepStrictEqual(data, previousData);
-					} catch (e) {
-						fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
-						if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
-							for (let i = 0; i < data.length; i++) {
-								const d = data[i];
-								const p = previousData[i];
-								if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
-									throw e;
-								}
+
+			if (!fs.existsSync(tokenizer.resultsPath)) {
+				fs.mkdirSync(tokenizer.resultsPath);
+			}
+			const resultPath = join(tokenizer.resultsPath, fixture.replace('.', '_') + '.json');
+			if (fs.existsSync(resultPath)) {
+				const previousData = JSON.parse(fs.readFileSync(resultPath).toString());
+				try {
+					assert.deepStrictEqual(data, previousData);
+				} catch (e) {
+					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
+					if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
+						for (let i = 0; i < data.length; i++) {
+							const d = data[i];
+							const p = previousData[i];
+							if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
+								throw e;
 							}
-							// different but no tokenization ot color change: no failure
-						} else {
-							throw e;
 						}
+						// different but no tokenization ot color change: no failure
+					} else {
+						throw e;
 					}
-				} else {
-					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
 				}
+			} else {
+				fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'));
+			}
 		}));
 		done();
 	} catch (e) {

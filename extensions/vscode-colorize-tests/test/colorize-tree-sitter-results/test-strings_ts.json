@@ -189,7 +189,7 @@
 		}
 	},
 	{
-		"c": "string text line 1\r\nstring text line 2",
+		"c": "string text line 1\nstring text line 2",
 		"t": "string",
 		"r": {
 			"dark_plus": "string: #CE9178",

@@ -1,6 +1,6 @@
 [
 	{
-		"c": "/**\r\n * @typedef {{\r\n *   id: number,\r\n *   fn: !Function,\r\n *   context: (!Object|undefined)\r\n * }}\r\n * @private\r\n */",
+		"c": "/**\n * @typedef {{\n *   id: number,\n *   fn: !Function,\n *   context: (!Object|undefined)\n * }}\n * @private\n */",
 		"t": "comment",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -82,7 +82,7 @@
 		"r": {}
 	},
 	{
-		"c": "/**\r\n * @typedef {{\r\n *   measureTask: goog.dom.animationFrame.Task_,\r\n *   mutateTask: goog.dom.animationFrame.Task_,\r\n *   state: (!Object|undefined),\r\n *   args: (!Array|undefined),\r\n *   isScheduled: boolean\r\n * }}\r\n * @private\r\n */",
+		"c": "/**\n * @typedef {{\n *   measureTask: goog.dom.animationFrame.Task_,\n *   mutateTask: goog.dom.animationFrame.Task_,\n *   state: (!Object|undefined),\n *   args: (!Array|undefined),\n *   isScheduled: boolean\n * }}\n * @private\n */",
 		"t": "comment",
 		"r": {
 			"dark_plus": "comment: #6A9955",

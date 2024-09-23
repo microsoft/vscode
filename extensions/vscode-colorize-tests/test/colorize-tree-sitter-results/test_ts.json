@@ -1,6 +1,6 @@
 [
 	{
-		"c": "/* Game of Life\r\n * Implemented in TypeScript\r\n * To learn more about TypeScript, please visit http://www.typescriptlang.org/\r\n */",
+		"c": "/* Game of Life\n * Implemented in TypeScript\n * To learn more about TypeScript, please visit http://www.typescriptlang.org/\n */",
 		"t": "comment",
 		"r": {
 			"dark_plus": "comment: #6A9955",
