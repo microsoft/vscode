@@ -104,7 +104,7 @@ export interface IUpdateService {
 	checkForUpdates(explicit: boolean): Promise<void>;
 	downloadUpdate(): Promise<void>;
 	applyUpdate(): Promise<void>;
-	quitAndInstall(): Promise<void>;
+	quitAndInstall(force?: boolean): Promise<void>;
 
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;

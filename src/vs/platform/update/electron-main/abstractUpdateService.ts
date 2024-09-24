@@ -178,10 +178,16 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	quitAndInstall(): Promise<void> {
+	quitAndInstall(force?: boolean): Promise<void> {
 		this.logService.info('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
+			return Promise.resolve(undefined);
+		}
+
+		if (force) {
+			this.logService.info('update#quitAndInstall(): running raw#quitAndInstall()');
+			this.doQuitAndInstall();
 			return Promise.resolve(undefined);
 		}
 

@@ -664,7 +664,7 @@ export class CodeApplication extends Disposable {
 						timeoutType: 'never'
 					});
 					notification.show();
-					await updateService.quitAndInstall();
+					await updateService.quitAndInstall(true);
 
 					return;
 				}
