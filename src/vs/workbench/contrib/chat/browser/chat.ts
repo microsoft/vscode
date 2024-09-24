@@ -21,6 +21,7 @@ import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatInputPart } from './chatInputPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -153,6 +154,7 @@ export interface IChatWidget {
 	readonly parsedInput: IParsedChatRequest;
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
+	readonly input: ChatInputPart;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;

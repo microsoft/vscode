@@ -482,11 +482,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
+	margin-bottom: -4px;
 	width: 100%;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -6px;
+	margin-bottom: -14px;
 	padding: 4px 8px 14px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
@@ -494,6 +495,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
+}
+
+.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
+	display: none;
+}
+
+.interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar,
+.interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar,
+.interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar {
+	display: inherit;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
