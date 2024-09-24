@@ -620,7 +620,7 @@ export class CodeApplication extends Disposable {
 							this.logService.info('Update mode blocker: Ready');
 							break;
 					}
-				}, 1000);
+				}, 100);
 
 				let notification = new Notification({
 					title: 'Checking for updates...',
