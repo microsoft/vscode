@@ -87,6 +87,26 @@ interface IChatInputPartOptions {
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
 
+// TODO: @justschen
+// class ChatInputContentProvider extends Disposable implements ITextModelContentProvider {
+// 	constructor(
+// 		textModelService: ITextModelService,
+// 		private readonly modelService: IModelService,
+// 		private readonly languageService: ILanguageService,
+// 	) {
+// 		super();
+// 		this._register(textModelService.registerTextModelContentProvider(ChatInputPart.INPUT_SCHEME, this));
+// 	}
+
+// 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+// 		const existing = this.modelService.getModel(resource);
+// 		if (existing) {
+// 			return existing;
+// 		}
+// 		return this.modelService.createModel('', this.languageService.createById('chatSessionInput'), resource);
+// 	}
+// }
+
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
@@ -195,9 +215,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
+
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
@@ -353,16 +374,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inHistoryNavigation = false;
 
 		this._onDidLoadInputState.fire(historyEntry.state);
-		if (previous) {
-			// Set cursor to the end of the first view line, so if wrapped, it's the point where the line wraps
-			const endOfFirstLine = this._inputEditor._getViewModel()?.getLineLength(1) ?? 1;
-			this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstLine });
-		} else {
-			const model = this._inputEditor.getModel();
-			if (!model) {
-				return;
-			}
 
+		const model = this._inputEditor.getModel();
+		if (!model) {
+			return;
+		}
+
+		if (previous) {
+			const endOfFirstViewLine = this._inputEditor._getViewModel()?.getLineLength(1) ?? 1;
+			const endOfFirstModelLine = model.getLineLength(1);
+			if (endOfFirstViewLine === endOfFirstModelLine) {
+				// Not wrapped - set cursor to the end of the first line
+				this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstViewLine + 1 });
+			} else {
+				// Wrapped - set cursor one char short of the end of the first view line.
+				// If it's after the next character, the cursor shows on the second line.
+				this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstViewLine });
+			}
+		} else {
 			this._inputEditor.setPosition(getLastPosition(model));
 		}
 	}
@@ -614,7 +643,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		if (!inputModel) {
-			inputModel = this.modelService.createModel('', null, this.inputUri, false);
+			inputModel = this.modelService.createModel('', null, this.inputUri, true);
 			this._register(inputModel);
 		}
 
@@ -804,30 +833,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Chat editing session actions
 		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
 		const actions = [];
-		if (numberOfEditedEntries > 0) {
-			if (chatEditingSession.isVisible) {
-				actions.push({
+		// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+		if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
+			actions.push(
+				{
 					command: ChatEditingShowChangesAction.ID,
 					label: ChatEditingShowChangesAction.LABEL,
 					isSecondary: true
-				});
-			}
-
-			// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
-			if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
-				actions.push(
-					{
-						command: ChatEditingDiscardAllAction.ID,
-						label: ChatEditingDiscardAllAction.LABEL,
-						isSecondary: true
-					},
-					{
-						command: ChatEditingAcceptAllAction.ID,
-						label: ChatEditingAcceptAllAction.LABEL,
-						isSecondary: false
-					}
-				);
-			}
+				},
+				{
+					command: ChatEditingDiscardAllAction.ID,
+					label: ChatEditingDiscardAllAction.LABEL,
+					isSecondary: true
+				},
+				{
+					command: ChatEditingAcceptAllAction.ID,
+					label: ChatEditingAcceptAllAction.LABEL,
+					isSecondary: false
+				}
+			);
 		}
 
 		for (const action of actions) {
@@ -946,7 +970,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
 			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 32,
-			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 30,
+			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
 			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,
 			inputPartHorizontalPaddingInside: 12,

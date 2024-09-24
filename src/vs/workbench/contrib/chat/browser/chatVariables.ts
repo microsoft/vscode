@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from '../../../../base/common/path.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/path.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
-import { IChatWidgetService, showChatView } from './chat.js';
-import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariablePart, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
+import { IChatWidgetService, showChatView } from './chat.js';
 import { ChatContextAttachments } from './contrib/chatContextAttachments.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -36,7 +35,6 @@ export class ChatVariablesService implements IChatVariablesService {
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 	}
 
@@ -66,10 +64,7 @@ export class ChatVariablesService implements IChatVariablesService {
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
 					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon };
 				} else if (part instanceof ChatRequestToolPart) {
-					const tool = this.toolsService.getTool(part.toolId);
-					if (tool) {
-						resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined, fullName: tool.displayName };
-					}
+					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
 			});
 

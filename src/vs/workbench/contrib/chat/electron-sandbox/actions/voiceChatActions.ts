@@ -146,7 +146,7 @@ class VoiceChatSessionControllerFactory {
 		// 1.) probe terminal chat which is not part of chat widget service
 		const activeInstance = terminalService.activeInstance;
 		if (activeInstance) {
-			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			const terminalChat = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 			if (terminalChat?.hasFocus()) {
 				return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
 			}
@@ -697,7 +697,7 @@ class ChatSynthesizerSessionController {
 		// 1.) probe terminal chat which is not part of chat widget service
 		const activeInstance = terminalService.activeInstance;
 		if (activeInstance) {
-			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			const terminalChat = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 			if (terminalChat?.hasFocus()) {
 				return {
 					onDidHideChat: terminalChat.onDidHide,
