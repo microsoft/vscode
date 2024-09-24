@@ -634,6 +634,8 @@ export class CodeApplication extends Disposable {
 				});
 				notification.show();
 
+				app.setBadgeCount();
+
 				await updateService.checkForUpdates(true);
 				await this.awaitUpdateState(updateService, StateType.Ready, StateType.Idle);
 				notification.close();
