@@ -179,21 +179,21 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	quitAndInstall(): Promise<void> {
-		this.logService.trace('update#quitAndInstall, state = ', this.state.type);
+		this.logService.info('update#quitAndInstall, state = ', this.state.type);
 
 		if (this.state.type !== StateType.Ready) {
 			return Promise.resolve(undefined);
 		}
 
-		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
+		this.logService.info('update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleMainService.quit(true /* will restart */).then(vetod => {
-			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
+			this.logService.info(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
 			}
 
-			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
+			this.logService.info('update#quitAndInstall(): running raw#quitAndInstall()');
 			this.doQuitAndInstall();
 		});
 
