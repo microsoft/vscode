@@ -374,16 +374,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inHistoryNavigation = false;
 
 		this._onDidLoadInputState.fire(historyEntry.state);
-		if (previous) {
-			// Set cursor to the end of the first view line, so if wrapped, it's the point where the line wraps
-			const endOfFirstLine = this._inputEditor._getViewModel()?.getLineLength(1) ?? 1;
-			this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstLine });
-		} else {
-			const model = this._inputEditor.getModel();
-			if (!model) {
-				return;
-			}
 
+		const model = this._inputEditor.getModel();
+		if (!model) {
+			return;
+		}
+
+		if (previous) {
+			const endOfFirstViewLine = this._inputEditor._getViewModel()?.getLineLength(1) ?? 1;
+			const endOfFirstModelLine = model.getLineLength(1);
+			if (endOfFirstViewLine === endOfFirstModelLine) {
+				// Not wrapped - set cursor to the end of the first line
+				this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstViewLine + 1 });
+			} else {
+				// Wrapped - set cursor one char short of the end of the first view line.
+				// If it's after the next character, the cursor shows on the second line.
+				this._inputEditor.setPosition({ lineNumber: 1, column: endOfFirstViewLine });
+			}
+		} else {
 			this._inputEditor.setPosition(getLastPosition(model));
 		}
 	}
