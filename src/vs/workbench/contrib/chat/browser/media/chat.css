@@ -488,13 +488,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
 	margin-bottom: -14px;
-	padding: 4px 8px 14px 8px;
+	padding: 4px 8px 18px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
+	gap: 2px;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
@@ -760,7 +761,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context {
-	padding: 0 0 8px 0;
+	padding: 0 0 4px 0;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
@@ -778,11 +779,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
-	padding: 2px;
+	font-size: 11px;
+	padding: 0 4px 0 2px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	height: 18px;
 	max-width: 100%;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
+	padding: 0 2px 0 0;
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
