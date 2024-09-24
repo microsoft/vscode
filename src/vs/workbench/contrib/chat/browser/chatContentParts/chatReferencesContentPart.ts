@@ -16,6 +16,8 @@ import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/commo
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -179,6 +181,7 @@ export class CollapsibleListPool extends Disposable {
 
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
+		private readonly menuId: MenuId | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -212,7 +215,7 @@ export class CollapsibleListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -289,8 +292,9 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 }
 
 interface ICollapsibleListTemplate {
+	toolbar: MenuWorkbenchToolBar | undefined;
 	label: IResourceLabel;
-	templateDisposables: IDisposable;
+	templateDisposables: DisposableStore;
 }
 
 class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
@@ -299,15 +303,17 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 	constructor(
 		private labels: ResourceLabels,
+		private menuId: MenuId | undefined,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
 	renderTemplate(container: HTMLElement): ICollapsibleListTemplate {
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
-		return { templateDisposables, label };
+		return { templateDisposables, label, toolbar: undefined };
 	}
 
 
@@ -322,6 +328,8 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 	renderElement(data: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate, height: number | undefined): void {
+		templateData.toolbar?.dispose();
+
 		if (data.kind === 'warning') {
 			templateData.label.setResource({ name: data.content.value }, { icon: Codicon.warning });
 			return;
@@ -330,6 +338,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		const reference = data.reference;
 		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
+		let arg: URI | undefined;
 		if (typeof reference === 'object' && 'variableName' in reference) {
 			if (reference.value) {
 				const uri = URI.isUri(reference.value) ? reference.value : reference.value.uri;
@@ -353,6 +362,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 		} else {
 			const uri = 'uri' in reference ? reference.uri : reference;
+			arg = uri;
 			if (uri.scheme === 'https' && isEqualAuthority(uri.authority, 'github.com') && uri.path.includes('/tree/')) {
 				// Parse a nicer label for GitHub URIs that point at a particular commit + file
 				const label = uri.path.split('/').slice(1, 3).join('/');
@@ -384,6 +394,12 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 					element.classList.remove('warning');
 				}
 			}
+		}
+
+		if (this.menuId) {
+			const actionBarContainer = $('.chat-collapsible-list-action-bar');
+			templateData.toolbar = templateData.templateDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: arg } }));
+			templateData.label.element.appendChild(actionBarContainer);
 		}
 	}
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
@@ -253,18 +254,59 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	) { }
 }
 
+registerAction2(class OpenFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'chatEditing.openFile',
+			title: localize2('open.file', 'Open File'),
+			icon: Codicon.goToFile,
+			menu: [{
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				order: 0,
+				group: 'navigation'
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const editorService = accessor.get(IEditorService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const uris: URI[] = [];
+		if (URI.isUri(args[0])) {
+			uris.push(args[0]);
+		} else if (chatWidget) {
+			uris.push(...chatWidget.input.selectedElements);
+		}
+		if (!uris.length) {
+			return;
+		}
+
+		await Promise.all(uris.map((uri) => editorService.openEditor({ resource: uri, options: { pinned: true, activation: EditorActivation.ACTIVATE } })));
+	}
+});
+
 registerAction2(class AcceptAction extends Action2 {
 	constructor() {
 		super({
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Accept'),
-			// icon: Codicon.goToFile,
-			menu: {
+			icon: Codicon.check,
+			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
-			},
+			}, {
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				order: 2,
+				group: 'navigation'
+			}],
 		});
 	}
 
@@ -274,8 +316,19 @@ registerAction2(class AcceptAction extends Action2 {
 		if (!currentEditingSession) {
 			return;
 		}
-		const uri = args[0] as URI;
-		await currentEditingSession.accept(uri);
+
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const uris: URI[] = [];
+		if (URI.isUri(args[0])) {
+			uris.push(args[0]);
+		} else if (chatWidget) {
+			uris.push(...chatWidget.input.selectedElements);
+		}
+		if (!uris.length) {
+			return;
+		}
+
+		await currentEditingSession.accept(...uris);
 	}
 });
 
@@ -284,13 +337,17 @@ registerAction2(class DiscardAction extends Action2 {
 		super({
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Discard'),
-			// icon: Codicon.goToFile,
-			menu: {
+			icon: Codicon.discard,
+			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
-			},
+			}, {
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				order: 1,
+				group: 'navigation'
+			}],
 		});
 	}
 
@@ -300,8 +357,19 @@ registerAction2(class DiscardAction extends Action2 {
 		if (!currentEditingSession) {
 			return;
 		}
-		const uri = args[0] as URI;
-		await currentEditingSession.reject(uri);
+
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const uris: URI[] = [];
+		if (URI.isUri(args[0])) {
+			uris.push(args[0]);
+		} else if (chatWidget) {
+			uris.push(...chatWidget.input.selectedElements);
+		}
+		if (!uris.length) {
+			return;
+		}
+
+		await currentEditingSession.reject(...uris);
 	}
 });
 
