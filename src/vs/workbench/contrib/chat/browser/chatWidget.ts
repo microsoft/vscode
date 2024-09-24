@@ -30,7 +30,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TerminalChatController } from '../../terminal/terminalContribExports.js';
-import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
+import { ChatAgentImplicitContextMode, ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
@@ -155,6 +155,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
+	private previousAgent: IChatAgentData | undefined;
 	private agentInInput: IContextKey<boolean>;
 	private agentSupportsModelPicker: IContextKey<boolean>;
 
@@ -882,7 +883,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: [...this.inputPart.attachedContext.values()]
+				attachedContext: this.inputPart.getAttachedAndImplicitContext()
 			});
 
 			if (result) {
@@ -1088,6 +1089,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
 		this.agentInInput.set(!!currentAgent);
 		this.agentSupportsModelPicker.set(!currentAgent || !!currentAgent.agent.supportsModelPicker);
+		if (currentAgent?.agent.id !== this.previousAgent?.id) {
+			if (currentAgent?.agent.implicitContextMode === ChatAgentImplicitContextMode.Off) {
+				// Needs to be sticky, somehow
+				this.input.implicitContext.value = undefined;
+				this.input.implicitContext.enabled = false;
+			} else if (currentAgent?.agent.implicitContextMode === ChatAgentImplicitContextMode.DisabledByDefault) {
+				this.input.implicitContext.enabled = false;
+			} else {
+				this.input.implicitContext.enabled = true;
+			}
+
+			this.previousAgent = currentAgent?.agent;
+		}
 	}
 }
 
@@ -1103,6 +1117,10 @@ export class ChatWidgetService implements IChatWidgetService {
 	}
 
 	constructor() { }
+
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
+		return this._widgets.filter(w => w.location === location);
+	}
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));

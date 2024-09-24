@@ -752,6 +752,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
+	cursor: default;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
@@ -771,6 +772,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	height: 18px;
 	max-width: 100%;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {
+	display: flex;
+	gap: 4px;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit .chat-implicit-hint {
+	opacity: 0.7;
+	font-size: .9em;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled {
+	opacity: 0.7;
+	border-style: dashed;
+	cursor: pointer;
+	font-style: italic;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {

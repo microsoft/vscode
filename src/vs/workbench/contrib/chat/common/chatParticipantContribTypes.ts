@@ -30,6 +30,7 @@ export interface IRawChatParticipantContribution {
 	locations?: RawChatParticipantLocation[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 	supportsToolReferences?: boolean;
+	implicitContextMode?: 'off' | 'enabledByDefault' | 'disabledByDefault';
 }
 
 /**

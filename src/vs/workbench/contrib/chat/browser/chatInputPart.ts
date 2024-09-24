@@ -60,17 +60,19 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IChatRequestVariableEntry, isImplicitVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
+import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingService.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
+import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 
 const $ = dom.$;
 
@@ -133,8 +135,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachedContext;
 	}
 
+	public getAttachedAndImplicitContext(): IChatRequestVariableEntry[] {
+		const contextArr = [...this._attachedContext.values()];
+		if (this.implicitContext.enabled && this.implicitContext.value) {
+			contextArr.push(this.implicitContext.toBaseEntry());
+		}
+
+		return contextArr;
+	}
+
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
 	private readonly _attachedContext = new Set<IChatRequestVariableEntry>();
+
+	private readonly _implicitContext = new ChatImplicitContext();
+	public get implicitContext(): ChatImplicitContext {
+		return this._implicitContext;
+	}
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
@@ -509,6 +525,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
+		this._register(this._implicitContext.onDidChangeValue(() => this.initAttachedContext(this.attachedContextContainer)));
 		this.renderChatEditingSessionState(null);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -674,11 +691,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
-		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
+		const contextArr = [...this.attachedContext.values()];
+		if (this.implicitContext.value) {
+			contextArr.push(this.implicitContext);
+		}
+		dom.setVisibility(Boolean(contextArr.length), this.attachedContextContainer);
 		if (!this.attachedContext.size) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
-		[...this.attachedContext.values()].forEach(async (attachment, index) => {
+
+		contextArr.forEach(async (attachment, index) => {
+			if (isImplicitVariableEntry(attachment) && attachment.value) {
+				const implicitPart = this.attachedContextDisposables.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, attachment, this._contextResourceLabels));
+				container.appendChild(implicitPart.domNode);
+				return;
+			}
+
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;

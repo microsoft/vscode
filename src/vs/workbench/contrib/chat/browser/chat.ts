@@ -21,6 +21,7 @@ import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatInputPart } from './chatInputPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -32,6 +33,8 @@ export interface IChatWidgetService {
 	 * Returns the most recently focused widget if any.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
+
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
@@ -145,6 +148,7 @@ export interface IChatWidget {
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
 	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
+	readonly input: ChatInputPart;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;

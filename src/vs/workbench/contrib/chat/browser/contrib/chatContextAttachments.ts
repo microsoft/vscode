@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 
 export class ChatContextAttachments extends Disposable implements IChatWidgetContrib {
 
@@ -41,6 +42,7 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 			s = [];
 		}
 
+		s = coalesce(s);
 		this._attachedContext.clear();
 		for (const attachment of s) {
 			this._attachedContext.add(attachment);
