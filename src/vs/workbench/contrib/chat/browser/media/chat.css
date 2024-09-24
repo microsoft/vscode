@@ -1068,6 +1068,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-attached-context-hover .chat-attached-context-image {
 	height: auto;
 	max-height: 500px;
+	max-width: 400px;
 	width: 100%;
 	display: block;
 }
