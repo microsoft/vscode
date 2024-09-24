@@ -531,6 +531,10 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
+		if (this.state.get() === ChatEditingSessionState.Disposed) {
+			return;
+		}
+
 		if (uris.length === 0) {
 			await Promise.all(this._entries.map(entry => entry.accept(undefined)));
 		}
@@ -546,6 +550,10 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
+		if (this.state.get() === ChatEditingSessionState.Disposed) {
+			return;
+		}
+
 		if (uris.length === 0) {
 			await Promise.all(this._entries.map(entry => entry.reject(undefined)));
 		}
@@ -579,6 +587,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	override dispose() {
 		super.dispose();
+		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
 	}
 
@@ -588,16 +597,28 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	acceptStreamingEditsStart(): void {
+		if (this.state.get() === ChatEditingSessionState.Disposed) {
+			return;
+		}
+
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptStreamingEditsStart());
 	}
 
 	acceptTextEdits(resource: URI, textEdits: TextEdit[]): void {
+		if (this.state.get() === ChatEditingSessionState.Disposed) {
+			return;
+		}
+
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits));
 	}
 
 	resolve(): void {
+		if (this.state.get() === ChatEditingSessionState.Disposed) {
+			return;
+		}
+
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._resolve());
 	}
