@@ -802,6 +802,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 
+			if (this._attachedContext.size === 0) {
+				this.focus();
+			}
+
 			this._onDidChangeHeight.fire();
 			this._onDidChangeContext.fire({ removed: [attachment] });
 		});
