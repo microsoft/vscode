@@ -431,10 +431,10 @@ class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), '', clipboardService);
+		}), clipboardService, '');
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '', clipboardService?: IClipboardService) {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], clipboardService: IClipboardService, query: string = '') {
 
 		quickInputService.quickAccess.show(query, {
 			enabledProviderPrefixes: [
@@ -446,7 +446,7 @@ class AttachContextAction extends Action2 {
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
 				handleAccept: (item: IChatContextQuickPickItem) => {
 					if ('prefix' in item) {
-						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, item.prefix);
+						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, item.prefix);
 					} else {
 						if (!clipboardService) {
 							return;
