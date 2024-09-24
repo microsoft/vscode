@@ -294,6 +294,10 @@
 	margin: 0 0 16px 0;
 }
 
+.interactive-item-container .value > .chat-tool-invocation-part .rendered-markdown p {
+	margin: 0 0 6px 0;
+}
+
 .interactive-item-container .value > .rendered-markdown li > p {
 	margin: 0;
 }
@@ -482,7 +486,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -10px;
+	margin-bottom: -6px;
 	padding: 4px 8px 14px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
@@ -700,9 +704,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 16px;
-	padding: 0 0 12px 0px;
+	padding: 4px 0 12px 0px;
 	display: flex;
 	flex-direction: column;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -794,9 +799,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 8px;
 }
 
-.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin-bottom: 8px;
-}
+/* .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 4px;
+} */
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
 	display: block;
@@ -980,8 +985,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .rendered-markdown.progress-step {
 	display: flex;
+	gap: 2px;
 	margin-left: 4px;
 	white-space: normal;
+}
+
+.interactive-item-container .rendered-markdown.progress-step .monaco-button {
+	flex: 0 0 content;
+	font-size: 12px;
+	padding: 2px;
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p {
@@ -991,6 +1003,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 8px;
 	align-items: center;
 	margin-bottom: 6px;
+	flex: 1;
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon {

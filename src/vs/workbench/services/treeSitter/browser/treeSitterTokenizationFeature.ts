@@ -7,7 +7,6 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
 import { ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../../editor/common/services/treeSitterParserService.js';
@@ -18,8 +17,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { TokenStyle } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
-import { ColorThemeData } from '../../themes/common/colorThemeData.js';
+import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -136,19 +134,25 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
 	}
 
-	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): any {
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), textModel);
+	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): Parser.QueryCapture[] {
+		const tree = this._getTree(textModel);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree?.tree);
 		return captures;
 	}
 
-	private _captureAtRange(lineNumber: number, columnRange: ColumnRange, textModel: ITextModel): Parser.QueryCapture[] {
-		const tree = this._getTree(textModel);
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[] {
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree);
+		return captures;
+	}
+
+
+	private _captureAtRange(lineNumber: number, columnRange: ColumnRange, tree: Parser.Tree | undefined): Parser.QueryCapture[] {
 		const query = this._ensureQuery();
-		if (!tree?.tree || !query) {
+		if (!tree || !query) {
 			return [];
 		}
 		// Tree sitter row is 0 based, column is 0 based
-		return query.captures(tree.tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive } });
+		return query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive } });
 	}
 
 	/**
@@ -160,7 +164,8 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 	 */
 	public tokenizeEncoded(lineNumber: number, textModel: ITextModel): Uint32Array | undefined {
 		const lineLength = textModel.getLineMaxColumn(lineNumber);
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), textModel);
+		const tree = this._getTree(textModel);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), tree?.tree);
 
 		if (captures.length === 0) {
 			return undefined;
@@ -178,7 +183,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const metadata = this.findMetadata(capture.name);
+			const metadata = findMetadata(this._colorThemeData, capture.name,);
 			const tokenEndIndex = capture.node.endIndex < lineStartOffset + lineLength ? capture.node.endIndex : lineStartOffset + lineLength;
 			const tokenStartIndex = capture.node.startIndex < lineStartOffset ? lineStartOffset : capture.node.startIndex;
 
@@ -241,38 +246,6 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			tokens[tokenIndex * 2 + 1] = 0;
 		}
 		return tokens;
-	}
-
-	private findMetadata(captureName: string): number {
-		const tokenStyle: TokenStyle | undefined = this._colorThemeData.resolveScopes([[captureName]]);
-		if (!tokenStyle) {
-			return 0;
-		}
-
-		let metadata = 0;
-		if (typeof tokenStyle.italic !== 'undefined') {
-			const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0);
-			metadata |= italicBit | MetadataConsts.ITALIC_MASK;
-		}
-		if (typeof tokenStyle.bold !== 'undefined') {
-			const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0);
-			metadata |= boldBit | MetadataConsts.BOLD_MASK;
-		}
-		if (typeof tokenStyle.underline !== 'undefined') {
-			const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0);
-			metadata |= underlineBit | MetadataConsts.UNDERLINE_MASK;
-		}
-		if (typeof tokenStyle.strikethrough !== 'undefined') {
-			const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0);
-			metadata |= strikethroughBit | MetadataConsts.STRIKETHROUGH_MASK;
-		}
-		if (tokenStyle.foreground) {
-			const tokenStyleForeground = this._colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
-			const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
-			metadata |= foregroundBits;
-		}
-
-		return metadata;
 	}
 
 	override dispose() {

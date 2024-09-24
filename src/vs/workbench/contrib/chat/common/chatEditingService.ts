@@ -55,5 +55,6 @@ export interface IChatEditingSessionStream {
 export const enum ChatEditingSessionState {
 	Initial = 0,
 	StreamingEdits = 1,
-	Idle = 2
+	Idle = 2,
+	Disposed = 3
 }
