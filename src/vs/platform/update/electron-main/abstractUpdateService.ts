@@ -205,7 +205,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
-		const mode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		const mode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default' | 'block'>('update.mode');
 
 		if (mode === 'none') {
 			return false;

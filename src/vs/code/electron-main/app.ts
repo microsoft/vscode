@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain, Notification } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -72,7 +72,7 @@ import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/comm
 import { TelemetryAppenderClient } from '../../platform/telemetry/common/telemetryIpc.js';
 import { ITelemetryServiceConfig, TelemetryService } from '../../platform/telemetry/common/telemetryService.js';
 import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
-import { IUpdateService } from '../../platform/update/common/update.js';
+import { IUpdateService, StateType } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
 import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
@@ -584,6 +584,89 @@ export class CodeApplication extends Disposable {
 
 		// Services
 		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
+
+		// Update mode: block
+		if (this.configurationService.getValue('update.mode') === 'block') {
+			await appInstantiationService.invokeFunction(async accessor => {
+				const updateService = accessor.get(IUpdateService);
+
+				setInterval(() => {
+					switch (updateService.state.type) {
+						case StateType.Uninitialized:
+							this.logService.info('Update mode blocker: Uninitialized');
+							break;
+						case StateType.Idle:
+							this.logService.info('Update mode blocker: Idle');
+							break;
+						case StateType.Disabled:
+							this.logService.info('Update mode blocker: Disabled');
+							break;
+						case StateType.CheckingForUpdates:
+							this.logService.info('Update mode blocker: CheckingForUpdates');
+							break;
+						case StateType.AvailableForDownload:
+							this.logService.info('Update mode blocker: AvailableForDownload');
+							break;
+						case StateType.Downloading:
+							this.logService.info('Update mode blocker: Downloading');
+							break;
+						case StateType.Downloaded:
+							this.logService.info('Update mode blocker: Downloaded');
+							break;
+						case StateType.Updating:
+							this.logService.info('Update mode blocker: Updating');
+							break;
+						case StateType.Ready:
+							this.logService.info('Update mode blocker: Ready');
+							break;
+					}
+				}, 1000);
+
+				let notification = new Notification({
+					title: 'Checking for updates...',
+					timeoutType: 'never'
+				});
+				notification.show();
+
+				this.logService.info('Before checkForUpdates()');
+				await updateService.checkForUpdates(true);
+				this.logService.info('After checkForUpdates()');
+				notification.close();
+
+				if (updateService.state.type === StateType.AvailableForDownload) {
+					this.logService.info('Before downloadUpdate()');
+					notification = new Notification({
+						title: 'Downloading update...',
+						timeoutType: 'never'
+					});
+					notification.show();
+					await updateService.downloadUpdate();
+					this.logService.info('After downloadUpdate()');
+
+					notification.close();
+					notification = new Notification({
+						title: 'Applying update...',
+						timeoutType: 'never'
+					});
+					notification.show();
+					this.logService.info('Before applyUpdate()');
+					await updateService.applyUpdate();
+					this.logService.info('After applyUpdate()');
+
+					notification.close();
+					notification = new Notification({
+						title: 'Restarting...',
+						timeoutType: 'never'
+					});
+					notification.show();
+					this.logService.info('Before quitAndInstall()');
+					await updateService.quitAndInstall();
+					this.logService.info('After quitAndInstall()');
+
+					return;
+				}
+			});
+		}
 
 		// Auth Handler
 		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
