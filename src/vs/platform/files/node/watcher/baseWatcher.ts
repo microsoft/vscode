@@ -5,7 +5,7 @@
 
 import { watchFile, unwatchFile, Stats } from 'fs';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, IWatcherErrorEvent, isRecursiveWatchRequest, isWatchRequestWithCorrelation, requestFilterToString } from '../../common/watcher.js';
+import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, IWatcherErrorEvent, isWatchRequestWithCorrelation, requestFilterToString } from '../../common/watcher.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FileChangeType, IFileChange } from '../../common/files.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -254,7 +254,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	}
 
 	protected requestToString(request: IUniversalWatchRequest): string {
-		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'}${isRecursiveWatchRequest(request) ? `, useNext: ${request.useNext}` : ''})`;
+		return `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, filter: ${requestFilterToString(request.filter)}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`;
 	}
 
 	protected abstract doWatch(requests: IUniversalWatchRequest[]): Promise<void>;

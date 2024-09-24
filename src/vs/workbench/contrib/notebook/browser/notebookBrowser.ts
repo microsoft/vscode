@@ -373,7 +373,7 @@ export interface INotebookEditorContributionDescription {
 }
 
 export interface INotebookEditorCreationOptions {
-	readonly isEmbedded?: boolean;
+	readonly isReplHistory?: boolean;
 	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
 	readonly cellEditorContributions?: IEditorContributionDescription[];

@@ -24,6 +24,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ThemeConfiguration } from './themeConfiguration.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -898,6 +899,37 @@ function isSemanticTokenColorizationSetting(style: any): style is ISemanticToken
 		|| types.isBoolean(style.underline) || types.isBoolean(style.strikethrough) || types.isBoolean(style.bold));
 }
 
+export function findMetadata(colorThemeData: ColorThemeData, captureName: string): number {
+	const tokenStyle: TokenStyle | undefined = colorThemeData.resolveScopes([[captureName]]);
+	if (!tokenStyle) {
+		return 0;
+	}
+
+	let metadata = 0;
+	if (typeof tokenStyle.italic !== 'undefined') {
+		const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0);
+		metadata |= italicBit | MetadataConsts.ITALIC_MASK;
+	}
+	if (typeof tokenStyle.bold !== 'undefined') {
+		const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0);
+		metadata |= boldBit | MetadataConsts.BOLD_MASK;
+	}
+	if (typeof tokenStyle.underline !== 'undefined') {
+		const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0);
+		metadata |= underlineBit | MetadataConsts.UNDERLINE_MASK;
+	}
+	if (typeof tokenStyle.strikethrough !== 'undefined') {
+		const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0);
+		metadata |= strikethroughBit | MetadataConsts.STRIKETHROUGH_MASK;
+	}
+	if (tokenStyle.foreground) {
+		const tokenStyleForeground = colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
+		const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
+		metadata |= foregroundBits;
+	}
+
+	return metadata;
+}
 
 class TokenColorIndex {
 

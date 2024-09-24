@@ -27,6 +27,7 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { IModelTokensChangedEvent } from './textModelEvents.js';
+import type { Parser } from '@vscode/tree-sitter-wasm';
 
 /**
  * @internal
@@ -89,7 +90,8 @@ export class EncodedTokenizationResult {
  */
 export interface ITreeSitterTokenizationSupport {
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
 	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 }
 

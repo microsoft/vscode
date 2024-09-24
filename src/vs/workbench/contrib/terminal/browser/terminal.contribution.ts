@@ -14,11 +14,10 @@ import './media/xterm.css';
 import * as nls from '../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IKeybindings, KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { GeneralShellType, ITerminalLogService, WindowsShellType } from '../../../../platform/terminal/common/terminal.js';
@@ -32,7 +31,7 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
 import { RemoteTerminalBackendContribution } from './remoteTerminalBackend.js';
 import { ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from './terminal.js';
-import { registerTerminalActions, terminalSendSequenceCommand } from './terminalActions.js';
+import { registerTerminalActions } from './terminalActions.js';
 import { setupTerminalCommands } from './terminalCommands.js';
 import { TerminalConfigurationService } from './terminalConfigurationService.js';
 import { TerminalEditor } from './terminalEditor.js';
@@ -54,10 +53,7 @@ import { registerColors } from '../common/terminalColorRegistry.js';
 import { registerTerminalConfiguration } from '../common/terminalConfiguration.js';
 import { TerminalContextKeyStrings, TerminalContextKeys } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
-
-// HACK: This file should not depend on terminalContrib
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalSuggestSettingId } from '../../terminalContrib/suggest/common/terminalSuggestConfiguration.js';
+import { registerSendSequenceKeybinding } from './terminalKeybindings.js';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -158,20 +154,6 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 // Register actions
 registerTerminalActions();
 
-function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyExpression } & IKeybindings): void {
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TerminalCommandId.SendSequence,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: rule.when || TerminalContextKeys.focus,
-		primary: rule.primary,
-		mac: rule.mac,
-		linux: rule.linux,
-		win: rule.win,
-		handler: terminalSendSequenceCommand,
-		args: { text }
-	});
-}
-
 const enum Constants {
 	/** The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`. */
 	CtrlLetterOffset = 64
@@ -207,11 +189,6 @@ registerSendSequenceKeybinding('\x1b[24~c', { // F12,c -> shift+enter (AddLine)
 registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine) - HACK: \x1b[1;2F is supposed to work but it doesn't
 	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.RightArrow }
-});
-registerSendSequenceKeybinding('\x1b[24~e', { // F12,e -> ctrl+space (Native suggest)
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true)),
-	primary: KeyMod.CtrlCmd | KeyCode.Space,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 });
 
 // Always on pwsh keybindings

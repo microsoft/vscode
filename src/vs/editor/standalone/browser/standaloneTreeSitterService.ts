@@ -14,6 +14,9 @@ import { Range } from '../../common/core/range.js';
  * We use a dummy sertive here to make the build happy.
  */
 export class StandaloneTreeSitterParserService implements ITreeSitterParserService {
+	async getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
+		return undefined;
+	}
 	onDidUpdateTree: Event<{ textModel: ITextModel; ranges: Range[] }> = Event.None;
 	readonly _serviceBrand: undefined;
 	onDidAddLanguage: Event<{ id: string; language: Parser.Language }> = Event.None;
