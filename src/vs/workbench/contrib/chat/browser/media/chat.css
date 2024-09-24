@@ -486,7 +486,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -10px;
+	margin-bottom: -6px;
 	padding: 4px 8px 14px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
