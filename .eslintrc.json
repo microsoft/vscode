@@ -254,7 +254,8 @@
 							"terminate",
 							"trigger",
 							"unregister",
-							"write"
+							"write",
+							"provide"
 						]
 					}
 				]

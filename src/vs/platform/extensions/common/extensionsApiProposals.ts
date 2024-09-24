@@ -221,6 +221,9 @@ const _allApiProposals = {
 	idToken: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.idToken.d.ts',
 	},
+	inlineCompletionEvents: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.inlineCompletionEvents.d.ts',
+	},
 	inlineCompletionsAdditions: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.inlineCompletionsAdditions.d.ts',
 	},

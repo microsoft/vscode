@@ -634,6 +634,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
 			},
+			onDidProvideInlineCompletion: (listener, thisArgs?, disposables?) => {
+				return _asExtensionEvent(extHostLanguageFeatures.onDidProvideInlineCompletion)(listener, thisArgs, disposables);
+			},
 			registerInlineEditProvider(selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'inlineEdit');
 				return extHostLanguageFeatures.registerInlineEditProvider(extension, checkSelector(selector), provider);

@@ -37,6 +37,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import type * as vscode from 'vscode';
 import { Cache } from './cache.js';
 import * as extHostProtocol from './extHost.protocol.js';
+import { Emitter } from 'vs/base/common/event';
 
 // --- adapter
 
@@ -1305,14 +1306,17 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 	}>();
 
 	private readonly _isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
+	private readonly _isCompletionProvidedEventsEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionEvents');
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineCompletionItemProvider,
 		private readonly _commands: CommandsConverter,
+		private readonly _completionProvidedListener: Emitter<vscode.InlineCompletionProvidedEvent>
 	) {
 		super();
+		this._completionProvidedListener = _completionProvidedListener;
 	}
 
 	public get supportsHandleEvents(): boolean {
@@ -1364,6 +1368,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 			items: normalizedResult
 		});
 
+		this.notifyListeners(normalizedResult);
+
 		return {
 			pid,
 			items: normalizedResult.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
@@ -1394,6 +1400,17 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 			suppressSuggestions: false,
 			enableForwardStability,
 		};
+	}
+
+	private notifyListeners(normalizedResult: vscode.InlineCompletionItem[]) {
+		if (this._isCompletionProvidedEventsEnabled) {
+			this._completionProvidedListener.fire({
+				providerId: this._extension.identifier.value,
+				result: normalizedResult.map(item => {
+					return { insertText: item.insertText, range: item.range, command: item.command };
+				})
+			});
+		}
 	}
 
 	override async provideInlineEditsForRange(resource: URI, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
@@ -2210,6 +2227,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private readonly _adapter = new Map<number, AdapterData>();
 
+	private readonly _onDidProvideInlineCompletion = new Emitter<vscode.InlineCompletionProvidedEvent>();
+	public readonly onDidProvideInlineCompletion = this._onDidProvideInlineCompletion.event;
+
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
 		private readonly _uriTransformer: IURITransformer,
@@ -2663,7 +2683,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- ghost test
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
-		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
+		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter, this._onDidProvideInlineCompletion);
 		const handle = this._addNewAdapter(adapter, extension);
 		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents,
 			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || []);
