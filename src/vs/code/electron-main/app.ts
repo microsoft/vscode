@@ -593,31 +593,31 @@ export class CodeApplication extends Disposable {
 				const logUpdate = () => {
 					switch (updateService.state.type) {
 						case StateType.Uninitialized:
-							this.logService.info('Update mode blocker: Uninitialized');
+							this.logService.info('Update State: Uninitialized');
 							break;
 						case StateType.Idle:
-							this.logService.info('Update mode blocker: Idle');
+							this.logService.info('Update State: Idle');
 							break;
 						case StateType.Disabled:
-							this.logService.info('Update mode blocker: Disabled');
+							this.logService.info('Update State: Disabled');
 							break;
 						case StateType.CheckingForUpdates:
-							this.logService.info('Update mode blocker: CheckingForUpdates');
+							this.logService.info('Update State: CheckingForUpdates');
 							break;
 						case StateType.AvailableForDownload:
-							this.logService.info('Update mode blocker: AvailableForDownload');
+							this.logService.info('Update State: AvailableForDownload');
 							break;
 						case StateType.Downloading:
-							this.logService.info('Update mode blocker: Downloading');
+							this.logService.info('Update State: Downloading');
 							break;
 						case StateType.Downloaded:
-							this.logService.info('Update mode blocker: Downloaded');
+							this.logService.info('Update State: Downloaded');
 							break;
 						case StateType.Updating:
-							this.logService.info('Update mode blocker: Updating');
+							this.logService.info('Update State: Updating');
 							break;
 						case StateType.Ready:
-							this.logService.info('Update mode blocker: Ready');
+							this.logService.info('Update State: Ready');
 							break;
 					}
 				};
@@ -626,37 +626,7 @@ export class CodeApplication extends Disposable {
 				await updateService.initialize();
 				logUpdate();
 
-				setInterval(() => {
-					switch (updateService.state.type) {
-						case StateType.Uninitialized:
-							this.logService.info('Update mode blocker: Uninitialized');
-							break;
-						case StateType.Idle:
-							this.logService.info('Update mode blocker: Idle');
-							break;
-						case StateType.Disabled:
-							this.logService.info('Update mode blocker: Disabled');
-							break;
-						case StateType.CheckingForUpdates:
-							this.logService.info('Update mode blocker: CheckingForUpdates');
-							break;
-						case StateType.AvailableForDownload:
-							this.logService.info('Update mode blocker: AvailableForDownload');
-							break;
-						case StateType.Downloading:
-							this.logService.info('Update mode blocker: Downloading');
-							break;
-						case StateType.Downloaded:
-							this.logService.info('Update mode blocker: Downloaded');
-							break;
-						case StateType.Updating:
-							this.logService.info('Update mode blocker: Updating');
-							break;
-						case StateType.Ready:
-							this.logService.info('Update mode blocker: Ready');
-							break;
-					}
-				}, 100);
+				setInterval(() => logUpdate(), 100);
 
 				let notification = new Notification({
 					title: 'Checking for updates...',
@@ -664,40 +634,37 @@ export class CodeApplication extends Disposable {
 				});
 				notification.show();
 
-				this.logService.info('Before checkForUpdates()');
 				await updateService.checkForUpdates(true);
-				this.logService.info('After checkForUpdates()');
+				await this.awaitUpdateState(updateService, StateType.Ready, StateType.Idle);
 				notification.close();
 
-				if (updateService.state.type === StateType.AvailableForDownload) {
-					this.logService.info('Before downloadUpdate()');
-					notification = new Notification({
-						title: 'Downloading update...',
-						timeoutType: 'never'
-					});
-					notification.show();
-					await updateService.downloadUpdate();
-					this.logService.info('After downloadUpdate()');
+				if (updateService.state.type === StateType.Ready) {
+					// this.logService.info('Before downloadUpdate()');
+					// notification = new Notification({
+					// 	title: 'Downloading update...',
+					// 	timeoutType: 'never'
+					// });
+					// notification.show();
+					// await updateService.downloadUpdate();
+					// this.logService.info('After downloadUpdate()');
 
-					notification.close();
-					notification = new Notification({
-						title: 'Applying update...',
-						timeoutType: 'never'
-					});
-					notification.show();
-					this.logService.info('Before applyUpdate()');
-					await updateService.applyUpdate();
-					this.logService.info('After applyUpdate()');
+					// notification.close();
+					// notification = new Notification({
+					// 	title: 'Applying update...',
+					// 	timeoutType: 'never'
+					// });
+					// notification.show();
+					// this.logService.info('Before applyUpdate()');
+					// await updateService.applyUpdate();
+					// this.logService.info('After applyUpdate()');
 
-					notification.close();
+					// notification.close();
 					notification = new Notification({
 						title: 'Restarting...',
 						timeoutType: 'never'
 					});
 					notification.show();
-					this.logService.info('Before quitAndInstall()');
 					await updateService.quitAndInstall();
-					this.logService.info('After quitAndInstall()');
 
 					return;
 				}
@@ -736,6 +703,17 @@ export class CodeApplication extends Disposable {
 			this._register(runWhenGlobalIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
+	}
+
+	private awaitUpdateState(updateService: IUpdateService, ...types: StateType[]): Promise<void> {
+		return new Promise<void>(resolve => {
+			const disposable = this._register(updateService.onStateChange(e => {
+				if (types.includes(e.type)) {
+					disposable.dispose();
+					resolve();
+				}
+			}));
+		});
 	}
 
 	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {
