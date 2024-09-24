@@ -65,12 +65,14 @@ suite('colorization', () => {
 	const fixturesPath = join(testPath, 'colorize-fixtures');
 	const resultsPath = join(testPath, 'colorize-results');
 	const treeSitterResultsPath = join(testPath, 'colorize-tree-sitter-results');
+	let originalSettingValue: any;
 
 	suiteSetup(async function () {
+		originalSettingValue = workspace.getConfiguration('editor').get('experimental.preferTreeSitter');
 		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', ["typescript"], ConfigurationTarget.Global);
 	});
 	suiteTeardown(async function () {
-		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', [], ConfigurationTarget.Global);
+		await workspace.getConfiguration('editor').update('experimental.preferTreeSitter', originalSettingValue, ConfigurationTarget.Global);
 	});
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {
