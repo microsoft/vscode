@@ -69,6 +69,7 @@ export function register(
 						if (response.type !== 'response' || !response.body) {
 							return { entries: [] };
 						}
+						// @ts-expect-error until ts5.7
 						return { entries: response.body.relatedFiles.map(f => client.toResource(f)), traits: [] };
 					});
 				}
