@@ -272,6 +272,15 @@ export class TreeSitterLanguages extends Disposable {
 		}
 	}
 
+	public async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		if (this._languages.isCached(languageId)) {
+			return this._languages.getSyncIfCached(languageId);
+		} else {
+			await this._addLanguage(languageId);
+			return this._languages.get(languageId);
+		}
+	}
+
 	private async _addLanguage(languageId: string): Promise<void> {
 		const languagePromise = this._languages.get(languageId);
 		if (!languagePromise) {
@@ -366,6 +375,19 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
 		const textModelTreeSitter = this._textModelTreeSitters.get(textModel);
 		return textModelTreeSitter?.textModelTreeSitter.parseResult;
+	}
+
+	async getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
+		await this._init;
+
+		const language = await this._treeSitterLanguages.getLanguage(languageId);
+		const Parser = await this._treeSitterImporter.getParserClass();
+		if (language) {
+			const parser = new Parser();
+			parser.setLanguage(language);
+			return parser.parse(content);
+		}
+		return undefined;
 	}
 
 	private async _doInitParser() {
