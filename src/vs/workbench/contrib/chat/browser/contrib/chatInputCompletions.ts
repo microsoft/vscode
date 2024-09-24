@@ -89,6 +89,42 @@ class SlashCommandCompletions extends Disposable {
 				};
 			}
 		}));
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'globalSlashCommandsAt',
+			triggerCharacters: ['@'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				const range = computeCompletionRanges(model, position, /@\w*/g);
+				if (!range) {
+					return null;
+				}
+
+				const slashCommands = this.chatSlashCommandService.getCommands(widget.location);
+				if (!slashCommands) {
+					return null;
+				}
+
+				return {
+					suggestions: slashCommands.map((c, i): CompletionItem => {
+						const withSlash = `${chatSubcommandLeader}${c.command}`;
+						return {
+							label: withSlash,
+							insertText: c.executeImmediately ? '' : `${withSlash} `,
+							detail: c.detail,
+							range: new Range(1, 1, 1, 1),
+							filterText: `${chatAgentLeader}${c.command}`,
+							sortText: c.sortText ?? 'z'.repeat(i + 1),
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+							command: c.executeImmediately ? { id: SubmitAction.ID, title: withSlash, arguments: [{ widget, inputValue: `${withSlash} ` }] } : undefined,
+						};
+					})
+				};
+			}
+		}));
 	}
 }
 
