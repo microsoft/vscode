@@ -89,7 +89,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return true;
 	}
 
-	protected override async initialize(): Promise<void> {
+	override async initialize(): Promise<void> {
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
 			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');

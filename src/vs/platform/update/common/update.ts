@@ -99,6 +99,8 @@ export interface IUpdateService {
 	readonly onStateChange: Event<State>;
 	readonly state: State;
 
+	initialize(): Promise<void>;
+
 	checkForUpdates(explicit: boolean): Promise<void>;
 	downloadUpdate(): Promise<void>;
 	applyUpdate(): Promise<void>;

@@ -21,6 +21,7 @@ export class UpdateChannel implements IServerChannel {
 
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
+			case 'initialize': return this.service.initialize();
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
 			case 'downloadUpdate': return this.service.downloadUpdate();
 			case 'applyUpdate': return this.service.applyUpdate();
@@ -51,6 +52,10 @@ export class UpdateChannelClient implements IUpdateService {
 	constructor(private readonly channel: IChannel) {
 		this.channel.listen<State>('onStateChange')(state => this.state = state);
 		this.channel.call<State>('_getInitialState').then(state => this.state = state);
+	}
+
+	initialize(): Promise<void> {
+		return this.channel.call('initialize');
 	}
 
 	checkForUpdates(explicit: boolean): Promise<void> {

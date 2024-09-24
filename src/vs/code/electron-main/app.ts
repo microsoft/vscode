@@ -590,6 +590,42 @@ export class CodeApplication extends Disposable {
 			await appInstantiationService.invokeFunction(async accessor => {
 				const updateService = accessor.get(IUpdateService);
 
+				const logUpdate = () => {
+					switch (updateService.state.type) {
+						case StateType.Uninitialized:
+							this.logService.info('Update mode blocker: Uninitialized');
+							break;
+						case StateType.Idle:
+							this.logService.info('Update mode blocker: Idle');
+							break;
+						case StateType.Disabled:
+							this.logService.info('Update mode blocker: Disabled');
+							break;
+						case StateType.CheckingForUpdates:
+							this.logService.info('Update mode blocker: CheckingForUpdates');
+							break;
+						case StateType.AvailableForDownload:
+							this.logService.info('Update mode blocker: AvailableForDownload');
+							break;
+						case StateType.Downloading:
+							this.logService.info('Update mode blocker: Downloading');
+							break;
+						case StateType.Downloaded:
+							this.logService.info('Update mode blocker: Downloaded');
+							break;
+						case StateType.Updating:
+							this.logService.info('Update mode blocker: Updating');
+							break;
+						case StateType.Ready:
+							this.logService.info('Update mode blocker: Ready');
+							break;
+					}
+				};
+
+				logUpdate();
+				await updateService.initialize();
+				logUpdate();
+
 				setInterval(() => {
 					switch (updateService.state.type) {
 						case StateType.Uninitialized:

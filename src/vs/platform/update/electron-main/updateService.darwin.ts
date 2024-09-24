@@ -56,7 +56,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		return true;
 	}
 
-	protected override async initialize(): Promise<void> {
+	override async initialize(): Promise<void> {
 		await super.initialize();
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);

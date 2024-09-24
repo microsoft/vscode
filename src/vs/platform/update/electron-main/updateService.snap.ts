@@ -50,6 +50,8 @@ abstract class AbstractUpdateService implements IUpdateService {
 		this.scheduleCheckForUpdates(30 * 1000).then(undefined, err => this.logService.error(err));
 	}
 
+	async initialize(): Promise<void> { }
+
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): Promise<void> {
 		return timeout(delay)
 			.then(() => this.checkForUpdates(false))
