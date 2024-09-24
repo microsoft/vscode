@@ -852,6 +852,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.append(actionsContainer, clearButton.element);
 
 		// List of edited files
+		if (!editedFiles.length) {
+			return;
+		}
 		const entries: IChatCollapsibleListItem[] = editedFiles.map((entry) => ({
 			reference: entry.modifiedURI,
 			kind: 'reference',
