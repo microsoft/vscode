@@ -752,7 +752,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.tabIndex = 0;
 
 				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 
 					// No delay for keyboard
 					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
