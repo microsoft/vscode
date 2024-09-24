@@ -2289,8 +2289,7 @@ export class SearchModel extends Disposable {
 				this.onSearchProgress(p, searchInstanceID, false, true);
 				onProgress?.(p);
 			}).finally(() => {
-				this.currentAICancelTokenSource?.dispose();
-				this.currentAICancelTokenSource = null;
+				this.currentAICancelTokenSource?.dispose(true);
 			}).then(
 				value => {
 					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
@@ -2356,11 +2355,11 @@ export class SearchModel extends Disposable {
 	}
 
 	get hasAIResults(): boolean {
-		return !!(this.searchResult.getCachedSearchComplete(true)) || !!(this.currentAICancelTokenSource);
+		return !!(this.searchResult.getCachedSearchComplete(true)) || (!!this.currentAICancelTokenSource && !this.currentAICancelTokenSource.token.isCancellationRequested);
 	}
 
 	get hasPlainResults(): boolean {
-		return !!(this.searchResult.getCachedSearchComplete(false)) || !!(this.currentCancelTokenSource);
+		return !!(this.searchResult.getCachedSearchComplete(false)) || (!!this.currentCancelTokenSource && !this.currentCancelTokenSource.token.isCancellationRequested);
 	}
 
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -2425,8 +2424,7 @@ export class SearchModel extends Disposable {
 						this.onSearchError(e, Date.now() - start, false);
 						throw e;
 					}).finally(() => {
-						this.currentCancelTokenSource?.dispose();
-						this.currentCancelTokenSource = null;
+						this.currentCancelTokenSource?.dispose(true);
 					}),
 				syncResults
 			};
@@ -2719,8 +2717,6 @@ function getFileMatches(matches: (FileMatch | FolderMatchWithResource)[]): FileM
 
 	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }
-
-
 
 function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
 	const retEvent: IChangeEvent = {
