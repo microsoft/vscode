@@ -15,7 +15,6 @@ import { IWordAtPosition, getWordAtText } from '../../../../../editor/common/cor
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
-import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -139,49 +138,6 @@ class AgentCompletions extends Disposable {
 	) {
 		super();
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
-			_debugDisplayName: 'chatAgent',
-			triggerCharacters: ['@'],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel) {
-					return null;
-				}
-
-				const parsedRequest = widget.parsedInput.parts;
-				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
-				if (usedAgent && !Range.containsPosition(usedAgent.editorRange, position)) {
-					// Only one agent allowed
-					return;
-				}
-
-				const range = computeCompletionRanges(model, position, /@\w*/g);
-				if (!range) {
-					return null;
-				}
-
-				const agents = this.chatAgentService.getAgents()
-					.filter(a => !a.isDefault)
-					.filter(a => a.locations.includes(widget.location));
-
-				return {
-					suggestions: agents.map((agent, i): CompletionItem => {
-						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
-						return {
-							// Leading space is important because detail has no space at the start by design
-							label: isDupe ?
-								{ label: agentLabel, description: agent.description, detail: ` (${agent.publisherDisplayName})` } :
-								agentLabel,
-							insertText: `${agentLabel} `,
-							detail: agent.description,
-							range: new Range(1, 1, 1, 1),
-							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent: agent, widget, invokeProvider: subCommandProvider } satisfies AssignSelectedAgentActionArgs] },
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway
-						};
-					})
-				};
-			}
-		}));
 
 		const subCommandProvider: CompletionItemProvider = {
 			_debugDisplayName: 'chatAgentSubcommand',
@@ -234,10 +190,9 @@ class AgentCompletions extends Disposable {
 		};
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, subCommandProvider));
 
-		// list subcommands when the query is empty, insert agent+subcommand
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentAndSubcommand',
-			triggerCharacters: ['/'],
+			triggerCharacters: ['@', '/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
@@ -245,10 +200,14 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
 				if (!range) {
 					return null;
 				}
+
+				const preceedingChar = position.column > 1 ?
+					model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column)) :
+					'@';
 
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
@@ -260,7 +219,7 @@ class AgentCompletions extends Disposable {
 					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
 					// When I type `/exp`, the workspace one should be sorted over the terminal one.
 					const dummyPrefix = agent.id === 'github.copilot.terminalPanel' ? `0000` : ``;
-					return `${chatSubcommandLeader}${dummyPrefix}${agent.name}.${command}`;
+					return `${preceedingChar}${dummyPrefix}${agent.name}.${command}`;
 				};
 
 				const justAgents: CompletionItem[] = agents
@@ -274,11 +233,11 @@ class AgentCompletions extends Disposable {
 								{ label: agentLabel, description: agent.description, detail: ` (${agent.publisherDisplayName})` } :
 								agentLabel,
 							detail,
-							filterText: `${chatSubcommandLeader}${agent.name}`,
+							filterText: `${preceedingChar}${agent.name}`,
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
-							sortText: `${chatSubcommandLeader}${agent.name}`,
+							sortText: `${chatAgentLeader}${agent.name}`,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 						};
 					});
@@ -287,23 +246,26 @@ class AgentCompletions extends Disposable {
 					suggestions: justAgents.concat(
 						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
 							const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
-							const withSlash = `${chatSubcommandLeader}${c.name}`;
+							const label = `${agentLabel} ${chatSubcommandLeader}${c.name}`;
 							const item: CompletionItem = {
-								label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
+								label: isDupe ?
+									{ label, description: c.description, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined } :
+									label,
+								detail: c.description,
 								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
-								insertText: `${agentLabel} ${withSlash} `,
-								detail: `(${agentLabel}) ${c.description ?? ''}`,
+								insertText: label,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
-								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+								sortText: `x${chatAgentLeader}${agent.name}${c.name}`,
 								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 							};
 
 							if (agent.isDefault) {
 								// default agent isn't mentioned nor inserted
-								item.label = withSlash;
-								item.insertText = `${withSlash} `;
+								const label = `${chatSubcommandLeader}${c.name}`;
+								item.label = label;
+								item.insertText = `${label} `;
 								item.detail = c.description;
 							}
 
@@ -326,7 +288,6 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 interface AssignSelectedAgentActionArgs {
 	agent: IChatAgentData;
 	widget: IChatWidget;
-	invokeProvider?: CompletionItemProvider;
 }
 
 class AssignSelectedAgentAction extends Action2 {
@@ -346,15 +307,6 @@ class AssignSelectedAgentAction extends Action2 {
 		}
 
 		arg.widget.lastSelectedAgent = arg.agent;
-
-		if (arg.invokeProvider) {
-			const suggestCtrl = SuggestController.get(arg.widget.inputEditor);
-			if (!suggestCtrl) {
-				return;
-			}
-
-			suggestCtrl.triggerSuggest(new Set([arg.invokeProvider]), true);
-		}
 	}
 }
 registerAction2(AssignSelectedAgentAction);
