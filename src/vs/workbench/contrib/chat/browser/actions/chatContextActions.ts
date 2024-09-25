@@ -116,7 +116,7 @@ class AttachFileAction extends Action2 {
 			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'attach',
+				group: 'a_chat',
 				order: 1,
 			}
 		});
@@ -146,7 +146,7 @@ class AttachSelectionAction extends Action2 {
 			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'attach',
+				group: 'a_chat',
 				order: 2,
 			}
 		});

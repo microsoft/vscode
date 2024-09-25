@@ -88,8 +88,8 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'open',
-				order: 1
+				group: 'a_chat',
+				order: 10
 			}
 		});
 	}
