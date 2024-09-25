@@ -245,6 +245,8 @@ interface IActiveVoiceChatSession extends IVoiceChatSession {
 	readonly id: number;
 	readonly controller: IVoiceChatSessionController;
 	readonly disposables: DisposableStore;
+
+	hasRecognizedInput: boolean;
 }
 
 class VoiceChatSessions {
@@ -280,6 +282,7 @@ class VoiceChatSessions {
 		const session: IActiveVoiceChatSession = this.currentVoiceChatSession = {
 			id: sessionId,
 			controller,
+			hasRecognizedInput: false,
 			disposables: new DisposableStore(),
 			setTimeoutDisabled: (disabled: boolean) => { disableTimeout = disabled; },
 			accept: () => this.accept(sessionId),
@@ -317,6 +320,7 @@ class VoiceChatSessions {
 					break;
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
+						session.hasRecognizedInput = true;
 						session.controller.updateInput(inputValue ? [inputValue, text].join(' ') : text);
 						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !disableTimeout) {
 							acceptTranscriptionScheduler.cancel();
@@ -325,6 +329,7 @@ class VoiceChatSessions {
 					break;
 				case SpeechToTextStatus.Recognized:
 					if (text) {
+						session.hasRecognizedInput = true;
 						inputValue = inputValue ? [inputValue, text].join(' ') : text;
 						session.controller.updateInput(inputValue);
 						if (voiceChatTimeout > 0 && context?.voice?.disableTimeout !== true && !waitingForInput && !disableTimeout) {
@@ -378,6 +383,15 @@ class VoiceChatSessions {
 			!this.currentVoiceChatSession ||
 			this.voiceChatSessionIds !== voiceChatSessionId
 		) {
+			return;
+		}
+
+		if (!this.currentVoiceChatSession.hasRecognizedInput) {
+			// If we have an active session but without recognized
+			// input, we do not want to just accept the input that
+			// was maybe typed before. But we still want to stop the
+			// voice session because `acceptInput` would do that.
+			this.stop(voiceChatSessionId, this.currentVoiceChatSession.controller.context);
 			return;
 		}
 
