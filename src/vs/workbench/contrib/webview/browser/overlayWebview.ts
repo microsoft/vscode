@@ -278,14 +278,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._firstLoadPendingMessages.clear();
 		}
 
+		this._container?.setVisibility('visible');
+
 		// https://github.com/microsoft/vscode/issues/157424
 		if (this.options.retainContextWhenHidden && this._shouldShowFindWidgetOnRestore) {
 			this.showFind(false);
 			// Reset
 			this._shouldShowFindWidgetOnRestore = false;
 		}
-
-		this._container?.setVisibility('visible');
 	}
 
 	public setHtml(html: string) {
