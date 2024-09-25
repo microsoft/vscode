@@ -170,5 +170,5 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"inlineChat.experimental.onlyZoneWidget": true
+	"chat.commandCenter.enabled": true
 }
