@@ -4403,6 +4403,12 @@ export class CommandCenter {
 						type = 'information';
 						options.modal = false;
 						break;
+					case GitErrorCodes.CherryPickEmpty:
+						message = l10n.t('The changes are already present in the current branch.');
+						choices.clear();
+						type = 'information';
+						options.modal = false;
+						break;
 					default: {
 						const hint = (err.stderr || err.message || String(err))
 							.replace(/^error: /mi, '')
