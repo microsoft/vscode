@@ -191,6 +191,11 @@ class NotebookEditorModelManager extends Disposable {
 						case NotebookCellsChangeType.ChangeCellContent:
 							// Changes to cell content are handled by the cell model change listener.
 							break;
+						case NotebookCellsChangeType.ChangeDocumentMetadata:
+							dto.push({
+								kind: e.kind,
+								metadata: e.metadata
+							});
 						default:
 							dto.push(e);
 					}
