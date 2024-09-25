@@ -285,10 +285,11 @@ export class NativeEditContext extends AbstractEditContext {
 		const viewStartPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelStartPosition);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewStartPosition.lineNumber);
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 
 		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
 		const height = (this._primarySelection.endLineNumber - this._primarySelection.startLineNumber + 1) * lineHeight;
-		let left = parentBounds.left + contentLeft;
+		let left = parentBounds.left + contentLeft - editorScrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
@@ -328,6 +329,7 @@ export class NativeEditContext extends AbstractEditContext {
 			const characterLinesVisibleRanges = this._visibleRangeProvider.linesVisibleRangesForRange(characterViewRange, true) ?? [];
 			const characterVerticalOffset = this._context.viewLayout.getVerticalOffsetForLineNumber(characterViewRange.startLineNumber);
 			const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+			const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 			const top = parentBounds.top + characterVerticalOffset - editorScrollTop;
 
 			let left = 0;
@@ -339,7 +341,7 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left, top, width, lineHeight));
+			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - editorScrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}
