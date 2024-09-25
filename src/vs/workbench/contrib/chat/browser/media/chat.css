@@ -172,7 +172,6 @@
 
 .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
-	padding-top: 6px;
 }
 
 .interactive-item-container .chat-footer-toolbar .checked.action-label,
@@ -185,6 +184,7 @@
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
 	/* Complete response only */
 	display: initial;
+	padding-top: 6px;
 	height: 22px;
 }
 
