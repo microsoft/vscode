@@ -21,12 +21,12 @@ export class ChatImageDropAndPaste extends Disposable {
 		super();
 		this._register(this.inputPart.inputEditor.onDidPaste((e) => {
 			if (this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-				this._handlePaste();
+				// this._handlePaste();
 			}
 		}));
 	}
 
-	private async _handlePaste(): Promise<void> {
+	public async _handlePaste(): Promise<void> {
 		const currClipboard = await this.clipboardService.readImage();
 
 		if (!currClipboard || !isImage(currClipboard)) {
