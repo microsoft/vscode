@@ -53,7 +53,13 @@ export class StartSessionAction extends EditorAction2 {
 			title: localize2('run', 'Editor Inline Chat'),
 			category: AbstractInlineChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
+			precondition: ContextKeyExpr.and(
+				CTX_INLINE_CHAT_HAS_AGENT,
+				ContextKeyExpr.or(
+					ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
+					ActiveEditorContext.isEqualTo('workbench.editor.notebook')
+				)
+			),
 			keybinding: {
 				when: ContextKeyExpr.and(EditorContextKeys.focus, EditorContextKeys.writable),
 				weight: KeybindingWeight.WorkbenchContrib,
