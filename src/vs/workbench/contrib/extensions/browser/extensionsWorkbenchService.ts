@@ -563,6 +563,7 @@ ${this.description}
 
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
 const EXTENSIONS_DONOT_AUTO_UPDATE_KEY = 'extensions.donotAutoUpdate';
+const EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY = 'extensions.dismissedNotifications';
 
 class Extensions extends Disposable {
 
@@ -908,7 +909,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
 	private extensionsNotification: IExtensionsNotification | undefined;
-	private dismissedNotifications: string[] = [];
 	private readonly _onDidChangeExtensionsNotification = new Emitter<IExtensionsNotification | undefined>();
 	readonly onDidChangeExtensionsNotification = this._onDidChangeExtensionsNotification.event;
 
@@ -1042,6 +1042,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.initializeAutoUpdate();
 		this.updateExtensionsNotificaiton();
 		this.reportInstalledExtensionsTelemetry();
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, this._store)(e => this.onDidDismissedNotificationsValueChange()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_DONOT_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => {
@@ -1339,17 +1340,40 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			?? this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, undefined, { resourceExtension, isWorkspaceScoped }));
 	}
 
+	private onDidDismissedNotificationsValueChange(): void {
+		if (
+			this.dismissedNotificationsValue !== this.getDismissedNotificationsValue() /* This checks if current window changed the value or not */
+		) {
+			this._dismissedNotificationsValue = undefined;
+			this.updateExtensionsNotificaiton();
+		}
+	}
+
 	private updateExtensionsNotificaiton(): void {
-		const computedNotificiation = this.computeExtensionsNotification();
-		const extensionsNotification = computedNotificiation && !this.dismissedNotifications.includes(computedNotificiation.message) ?
-			{
-				...computedNotificiation,
-				dismiss: () => {
-					this.dismissedNotifications.push(computedNotificiation.message);
-					this.updateExtensionsNotificaiton();
-				},
+		const computedNotificiations = this.computeExtensionsNotifications();
+		const dismissedNotifications: string[] = [];
+
+		let extensionsNotification: IExtensionsNotification | undefined;
+		if (computedNotificiations.length) {
+			// populate dismissed notifications with the ones that are still valid
+			for (const dismissedNotification of this.getDismissedNotifications()) {
+				if (computedNotificiations.some(e => e.key === dismissedNotification)) {
+					dismissedNotifications.push(dismissedNotification);
+				}
 			}
-			: undefined;
+			if (!dismissedNotifications.includes(computedNotificiations[0].key)) {
+				extensionsNotification = {
+					message: computedNotificiations[0].message,
+					severity: computedNotificiations[0].severity,
+					extensions: computedNotificiations[0].extensions,
+					dismiss: () => {
+						this.setDismissedNotifications([...this.getDismissedNotifications(), computedNotificiations[0].key]);
+						this.updateExtensionsNotificaiton();
+					},
+				};
+			}
+		}
+		this.setDismissedNotifications(dismissedNotifications);
 
 		if (this.extensionsNotification?.message !== extensionsNotification?.message) {
 			this.extensionsNotification = extensionsNotification;
@@ -1357,37 +1381,40 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
-	private computeExtensionsNotification(): Omit<IExtensionsNotification, 'dismiss'> | undefined {
-
+	private computeExtensionsNotifications(): Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> {
+		const computedNotificiations: Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> = [];
 		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
 		if (invalidExtensions.length) {
 			if (invalidExtensions.some(e => e.local && e.local.manifest.engines &&
 				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
 			)) {
-				return {
+				computedNotificiations.push({
 					message: nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them."),
 					severity: Severity.Warning,
 					extensions: invalidExtensions,
-				};
+					key: 'incompatibleExtensions:' + invalidExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => `${e.identifier.id.toLowerCase()}@${e.local?.manifest.version}`).join('-'),
+				});
 			} else {
-				return {
+				computedNotificiations.push({
 					message: nls.localize('invalidExtensions', "Invalid extensions detected. Review them."),
 					severity: Severity.Warning,
 					extensions: invalidExtensions,
-				};
+					key: 'invalidExtensions:' + invalidExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => `${e.identifier.id.toLowerCase()}@${e.local?.manifest.version}`).join('-'),
+				});
 			}
 		}
 
-		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo);
+		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo && e.local && this.extensionEnablementService.isEnabled(e.local));
 		if (deprecatedExtensions.length) {
-			return {
+			computedNotificiations.push({
 				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
 				severity: Severity.Warning,
 				extensions: deprecatedExtensions,
-			};
+				key: 'deprecatedExtensions:' + deprecatedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
+			});
 		}
 
-		return undefined;
+		return computedNotificiations;
 	}
 
 	getExtensionsNotification(): IExtensionsNotification | undefined {
@@ -2955,6 +2982,44 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private setDisabledAutoUpdateExtensionsValue(value: string): void {
 		this.storageService.store(EXTENSIONS_DONOT_AUTO_UPDATE_KEY, value, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	private getDismissedNotifications(): string[] {
+		try {
+			const parsedValue = JSON.parse(this.dismissedNotificationsValue);
+			if (Array.isArray(parsedValue)) {
+				return parsedValue;
+			}
+		} catch (e) { /* Ignore */ }
+		return [];
+	}
+
+	private setDismissedNotifications(dismissedNotifications: string[]): void {
+		this.dismissedNotificationsValue = JSON.stringify(dismissedNotifications);
+	}
+
+	private _dismissedNotificationsValue: string | undefined;
+	private get dismissedNotificationsValue(): string {
+		if (!this._dismissedNotificationsValue) {
+			this._dismissedNotificationsValue = this.getDismissedNotificationsValue();
+		}
+
+		return this._dismissedNotificationsValue;
+	}
+
+	private set dismissedNotificationsValue(dismissedNotificationsValue: string) {
+		if (this.dismissedNotificationsValue !== dismissedNotificationsValue) {
+			this._dismissedNotificationsValue = dismissedNotificationsValue;
+			this.setDismissedNotificationsValue(dismissedNotificationsValue);
+		}
+	}
+
+	private getDismissedNotificationsValue(): string {
+		return this.storageService.get(EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, StorageScope.PROFILE, '[]');
+	}
+
+	private setDismissedNotificationsValue(value: string): void {
+		this.storageService.store(EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 }
