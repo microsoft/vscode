@@ -468,7 +468,7 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		this._textModelTreeSitters.set(model, {
 			textModelTreeSitter,
 			disposables,
-			dispose: disposables.dispose
+			dispose: disposables.dispose.bind(disposables)
 		});
 	}
 
