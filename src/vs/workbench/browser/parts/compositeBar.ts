@@ -260,7 +260,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
 		this.model.setItems(items);
-		this.updateCompositeSwitcher();
+		this.updateCompositeSwitcher(true);
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {
@@ -503,7 +503,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	private updateCompositeSwitcher(): void {
+	private updateCompositeSwitcher(donotTrigger?: boolean): void {
 		const compositeSwitcherBar = this.compositeSwitcherBar;
 		if (!compositeSwitcherBar || !this.dimension) {
 			return; // We have not been rendered yet so there is nothing to update.
@@ -622,7 +622,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
 
-		this._onDidChange.fire();
+		if (!donotTrigger) {
+			this._onDidChange.fire();
+		}
 	}
 
 	private getOverflowingComposites(): { id: string; name?: string }[] {
