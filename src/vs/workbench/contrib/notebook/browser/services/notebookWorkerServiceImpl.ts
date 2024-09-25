@@ -140,10 +140,12 @@ class NotebookEditorModelManager extends Disposable {
 
 		const cellHandlers = new Set<NotebookCellTextModel>();
 		const addCellContentChangeHandler = (cell: NotebookCellTextModel) => {
-			if (!cellHandlers.has(cell) && cell.textModel) {
-				cellHandlers.add(cell);
-				toDispose.add(cell.textModel.onDidChangeContent((e) => this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e)));
-			}
+			cellHandlers.add(cell);
+			toDispose.add(cell.onDidChangeContent((e) => {
+				if (typeof e === 'object' && e.type === 'model') {
+					this._proxy.$acceptCellModelChanged(modelUrl, cell.handle, e.event);
+				}
+			}));
 		};
 
 		model.cells.forEach(cell => addCellContentChangeHandler(cell));
@@ -176,6 +178,12 @@ class NotebookEditorModelManager extends Disposable {
 								kind: e.kind,
 								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
 							});
+
+							for (const change of e.changes) {
+								for (const cell of change[2]) {
+									addCellContentChangeHandler(cell as NotebookCellTextModel);
+								}
+							}
 							break;
 						}
 						case NotebookCellsChangeType.Move: {

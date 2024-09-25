@@ -19,6 +19,7 @@ import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutp
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -27,8 +28,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
 	readonly onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	readonly onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }>());
+	readonly onDidChangeContent: Event<'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
 	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
@@ -153,13 +154,13 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Listen to language changes on the model
 			this._textModelDisposables.add(this._textModel.onDidChangeLanguage((e) => this.setRegisteredLanguage(this._languageService, e.newLanguage, this.language)));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
-			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
+			this._textModelDisposables.add(this._textModel.onDidChangeContent((e) => {
 				if (this._textModel) {
 					this._versionId = this._textModel.getVersionId();
 					this._alternativeId = this._textModel.getAlternativeVersionId();
 				}
 				this._textBufferHash = null;
-				this._onDidChangeContent.fire('content');
+				this._onDidChangeContent.fire({ type: 'model', event: e });
 			}));
 
 			this._textModel._overwriteVersionId(this._versionId);

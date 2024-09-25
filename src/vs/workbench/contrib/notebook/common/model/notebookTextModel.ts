@@ -24,6 +24,7 @@ import { ILanguageDetectionService } from '../../../../services/languageDetectio
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
@@ -328,7 +329,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime') {
+	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }) {
 		this._increaseVersionId(e === 'content');
 		switch (e) {
 			case 'content':
