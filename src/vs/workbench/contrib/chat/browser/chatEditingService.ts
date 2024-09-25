@@ -36,11 +36,12 @@ import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.j
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
+import { CONTEXT_CHAT_EDITING_ENABLED, CONTEXT_CHAT_ENABLED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { IChatWidgetService, showChatView } from './chat.js';
+import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from './chat.js';
 
 const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
@@ -440,7 +441,15 @@ export class ChatEditingStartSessionAction extends Action2 {
 			id: ChatEditingStartSessionAction.ID,
 			title: ChatEditingStartSessionAction.LABEL,
 			category: CHAT_CATEGORY,
-			f1: true
+			icon: Codicon.edit,
+			precondition: CONTEXT_CHAT_ENABLED,
+			f1: true,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_ENABLED),
+				group: 'navigation',
+				order: 5
+			}]
 		});
 	}
 
