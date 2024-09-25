@@ -15,7 +15,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { ICommentService } from './commentService.js';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from './simpleCommentEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CommentController, ID } from './commentsController.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -28,6 +28,7 @@ import { CommentCommandId } from '../common/commentCommandIds.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -68,40 +69,72 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.NextCommentedRange,
-	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.NextCommentedRange,
+			title: {
+				value: nls.localize('comments.NextCommentedRange', "Go to Next Commented Range"),
+				original: 'Go to Next Commented Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		const controller = CommentController.get(activeEditor);
 		if (!controller) {
-			return Promise.resolve();
+			return;
 		}
 		controller.nextCommentThread(false);
-	},
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyMod.Alt | KeyCode.F10
+	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.PreviousCommentedRange,
-	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.PreviousCommentedRange,
+			title: {
+				value: nls.localize('comments.previousCommentedRange', "Go to Previous Commented Range"),
+				original: 'Go to Previous Commented Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F10,
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		const controller = CommentController.get(activeEditor);
 		if (!controller) {
-			return Promise.resolve();
+			return;
 		}
 		controller.previousCommentThread(false);
-	},
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F10
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -160,24 +193,6 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	when: CommentContextKeys.activeEditorHasCommentingRange
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.NextCommentedRange,
-		title: nls.localize('comments.NextCommentedRange', "Go to Next Commented Range"),
-		category: 'Comments',
-	},
-	when: CommentContextKeys.activeEditorHasCommentingRange
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.PreviousCommentedRange,
-		title: nls.localize('comments.PreviousCommentedRange', "Go to Previous Commented Range"),
-		category: 'Comments',
-	},
-	when: CommentContextKeys.activeEditorHasCommentingRange
-});
-
 CommandsRegistry.registerCommand({
 	id: CommentCommandId.ToggleCommenting,
 	handler: (accessor) => {
@@ -229,6 +244,51 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		category: 'Comments'
 	},
 	when: CommentContextKeys.activeCursorHasCommentingRange
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.FocusCommentOnCurrentLine,
+			title: {
+				value: nls.localize('comments.focusCommentOnCurrentLine', "Focus Comment on Current Line"),
+				original: 'Focus Comment on Current Line'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			f1: true,
+			precondition: CommentContextKeys.activeCursorHasComment,
+		});
+	}
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const activeEditor = getActiveEditor(accessor);
+		if (!activeEditor) {
+			return;
+		}
+
+		const controller = CommentController.get(activeEditor);
+		if (!controller) {
+			return;
+		}
+		const position = activeEditor.getSelection();
+		const notificationService = accessor.get(INotificationService);
+		let error = false;
+		try {
+			const commentAtLine = controller.getCommentsAtLine(position);
+			if (commentAtLine.length === 0) {
+				error = true;
+			} else {
+				await controller.revealCommentThread(commentAtLine[0].commentThread.threadId, undefined, false, CommentWidgetFocus.Widget);
+			}
+		} catch (e) {
+			error = true;
+		}
+		if (error) {
+			notificationService.error(nls.localize('comments.focusCommand.error', "The cursor must be on a line with a comment to focus the comment"));
+		}
+	}
 });
 
 CommandsRegistry.registerCommand({

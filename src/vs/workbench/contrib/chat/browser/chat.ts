@@ -19,8 +19,9 @@ import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/
 import { IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWelcomeMessageViewModel } from '../common/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatInputPart } from './chatInputPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -92,10 +93,10 @@ export interface IChatFileTreeInfo {
 	focus(): void;
 }
 
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
+export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
 
 export interface IChatListItemRendererOptions {
-	readonly renderStyle?: 'default' | 'compact' | 'minimal';
+	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
@@ -105,7 +106,7 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
-	renderStyle?: 'default' | 'compact' | 'minimal';
+	renderStyle?: 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
@@ -153,6 +154,7 @@ export interface IChatWidget {
 	readonly parsedInput: IParsedChatRequest;
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
+	readonly input: ChatInputPart;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;

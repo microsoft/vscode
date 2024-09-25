@@ -9,6 +9,8 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import type { Position } from '../../../common/core/position.js';
+import type { Range } from '../../../common/core/range.js';
 import type { ViewLinesChangedEvent, ViewScrollChangedEvent } from '../../../common/viewEvents.js';
 import type { ViewportData } from '../../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../../common/viewModel/viewContext.js';
@@ -18,7 +20,7 @@ import { BindingId, type IGpuRenderStrategy } from '../../gpu/gpu.js';
 import { GPULifecycle } from '../../gpu/gpuDisposable.js';
 import { observeDevicePixelDimensions, quadVertices } from '../../gpu/gpuUtils.js';
 import { ViewGpuContext } from '../../gpu/viewGpuContext.js';
-import type { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { FloatHorizontalRange, HorizontalPosition, IViewLines, LineVisibleRanges, RenderingContext, RestrictedRenderingContext, VisibleRanges } from '../../view/renderingContext.js';
 import { ViewPart } from '../../view/viewPart.js';
 import { ViewLineOptions } from '../viewLines/viewLineOptions.js';
 
@@ -34,9 +36,12 @@ const enum GlyphStorageBufferInfo {
 /**
  * The GPU implementation of the ViewLines part.
  */
-export class ViewLinesGpu extends ViewPart {
+export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private readonly canvas: HTMLCanvasElement;
+
+	private _lastViewportData?: ViewportData;
+	private _lastViewLineOptions?: ViewLineOptions;
 
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
@@ -389,5 +394,43 @@ export class ViewLinesGpu extends ViewPart {
 		const commandBuffer = encoder.finish();
 
 		this._device.queue.submit([commandBuffer]);
+
+		this._lastViewportData = viewportData;
+		this._lastViewLineOptions = options;
+	}
+
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		return null;
+	}
+
+	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
+		if (this.shouldRender()) {
+			// Cannot read from the DOM because it is dirty
+			// i.e. the model & the dom are out of sync, so I'd be reading something stale
+			return null;
+		}
+
+		const viewportData = this._lastViewportData;
+		const viewLineOptions = this._lastViewLineOptions;
+
+		if (!viewportData || !viewLineOptions || lineNumber < viewportData.startLineNumber || lineNumber > viewportData.endLineNumber) {
+			return null;
+		}
+
+		// Visible horizontal range in _scaled_ pixels
+		const result = new VisibleRanges(false, [new FloatHorizontalRange(
+			(startColumn - 1) * viewLineOptions.spaceWidth,
+			(endColumn - startColumn - 1) * viewLineOptions.spaceWidth)
+		]);
+
+		return result;
+	}
+
+	visibleRangeForPosition(position: Position): HorizontalPosition | null {
+		const visibleRanges = this._visibleRangesForLineRange(position.lineNumber, position.column, position.column);
+		if (!visibleRanges) {
+			return null;
+		}
+		return new HorizontalPosition(visibleRanges.outsideRenderedLine, visibleRanges.ranges[0].left);
 	}
 }

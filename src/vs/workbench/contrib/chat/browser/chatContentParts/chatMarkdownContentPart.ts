@@ -79,11 +79,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return $('div');
 					}
 				} else {
-					if (!isRequestVM(element) && !isResponseVM(element)) {
-						console.error('Trying to render code block in welcome', element.id, index);
-						return $('div');
-					}
-
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
 					vulns = modelEntry.vulns;

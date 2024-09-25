@@ -7,12 +7,12 @@ import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IListService, WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IListService, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
-import { FileMatch, FolderMatchWithResource, Match, RenderableMatch } from './searchModel.js';
+import { FileMatch, FolderMatchWithResource, Match, RenderableMatch, SearchResult } from './searchModel.js';
 import { OpenSearchEditorArgs } from '../../searchEditor/browser/searchEditor.contribution.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -366,7 +366,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	}
 }
 
-function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleObjectTree<RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
+function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
 	return getElementsToOperateOn(viewer, currElement, sortConfig)
 		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));

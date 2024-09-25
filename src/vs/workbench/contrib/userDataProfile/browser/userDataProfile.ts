@@ -443,6 +443,19 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private async reportWorkspaceProfileInfo(): Promise<void> {
 		await this.lifecycleService.when(LifecyclePhase.Eventually);
+
+		type UserProfilesCountClassification = {
+			owner: 'sandy081';
+			comment: 'Report the number of user profiles excluding the default profile';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of user profiles excluding the default profile' };
+		};
+		type UserProfilesCountEvent = {
+			count: number;
+		};
+		if (this.userDataProfilesService.profiles.length > 1) {
+			this.telemetryService.publicLog2<UserProfilesCountEvent, UserProfilesCountClassification>('profiles:count', { count: this.userDataProfilesService.profiles.length - 1 });
+		}
+
 		const workspaceId = await this.workspaceTagsService.getTelemetryWorkspaceId(this.workspaceContextService.getWorkspace(), this.workspaceContextService.getWorkbenchState());
 		type WorkspaceProfileInfoClassification = {
 			owner: 'sandy081';

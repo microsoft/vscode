@@ -7248,6 +7248,7 @@ declare namespace monaco.languages {
 		 * Defaults to `false`.
 		*/
 		readonly completeBracketPairs?: boolean;
+		readonly isInlineEdit?: boolean;
 	}
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {

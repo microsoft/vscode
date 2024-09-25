@@ -304,6 +304,12 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 	return -1;
 }
 
+export function getIndentationLength(str: string): number {
+	const idx = firstNonWhitespaceIndex(str);
+	if (idx === -1) { return str.length; }
+	return idx;
+}
+
 /**
  * Function that works identically to String.prototype.replace, except, the
  * replace function is allowed to be async and return a Promise.

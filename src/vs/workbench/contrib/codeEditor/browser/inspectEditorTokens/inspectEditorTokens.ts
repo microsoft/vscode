@@ -32,7 +32,6 @@ import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } 
 import { Schemas } from '../../../../../base/common/network.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITreeSitterParserService } from '../../../../../editor/common/services/treeSitterParserService.js';
-// eslint-disable-next-line local/code-import-patterns
 import type { Parser } from '@vscode/tree-sitter-wasm';
 
 const $ = dom.$;

@@ -406,12 +406,15 @@ export class FileIconThemeLoader {
 			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${defaultFontSize}; }`);
 		}
 
+		// Use emQuads to prevent the icon from collapsing to zero height for image icons
+		const emQuad = '\\2001';
+
 		for (const defId in selectorByDefinitionId) {
 			const selectors = selectorByDefinitionId[defId];
 			const definition = iconThemeDocument.iconDefinitions[defId];
 			if (definition) {
 				if (definition.iconPath) {
-					cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
+					cssRules.push(`${selectors.join(', ')} { content: '${emQuad}'; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
 				} else if (definition.fontCharacter || definition.fontColor) {
 					const body = [];
 					if (definition.fontColor) {
@@ -441,8 +444,8 @@ export class FileIconThemeLoader {
 					const icon = this.languageService.getIcon(languageId);
 					if (icon) {
 						const selector = `.show-file-icons .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`;
-						cssRules.push(`${selector} { content: ' '; background-image: ${asCSSUrl(icon.dark)}; }`);
-						cssRules.push(`.vs ${selector} { content: ' '; background-image: ${asCSSUrl(icon.light)}; }`);
+						cssRules.push(`${selector} { content: '${emQuad}'; background-image: ${asCSSUrl(icon.dark)}; }`);
+						cssRules.push(`.vs ${selector} { content: '${emQuad}'; background-image: ${asCSSUrl(icon.light)}; }`);
 					}
 				}
 			}

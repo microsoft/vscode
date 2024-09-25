@@ -105,10 +105,8 @@ export class TextModelTreeSitter extends Disposable {
 	}
 
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, changes: IModelContentChange[]) {
-		const oldTree = treeSitterTree.tree?.copy();
-		await treeSitterTree.onDidChangeContent(this.model, changes);
-		if (oldTree && treeSitterTree.tree) {
-			const diff = oldTree.getChangedRanges(treeSitterTree.tree);
+		const diff = await treeSitterTree.onDidChangeContent(this.model, changes);
+		if (diff && diff.length > 0) {
 			// Tree sitter is 0 based, text model is 1 based
 			this._onDidChangeParseResult.fire(diff.map(r => new Range(r.startPosition.row + 1, r.startPosition.column + 1, r.endPosition.row + 1, r.endPosition.column + 1)));
 		}
@@ -143,18 +141,22 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 	get isDisposed() { return this._isDisposed; }
 
 	private _onDidChangeContentQueue: Promise<void> = Promise.resolve();
-	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]) {
+	public async onDidChangeContent(model: ITextModel, changes: IModelContentChange[]): Promise<Parser.Range[] | undefined> {
+		const oldTree = this.tree?.copy();
 		this._applyEdits(model, changes);
-		this._onDidChangeContentQueue = this._onDidChangeContentQueue.then(() => {
-			if (this.isDisposed) {
-				// No need to continue the queue if we are disposed
-				return;
-			}
-			return this._parseAndUpdateTree(model);
-		}).catch((e) => {
-			this._logService.error('Error parsing tree-sitter tree', e);
+		return new Promise(resolve => {
+			this._onDidChangeContentQueue = this._onDidChangeContentQueue.then(async () => {
+				if (this.isDisposed) {
+					// No need to continue the queue if we are disposed
+					return;
+				}
+				await this._parseAndUpdateTree(model);
+				resolve(this.tree ? oldTree?.getChangedRanges(this.tree) : undefined);
+
+			}).catch((e) => {
+				this._logService.error('Error parsing tree-sitter tree', e);
+			});
 		});
-		return this._onDidChangeContentQueue;
 	}
 
 	private _newEdits = true;
@@ -270,6 +272,15 @@ export class TreeSitterLanguages extends Disposable {
 		}
 	}
 
+	public async getLanguage(languageId: string): Promise<Parser.Language | undefined> {
+		if (this._languages.isCached(languageId)) {
+			return this._languages.getSyncIfCached(languageId);
+		} else {
+			await this._addLanguage(languageId);
+			return this._languages.get(languageId);
+		}
+	}
+
 	private async _addLanguage(languageId: string): Promise<void> {
 		const languagePromise = this._languages.get(languageId);
 		if (!languagePromise) {
@@ -364,6 +375,19 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 	getParseResult(textModel: ITextModel): ITreeSitterParseResult | undefined {
 		const textModelTreeSitter = this._textModelTreeSitters.get(textModel);
 		return textModelTreeSitter?.textModelTreeSitter.parseResult;
+	}
+
+	async getTree(content: string, languageId: string): Promise<Parser.Tree | undefined> {
+		await this._init;
+
+		const language = await this._treeSitterLanguages.getLanguage(languageId);
+		const Parser = await this._treeSitterImporter.getParserClass();
+		if (language) {
+			const parser = new Parser();
+			parser.setLanguage(language);
+			return parser.parse(content);
+		}
+		return undefined;
 	}
 
 	private async _doInitParser() {

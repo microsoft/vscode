@@ -814,6 +814,7 @@ export interface INotebookLoadOptions {
 export type NotebookEditorModelCreationOptions = {
 	limits?: IFileReadLimits;
 	scratchpad?: boolean;
+	viewType?: string;
 };
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
@@ -1033,13 +1034,16 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	private static _prefix = 'notebook/';
 
-	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
+	static create(notebookType: string, viewType?: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${notebookType}/${viewType ?? notebookType}`;
 	}
 
-	static parse(candidate: string): string | undefined {
+	static parse(candidate: string): { notebookType: string; viewType: string } | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			const split = candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length).split('/');
+			if (split.length === 2) {
+				return { notebookType: split[0], viewType: split[1] };
+			}
 		}
 		return undefined;
 	}

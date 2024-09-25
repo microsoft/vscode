@@ -136,7 +136,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
-		this._supportsMultipleAccounts = vscode.workspace.getConfiguration('github.experimental').get<boolean>('multipleAccounts', false);
+		this._supportsMultipleAccounts = this._shouldSupportMultipleAccounts();
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
@@ -144,7 +144,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this.context.secrets.onDidChange(() => this.checkForUpdates()),
 			vscode.workspace.onDidChangeConfiguration(async e => {
 				if (e.affectsConfiguration('github.experimental.multipleAccounts')) {
-					const newValue = vscode.workspace.getConfiguration('github.experimental').get<boolean>('multipleAccounts', false);
+					const newValue = this._shouldSupportMultipleAccounts();
 					if (newValue === this._supportsMultipleAccounts) {
 						return;
 					}
@@ -423,5 +423,27 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._logger.error(e);
 			throw e;
 		}
+	}
+
+	private _shouldSupportMultipleAccounts(): boolean {
+		// First check if there is a setting value to allow user to override the default
+		const inspect = vscode.workspace.getConfiguration('github.experimental').inspect<boolean>('multipleAccounts');
+		if (inspect?.workspaceFolderValue !== undefined) {
+			this._logger.trace(`Acquired multi-account enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
+			return inspect.workspaceFolderValue;
+		}
+		if (inspect?.workspaceValue !== undefined) {
+			this._logger.trace(`Acquired multi-account enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
+			return inspect.workspaceValue;
+		}
+		if (inspect?.globalValue !== undefined) {
+			this._logger.trace(`Acquired multi-account enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
+			return inspect.globalValue;
+		}
+
+		const value = vscode.env.uriScheme !== 'vscode';
+		this._logger.trace(`Acquired multi-account enablement value from default. Value: ${value} because of uriScheme: ${vscode.env.uriScheme}`);
+		// If no setting or experiment value is found, default to false on stable and true on insiders
+		return value;
 	}
 }

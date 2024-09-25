@@ -215,7 +215,7 @@ declare module 'vscode' {
 		 */
 		rejectedConfirmationData?: any[];
 
-		userSelectedModelId?: string;
+		userSelectedModel?: LanguageModelChat;
 	}
 
 	// TODO@API fit this into the stream

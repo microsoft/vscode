@@ -296,7 +296,6 @@ export class ExtensionEditor extends EditorPane {
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
 		publisher.setAttribute('role', 'button');
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
@@ -557,6 +556,7 @@ export class ExtensionEditor extends EditorPane {
 		template.publisher.classList.toggle('clickable', !!extension.url);
 		template.publisherDisplayName.textContent = extension.publisherDisplayName;
 		template.publisher.parentElement?.classList.toggle('hide', !!extension.resourceExtension || extension.local?.source === 'resource');
+		this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.publisher, localize('publisher', "Publisher ({0})", extension.publisher)));
 
 		const location = extension.resourceExtension?.location ?? (extension.local?.source === 'resource' ? extension.local?.location : undefined);
 		template.resource.parentElement?.classList.toggle('hide', !location);
@@ -972,7 +972,9 @@ export class ExtensionEditor extends EditorPane {
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
 			for (const [label, uri] of resources) {
 				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
-				this.transientDisposables.add(onClick(resource, () => this.openerService.open(uri)));
+				this.transientDisposables.add(onClick(resource, () => {
+					this.openerService.open(uri);
+				}));
 				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
 			}
 		}

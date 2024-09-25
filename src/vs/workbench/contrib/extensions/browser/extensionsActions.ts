@@ -71,6 +71,7 @@ import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -1198,6 +1199,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 		const extensionRecommendationsService = accessor.get(IExtensionRecommendationsService);
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
 		const workbenchThemeService = accessor.get(IWorkbenchThemeService);
+		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const cksOverlay: [string, any][] = [];
 
 		if (extension) {
@@ -1241,10 +1243,11 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionDisallowInstall', !!extension.deprecationInfo?.disallowInstall]);
 			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
 
-			const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes()]);
+			const [colorThemes, fileIconThemes, productIconThemes, extensionUsesAuth] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes(), authenticationUsageService.extensionUsesAuth(extension.identifier.id.toLowerCase())]);
 			cksOverlay.push(['extensionHasColorThemes', colorThemes.some(theme => isThemeFromExtension(theme, extension))]);
 			cksOverlay.push(['extensionHasFileIconThemes', fileIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
 			cksOverlay.push(['extensionHasProductIconThemes', productIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
+			cksOverlay.push(['extensionHasAccountPreferences', extensionUsesAuth]);
 
 			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
 			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === getLocale(extension.gallery)]);

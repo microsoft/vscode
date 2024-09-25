@@ -1566,7 +1566,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
-			title: localize2('workbench.extensions.action.configure', 'Extension Settings'),
+			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1577,8 +1577,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.manageAccountPreferences',
+			title: localize2('workbench.extensions.action.changeAccountPreference', "Account Preferences"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasAccountPreferences')),
+				order: 2,
+			},
+			run: (accessor: ServicesAccessor, id: string) => accessor.get(ICommandService).executeCommand('_manageAccountPreferencesForExtension', id)
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configureKeybindings',
-			title: localize2('workbench.extensions.action.configureKeybindings', 'Extension Keyboard Shortcuts'),
+			title: localize2('workbench.extensions.action.configureKeybindings', 'Keyboard Shortcuts'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',

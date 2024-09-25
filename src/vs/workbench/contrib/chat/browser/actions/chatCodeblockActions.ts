@@ -13,14 +13,12 @@ import { ICodeEditorService } from '../../../../../editor/browser/services/codeE
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { CopyAction } from '../../../../../editor/contrib/clipboard/browser/clipboard.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -238,16 +236,7 @@ export function registerChatCodeBlockActions() {
 		override async run(accessor: ServicesAccessor, ...args: any[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const codemapperService = accessor.get(ICodeMapperService);
-			const progressService = accessor.get(IProgressService);
 			const chatEditingService = accessor.get(IChatEditingService);
-			const notificationService = accessor.get(INotificationService);
-
-			if (chatEditingService.currentEditingSession) {
-				// there is already an editing session active, we should not start a new one
-				// TODO: figure out a way to implement follow-ups
-				notificationService.info(localize('chatCodeBlock.applyAll.editingSessionActive', 'An editing session is already active, please accept or reject the current proposed edits before continuing.'));
-				return;
-			}
 
 			const widget = chatWidgetService.lastFocusedWidget;
 			if (!widget) {
@@ -269,7 +258,7 @@ export function registerChatCodeBlockActions() {
 				}
 			}
 
-			await chatEditingService.createEditingSession(async (stream) => {
+			await chatEditingService.startOrContinueEditingSession(item.sessionId, async (stream) => {
 
 				const response = {
 					textEdit: (resource: URI, textEdits: TextEdit[]) => {
@@ -279,16 +268,8 @@ export function registerChatCodeBlockActions() {
 
 				// Invoke the code mapper for all the code blocks in this response
 				const tokenSource = new CancellationTokenSource();
-				await progressService.withProgress({
-					location: ProgressLocation.Notification,
-					title: localize2('chatCodeBlock.generatingEdits', 'Applying all edits').value,
-					cancellable: true
-				}, async (task) => {
-					task.report({ message: localize2('chatCodeBlock.generating', 'Generating edits...').value });
-					await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
-					task.report({ message: localize2('chatCodeBlock.applyAllEdits', 'Applying edits to workspace...').value });
-				}, () => tokenSource.cancel());
-			});
+				await codemapperService.mapCode({ codeBlocks: request, conversation: [] }, response, tokenSource.token);
+			}, { silent: true });
 		}
 	});
 

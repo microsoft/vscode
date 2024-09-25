@@ -23,6 +23,7 @@ export const enum AccessibleViewProviderId {
 	InlineCompletions = 'inlineCompletions',
 	KeybindingsEditor = 'keybindingsEditor',
 	Notebook = 'notebook',
+	ReplEditor = 'replEditor',
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',

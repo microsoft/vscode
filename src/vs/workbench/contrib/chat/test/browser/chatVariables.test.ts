@@ -31,7 +31,7 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService(new MockChatWidgetService(), new TestViewsService(), new MockLanguageModelToolsService());
+		service = new ChatVariablesService(new MockChatWidgetService(), new TestViewsService());
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

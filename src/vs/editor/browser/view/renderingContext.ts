@@ -71,18 +71,20 @@ export class RenderingContext extends RestrictedRenderingContext {
 	_renderingContextBrand: void = undefined;
 
 	private readonly _viewLines: IViewLines;
+	private readonly _viewLinesGpu?: IViewLines;
 
-	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines) {
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines, viewLinesGpu?: IViewLines) {
 		super(viewLayout, viewportData);
 		this._viewLines = viewLines;
+		this._viewLinesGpu = viewLinesGpu;
 	}
 
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
+		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines) ?? this._viewLinesGpu?.linesVisibleRangesForRange(range, includeNewLines) ?? null;
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
-		return this._viewLines.visibleRangeForPosition(position);
+		return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
 	}
 }
 
