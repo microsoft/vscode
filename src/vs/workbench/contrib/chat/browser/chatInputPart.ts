@@ -1110,6 +1110,14 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-modelPicker-item');
+
+		// TODO@roblourens this should be a DropdownMenuActionViewItem, but we can't customize how it's rendered yet.
+		this._register(dom.addDisposableListener(container, dom.EventType.KEY_UP, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				this._openContextMenu();
+			}
+		}));
 	}
 
 	protected override updateLabel(): void {
