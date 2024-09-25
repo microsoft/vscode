@@ -1132,7 +1132,7 @@ export abstract class AbstractFindController<T, TFilterData> implements IDisposa
 	protected renderMessage(showNotFound: boolean): void {
 		if (showNotFound) {
 			if (this.tree.options.showNotFoundMessage ?? true) {
-				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No elements found.") });
+				this.widget?.showMessage({ type: MessageType.WARNING, content: localize('not found', "No results found.") });
 			} else {
 				this.widget?.showMessage({ type: MessageType.WARNING });
 			}
