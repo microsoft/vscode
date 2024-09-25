@@ -260,7 +260,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 		this._register(this.chatEditingService.onDidDisposeEditingSession((session) => {
-			if (session.chatSessionId === this.viewModel?.sessionId) {
+			if (session.chatSessionId === this.viewModel?.sessionId || !this.viewModel) {
 				shouldRerenderEditingStateDisposable?.dispose();
 				this.renderChatEditingSessionState(null);
 			}
