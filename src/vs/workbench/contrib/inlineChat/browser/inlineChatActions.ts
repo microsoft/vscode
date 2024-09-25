@@ -13,7 +13,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { InlineChatController, InlineChatRunOptions } from './inlineChatController.js';
 import { ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatResponseType, ACTION_REGENERATE_RESPONSE, ACTION_VIEW_IN_CHAT, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, MENU_INLINE_CHAT_ZONE, ACTION_DISCARD_CHANGES } from '../common/inlineChat.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, IAction2Options } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -27,7 +27,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../../chat/common/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
-import { ActiveEditorContext } from '../../../common/contextkeys.js';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -50,28 +49,17 @@ export class StartSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: localize2('run', 'Editor Inline Chat'),
+			title: localize2('run', 'Editor Chat'),
 			category: AbstractInlineChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(
-				CTX_INLINE_CHAT_HAS_AGENT,
-				ContextKeyExpr.or(
-					ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
-					ActiveEditorContext.isEqualTo('workbench.editor.notebook')
-				)
-			),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
 			keybinding: {
-				when: ContextKeyExpr.and(EditorContextKeys.focus, EditorContextKeys.writable),
+				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
 			},
-			icon: START_INLINE_CHAT,
-			menu: {
-				id: MenuId.ChatCommandCenter,
-				group: 'b_inlineChat',
-				order: 10,
-			}
+			icon: START_INLINE_CHAT
 		});
 	}
 
