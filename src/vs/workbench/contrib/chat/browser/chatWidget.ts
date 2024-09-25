@@ -326,6 +326,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isChatWelcomeMessageContent(loadedWelcomeContent)) {
 			this.persistedWelcomeMessage = loadedWelcomeContent;
 		}
+
+		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
