@@ -182,6 +182,7 @@ export class CollapsibleListPool extends Disposable {
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
 		private readonly menuId: MenuId | undefined,
+		private readonly options: { enableFileDecorations?: boolean } | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -215,7 +216,7 @@ export class CollapsibleListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId, this.options)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -304,6 +305,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	constructor(
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
+		private options: { enableFileDecorations?: boolean } | undefined,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
@@ -383,7 +385,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
-					fileDecorations: { badges: false, colors: false },
+					fileDecorations: this.options?.enableFileDecorations ? { badges: true, colors: true } : { badges: false, colors: false },
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title
 				});
