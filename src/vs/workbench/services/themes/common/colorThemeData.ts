@@ -25,6 +25,7 @@ import { StorageScope, IStorageService, StorageTarget } from '../../../../platfo
 import { ThemeConfiguration } from './themeConfiguration.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
+import { toStandardTokenType } from '../../../../editor/common/languages/supports/tokenization.js';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -899,13 +900,18 @@ function isSemanticTokenColorizationSetting(style: any): style is ISemanticToken
 		|| types.isBoolean(style.underline) || types.isBoolean(style.strikethrough) || types.isBoolean(style.bold));
 }
 
-export function findMetadata(colorThemeData: ColorThemeData, captureName: string): number {
+export function findMetadata(colorThemeData: ColorThemeData, captureName: string, languageId: number): number {
+	let metadata = 0;
+
+	const standardToken = toStandardTokenType(captureName);
+	metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
+	metadata |= (languageId << MetadataConsts.LANGUAGEID_OFFSET);
+
 	const tokenStyle: TokenStyle | undefined = colorThemeData.resolveScopes([[captureName]]);
 	if (!tokenStyle) {
-		return 0;
+		return metadata;
 	}
 
-	let metadata = 0;
 	if (typeof tokenStyle.italic !== 'undefined') {
 		const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0);
 		metadata |= italicBit | MetadataConsts.ITALIC_MASK;

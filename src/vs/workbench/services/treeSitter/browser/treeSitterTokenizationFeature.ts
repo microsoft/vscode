@@ -7,7 +7,7 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
+import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
@@ -18,6 +18,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -33,6 +34,7 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 	private readonly _tokenizersRegistrations: DisposableMap<string, DisposableStore> = new DisposableMap();
 
 	constructor(
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService
@@ -79,7 +81,7 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 
 	private async _createTokenizationSupport(languageId: string): Promise<ITreeSitterTokenizationSupport & IDisposable | null> {
 		const queries = await this._fetchQueries(languageId);
-		return this._instantiationService.createInstance(TreeSitterTokenizationSupport, queries, languageId);
+		return this._instantiationService.createInstance(TreeSitterTokenizationSupport, queries, languageId, this._languageService.languageIdCodec);
 	}
 }
 
@@ -93,6 +95,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 	constructor(
 		private readonly _queries: TreeSitterQueries,
 		private readonly _languageId: string,
+		private readonly _languageIdCodec: ILanguageIdCodec,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -181,9 +184,11 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			tokens = newTokens;
 		};
 
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const metadata = findMetadata(this._colorThemeData, capture.name,);
+			const metadata = findMetadata(this._colorThemeData, capture.name, encodedLanguageId);
 			const tokenEndIndex = capture.node.endIndex < lineStartOffset + lineLength ? capture.node.endIndex : lineStartOffset + lineLength;
 			const tokenStartIndex = capture.node.startIndex < lineStartOffset ? lineStartOffset : capture.node.startIndex;
 
@@ -201,7 +206,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			if ((previousTokenEnd >= 0) && (previousTokenEnd < intermediateTokenOffset)) {
 				// Add en empty token to cover the space where there were no captures
 				tokens[tokenIndex * 2] = intermediateTokenOffset;
-				tokens[tokenIndex * 2 + 1] = 0;
+				tokens[tokenIndex * 2 + 1] = findMetadata(this._colorThemeData, '', encodedLanguageId);
 				tokenIndex++;
 
 				increaseSizeOfTokensByOneToken();
