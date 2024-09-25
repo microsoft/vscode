@@ -10,7 +10,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { Action } from '../../../../base/common/actions.js';
-import { Delayer } from '../../../../base/common/async.js';
+import { Delayer, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -41,7 +41,7 @@ import { ITOCEntry, getCommonlyUsedData, tocData } from './settingsLayout.js';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
 import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData } from '../common/preferences.js';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_FETCH_TIMEOUT_MS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS, WORKSPACE_TRUST_SETTING_TAG, getExperimentalExtensionToggleData } from '../common/preferences.js';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from '../common/settingsEditorColorRegistry.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -1314,6 +1314,8 @@ export class SettingsEditor2 extends EditorPane {
 				}
 
 				const extensionId = extension.identifier.id;
+				// prevent race between extension update handler and this (onConfigUpdate) handler
+				await this.refreshInstalledExtensionsList();
 				const extensionInstalled = this.installedExtensionIds.includes(extensionId);
 
 				// Drill down to see whether the group and setting already exist
@@ -1337,12 +1339,20 @@ export class SettingsEditor2 extends EditorPane {
 				// Create the entry. extensionInstalled is false in this case.
 				let manifest: IExtensionManifest | null = null;
 				try {
-					manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
+					manifest = await raceTimeout(
+						this.extensionGalleryService.getManifest(extension, CancellationToken.None),
+						EXTENSION_FETCH_TIMEOUT_MS
+					) ?? null;
 				} catch (e) {
 					// Likely a networking issue.
 					// Skip adding a button for this extension to the Settings editor.
 					continue;
 				}
+
+				if (manifest === null) {
+					continue;
+				}
+
 				const contributesConfiguration = manifest?.contributes?.configuration;
 
 				let groupTitle: string | undefined;
