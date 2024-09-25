@@ -170,13 +170,12 @@
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon {
 	font-size: 14px;
-	color: inherit;
+	color: inherit !important;
 	padding: 2px;
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon.codicon-git-branch {
 	font-size: 12px;
-	color: inherit;
 	padding: 3px;
 }
 
