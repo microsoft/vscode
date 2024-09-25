@@ -196,10 +196,16 @@ class AttachContextAction extends Action2 {
 			},
 			menu: [
 				{
-					when: AttachContextAction._cdt,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), AttachContextAction._cdt),
 					id: MenuId.ChatInput,
 					group: 'navigation',
 					order: 2
+				},
+				{
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 1
 				},
 			]
 		});

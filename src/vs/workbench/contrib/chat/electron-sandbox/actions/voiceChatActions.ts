@@ -37,7 +37,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_ENABLED, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_CHAT_LOCATION } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
@@ -569,6 +569,12 @@ export class StartVoiceChatAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.startVoiceChat';
 
 	constructor() {
+		const menuCondition = ContextKeyExpr.and(
+			HasSpeechProvider,
+			ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
+			AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
+		);
+
 		super({
 			id: StartVoiceChatAction.ID,
 			title: localize2('workbench.action.chat.startVoiceChat.label', "Start Voice Chat"),
@@ -590,16 +596,20 @@ export class StartVoiceChatAction extends Action2 {
 				AnyChatRequestInProgress?.negate(),		// disable when any chat request is in progress
 				SpeechToTextInProgress.negate()			// disable when speech to text is in progress
 			),
-			menu: [{
-				id: MenuId.ChatInput,
-				when: ContextKeyExpr.and(
-					HasSpeechProvider,
-					ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
-					AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-				),
-				group: 'navigation',
-				order: 3
-			}]
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), menuCondition),
+					group: 'navigation',
+					order: 3
+				},
+				{
+					id: MenuId.ChatExecute,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), menuCondition),
+					group: 'navigation',
+					order: 2
+				},
+			]
 		});
 	}
 
@@ -634,12 +644,20 @@ export class StopListeningAction extends Action2 {
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
-			menu: [{
-				id: MenuId.ChatInput,
-				when: AnyScopedVoiceChatInProgress,
-				group: 'navigation',
-				order: 3
-			}]
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), AnyScopedVoiceChatInProgress),
+					group: 'navigation',
+					order: 3
+				},
+				{
+					id: MenuId.ChatExecute,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
+					group: 'navigation',
+					order: 2
+				},
+			]
 		});
 	}
 
@@ -963,9 +981,15 @@ export class StopReadAloud extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					when: ScopedChatSynthesisInProgress,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), ScopedChatSynthesisInProgress),
 					group: 'navigation',
 					order: 3
+				},
+				{
+					id: MenuId.ChatExecute,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), ScopedChatSynthesisInProgress),
+					group: 'navigation',
+					order: 2
 				},
 			]
 		});
