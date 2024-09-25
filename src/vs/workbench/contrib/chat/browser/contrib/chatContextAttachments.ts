@@ -7,6 +7,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IChatWidget } from '../chat.js';
 import { ChatWidget, IChatWidgetContrib } from '../chatWidget.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 
 export class ChatContextAttachments extends Disposable implements IChatWidgetContrib {
 
@@ -53,15 +54,17 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		return new Set([...this._attachedContext.values()].map((v) => v.id));
 	}
 
-	setContext(overwrite: boolean, ...attachments: IChatRequestVariableEntry[]) {
-		if (overwrite) {
+	setContext(overwriteAll: boolean, ...attachments: IChatRequestVariableEntry[]) {
+		if (overwriteAll) {
 			this._attachedContext.clear();
 		}
-		for (const attachment of attachments) {
+
+		const toAttach = attachments.filter(a => !this.hasMatchingAttachment(a));
+		for (const attachment of toAttach) {
 			this._attachedContext.add(attachment);
 		}
 
-		this.widget.setContext(overwrite, ...attachments);
+		this.widget.setContext(overwriteAll, ...toAttach);
 	}
 
 	private _removeContext(attachments: IChatRequestVariableEntry[]) {
@@ -72,6 +75,28 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 
 	private _clearAttachedContext() {
 		this._attachedContext.clear();
+	}
+
+	private hasMatchingAttachment(attachment: IChatRequestVariableEntry) {
+		return Iterable.some(this._attachedContext, existing => {
+			if (existing.id !== attachment.id) {
+				return false;
+			}
+
+			if (existing.isFile && attachment.isFile) {
+				if (!existing.range && !attachment.range) {
+					return true;
+				}
+
+				if (existing.range && attachment.range) {
+					return existing.range.start === attachment.range.start && existing.range.endExclusive === attachment.range.endExclusive;
+				}
+
+				return false;
+			}
+
+			return false;
+		});
 	}
 }
 
