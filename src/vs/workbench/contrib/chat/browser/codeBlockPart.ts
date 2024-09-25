@@ -692,16 +692,17 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	layout(width: number): void {
+		const editorBorder = 2;
+
 		const toolbar = dom.getTotalHeight(this.toolbar.getElement());
 		const content = this.diffEditor.getModel()
 			? this.diffEditor.getContentHeight()
 			: dom.getTotalHeight(this.messageElement);
 
-		const editorBorder = 2;
 		const dimension = new dom.Dimension(width - editorBorder, toolbar + content);
 		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
-		this.diffEditor.layout(dimension.with(undefined, content));
+		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
 		this.updatePaddingForLayout();
 	}
 
