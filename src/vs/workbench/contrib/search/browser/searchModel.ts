@@ -2336,7 +2336,6 @@ export class SearchModel extends Disposable {
 			// resolve async parts of search
 			const allClosedEditorResults = await textResult.asyncResults;
 			const resolvedNotebookResults = await notebookResult.completeData;
-			tokenSource.dispose(true);
 			const searchLength = Date.now() - searchStart;
 			const resolvedResult: ISearchComplete = {
 				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
@@ -2349,7 +2348,8 @@ export class SearchModel extends Disposable {
 			return resolvedResult;
 		};
 		return {
-			asyncResults: getAsyncResults(),
+			asyncResults: getAsyncResults()
+				.finally(() => tokenSource.dispose(true)),
 			syncResults
 		};
 	}
