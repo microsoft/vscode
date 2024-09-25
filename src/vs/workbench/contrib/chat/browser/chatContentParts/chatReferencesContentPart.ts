@@ -349,6 +349,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 						description: `#${reference.variableName}`,
 						range: 'range' in reference.value ? reference.value.range : undefined,
 					}, { icon, title: data.options?.status?.description ?? data.title });
+			} else if (reference.variableName.startsWith('kernelVariable')) {
+				const variable = reference.variableName.split(':')[1];
+				const asVariableName = `${variable}`;
+				const label = `Kernel variable`;
+				templateData.label.setLabel(label, asVariableName, { title: data.options?.status?.description });
 			} else {
 				const variable = this.chatVariablesService.getVariable(reference.variableName);
 				// This is a hack to get chat attachment ThemeIcons to render for resource labels
