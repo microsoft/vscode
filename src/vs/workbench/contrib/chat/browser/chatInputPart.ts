@@ -9,6 +9,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -35,8 +36,8 @@ import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/g
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { createAndFillInActionBarActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -592,11 +593,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidBlur.fire();
 		}));
 
+		const hoverDelegate = this._register(createInstantHoverDelegate());
+
 		this._register(dom.addStandardDisposableListener(toolbarsContainer, dom.EventType.CLICK, e => this.inputEditor.focus()));
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			hoverDelegate
 		}));
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
@@ -609,12 +613,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			menuOptions: {
 				shouldForwardArgs: true
 			},
+			hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore, // keep it lean when hiding items and avoid a "..." overflow menu
 			actionViewItemProvider: (action, options) => {
 				if (this.location === ChatAgentLocation.Panel) {
 					if ((action.id === SubmitAction.ID || action.id === CancelAction.ID) && action instanceof MenuItemAction) {
 						const dropdownAction = this.instantiationService.createInstance(MenuItemAction, { id: 'chat.moreExecuteActions', title: localize('notebook.moreExecuteActionsLabel', "More..."), icon: Codicon.chevronDown }, undefined, undefined, undefined, undefined);
-						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction);
+						return this.instantiationService.createInstance(ChatSubmitDropdownActionItem, action, dropdownAction, options);
 					}
 				}
 
@@ -630,7 +635,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								this.setCurrentLanguageModelByUser(modelId);
 							}
 						};
-						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate);
+						return this.instantiationService.createInstance(ModelPickerActionViewItem, action, this._currentLanguageModel, itemDelegate, { hoverDelegate: options.hoverDelegate, keybinding: options.keybinding ?? undefined });
 					}
 				}
 
@@ -648,7 +653,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				telemetrySource: this.options.menus.telemetrySource,
 				menuOptions: {
 					shouldForwardArgs: true
-				}
+				},
+				hoverDelegate
 			}));
 			this.inputSideToolbarContainer = toolbarSide.getElement();
 			toolbarSide.getElement().classList.add('chat-side-toolbar');
@@ -718,7 +724,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 				widget.ariaLabel = ariaLabel;
 				widget.tabIndex = 0;
-				this.attachButtonAndDisposables(widget, index, attachment);
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else if (attachment.isImage) {
 				let buffer: Uint8Array;
 				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
@@ -734,13 +740,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				try {
 					if (attachment.value instanceof URI) {
-						this.attachButtonAndDisposables(widget, index, attachment);
+						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 						const readFile = await this.fileService.readFile(attachment.value);
 						buffer = readFile.value.buffer;
 
 					} else {
 						buffer = attachment.value as Uint8Array;
-						this.attachButtonAndDisposables(widget, index, attachment);
+						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 					}
 					this.createImageElements(buffer, widget, hoverElement);
 				} catch (error) {
@@ -770,7 +776,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 				widget.tabIndex = 0;
-				this.attachButtonAndDisposables(widget, index, attachment);
+				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			}
 		});
 
@@ -779,9 +785,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry) {
+	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate) {
 
-		const clearButton = new Button(widget, { supportIcons: true });
+		const clearButton = new Button(widget, { supportIcons: true, hoverDelegate, title: localize('remove', 'Remove') });
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
 		if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {
@@ -1020,6 +1026,7 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 	constructor(
 		action: MenuItemAction,
 		dropdownAction: IAction,
+		options: IDropdownWithPrimaryActionViewItemOptions,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IChatAgentService chatAgentService: IChatAgentService,
@@ -1035,6 +1042,7 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 			[],
 			'',
 			{
+				...options,
 				getKeyBinding: (action: IAction) => keybindingService.lookupKeybinding(action.id, contextKeyService)
 			},
 			contextMenuService,
@@ -1075,6 +1083,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		action: MenuItemAction,
 		private currentLanguageModel: string,
 		private readonly delegate: ModelPickerDelegate,
+		options: IMenuEntryActionViewItemOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -1083,7 +1092,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
-		super(action, undefined, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
+		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
 
 		this._register(delegate.onDidChangeModel(modelId => {
 			this.currentLanguageModel = modelId;
