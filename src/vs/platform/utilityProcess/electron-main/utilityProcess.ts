@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess, ForkOptions } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -18,7 +18,6 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
-import { upcast } from '../../../base/common/types.js';
 
 export interface IUtilityProcessConfiguration {
 
