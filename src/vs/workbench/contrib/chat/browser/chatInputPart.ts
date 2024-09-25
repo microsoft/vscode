@@ -267,6 +267,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// The user changed the language model, so we don't wait for the persisted option to be registered
 		this._waitForPersistedLanguageModel.clear();
+		if (this.cachedDimensions) {
+			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+		}
 	}
 
 	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
@@ -1130,8 +1133,8 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 				checked: id === this.currentLanguageModel,
 				run: () => {
 					this.currentLanguageModel = id;
-					this.delegate.setModel(id);
 					this.updateLabel();
+					this.delegate.setModel(id);
 				}
 			};
 		};
