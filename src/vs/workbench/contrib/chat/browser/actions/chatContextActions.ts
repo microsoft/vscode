@@ -117,7 +117,7 @@ class AttachFileAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
-				order: 1,
+				order: 10,
 			}
 		});
 	}
@@ -147,7 +147,7 @@ class AttachSelectionAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
-				order: 2,
+				order: 11,
 			}
 		});
 	}
