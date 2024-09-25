@@ -1299,29 +1299,6 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 	}
 }
 
-export class InstallSpeechProviderForSynthesizeChatAction extends BaseInstallSpeechProviderAction {
-
-	static readonly ID = 'workbench.action.chat.installProviderForSynthesis';
-
-	constructor() {
-		super({
-			id: InstallSpeechProviderForSynthesizeChatAction.ID,
-			title: localize2('workbench.action.chat.installProviderForSynthesis.label', "Read Aloud"),
-			icon: Codicon.unmute,
-			precondition: InstallingSpeechProvider.negate(),
-			menu: [{
-				id: MenuId.ChatMessageFooter,
-				when: ContextKeyExpr.and(CONTEXT_RESPONSE, HasSpeechProvider.negate()),
-				group: 'navigation'
-			}]
-		});
-	}
-
-	protected getJustification(): string {
-		return localize('installProviderForSynthesis.justification', "Speaker support requires this extension.");
-	}
-}
-
 //#endregion
 
 registerThemingParticipant((theme, collector) => {
