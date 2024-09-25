@@ -711,7 +711,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	}
 
 	private getActiveCodeEditor(): ICodeEditor {
-		return this._codeEditorWidget.hasTextFocus() || !this._notebookWidget.value?.activeCodeEditor ?
+		return this._codeEditorWidget.hasWidgetFocus() || !this._notebookWidget.value?.activeCodeEditor ?
 			this._codeEditorWidget :
 			this._notebookWidget.value?.activeCodeEditor;
 	}
