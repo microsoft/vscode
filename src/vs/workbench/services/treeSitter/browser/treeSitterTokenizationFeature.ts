@@ -215,7 +215,7 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			};
 
 			if (previousTokenEnd >= lineRelativeOffset) {
-				const previousTokenStartOffset = endOffsetsAndScopes[tokenIndex - 2].endOffset;
+				const previousTokenStartOffset = ((tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0);
 				const originalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
 
 				// Check that the current token doesn't just replace the last token
