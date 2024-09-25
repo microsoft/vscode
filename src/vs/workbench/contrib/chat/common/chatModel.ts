@@ -41,6 +41,14 @@ export interface IChatRequestVariableEntry {
 	isImage?: boolean;
 }
 
+export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
+	const entry = obj as IChatRequestVariableEntry;
+	return typeof entry === 'object' &&
+		entry !== null &&
+		typeof entry.id === 'string' &&
+		typeof entry.name === 'string';
+}
+
 export interface IChatRequestVariableData {
 	variables: IChatRequestVariableEntry[];
 }
