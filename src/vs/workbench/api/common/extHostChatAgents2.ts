@@ -251,7 +251,8 @@ class ChatAgentResponseStream {
 						part instanceof extHostTypes.ChatResponseWarningPart ||
 						part instanceof extHostTypes.ChatResponseConfirmationPart ||
 						part instanceof extHostTypes.ChatResponseCodeCitationPart ||
-						part instanceof extHostTypes.ChatResponseMovePart
+						part instanceof extHostTypes.ChatResponseMovePart ||
+						part instanceof extHostTypes.ChatResponseProgressPart2
 					) {
 						checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 					}
@@ -259,6 +260,9 @@ class ChatAgentResponseStream {
 					if (part instanceof extHostTypes.ChatResponseReferencePart) {
 						// Ensure variable reference values get fixed up
 						this.reference2(part.value, part.iconPath, part.options);
+					} else if (part instanceof extHostTypes.ChatResponseProgressPart2) {
+						const dto = part.task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
+						_report(dto, part.task);
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
