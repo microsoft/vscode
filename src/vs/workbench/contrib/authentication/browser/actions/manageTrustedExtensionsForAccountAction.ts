@@ -221,7 +221,7 @@ class ManageTrustedExtensionsForAccountActionImpl {
 			quickPick.hide();
 		}));
 		disposableStore.add(quickPick.onDidTriggerItemButton(e =>
-			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id)
+			this._commandService.executeCommand('_manageAccountPreferencesForExtension', e.item.extension.id, providerId)
 		));
 		return quickPick;
 	}
