@@ -104,7 +104,8 @@ export class DebugExpressionRenderer {
 
 	renderValue(container: HTMLElement, expressionOrValue: IExpressionValue | string, options: IRenderValueOptions = {}): IDisposable {
 		const store = new DisposableStore();
-		const supportsANSI = !!options.session?.capabilities.supportsANSIStyling;
+		// Use remembered capabilities so REPL elements can render even once a session ends
+		const supportsANSI = !!options.session?.rememberedCapabilities?.supportsANSIStyling;
 
 		let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
