@@ -106,9 +106,10 @@ export class TextModelTreeSitter extends Disposable {
 
 	private async _onDidChangeContent(treeSitterTree: TreeSitterParseResult, changes: IModelContentChange[]) {
 		const diff = await treeSitterTree.onDidChangeContent(this.model, changes);
-		if (diff && diff.length > 0) {
+		if (!diff || diff.length > 0) {
 			// Tree sitter is 0 based, text model is 1 based
-			this._onDidChangeParseResult.fire(diff.map(r => new Range(r.startPosition.row + 1, r.startPosition.column + 1, r.endPosition.row + 1, r.endPosition.column + 1)));
+			const ranges = diff ? diff.map(r => new Range(r.startPosition.row + 1, r.startPosition.column + 1, r.endPosition.row + 1, r.endPosition.column + 1)) : [this.model.getFullModelRange()];
+			this._onDidChangeParseResult.fire(ranges);
 		}
 	}
 }
@@ -151,7 +152,7 @@ export class TreeSitterParseResult implements IDisposable, ITreeSitterParseResul
 					return;
 				}
 				await this._parseAndUpdateTree(model);
-				resolve(this.tree ? oldTree?.getChangedRanges(this.tree) : undefined);
+				resolve((this.tree && oldTree) ? oldTree.getChangedRanges(this.tree) : undefined);
 
 			}).catch((e) => {
 				this._logService.error('Error parsing tree-sitter tree', e);
@@ -426,15 +427,14 @@ export class TreeSitterTextModelService extends Disposable implements ITreeSitte
 		if (setting.length === 0) {
 			hasLanguages = false;
 		}
-
-		if (await this._initParser(hasLanguages)) {
-			// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
-			if (setting.includes('typescript')) {
-				this._addGrammar('typescript', 'tree-sitter-typescript');
-			} else {
-				this._removeGrammar('typescript');
-			}
+		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
+		if (setting.includes('typescript')) {
+			this._addGrammar('typescript', 'tree-sitter-typescript');
+		} else {
+			this._removeGrammar('typescript');
 		}
+
+		return this._initParser(hasLanguages);
 	}
 
 	private _getSetting(): string[] {
