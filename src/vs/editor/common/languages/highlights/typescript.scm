@@ -7,8 +7,8 @@
 
 ; Literals
 
-(this) @variable.language
-(super) @variable.language
+(this) @variable.language.this
+(super) @variable.language.super
 
 (comment) @comment
 
