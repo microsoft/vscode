@@ -702,7 +702,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		[...this.attachedContext.values()].forEach(async (attachment, index) => {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (file && attachment.isFile) {
