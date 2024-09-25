@@ -926,9 +926,10 @@
 	text-decoration: var(--text-link-decoration);
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon {
-	color: var(--vscode-textLink-foreground);
+.monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .button-link {
+	line-height: 24px;
 }
+
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {
 	color: var(--vscode-textLink-activeForeground);

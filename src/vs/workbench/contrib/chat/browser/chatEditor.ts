@@ -23,6 +23,7 @@ import { ChatAgentLocation } from '../common/chatAgents.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
@@ -69,6 +70,7 @@ export class ChatEditor extends EditorPane {
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
+					overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
@@ -120,9 +122,16 @@ export class ChatEditor extends EditorPane {
 
 		if (this._memento && this._viewState) {
 			const widgetViewState = this.widget.getViewState();
+
+			// Need to set props individually on the memento
 			this._viewState.inputValue = widgetViewState.inputValue;
+			this._viewState.selectedLanguageModelId = widgetViewState.selectedLanguageModelId;
 			this._memento.saveMemento();
 		}
+	}
+
+	override getViewState(): object | undefined {
+		return { ...this._viewState };
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {

@@ -29,7 +29,7 @@ export interface IDropdownWithPrimaryActionViewItemOptions {
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
-	private _primaryAction: ActionViewItem;
+	protected readonly _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
@@ -41,10 +41,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: IAction,
-		dropdownMenuActions: IAction[],
+		dropdownMenuActions: readonly IAction[],
 		className: string,
-		private readonly _contextMenuProvider: IContextMenuService,
 		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
+		@IContextMenuService private readonly _contextMenuProvider: IContextMenuService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@INotificationService _notificationService: INotificationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,

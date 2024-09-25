@@ -10,7 +10,7 @@ export interface IRawChatCommandContribution {
 	isSticky?: boolean;
 	when?: string;
 	defaultImplicitVariables?: string[];
-	disambiguation?: { categoryName: string; description: string; examples: string[] }[];
+	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook';
@@ -21,13 +21,14 @@ export interface IRawChatParticipantContribution {
 	fullName: string;
 	when?: string;
 	description?: string;
+	supportsModelPicker?: boolean;
 	isDefault?: boolean;
 	isSticky?: boolean;
 	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];
-	disambiguation?: { categoryName: string; description: string; examples: string[] }[];
+	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 	supportsToolReferences?: boolean;
 }
 

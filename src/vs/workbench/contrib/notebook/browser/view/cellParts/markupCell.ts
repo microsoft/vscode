@@ -178,7 +178,7 @@ export class MarkupCell extends Disposable {
 		this._register(this.cellEditorOptions.onDidChange(() => this.updateMarkupCellOptions()));
 	}
 
-	private updateMarkupCellOptions(): any {
+	private updateMarkupCellOptions(): void {
 		this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
 
 		if (this.editor) {

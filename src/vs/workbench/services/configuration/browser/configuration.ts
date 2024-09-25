@@ -527,13 +527,15 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	private handleFileChangesEvent(event: FileChangesEvent): void {
 
 		// Find changes that affect the resource
-		let affectedByChanges = event.contains(this.configurationResource, FileChangeType.UPDATED);
+		let affectedByChanges = false;
 		if (event.contains(this.configurationResource, FileChangeType.ADDED)) {
 			affectedByChanges = true;
 			this.onResourceExists(true);
 		} else if (event.contains(this.configurationResource, FileChangeType.DELETED)) {
 			affectedByChanges = true;
 			this.onResourceExists(false);
+		} else if (event.contains(this.configurationResource, FileChangeType.UPDATED)) {
+			affectedByChanges = true;
 		}
 
 		if (affectedByChanges) {

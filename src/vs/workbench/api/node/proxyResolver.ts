@@ -20,6 +20,7 @@ import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 // ESM-uncomment-begin
 import { createRequire } from 'node:module';
@@ -31,6 +32,7 @@ const net = require('net');
 // ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
+const useElectronFetchDefault = false;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -39,7 +41,11 @@ export function connectProxyResolver(
 	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape,
 	initData: IExtensionHostInitData,
+	disposables: DisposableStore,
 ) {
+
+	patchGlobalFetch(configProvider, mainThreadTelemetry, initData, disposables);
+
 	const useHostProxy = initData.environment.useHostProxy;
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
@@ -94,6 +100,135 @@ export function connectProxyResolver(
 	return configureModuleLoading(extensionService, lookup);
 }
 
+const unsafeHeaders = [
+	'content-length',
+	'host',
+	'trailer',
+	'te',
+	'upgrade',
+	'cookie2',
+	'keep-alive',
+	'transfer-encoding',
+	'set-cookie',
+];
+
+function patchGlobalFetch(configProvider: ExtHostConfigProvider, mainThreadTelemetry: MainThreadTelemetryShape, initData: IExtensionHostInitData, disposables: DisposableStore) {
+	if (!initData.remote.isRemote && !(globalThis as any).__originalFetch) {
+		const originalFetch = globalThis.fetch;
+		(globalThis as any).__originalFetch = originalFetch;
+		let useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+		disposables.add(configProvider.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('http.electronFetch')) {
+				useElectronFetch = configProvider.getConfiguration('http').get<boolean>('electronFetch', useElectronFetchDefault);
+			}
+		}));
+		const electron = require('electron');
+		// https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
+		globalThis.fetch = async function fetch(input: any /* RequestInfo */ | URL, init?: RequestInit) {
+			function getRequestProperty(name: keyof any /* Request */ & keyof RequestInit) {
+				return init && name in init ? init[name] : typeof input === 'object' && 'cache' in input ? input[name] : undefined;
+			}
+			// Limitations: https://github.com/electron/electron/pull/36733#issuecomment-1405615494
+			// net.fetch fails on manual redirect: https://github.com/electron/electron/issues/43715
+			const urlString = typeof input === 'string' ? input : 'cache' in input ? input.url : input.toString();
+			const isDataUrl = urlString.startsWith('data:');
+			if (isDataUrl) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'data');
+			}
+			const isBlobUrl = urlString.startsWith('blob:');
+			if (isBlobUrl) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'blob');
+			}
+			const isManualRedirect = getRequestProperty('redirect') === 'manual';
+			if (isManualRedirect) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'manualRedirect');
+			}
+			const integrity = getRequestProperty('integrity');
+			if (integrity) {
+				recordFetchFeatureUse(mainThreadTelemetry, 'integrity');
+			}
+			if (!useElectronFetch || isDataUrl || isBlobUrl || isManualRedirect || integrity) {
+				const response = await originalFetch(input, init);
+				monitorResponseProperties(mainThreadTelemetry, response, urlString);
+				return response;
+			}
+			// Unsupported headers: https://source.chromium.org/chromium/chromium/src/+/main:services/network/public/cpp/header_util.cc;l=32;drc=ee7299f8961a1b05a3554efcc496b6daa0d7f6e1
+			if (init?.headers) {
+				const headers = new Headers(init.headers);
+				for (const header of unsafeHeaders) {
+					headers.delete(header);
+				}
+				init = { ...init, headers };
+			}
+			// Support for URL: https://github.com/electron/electron/issues/43712
+			const electronInput = input instanceof URL ? input.toString() : input;
+			const response = await electron.net.fetch(electronInput, init);
+			monitorResponseProperties(mainThreadTelemetry, response, urlString);
+			return response;
+		};
+	}
+}
+
+function monitorResponseProperties(mainThreadTelemetry: MainThreadTelemetryShape, response: Response, urlString: string) {
+	const originalUrl = response.url;
+	Object.defineProperty(response, 'url', {
+		get() {
+			recordFetchFeatureUse(mainThreadTelemetry, 'url');
+			return originalUrl || urlString;
+		}
+	});
+	const originalType = response.type;
+	Object.defineProperty(response, 'type', {
+		get() {
+			recordFetchFeatureUse(mainThreadTelemetry, 'typeProperty');
+			return originalType !== 'default' ? originalType : 'basic';
+		}
+	});
+}
+
+type FetchFeatureUseClassification = {
+	owner: 'chrmarti';
+	comment: 'Data about fetch API use';
+	url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the url property was used.' };
+	typeProperty: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the type property was used.' };
+	data: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a data URL was used.' };
+	blob: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a blob URL was used.' };
+	integrity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the integrity property was used.' };
+	manualRedirect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a manual redirect was used.' };
+};
+
+type FetchFeatureUseEvent = {
+	url: number;
+	typeProperty: number;
+	data: number;
+	blob: number;
+	integrity: number;
+	manualRedirect: number;
+};
+
+const fetchFeatureUse: FetchFeatureUseEvent = {
+	url: 0,
+	typeProperty: 0,
+	data: 0,
+	blob: 0,
+	integrity: 0,
+	manualRedirect: 0,
+};
+
+let timer: NodeJS.Timeout | undefined;
+
+function recordFetchFeatureUse(mainThreadTelemetry: MainThreadTelemetryShape, feature: keyof typeof fetchFeatureUse) {
+	if (!fetchFeatureUse[feature]++) {
+		if (timer) {
+			clearTimeout(timer);
+		}
+		timer = setTimeout(() => {
+			mainThreadTelemetry.$publicLog2<FetchFeatureUseEvent, FetchFeatureUseClassification>('fetchFeatureUse', fetchFeatureUse);
+		}, 10000); // collect additional features for 10 seconds
+		timer.unref();
+	}
+}
+
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
 
 	function mergeModules(module: any, patch: any) {
@@ -122,7 +257,7 @@ const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof 
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
-			const node_module = <any>globalThis._VSCODE_NODE_MODULES.module;
+			const node_module = require('module');
 			const original = node_module._load;
 			node_module._load = function load(request: string, parent: { filename: string }, isMain: boolean) {
 				if (request === 'net') {

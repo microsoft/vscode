@@ -863,7 +863,7 @@ export function keyFromOverrideIdentifiers(overrideIdentifiers: string[]): strin
 	return overrideIdentifiers.reduce((result, overrideIdentifier) => `${result}[${overrideIdentifier}]`, '');
 }
 
-export function getDefaultValue(type: string | string[] | undefined): any {
+export function getDefaultValue(type: string | string[] | undefined) {
 	const t = Array.isArray(type) ? (<string[]>type)[0] : <string>type;
 	switch (t) {
 		case 'boolean':

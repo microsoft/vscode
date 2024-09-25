@@ -11,8 +11,12 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
-	white-space: nowrap;
 	flex: 1;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label .label-name,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label .label-name {
+	white-space: nowrap;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,

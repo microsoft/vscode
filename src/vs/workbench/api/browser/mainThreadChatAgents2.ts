@@ -39,7 +39,7 @@ interface AgentData {
 	hasFollowups?: boolean;
 }
 
-class MainThreadChatTask implements IChatTask {
+export class MainThreadChatTask implements IChatTask {
 	public readonly kind = 'progressTask';
 
 	public readonly deferred = new DeferredPromise<string | void>();
@@ -160,8 +160,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				return this._proxy.$provideFollowups(request, handle, result, { history }, token);
 			},
-			provideWelcomeMessage: (location: ChatAgentLocation, token: CancellationToken) => {
-				return this._proxy.$provideWelcomeMessage(handle, location, token);
+			provideWelcomeMessage: (token: CancellationToken) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);

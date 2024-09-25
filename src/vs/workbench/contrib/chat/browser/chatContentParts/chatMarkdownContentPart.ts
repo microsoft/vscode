@@ -25,10 +25,13 @@ import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const $ = dom.$;
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
+	private static idPool = 0;
+	public readonly id = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
 
@@ -66,6 +69,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
 				let vulns: readonly IMarkdownVulnerability[] | undefined;
+				let codemapperUri: URI | undefined;
 				if (equalsIgnoreCase(languageId, localFileLanguageId)) {
 					try {
 						const parsedBody = parseLocalFileData(text);
@@ -75,33 +79,39 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return $('div');
 					}
 				} else {
-					if (!isRequestVM(element) && !isResponseVM(element)) {
-						console.error('Trying to render code block in welcome', element.id, index);
-						return $('div');
-					}
-
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
 					vulns = modelEntry.vulns;
+					codemapperUri = modelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns }, text, currentWidth, rendererOptions.editableCodeBlock);
+				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri }, text, currentWidth, rendererOptions.editableCodeBlock);
 				this.allRefs.push(ref);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
-				const info: IChatCodeBlockInfo = {
-					codeBlockIndex: index,
-					element,
-					focus() {
+				const ownerMarkdownPartId = this.id;
+				const info: IChatCodeBlockInfo = new class {
+					readonly ownerMarkdownPartId = ownerMarkdownPartId;
+					readonly codeBlockIndex = index;
+					readonly element = element;
+					codemapperUri = undefined; // will be set async
+					public get uri() {
+						// here we must do a getter because the ref.object is rendered
+						// async and the uri might be undefined when it's read immediately
+						return ref.object.uri;
+					}
+					public focus() {
 						ref.object.focus();
-					},
-					uri: ref.object.uri
-				};
+					}
+					public getContent(): string {
+						return ref.object.editor.getValue();
+					}
+				}();
 				this.codeblocks.push(info);
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
@@ -119,7 +129,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const ref = this.editorPool.get();
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
-			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId });
+			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
+				// Update the existing object's codemapperUri
+				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
+			});
 		}
 
 		editorInfo.render(data, currentWidth, editableCodeBlock);

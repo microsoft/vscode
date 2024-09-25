@@ -12,6 +12,12 @@ const module = { exports: {} };
 // ESM-uncomment-end
 
 (function () {
+	// ESM-comment-begin
+	// const isESM = false;
+	// ESM-comment-end
+	// ESM-uncomment-begin
+	const isESM = true;
+	// ESM-uncomment-end
 
 	/**
 	 * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}
@@ -116,7 +122,7 @@ const module = { exports: {} };
 		sharedObj = {};
 	}
 
-	if (typeof define === 'function') {
+	if (!isESM && typeof define === 'function') {
 		// amd
 		define([], function () { return _factory(sharedObj); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {

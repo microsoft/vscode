@@ -5,7 +5,6 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Action } from '../../../../base/common/actions.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -656,7 +655,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 			await this.revealEditorsToConfirm(editors, editorGroupService); // help user make a decision by revealing editors
 
-			const confirmation = await firstOrDefault(editors)?.editor.closeHandler?.confirm?.(editors);
+			const confirmation = await editors.at(0)?.editor.closeHandler?.confirm?.(editors);
 			if (typeof confirmation === 'number') {
 				switch (confirmation) {
 					case ConfirmResult.CANCEL:
