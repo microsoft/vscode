@@ -36,3 +36,5 @@ export const CONTEXT_IN_QUICK_CHAT = new RawContextKey<boolean>('quickChatHasFoc
 
 export const CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 export const CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER = new RawContextKey<boolean>('chatParticipantSupportsModelPicker', true, { type: 'boolean', description: localize('chatParticipantSupportsModelPicker', "True when the current chat participant supports picking the model manually.") });
+
+export const CONTEXT_CHAT_EDITING_ENABLED = new RawContextKey<boolean>('chatEditingEnabled', false);
