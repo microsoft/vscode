@@ -23,7 +23,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { isQuickChat } from '../chatWidget.js';
 import { ChatContextAttachments } from '../contrib/chatContextAttachments.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
@@ -39,6 +39,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { imageToHash, isImage } from '../chatImagePaste.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -117,7 +118,7 @@ class AttachFileAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
-				order: 1,
+				order: 10,
 			}
 		});
 	}
@@ -128,6 +129,7 @@ class AttachFileAction extends Action2 {
 
 		const activeUri = textEditorService.activeEditor?.resource;
 		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
+			(await showChatView(accessor.get(IViewsService)))?.focusInput();
 			variablesService.attachContext('file', activeUri, ChatAgentLocation.Panel);
 		}
 	}
@@ -147,7 +149,7 @@ class AttachSelectionAction extends Action2 {
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
-				order: 2,
+				order: 11,
 			}
 		});
 	}
@@ -161,6 +163,7 @@ class AttachSelectionAction extends Action2 {
 		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
 			const selection = activeEditor?.getSelection();
 			if (selection) {
+				(await showChatView(accessor.get(IViewsService)))?.focusInput();
 				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
 			}
 		}
