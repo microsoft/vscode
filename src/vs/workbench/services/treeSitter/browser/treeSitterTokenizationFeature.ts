@@ -174,21 +174,19 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			return undefined;
 		}
 
-		let tokens: Uint32Array = new Uint32Array(captures.length * 2);
+		const endOffsetsAndScopes: { endOffset: number; scopes: string[] }[] = Array(captures.length);
+		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [] });
 		let tokenIndex = 0;
 		const lineStartOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
 
 		const increaseSizeOfTokensByOneToken = () => {
-			const newTokens = new Uint32Array(tokens.length + 2);
-			newTokens.set(tokens);
-			tokens = newTokens;
+			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
 		};
 
 		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
 
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const metadata = findMetadata(this._colorThemeData, capture.name, encodedLanguageId);
 			const tokenEndIndex = capture.node.endIndex < lineStartOffset + lineLength ? capture.node.endIndex : lineStartOffset + lineLength;
 			const tokenStartIndex = capture.node.startIndex < lineStartOffset ? lineStartOffset : capture.node.startIndex;
 
@@ -198,43 +196,41 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			let previousTokenEnd: number;
 			const currentTokenLength = tokenEndIndex - tokenStartIndex;
 			if (captureIndex > 0) {
-				previousTokenEnd = tokens[(tokenIndex - 1) * 2];
+				previousTokenEnd = endOffsetsAndScopes[(tokenIndex - 1)].endOffset;
 			} else {
 				previousTokenEnd = tokenStartIndex - lineStartOffset - 1;
 			}
 			const intermediateTokenOffset = lineRelativeOffset - currentTokenLength;
 			if ((previousTokenEnd >= 0) && (previousTokenEnd < intermediateTokenOffset)) {
 				// Add en empty token to cover the space where there were no captures
-				tokens[tokenIndex * 2] = intermediateTokenOffset;
-				tokens[tokenIndex * 2 + 1] = findMetadata(this._colorThemeData, '', encodedLanguageId);
+				endOffsetsAndScopes[tokenIndex] = { endOffset: intermediateTokenOffset, scopes: [] };
 				tokenIndex++;
 
 				increaseSizeOfTokensByOneToken();
 			}
 
 			const addCurrentTokenToArray = () => {
-				tokens[tokenIndex * 2] = lineRelativeOffset;
-				tokens[tokenIndex * 2 + 1] = metadata;
+				endOffsetsAndScopes[tokenIndex] = { endOffset: lineRelativeOffset, scopes: [capture.name] };
 				tokenIndex++;
 			};
 
 			if (previousTokenEnd >= lineRelativeOffset) {
-				const previousTokenStartOffset = tokens[(tokenIndex - 2) * 2];
-				const originalPreviousTokenEndOffset = tokens[(tokenIndex - 1) * 2];
+				const previousTokenStartOffset = endOffsetsAndScopes[tokenIndex - 2].endOffset;
+				const originalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
 
 				// Check that the current token doesn't just replace the last token
 				if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
 					// Current token and previous token span the exact same characters
-					tokens[(tokenIndex - 1) * 2 + 1] = metadata;
+					endOffsetsAndScopes[tokenIndex - 1].scopes.push(capture.name);
 				} else {
 					// The current token is within the previous token. Adjust the end of the previous token.
-					tokens[(tokenIndex - 1) * 2] = intermediateTokenOffset;
+					endOffsetsAndScopes[tokenIndex - 1].endOffset = intermediateTokenOffset;
 
 					addCurrentTokenToArray();
 					// Add the rest of the previous token after the current token
 					increaseSizeOfTokensByOneToken();
-					tokens[tokenIndex * 2] = originalPreviousTokenEndOffset;
-					tokens[tokenIndex * 2 + 1] = tokens[(tokenIndex - 2) * 2 + 1];
+					endOffsetsAndScopes[tokenIndex].endOffset = originalPreviousTokenEndOffset;
+					endOffsetsAndScopes[tokenIndex].scopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
 					tokenIndex++;
 				}
 			} else {
@@ -244,12 +240,16 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		}
 
 		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
-			const newTokens = new Uint32Array(tokens.length + 2);
-			newTokens.set(tokens);
-			tokens = newTokens;
-			tokens[tokenIndex * 2] = lineLength;
-			tokens[tokenIndex * 2 + 1] = 0;
+			increaseSizeOfTokensByOneToken();
+			endOffsetsAndScopes[tokenIndex].endOffset = lineLength;
 		}
+
+		const tokens: Uint32Array = new Uint32Array(endOffsetsAndScopes.length * 2);
+		for (let i = 0; i < endOffsetsAndScopes.length; i++) {
+			tokens[i * 2] = endOffsetsAndScopes[i].endOffset;
+			tokens[i * 2 + 1] = findMetadata(this._colorThemeData, endOffsetsAndScopes[i].scopes, encodedLanguageId);
+		}
+
 		return tokens;
 	}
 

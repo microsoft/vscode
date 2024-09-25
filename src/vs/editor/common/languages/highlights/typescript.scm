@@ -66,7 +66,7 @@
   name: (property_identifier) @storage.type
   (#eq? @storage.type "constructor"))
 (method_signature
-  name: (property_identifier) @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function)
 
 (pair
   key: (property_identifier) @entity.name.function
