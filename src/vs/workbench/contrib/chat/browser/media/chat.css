@@ -270,20 +270,20 @@
 .interactive-item-container .value .rendered-markdown h1 {
 	font-size: 20px;
 	font-weight: 600;
-	margin: 16px 0;
+	margin: 16px 0 8px 0;
 
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
 	font-size: 16px;
 	font-weight: 600;
-	margin: 16px 0;
+	margin: 16px 0 8px 0;
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
 	font-size: 14px;
 	font-weight: 600;
-	margin: 16px 0;
+	margin: 16px 0 8px 0;
 }
 
 .interactive-item-container .value .rendered-markdown p {
