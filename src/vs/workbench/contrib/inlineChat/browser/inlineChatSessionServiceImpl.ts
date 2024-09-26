@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
@@ -22,7 +22,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { ChatAgentLocation, IChatAgentService } from '../../chat/common/chatAgents.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_POSSIBLE, EditMode, INLINE_CHAT_ID } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_POSSIBLE, EditMode } from '../common/inlineChat.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { UntitledTextEditorInput } from '../../../services/untitled/common/untitledTextEditorInput.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
@@ -30,8 +30,6 @@ import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSession
 import { isEqual } from '../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 
 
 type SessionData = {
@@ -328,7 +326,6 @@ export class InlineChatEnabler {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IEditorService editorService: IEditorService,
 	) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
@@ -343,25 +340,13 @@ export class InlineChatEnabler {
 		updateAgent();
 
 		const updateEditor = () => {
-			const editor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
-
-			this._ctxPossible.set(Boolean(editor
-				&& editor.getContribution(INLINE_CHAT_ID)
-				&& editor.hasWidgetFocus()
-				&& !editor.getOption(EditorOption.readOnly)
-				&& !editor.isSimpleWidget
-			));
+			const ctrl = editorService.activeEditorPane?.getControl();
+			const isCodeEditorLike = isCodeEditor(ctrl) || isDiffEditor(ctrl) || isCompositeEditor(ctrl);
+			this._ctxPossible.set(isCodeEditorLike);
 		};
 
 		this._store.add(editorService.onDidActiveEditorChange(updateEditor));
-
-		const editorDisposables = this._store.add(new DisposableMap<ICodeEditor>());
-		this._store.add(codeEditorService.onCodeEditorAdd(e => {
-			editorDisposables.set(e, Event.any(e.onDidBlurEditorWidget, e.onDidFocusEditorWidget)(updateEditor));
-		}));
-		this._store.add(codeEditorService.onCodeEditorRemove(e => {
-			editorDisposables.deleteAndDispose(e);
-		}));
+		updateEditor();
 	}
 
 	dispose() {
