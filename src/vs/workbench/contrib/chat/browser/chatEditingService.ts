@@ -726,7 +726,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[]): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource);
-		entry.doc.applyEdits(textEdits);
+		entry.appyEdits(textEdits);
 	}
 
 	private async _resolve(): Promise<void> {
@@ -778,7 +778,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	public readonly entryId = `${ModifiedFileEntry.scheme}::${++ModifiedFileEntry.lastEntryId}`;
 
 	public readonly docSnapshot: ITextModel;
-	public readonly doc: ITextModel;
+	private readonly doc: ITextModel;
 
 	get originalURI(): URI {
 		return this.docSnapshot.uri;
@@ -812,6 +812,11 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			)
 		);
 		this._register(resourceRef);
+	}
+
+	appyEdits(textEdits: TextEdit[]): void {
+		this.doc.applyEdits(textEdits);
+		this._stateObs.set(ModifiedFileEntryState.Undecided, undefined);
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {
