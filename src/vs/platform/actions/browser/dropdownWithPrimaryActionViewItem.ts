@@ -61,7 +61,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			menuAsChild: _options?.menuAsChild ?? true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
-			keybindingProvider: this._options?.getKeyBinding,
+			keybindingProvider: this._options?.getKeyBinding ?? (action => _keybindingService.lookupKeybinding(action.id)),
 			hoverDelegate: _options?.hoverDelegate
 		});
 	}
