@@ -239,9 +239,11 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			}
 		}
 
+		// Account for uncaptured characters at the end of the line
 		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
 			increaseSizeOfTokensByOneToken();
-			endOffsetsAndScopes[tokenIndex].endOffset = lineLength;
+			endOffsetsAndScopes[tokenIndex].endOffset = lineLength - 1;
+			tokenIndex++;
 		}
 
 		const tokens: Uint32Array = new Uint32Array((tokenIndex) * 2);
