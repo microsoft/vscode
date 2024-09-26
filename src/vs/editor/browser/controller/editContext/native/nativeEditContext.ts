@@ -53,6 +53,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
+		this.domNode.domNode.contentEditable = 'true';
 		this._updateDomAttributes();
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
@@ -71,10 +72,13 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
 		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
 
+			console.log('keydown of NativeEditContext', e);
+
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
+				console.log('before stopPropagation');
 				standardKeyboardEvent.stopPropagation();
 			}
 			viewController.emitKeyDown(standardKeyboardEvent);

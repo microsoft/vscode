@@ -56,6 +56,10 @@ export class CursorsController extends Disposable {
 		this._prevEditOperationType = EditOperationType.Other;
 	}
 
+	public get isInComposition(): boolean {
+		return !!this._compositionState;
+	}
+
 	public override dispose(): void {
 		this._cursors.dispose();
 		this._autoClosedActions = dispose(this._autoClosedActions);
