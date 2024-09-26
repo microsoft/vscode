@@ -15,7 +15,6 @@ export interface IChatEditingService {
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
-	readonly onDidDisposeEditingSession: Event<IChatEditingSession>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
@@ -25,6 +24,7 @@ export interface IChatEditingService {
 export interface IChatEditingSession {
 	readonly chatSessionId: string;
 	readonly onDidChange: Event<void>;
+	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly isVisible: boolean;

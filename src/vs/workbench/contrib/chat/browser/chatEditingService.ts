@@ -7,7 +7,7 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
@@ -52,6 +52,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	_serviceBrand: undefined;
 
 	private readonly _currentSessionObs = observableValue<ChatEditingSession | null>(this, null);
+	private readonly _currentSessionDisposeListener = this._register(new MutableDisposable());
 
 	get currentEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
@@ -60,11 +61,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private readonly _onDidCreateEditingSession = new Emitter<IChatEditingSession>();
 	get onDidCreateEditingSession() {
 		return this._onDidCreateEditingSession.event;
-	}
-
-	private readonly _onDidDisposeEditingSession = new Emitter<IChatEditingSession>();
-	get onDidDisposeEditingSession() {
-		return this._onDidDisposeEditingSession.event;
 	}
 
 	constructor(
@@ -95,6 +91,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 	}
 
+	override dispose(): void {
+		this._killCurrentEditingSession();
+		super.dispose();
+	}
+
 	async startOrContinueEditingSession(chatSessionId: string, builder?: (stream: IChatEditingSessionStream) => Promise<void>, options?: { silent: boolean }): Promise<void> {
 		const session = this._currentSessionObs.get();
 		if (session) {
@@ -121,12 +122,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const editorPane = options?.silent ? undefined : await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 
 		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, editorPane);
-		const disposeListener = session.onDidDispose(() => {
+		this._currentSessionDisposeListener.value = session.onDidDispose(() => {
+			this._currentSessionDisposeListener.clear();
 			this._currentSessionObs.set(null, undefined);
-			this._onDidDisposeEditingSession.fire(session);
-			disposeListener.dispose();
 		});
-		this._register(disposeListener);
 
 		this._currentSessionObs.set(session, undefined);
 		this._onDidCreateEditingSession.fire(session);
@@ -180,12 +179,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	private _killCurrentEditingSession() {
-		const currentSession = this._currentSessionObs.get();
-		if (currentSession) {
-			this._onDidDisposeEditingSession.fire(currentSession);
-			currentSession.dispose();
-			this._currentSessionObs.set(null, undefined);
-		}
+		this._currentSessionObs.get()?.dispose();
 	}
 
 	private _findGroupedEditors() {
@@ -572,6 +566,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _entriesObs = observableValue<readonly ModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly ModifiedFileEntry[]> {
+		this._assertNotDisposed();
 		return this._entriesObs;
 	}
 	private readonly _sequencer = new Sequencer();
@@ -579,21 +574,25 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private _entries: ModifiedFileEntry[] = [];
 
 	get state(): IObservable<ChatEditingSessionState> {
+		this._assertNotDisposed();
 		return this._state;
 	}
 
 	private readonly _editedResources = new ResourceSet();
 	private readonly _onDidChange = new Emitter<void>();
 	get onDidChange() {
+		this._assertNotDisposed();
 		return this._onDidChange.event;
 	}
 
 	private readonly _onDidDispose = new Emitter<void>();
 	get onDidDispose() {
+		this._assertNotDisposed();
 		return this._onDidDispose.event;
 	}
 
 	get isVisible(): boolean {
+		this._assertNotDisposed();
 		return Boolean(this.editorPane && this.editorPane.isVisible());
 	}
 
@@ -608,10 +607,14 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		super();
 	}
 
-	async accept(...uris: URI[]): Promise<void> {
-		if (this.state.get() === ChatEditingSessionState.Disposed) {
-			return;
+	private _assertNotDisposed(): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			throw new BugIndicatingError(`Cannot access a disposed editing session`);
 		}
+	}
+
+	async accept(...uris: URI[]): Promise<void> {
+		this._assertNotDisposed();
 
 		if (uris.length === 0) {
 			await Promise.all(this._entries.map(entry => entry.accept(undefined)));
@@ -628,9 +631,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
-		if (this.state.get() === ChatEditingSessionState.Disposed) {
-			return;
-		}
+		this._assertNotDisposed();
 
 		if (uris.length === 0) {
 			await Promise.all(this._entries.map(entry => entry.reject(undefined)));
@@ -647,6 +648,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	async show(): Promise<void> {
+		this._assertNotDisposed();
+
 		if (this.editorPane?.isVisible()) {
 			return;
 		} else if (this.editorPane?.input) {
@@ -664,6 +667,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	override dispose() {
+		this._assertNotDisposed();
+
 		// Close out all open files
 		this._editorGroupsService.groups.forEach((g) => {
 			g.editors.forEach((e) => {
@@ -679,12 +684,15 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	getVirtualModel(documentId: string): ITextModel | null {
+		this._assertNotDisposed();
+
 		const entry = this._entries.find(e => e.entryId === documentId);
 		return entry?.docSnapshot ?? null;
 	}
 
 	acceptStreamingEditsStart(): void {
-		if (this.state.get() === ChatEditingSessionState.Disposed) {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
 			return;
 		}
 
@@ -693,7 +701,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	acceptTextEdits(resource: URI, textEdits: TextEdit[]): void {
-		if (this.state.get() === ChatEditingSessionState.Disposed) {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
 			return;
 		}
 
@@ -702,7 +711,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	resolve(): void {
-		if (this.state.get() === ChatEditingSessionState.Disposed) {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
 			return;
 		}
 
