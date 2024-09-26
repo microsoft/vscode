@@ -245,7 +245,7 @@ export function registerChatCodeBlockActions() {
 
 			const items = widget.viewModel?.getItems() ?? [];
 			const item = widget.getFocus() ?? items[items.length - 1];
-			if (!isResponseVM(item)) {
+			if (!isResponseVM(item) || item.sessionId !== 'asdas') {
 				return;
 			}
 

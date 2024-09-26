@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import { Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
@@ -38,10 +37,13 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_EDITING_ENABLED, CONTEXT_CHAT_ENABLED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from './chat.js';
+import { ICodeMapperService } from '../common/chatCodeMapperService.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
@@ -459,15 +461,64 @@ export class ChatEditingStartSessionAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const viewsService = accessor.get(IViewsService);
-
+		const codemapperService = accessor.get(ICodeMapperService);
 		const currentEditingSession = chatEditingService.currentEditingSession;
 		if (currentEditingSession) {
 			return;
 		}
-		const widget = chatWidgetService.lastFocusedWidget ?? await showChatView(viewsService);
+
+		const panelWidgets = chatWidgetService.getWidgetByLocation(ChatAgentLocation.Panel);
+
+		const widget = panelWidgets[0] ?? await showChatView(viewsService);
 		if (!widget?.viewModel) {
 			return;
 		}
+
+		const chatModel = widget.viewModel.model;
+
+		// track the chat model for responses that want auto apply
+
+		const modelTrackingDisposables = new DisposableStore();
+		const tokenSource = modelTrackingDisposables.add(new CancellationTokenSource());
+
+		const sessionId = widget.viewModel.sessionId;
+		const onResponseComplete = (responseModel: IChatResponseModel) => {
+			if (!responseModel.result?.metadata?.autoApply) {
+				return;
+			}
+
+			chatEditingService.startOrContinueEditingSession(sessionId, async (stream) => {
+				const codeMapperResponse = {
+					textEdit: (resource: URI, textEdits: TextEdit[]) => {
+						stream.textEdits(resource, textEdits);
+					}
+				};
+				await codemapperService.mapCodeFromResponse(responseModel, codeMapperResponse, tokenSource.token);
+			}, { silent: true });
+		};
+
+
+		modelTrackingDisposables.add(chatModel.onDidDispose(() => modelTrackingDisposables.dispose()));
+		modelTrackingDisposables.add(chatModel.onDidChange(e => {
+			if (e.kind === 'addRequest') {
+				const responseModel = e.request.response;
+				if (responseModel) {
+					if (responseModel.isComplete) {
+						onResponseComplete(responseModel);
+					} else {
+						const disposable = responseModel.onDidChange(() => {
+							if (responseModel.isComplete) {
+								onResponseComplete(responseModel);
+								disposable.dispose();
+							} else if (responseModel.isCanceled || responseModel.isStale) {
+								disposable.dispose();
+							}
+						});
+					}
+				}
+			}
+		}));
+		modelTrackingDisposables.add(chatEditingService.onDidDisposeEditingSession(() => modelTrackingDisposables.dispose()));
 
 		const visibleTextEditorControls = textEditorService.visibleTextEditorControls.filter((e) => isCodeEditor(e));
 		visibleTextEditorControls.forEach((e) => {
@@ -476,9 +527,12 @@ export class ChatEditingStartSessionAction extends Action2 {
 				variablesService.attachContext('file', { uri: activeUri, }, ChatAgentLocation.Panel);
 			}
 		});
-		await chatEditingService.startOrContinueEditingSession(widget.viewModel.sessionId, undefined, { silent: true });
+		await chatEditingService.startOrContinueEditingSession(sessionId, undefined, { silent: true });
 	}
 }
+
+
+
 registerAction2(ChatEditingStartSessionAction);
 export class ChatEditingStopSessionAction extends Action2 {
 	static readonly ID = 'chatEditing.stopSession';
