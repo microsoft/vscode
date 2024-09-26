@@ -126,7 +126,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
-				nextFocusElement = getLastNodeFromSameType(viewer, focusElement);
+				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
 			}
 
 			if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
@@ -294,7 +294,7 @@ async function performReplace(accessor: ServicesAccessor,
 
 	if (focusElement) {
 		if (!nextFocusElement) {
-			nextFocusElement = getLastNodeFromSameType(viewer, focusElement);
+			nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
 		}
 
 		if (nextFocusElement) {
@@ -389,13 +389,16 @@ export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsync
 /***
  * Finds the last element in the tree with the same type as `element`
  */
-export function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): RenderableMatch | undefined {
+export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): Promise<RenderableMatch | undefined> {
 	let lastElem: RenderableMatch | null = viewer.lastVisibleElement ?? null;
 
 	while (lastElem) {
 		const compareVal = compareLevels(element, lastElem);
 		if (compareVal === -1) {
-			viewer.expand(lastElem);
+			const expanded = await viewer.expand(lastElem);
+			if (!expanded) {
+				return lastElem;
+			}
 			lastElem = viewer.lastVisibleElement;
 		} else if (compareVal === 1) {
 			const potentialLastElem = viewer.getParentElement(lastElem);

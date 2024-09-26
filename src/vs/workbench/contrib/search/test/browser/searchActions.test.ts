@@ -75,25 +75,25 @@ suite('Search Actions', () => {
 		assert.strictEqual(data[4], actual);
 	});
 
-	test('Find last FileMatch in Tree', function () {
+	test('Find last FileMatch in Tree', async function () {
 		const fileMatch1 = aFileMatch();
 		const fileMatch2 = aFileMatch();
 		const fileMatch3 = aFileMatch();
 		const data = [fileMatch1, aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), fileMatch3, aMatch(fileMatch3)];
 		const tree = aTree(data);
 
-		const actual = getLastNodeFromSameType(tree, fileMatch1);
+		const actual = await getLastNodeFromSameType(tree, fileMatch1);
 		assert.strictEqual(fileMatch3, actual);
 	});
 
-	test('Find last Match in Tree', function () {
+	test('Find last Match in Tree', async function () {
 		const fileMatch1 = aFileMatch();
 		const fileMatch2 = aFileMatch();
 		const fileMatch3 = aFileMatch();
 		const data = [fileMatch1, aMatch(fileMatch1), fileMatch2, aMatch(fileMatch2), fileMatch3, aMatch(fileMatch3)];
 		const tree = aTree(data);
 
-		const actual = getLastNodeFromSameType(tree, aMatch(fileMatch1));
+		const actual = await getLastNodeFromSameType(tree, aMatch(fileMatch1));
 		assert.strictEqual(data[5], actual);
 	});
 
