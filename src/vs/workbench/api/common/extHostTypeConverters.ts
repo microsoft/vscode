@@ -2759,6 +2759,7 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
 			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
 			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
+			case ChatAgentLocation.EditingSession: return types.ChatLocation.EditingSession;
 		}
 	}
 
@@ -2768,6 +2769,7 @@ export namespace ChatLocation {
 			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
 			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
 			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+			case types.ChatLocation.EditingSession: return ChatAgentLocation.EditingSession;
 		}
 	}
 }
