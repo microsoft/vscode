@@ -722,6 +722,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private async _acceptStreamingEditsStart(): Promise<void> {
 		this._state.set(ChatEditingSessionState.StreamingEdits, undefined);
+		this._onDidChange.fire();
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[]): Promise<void> {
