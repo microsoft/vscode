@@ -1385,7 +1385,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const computedNotificiations: Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> = [];
 		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
 		if (invalidExtensions.length) {
-			if (invalidExtensions.some(e => e.local && e.local.manifest.engines &&
+			if (invalidExtensions.some(e => e.local && e.local.manifest.engines?.vscode &&
 				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
 			)) {
 				computedNotificiations.push({
