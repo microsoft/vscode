@@ -13,9 +13,9 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
-import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
+import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewScrollChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
+import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContextUtils.js';
@@ -26,6 +26,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { DebugEditContext } from './debugEditContext.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -64,7 +65,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
-		this._editContext = new EditContext();
+		this._editContext = new DebugEditContext();
 		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
@@ -151,6 +152,12 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
+		return true;
+	}
+
+	public override onScrollChanged(e: ViewScrollChangedEvent): boolean {
+		const visibleRangeForPosition = (position: Position) => this._visibleRangeProvider.visibleRangeForPosition(position);
+		this._updateSelectionAndControlBounds({ visibleRangeForPosition });
 		return true;
 	}
 
@@ -285,7 +292,9 @@ export class NativeEditContext extends AbstractEditContext {
 		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	private _updateSelectionAndControlBounds(ctx: RenderingContext) {
+	private _updateSelectionAndControlBounds(ctx: {
+		visibleRangeForPosition(position: Position): HorizontalPosition | null;
+	}) {
 		if (!this._parent) {
 			return;
 		}
@@ -315,8 +324,21 @@ export class NativeEditContext extends AbstractEditContext {
 		}
 
 		const selectionBounds = new DOMRect(left, top, width, height);
-		this._editContext.updateSelectionBounds(selectionBounds);
-		this._editContext.updateControlBounds(selectionBounds);
+		let adjustedTop: number = selectionBounds.top;
+		if (selectionBounds.top < parentBounds.top) {
+			adjustedTop = parentBounds.top;
+		} else if (selectionBounds.top > parentBounds.top + parentBounds.height) {
+			adjustedTop = parentBounds.top + parentBounds.height - selectionBounds.height;
+		}
+		let adjustedLeft: number = selectionBounds.left;
+		if (selectionBounds.left < parentBounds.left) {
+			adjustedLeft = parentBounds.left;
+		} else if (selectionBounds.left > parentBounds.left + parentBounds.width) {
+			adjustedLeft = parentBounds.left + parentBounds.width - selectionBounds.width;
+		}
+		const adjustedSelectionBounds = new DOMRect(adjustedLeft, adjustedTop, selectionBounds.width, selectionBounds.height);
+		this._editContext.updateSelectionBounds(adjustedSelectionBounds);
+		this._editContext.updateControlBounds(adjustedSelectionBounds);
 	}
 
 	private _updateCharacterBounds(e: CharacterBoundsUpdateEvent): void {
