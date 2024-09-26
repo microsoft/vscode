@@ -200,6 +200,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
+	private readonly _chatEditsActionsDisposables = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables = this._register(new DisposableStore());
 	private _chatEditsProgress: ProgressBar | undefined;
 	private _chatEditsListPool: CollapsibleListPool;
@@ -866,49 +867,55 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				: localize('chatEditingSessionOverview', "{0} files changed", numberOfEditedEntries);
 		}
 
-		// Chat editing session actions
-		let actionsContainer = overviewRegion.querySelector('.chat-editing-session-actions') as HTMLElement;
-		const actions = [];
-		if (!actionsContainer && chatEditingSession.entries.get().find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
-			// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
-			actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
-			actions.push(
-				{
-					command: ChatEditingShowChangesAction.ID,
-					label: ChatEditingShowChangesAction.LABEL,
-					isSecondary: true
-				},
-				{
-					command: ChatEditingDiscardAllAction.ID,
-					label: ChatEditingDiscardAllAction.LABEL,
-					isSecondary: true
-				},
-				{
-					command: ChatEditingAcceptAllAction.ID,
-					label: ChatEditingAcceptAllAction.LABEL,
-					isSecondary: false
-				}
-			);
+		//#region Chat editing session actions
+		{
+			const actionsContainer = overviewRegion.querySelector('.chat-editing-session-actions') as HTMLElement ?? dom.append(overviewRegion, $('.chat-editing-session-actions'));
+			// Clear out the previous actions (if any)
+			this._chatEditsActionsDisposables.clear();
+			dom.clearNode(actionsContainer);
 
-			for (const action of actions) {
-				const button = this._chatEditsDisposables.add(new Button(actionsContainer, {
-					supportIcons: false,
-					secondary: action.isSecondary
-				}));
-				button.label = action.label;
-				this._chatEditsDisposables.add(button.onDidClick(() => {
-					this.commandService.executeCommand(action.command);
-				}));
-				dom.append(actionsContainer, button.element);
+			if (chatEditingSession.entries.get().find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
+				// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+				const actions = [];
+				actions.push(
+					{
+						command: ChatEditingShowChangesAction.ID,
+						label: ChatEditingShowChangesAction.LABEL,
+						isSecondary: true
+					},
+					{
+						command: ChatEditingDiscardAllAction.ID,
+						label: ChatEditingDiscardAllAction.LABEL,
+						isSecondary: true
+					},
+					{
+						command: ChatEditingAcceptAllAction.ID,
+						label: ChatEditingAcceptAllAction.LABEL,
+						isSecondary: false
+					}
+				);
+
+				for (const action of actions) {
+					const button = this._chatEditsActionsDisposables.add(new Button(actionsContainer, {
+						supportIcons: false,
+						secondary: action.isSecondary
+					}));
+					button.label = action.label;
+					this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+						this.commandService.executeCommand(action.command);
+					}));
+					dom.append(actionsContainer, button.element);
+				}
 			}
 
-			const clearButton = this._chatEditsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
+			const clearButton = this._chatEditsActionsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
 			clearButton.icon = Codicon.close;
-			this._chatEditsDisposables.add(clearButton.onDidClick((e) => {
+			this._chatEditsActionsDisposables.add(clearButton.onDidClick((e) => {
 				void chatEditingSession.stop();
 			}));
 			dom.append(actionsContainer, clearButton.element);
 		}
+		//#endregion
 
 		if (!this._chatEditsProgress && chatEditingSession.state.get() === ChatEditingSessionState.StreamingEdits) {
 			this._chatEditsProgress = new ProgressBar(innerContainer);
