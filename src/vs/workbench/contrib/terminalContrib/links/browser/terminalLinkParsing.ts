@@ -117,6 +117,8 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// foo: (339)
 		//   ...
 		`:? ?[\\[\\(]${r()}(?:, ?${c()})?[\\]\\)]` + eolSuffix,
+		// Support for '/path/to/file, 204'
+		`['"]?${p()}, ${r()}` + eolSuffix,
 	];
 
 	const suffixClause = lineAndColumnRegexClauses
