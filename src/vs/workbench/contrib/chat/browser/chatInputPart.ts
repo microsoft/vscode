@@ -9,6 +9,7 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IManagedHoverContentOrFactory } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -714,35 +715,39 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		[...this.attachedContext.values()].forEach(async (attachment, index) => {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate });
+
+			let hoverElement: IManagedHoverContentOrFactory;
+			let ariaLabel: string | undefined;
+
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (file && attachment.isFile) {
 				const fileBasename = basename(file.path);
 				const fileDirname = dirname(file.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
-				const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+
+				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+				hoverElement = file.fsPath;
 
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
 					range,
 				});
-				widget.ariaLabel = ariaLabel;
-				widget.tabIndex = 0;
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else if (attachment.isImage) {
-				let buffer: Uint8Array;
-				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
-				const hoverElement = dom.$('div.chat-attached-context-hover');
+				hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				// Custom label
+				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
+				let buffer: Uint8Array;
 				try {
 					if (attachment.value instanceof URI) {
 						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
@@ -759,29 +764,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				widget.style.position = 'relative';
-				widget.ariaLabel = ariaLabel;
-				widget.tabIndex = 0;
-
-				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-
-					// No delay for keyboard
-					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
-						const keyboardEvent = new StandardKeyboardEvent(event);
-						if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
-							this.hoverService.showManagedHover(widget);
-						}
-					}));
-				}
-
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
 				label.setLabel(withIcon, undefined);
 
-				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-				widget.tabIndex = 0;
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+				hoverElement = attachmentLabel;
+
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+			}
+
+			widget.tabIndex = 0;
+			widget.ariaLabel = ariaLabel;
+			if (!this.attachedContextDisposables.isDisposed) {
+				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 			}
 		});
 
