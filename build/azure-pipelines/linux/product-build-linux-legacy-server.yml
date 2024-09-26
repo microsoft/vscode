@@ -83,6 +83,28 @@ steps:
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
 
+  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
+    - script: |
+        set -e
+        includes=$(cat << 'EOF'
+        {
+          "target_defaults": {
+            "conditions": [
+              ["OS=='linux'", {
+                'cflags_cc!': [ '-std=gnu++20' ],
+                'cflags_cc': [ '-std=gnu++2a' ],
+              }]
+            ]
+          }
+        }
+        EOF
+        )
+        if [ ! -d "$HOME/.gyp" ]; then
+          mkdir -p "$HOME/.gyp"
+        fi
+        echo "$includes" > "$HOME/.gyp/include.gypi"
+      displayName: Override gnu target for arm64 and arm
+
   - script: |
       set -e
 
