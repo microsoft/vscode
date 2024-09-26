@@ -18,6 +18,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatContextAttachments } from './contrib/chatContextAttachments.js';
 
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
@@ -45,21 +46,14 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		if (!imageContext) {
 			return;
 		}
-
-		const inputPart = this.chatWidgetService.getWidgetByInputUri(_model.uri)?.input;
-		if (!inputPart) {
+		const widget = this.chatWidgetService.getWidgetByInputUri(_model.uri);
+		if (!widget) {
 			return;
 		}
 
-		const currentContextIds = new Set(Array.from(inputPart.attachedContext).map(context => context.id));
-		const filteredContext = [];
+		const attachContribution = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID);
+		attachContribution?.setContext(false, imageContext);
 
-		if (!currentContextIds.has(imageContext.id)) {
-			currentContextIds.add(imageContext.id);
-			filteredContext.push(imageContext);
-		}
-
-		inputPart.attachContext(false, ...filteredContext);
 		return;
 	}
 }
