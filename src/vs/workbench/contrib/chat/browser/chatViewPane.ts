@@ -22,12 +22,12 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { IChatViewState, ChatWidget } from './chatWidget.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatViewTitleActionContext } from './actions/chatActions.js';
+import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -78,6 +78,7 @@ export class ChatViewPane extends ViewPane {
 					// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 					// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
 					// so it should fire onDidChangeViewWelcomeState.
+					const wasVisible = this._widget.visible;
 					try {
 						this._widget.setVisible(false);
 						this.updateModel(model);
@@ -85,7 +86,7 @@ export class ChatViewPane extends ViewPane {
 						this.didUnregisterProvider = false;
 						this._onDidChangeViewWelcomeState.fire();
 					} finally {
-						this.widget.setVisible(true);
+						this.widget.setVisible(wasVisible);
 					}
 				}
 			} else if (this._widget?.viewModel?.initState === ChatModelInitState.Initialized) {
