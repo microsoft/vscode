@@ -4,34 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { shouldPasteTerminalText } from '../../common/terminalClipboard.js';
 
 suite('TerminalClipboard', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('shouldPasteTerminalText', () => {
 		let instantiationService: TestInstantiationService;
 		let configurationService: TestConfigurationService;
-		let dialogService: TestDialogService;
 
 		setup(async () => {
-			instantiationService = new TestInstantiationService();
+			instantiationService = store.add(new TestInstantiationService());
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto'
 			});
-			dialogService = new TestDialogService(undefined, { result: { confirmed: false } });
-
 			instantiationService.stub(IConfigurationService, configurationService);
-			instantiationService.stub(IDialogService, dialogService);
+			instantiationService.stub(IDialogService, new TestDialogService(undefined, { result: { confirmed: false } }));
 		});
-
-		ensureNoDisposablesAreLeakedInTestSuite();
 
 		function setConfigValue(value: unknown) {
 			configurationService = new TestConfigurationService({

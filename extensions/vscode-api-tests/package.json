@@ -7,18 +7,19 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "chatParticipant",
-    "languageModels",
-    "defaultChatParticipant",
+    "chatParticipantPrivate",
+    "chatProvider",
     "chatVariableResolver",
-    "contribViewsRemote",
     "contribStatusBarItems",
+    "contribViewsRemote",
     "createFileSystemWatcher",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
     "documentPaste",
     "editorInsets",
+    "embeddings",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -27,6 +28,8 @@
     "findTextInFiles",
     "fsChunks",
     "interactive",
+    "languageStatusText",
+    "lmTools",
     "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
@@ -35,25 +38,23 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "languageStatusText",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "tunnels",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
-    "workspaceTrust",
-    "telemetry",
-    "windowActivity"
+    "tunnels",
+    "workspaceTrust"
   ],
   "private": true,
   "activationEvents": [],
@@ -63,6 +64,11 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModels": [
+      {
+        "vendor": "test-lm-vendor"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "api-test.participant",
@@ -75,6 +81,12 @@
             "description": "Hello"
           }
         ]
+      },
+      {
+        "id": "api-test.participant2",
+        "name": "participant2",
+        "description": "test",
+        "commands": []
       }
     ],
     "configuration": {
@@ -97,6 +109,13 @@
           "type": "string"
         },
         "farboo.get": {
+          "type": "string",
+          "default": "get-prop"
+        },
+        "integration-test.http.proxy": {
+          "type": "string"
+        },
+        "integration-test.http.proxyAuth": {
           "type": "string",
           "default": "get-prop"
         }
@@ -236,7 +255,10 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x"
+    "@types/node": "20.x",
+    "@types/node-forge": "^1.3.11",
+    "node-forge": "^1.3.1",
+    "straightforward": "^4.2.2"
   },
   "repository": {
     "type": "git",

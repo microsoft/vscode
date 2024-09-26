@@ -7,19 +7,6 @@ declare module 'vscode' {
 
 	export interface ChatParticipant {
 		onDidPerformAction: Event<ChatUserActionEvent>;
-		supportIssueReporting?: boolean;
-	}
-
-	export interface ChatErrorDetails {
-		/**
-		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
-		 */
-		responseIsRedacted?: boolean;
-	}
-
-	/** @deprecated */
-	export interface ChatMarkdownContent {
-		markdownContent: MarkdownString;
 	}
 
 	/**
@@ -30,73 +17,28 @@ declare module 'vscode' {
 		readonly description: string;
 	}
 
-	// TODO@API fit this into the stream
-	export interface ChatDetectedParticipant {
+	export class ChatResponseDetectedParticipantPart {
 		participant: string;
 		// TODO@API validate this against statically-declared slash commands?
 		command?: ChatCommand;
+		constructor(participant: string, command?: ChatCommand);
 	}
 
-	// TODO@API fit this into the stream
 	export interface ChatVulnerability {
 		title: string;
 		description: string;
 		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
-	// TODO@API fit this into the stream
-	export interface ChatContent {
-		vulnerabilities?: ChatVulnerability[];
+	export class ChatResponseMarkdownWithVulnerabilitiesPart {
+		value: MarkdownString;
+		vulnerabilities: ChatVulnerability[];
+		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatContentProgress =
-		| ChatContent
-		| ChatInlineContentReference
-		| ChatCommandButton;
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatMetadataProgress =
-		| ChatUsedContext
-		| ChatContentReference
-		| ChatProgressMessage;
-
-	/**
-	 * @deprecated use ChatResponseStream instead
-	 */
-	export type ChatProgress = ChatContentProgress | ChatMetadataProgress;
-
-	/** @deprecated */
-	export interface ChatProgressMessage {
-		message: string;
-	}
-
-	/** @deprecated */
-
-	export interface ChatContentReference {
-		/**
-		 * The resource that was referenced.
-		 */
-		reference: Uri | Location;
-	}
-
-	/**
-	 * A reference to a piece of content that will be rendered inline with the markdown content.
-	 */
-	export interface ChatInlineContentReference {
-		/**
-		 * The resource being referenced.
-		 */
-		inlineReference: Uri | Location;
-
-		/**
-		 * An alternate title for the resource.
-		 */
-		title?: string;
+	export class ChatResponseCodeblockUriPart {
+		value: Uri;
+		constructor(value: Uri);
 	}
 
 	/**
@@ -106,45 +48,180 @@ declare module 'vscode' {
 		command: Command;
 	}
 
-	/**
-	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
-	 */
-	export interface ChatContent {
-		/**
-		 * The content as a string of markdown source.
-		 */
-		content: string;
-	}
-
 	export interface ChatDocumentContext {
 		uri: Uri;
 		version: number;
 		ranges: Range[];
 	}
 
+	export class ChatResponseTextEditPart {
+		uri: Uri;
+		edits: TextEdit[];
+		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
+	}
+
+	export class ChatResponseConfirmationPart {
+		title: string;
+		message: string;
+		data: any;
+		buttons?: string[];
+		constructor(title: string, message: string, data: any, buttons?: string[]);
+	}
+
+	export class ChatResponseCodeCitationPart {
+		value: Uri;
+		license: string;
+		snippet: string;
+		constructor(value: Uri, license: string, snippet: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
+
+	export class ChatResponseWarningPart {
+		value: MarkdownString;
+		constructor(value: string | MarkdownString);
+	}
+
+	export class ChatResponseProgressPart2 extends ChatResponseProgressPart {
+		value: string;
+		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
+		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
+	export class ChatResponseReferencePart2 {
+		/**
+		 * The reference target.
+		 */
+		value: Uri | Location | { variableName: string; value?: Uri | Location } | string;
+
+		/**
+		 * The icon for the reference.
+		 */
+		iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		};
+		options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+
+		/**
+		 * Create a new ChatResponseReferencePart.
+		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
+		 */
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location } | string, iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		}, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } });
+	}
+
+	export class ChatResponseMovePart {
+
+		readonly uri: Uri;
+		readonly range: Range;
+
+		constructor(uri: Uri, range: Range);
+	}
+
+	// Extended to add `SymbolInformation`. Would also be added to `constructor`.
+	export interface ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 *
+		 * If this is a {@linkcode Uri} or {@linkcode Location}, this is rendered as a normal link.
+		 *
+		 * If this is a {@linkcode SymbolInformation}, this is rendered as a symbol link.
+		 */
+		value2: Uri | Location | SymbolInformation;
+	}
+
+	export interface ChatResponseStream {
+
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		*
+		* @param value A progress message
+		* @param task If provided, a task to run while the progress is displayed. When the Thenable resolves, the progress will be marked complete in the UI, and the progress message will be updated to the resolved string if one is specified.
+		* @returns This stream.
+		*/
+		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
+
+		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
+		codeblockUri(uri: Uri): void;
+		detectedParticipant(participant: string, command?: ChatCommand): void;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
+
+		/**
+		 * Show an inline message in the chat view asking the user to confirm an action.
+		 * Multiple confirmations may be shown per response. The UI might show "Accept All" / "Reject All" actions.
+		 * @param title The title of the confirmation entry
+		 * @param message An extra message to display to the user
+		 * @param data An arbitrary JSON-stringifiable object that will be included in the ChatRequest when
+		 * the confirmation is accepted or rejected
+		 * TODO@API should this be MarkdownString?
+		 * TODO@API should actually be a more generic function that takes an array of buttons
+		 */
+		confirmation(title: string, message: string, data: any, buttons?: string[]): void;
+
+		/**
+		 * Push a warning to this stream. Short-hand for
+		 * `push(new ChatResponseWarningPart(message))`.
+		 *
+		 * @param message A warning message
+		 * @returns This stream.
+		 */
+		warning(message: string | MarkdownString): void;
+
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
+
+		reference2(value: Uri | Location | string | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
+
+		codeCitation(value: Uri, license: string, snippet: string): void;
+
+		push(part: ExtendedChatResponsePart): void;
+	}
+
+	export enum ChatResponseReferencePartStatusKind {
+		Complete = 1,
+		Partial = 2,
+		Omitted = 3
+	}
+
+	/**
+	 * Does this piggy-back on the existing ChatRequest, or is it a different type of request entirely?
+	 * Does it show up in history?
+	 */
+	export interface ChatRequest {
+		/**
+		 * The `data` for any confirmations that were accepted
+		 */
+		acceptedConfirmationData?: any[];
+
+		/**
+		 * The `data` for any confirmations that were rejected
+		 */
+		rejectedConfirmationData?: any[];
+
+		userSelectedModel?: LanguageModelChat;
+	}
+
 	// TODO@API fit this into the stream
 	export interface ChatUsedContext {
 		documents: ChatDocumentContext[];
 	}
-
-	export interface ChatResponseStream {
-		/**
-		 * @deprecated use above methods instread
-		 */
-		report(value: ChatProgress): void;
-	}
-
-	/** @deprecated */
-	export type ChatExtendedProgress = ChatProgress
-		| ChatMarkdownContent
-		| ChatDetectedParticipant;
-
-	export type ChatExtendedResponseStream = ChatResponseStream & {
-		/**
-		 * @deprecated
-		 */
-		report(value: ChatExtendedProgress): void;
-	};
 
 	export interface ChatParticipant {
 		/**
@@ -158,16 +235,28 @@ declare module 'vscode' {
 	}
 
 	export class ChatCompletionItem {
+		id: string;
 		label: string | CompletionItemLabel;
 		values: ChatVariableValue[];
+		fullName?: string;
+		icon?: ThemeIcon;
 		insertText?: string;
 		detail?: string;
 		documentation?: string | MarkdownString;
+		command?: Command;
 
-		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
+		constructor(id: string, label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}
 
-	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatExtendedResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+
+	export interface ChatResult {
+		nextQuestion?: {
+			prompt: string;
+			participant?: string;
+			command?: string;
+		};
+	}
 
 	export namespace chat {
 		/**
@@ -175,7 +264,22 @@ declare module 'vscode' {
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, name: string, description: string, handler: ChatExtendedRequestHandler): ChatParticipant;
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+	}
+
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
 	}
 
 	/*
@@ -206,6 +310,15 @@ declare module 'vscode' {
 		newFile?: boolean;
 	}
 
+	export interface ChatApplyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'apply';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
+		codeMapper?: string;
+	}
+
 	export interface ChatTerminalAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
@@ -230,56 +343,24 @@ declare module 'vscode' {
 		kind: 'bug';
 	}
 
+	export interface ChatEditorAction {
+		kind: 'editor';
+		accepted: boolean;
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
 	}
 
-	export interface ChatVariableValue {
+	export interface ChatPromptReference {
 		/**
-		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
+		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
-		kind?: string;
+		readonly name: string;
 	}
 
-	export interface ChatVariableResolverResponseStream {
-		/**
-		 * Push a progress part to this stream. Short-hand for
-		 * `push(new ChatResponseProgressPart(value))`.
-		 *
-		 * @param value
-		 * @returns This stream.
-		 */
-		progress(value: string): ChatVariableResolverResponseStream;
-
-		/**
-		 * Push a reference to this stream. Short-hand for
-		 * `push(new ChatResponseReferencePart(value))`.
-		 *
-		 * *Note* that the reference is not rendered inline with the response.
-		 *
-		 * @param value A uri or location
-		 * @returns This stream.
-		 */
-		reference(value: Uri | Location): ChatVariableResolverResponseStream;
-
-		/**
-		 * Pushes a part to this stream.
-		 *
-		 * @param part A response part, rendered or metadata
-		 */
-		push(part: ChatVariableResolverResponsePart): ChatVariableResolverResponseStream;
-	}
-
-	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
-
-	export interface ChatVariableResolver {
-		/**
-		 * A callback to resolve the value of a chat variable.
-		 * @param name The name of the variable.
-		 * @param context Contextual information about this chat request.
-		 * @param token A cancellation token.
-		 */
-		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+	export interface ChatResultFeedback {
+		readonly unhelpfulReason?: string;
 	}
 }

@@ -20,6 +20,7 @@ enum MediaKind {
 
 export const mediaFileExtensions = new Map<string, MediaKind>([
 	// Images
+	['avif', MediaKind.Image],
 	['bmp', MediaKind.Image],
 	['gif', MediaKind.Image],
 	['ico', MediaKind.Image],
@@ -73,7 +74,6 @@ export function createInsertUriListEdit(
 	if (!ranges.length || !urlList.entries.length) {
 		return;
 	}
-
 
 	const edits: vscode.SnippetTextEdit[] = [];
 
@@ -266,5 +266,5 @@ export interface DropOrPasteEdit {
 	readonly snippet: vscode.SnippetString;
 	readonly label: string;
 	readonly additionalEdits: vscode.WorkspaceEdit;
-	readonly yieldTo: vscode.DocumentPasteEditKind[];
+	readonly yieldTo: vscode.DocumentDropOrPasteEditKind[];
 }

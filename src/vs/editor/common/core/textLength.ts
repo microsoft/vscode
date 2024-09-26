@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from './position.js';
+import { Range } from './range.js';
 
 /**
  * Represents a non-negative length of text in terms of line and column count.
@@ -28,6 +28,10 @@ export class TextLength {
 		} else {
 			return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 		}
+	}
+
+	public static fromPosition(pos: Position): TextLength {
+		return new TextLength(pos.lineNumber - 1, pos.column - 1);
 	}
 
 	public static ofRange(range: Range) {
@@ -71,6 +75,13 @@ export class TextLength {
 		return this.columnCount > other.columnCount;
 	}
 
+	public isGreaterThanOrEqualTo(other: TextLength): boolean {
+		if (this.lineCount !== other.lineCount) {
+			return this.lineCount > other.lineCount;
+		}
+		return this.columnCount >= other.columnCount;
+	}
+
 	public equals(other: TextLength): boolean {
 		return this.lineCount === other.lineCount && this.columnCount === other.columnCount;
 	}
@@ -108,6 +119,13 @@ export class TextLength {
 		} else {
 			return new Position(position.lineNumber + this.lineCount, this.columnCount + 1);
 		}
+	}
+
+	public addToRange(range: Range): Range {
+		return Range.fromPositions(
+			this.addToPosition(range.getStartPosition()),
+			this.addToPosition(range.getEndPosition())
+		);
 	}
 
 	toString() {

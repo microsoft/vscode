@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import {
 	extractLocalHostUriMetaDataForPortMapping,
 	extractQueryLocalHostUriMetaDataForPortMapping
-} from 'vs/platform/tunnel/common/tunnel';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+} from '../../common/tunnel.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 
 suite('Tunnel', () => {

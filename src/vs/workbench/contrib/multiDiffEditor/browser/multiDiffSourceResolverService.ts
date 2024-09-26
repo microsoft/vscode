@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { IValueWithChangeEvent } from '../../../../base/common/event.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const IMultiDiffSourceResolverService = createDecorator<IMultiDiffSourceResolverService>('multiDiffSourceResolverService');
 
@@ -27,29 +27,24 @@ export interface IMultiDiffSourceResolver {
 }
 
 export interface IResolvedMultiDiffSource {
-	readonly resources: readonly MultiDiffEditorItem[];
-
-	readonly onDidChange: Event<void>;
-
+	readonly resources: IValueWithChangeEvent<readonly MultiDiffEditorItem[]>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
-}
-
-export class ConstResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	public readonly onDidChange = Event.None;
-
-	constructor(
-		public readonly resources: readonly MultiDiffEditorItem[]
-	) { }
 }
 
 export class MultiDiffEditorItem {
 	constructor(
-		readonly original: URI | undefined,
-		readonly modified: URI | undefined,
+		readonly originalUri: URI | undefined,
+		readonly modifiedUri: URI | undefined,
+		readonly goToFileUri: URI | undefined,
+		readonly contextKeys?: Record<string, ContextKeyValue>
 	) {
-		if (!original && !modified) {
+		if (!originalUri && !modifiedUri) {
 			throw new BugIndicatingError('Invalid arguments');
 		}
+	}
+
+	getKey(): string {
+		return JSON.stringify([this.modifiedUri?.toString(), this.originalUri?.toString()]);
 	}
 }
 

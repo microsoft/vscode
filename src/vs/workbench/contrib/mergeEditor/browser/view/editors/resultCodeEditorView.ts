@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { CompareResult } from 'vs/base/common/arrays';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, autorunWithStore, derived, IObservable } from 'vs/base/common/observable';
-import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
-import { applyObservableDecorations, join } from 'vs/workbench/contrib/mergeEditor/browser/utils';
-import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from 'vs/workbench/contrib/mergeEditor/browser/view/colors';
-import { EditorGutter } from 'vs/workbench/contrib/mergeEditor/browser/view/editorGutter';
-import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeResultEditor } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView';
+import { reset } from '../../../../../../base/browser/dom.js';
+import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { CompareResult } from '../../../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../../../base/common/errors.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, autorunWithStore, derived, IObservable } from '../../../../../../base/common/observable.js';
+import { IModelDeltaDecoration, MinimapPosition, OverviewRulerLane } from '../../../../../../editor/common/model.js';
+import { localize } from '../../../../../../nls.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { LineRange } from '../../model/lineRange.js';
+import { applyObservableDecorations, join } from '../../utils.js';
+import { handledConflictMinimapOverViewRulerColor, unhandledConflictMinimapOverViewRulerColor } from '../colors.js';
+import { EditorGutter } from '../editorGutter.js';
+import { MergeEditorViewModel } from '../viewModel.js';
+import { ctxIsMergeResultEditor } from '../../../common/mergeEditor.js';
+import { CodeEditorView, createSelectionsAutorun, TitleMenu } from './codeEditorView.js';
 
 export class ResultCodeEditorView extends CodeEditorView {
 	constructor(

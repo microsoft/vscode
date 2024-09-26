@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 
-	export type ChatWelcomeMessageContent = string | MarkdownString;
+	export interface ChatWelcomeMessageContent {
+		icon: ThemeIcon;
+		title: string;
+		message: MarkdownString;
+	}
 
 	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatFollowup[]>;
+		provideWelcomeMessage?(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent>;
+		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
 	export interface ChatRequesterInformation {
@@ -21,17 +27,14 @@ declare module 'vscode' {
 		icon?: Uri;
 	}
 
+	export interface ChatTitleProvider {
+		/**
+		 * TODO@API Should this take a ChatResult like the followup provider, or just take a new ChatContext that includes the current message as history?
+		 */
+		provideChatTitle(context: ChatContext, token: CancellationToken): ProviderResult<string>;
+	}
+
 	export interface ChatParticipant {
-		/**
-		 * When true, this participant is invoked by default when no other participant is being invoked
-		 */
-		isDefault?: boolean;
-
-		/**
-		 * The full name of this participant.
-		 */
-		fullName?: string;
-
 		/**
 		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
 		 * TODO@API name
@@ -54,6 +57,7 @@ declare module 'vscode' {
 		helpTextPostfix?: string | MarkdownString;
 
 		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		titleProvider?: ChatTitleProvider;
 		requester?: ChatRequesterInformation;
 	}
 }

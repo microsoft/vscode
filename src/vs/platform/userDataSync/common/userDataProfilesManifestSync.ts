@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toFormattedString } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
-import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toFormattedString } from '../../../base/common/jsonFormatter.js';
+import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { IFileService } from '../../files/common/files.js';
+import { IStorageService } from '../../storage/common/storage.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from './abstractSynchronizer.js';
+import { merge } from './userDataProfilesManifestMerge.js';
+import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest, UserDataSyncError, UserDataSyncErrorCode } from './userDataSync.js';
 
 interface IUserDataProfileManifestResourceMergeResult extends IAcceptResult {
 	readonly local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };
@@ -187,34 +187,26 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 
 		if (localChange !== Change.None) {
 			await this.backupLocal(stringifyLocalProfiles(this.getLocalUserDataProfiles(), false));
-			const promises: Promise<any>[] = [];
-			for (const profile of local.added) {
-				promises.push((async () => {
-					this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
-					await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
-					this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
-				})());
-			}
-			for (const profile of local.removed) {
-				promises.push((async () => {
-					this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
-					await this.userDataProfilesService.removeProfile(profile);
-					this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
-				})());
-			}
-			for (const profile of local.updated) {
+			await Promise.all(local.removed.map(async profile => {
+				this.logService.trace(`${this.syncResourceLogLabel}: Removing '${profile.name}' profile...`);
+				await this.userDataProfilesService.removeProfile(profile);
+				this.logService.info(`${this.syncResourceLogLabel}: Removed profile '${profile.name}'.`);
+			}));
+			await Promise.all(local.added.map(async profile => {
+				this.logService.trace(`${this.syncResourceLogLabel}: Creating '${profile.name}' profile...`);
+				await this.userDataProfilesService.createProfile(profile.id, profile.name, { shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+				this.logService.info(`${this.syncResourceLogLabel}: Created profile '${profile.name}'.`);
+			}));
+			await Promise.all(local.updated.map(async profile => {
 				const localProfile = this.userDataProfilesService.profiles.find(p => p.id === profile.id);
 				if (localProfile) {
-					promises.push((async () => {
-						this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
-						await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
-						this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
-					})());
+					this.logService.trace(`${this.syncResourceLogLabel}: Updating '${profile.name}' profile...`);
+					await this.userDataProfilesService.updateProfile(localProfile, { name: profile.name, shortName: profile.shortName, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
+					this.logService.info(`${this.syncResourceLogLabel}: Updated profile '${profile.name}'.`);
 				} else {
 					this.logService.info(`${this.syncResourceLogLabel}: Could not find profile with id '${profile.id}' to update.`);
 				}
-			}
-			await Promise.all(promises);
+			}));
 		}
 
 		if (remoteChange !== Change.None) {

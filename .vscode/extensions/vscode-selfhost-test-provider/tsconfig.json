@@ -1,0 +1,17 @@
+{
+	"extends": "../../../extensions/tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"types": [
+			"node",
+			"mocha",
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../../src/vscode-dts/vscode.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.testObserver.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.testRelatedCode.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.attributableCoverage.d.ts"
+	]
+}

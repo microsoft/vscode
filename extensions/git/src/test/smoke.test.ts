@@ -129,29 +129,26 @@ suite('git smoke test', function () {
 	});
 
 	test('rename/delete conflict', async function () {
-		cp.execSync('git branch test', { cwd });
-		cp.execSync('git checkout test', { cwd });
+		await commands.executeCommand('workbench.view.scm');
 
+		await repository.createBranch('test', true);
+
+		// Delete file (test branch)
 		fs.unlinkSync(file('app.js'));
-		cp.execSync('git add .', { cwd });
+		await repository.commit('commit on test', { all: true });
 
-		await repository.commit('commit on test');
-		cp.execSync('git checkout main', { cwd });
+		await repository.checkout('main');
 
+		// Rename file (main branch)
 		fs.renameSync(file('app.js'), file('rename.js'));
-		cp.execSync('git add .', { cwd });
-		await repository.commit('commit on main');
+		await repository.commit('commit on main', { all: true });
 
 		try {
-			cp.execSync('git merge test', { cwd });
+			await repository.merge('test');
 		} catch (e) { }
 
-		setTimeout(() => {
-			commands.executeCommand('workbench.scm.focus');
-		}, 2e3);
-
-		await new Promise(resolve => {
-			setTimeout(resolve, 5e3);
-		});
+		assert.strictEqual(repository.state.mergeChanges.length, 1);
+		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
+		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
 });

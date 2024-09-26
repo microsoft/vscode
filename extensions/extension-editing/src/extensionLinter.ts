@@ -66,7 +66,7 @@ export class ExtensionLinter {
 	private folderToPackageJsonInfo: Record<string, PackageJsonInfo> = {};
 	private packageJsonQ = new Set<TextDocument>();
 	private readmeQ = new Set<TextDocument>();
-	private timer: NodeJS.Timer | undefined;
+	private timer: NodeJS.Timeout | undefined;
 	private markdownIt: MarkdownItType.MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
 
@@ -149,7 +149,8 @@ export class ExtensionLinter {
 					const effectiveProposalNames = extensionEnabledApiProposals[extensionId];
 					if (Array.isArray(effectiveProposalNames) && enabledApiProposals.children) {
 						for (const child of enabledApiProposals.children) {
-							if (child.type === 'string' && !effectiveProposalNames.includes(getNodeValue(child))) {
+							const proposalName = child.type === 'string' ? getNodeValue(child) : undefined;
+							if (typeof proposalName === 'string' && !effectiveProposalNames.includes(proposalName.split('@')[0])) {
 								const start = document.positionAt(child.offset);
 								const end = document.positionAt(child.offset + child.length);
 								diagnostics.push(new Diagnostic(new Range(start, end), apiProposalNotListed, DiagnosticSeverity.Error));

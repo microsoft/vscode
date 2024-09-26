@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/languageStatus';
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import Severity from 'vs/base/common/severity';
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize, localize2 } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Link } from 'vs/platform/opener/browser/link';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { equals } from 'vs/base/common/arrays';
-import { URI } from 'vs/base/common/uri';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
+import './media/languageStatus.css';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Disposable, DisposableStore, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import Severity from '../../../../base/common/severity.js';
+import { getCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
+import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { Event } from '../../../../base/common/event.js';
 
 class LanguageStatusViewModel {
 
@@ -65,22 +65,23 @@ class StoredCounter {
 class LanguageStatusContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
-		// --- main language status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
-			[IEditorService, editorService.createScoped('main', this._store)]
-		));
-		this._register(mainInstantiationService.createInstance(LanguageStatus));
+		for (const part of editorGroupService.parts) {
+			this.createLanguageStatus(part);
+		}
 
-		// --- auxiliary language status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(LanguageStatus));
-		}));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createLanguageStatus(part)));
+	}
+
+	private createLanguageStatus(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		disposables.add(scopedInstantiationService.createInstance(LanguageStatus));
 	}
 }
 
@@ -104,6 +105,7 @@ class LanguageStatus {
 		@ILanguageStatusService private readonly _languageStatusService: ILanguageStatusService,
 		@IStatusbarService private readonly _statusBarService: IStatusbarService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
@@ -121,7 +123,7 @@ class LanguageStatus {
 				this._update();
 				this._storeState();
 			}
-		}, this._disposables);
+		}, undefined, this._disposables);
 
 	}
 
@@ -230,7 +232,7 @@ class LanguageStatus {
 			const targetWindow = dom.getWindow(editor?.getContainerDomNode());
 			const node = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
 			const container = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
-			if (node instanceof HTMLElement && container) {
+			if (dom.isHTMLElement(node) && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';
 				if (!isOneBusy) {
@@ -250,7 +252,7 @@ class LanguageStatus {
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
 				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
-				if (hoverTarget instanceof HTMLElement) {
+				if (dom.isHTMLElement(hoverTarget)) {
 					const observer = new MutationObserver(() => {
 						if (targetWindow.document.contains(element)) {
 							this._interactionCounter.increment();
@@ -324,22 +326,24 @@ class LanguageStatus {
 				href: URI.from({
 					scheme: 'command', path: command.id, query: command.arguments && JSON.stringify(command.arguments)
 				}).toString()
-			}, undefined, this._openerService));
+			}, { hoverDelegate: nativeHoverDelegate }, this._hoverService, this._openerService));
 		}
 
 		// -- pin
 		const actionBar = new ActionBar(right, { hoverDelegate: nativeHoverDelegate });
+		const actionLabel: string = isPinned ? localize('unpin', "Remove from Status Bar") : localize('pin', "Add to Status Bar");
+		actionBar.setAriaLabel(actionLabel);
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
-			action = new Action('pin', localize('pin', "Add to Status Bar"), ThemeIcon.asClassName(Codicon.pin), true, () => {
+			action = new Action('pin', actionLabel, ThemeIcon.asClassName(Codicon.pin), true, () => {
 				this._dedicated.add(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, true);
 				this._update();
 				this._storeState();
 			});
 		} else {
-			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), ThemeIcon.asClassName(Codicon.pinned), true, () => {
+			action = new Action('unpin', actionLabel, ThemeIcon.asClassName(Codicon.pinned), true, () => {
 				this._dedicated.delete(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, false);
 				this._update();
@@ -374,7 +378,7 @@ class LanguageStatus {
 				const parts = renderLabelWithIcons(node);
 				dom.append(target, ...parts);
 			} else {
-				store.add(new Link(target, node, undefined, this._openerService));
+				store.add(new Link(target, node, undefined, this._hoverService, this._openerService));
 			}
 		}
 	}

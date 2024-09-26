@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { isMacintosh, OperatingSystem } from 'vs/base/common/platform';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { URI } from 'vs/base/common/uri';
-import { fromNow } from 'vs/base/common/date';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { isMacintosh, OperatingSystem } from '../../../../base/common/platform.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { collapseTildePath } from '../../../../platform/terminal/common/terminalEnvironment.js';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalInstance } from './terminal.js';
+import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from './terminalIcons.js';
+import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../common/history.js';
+import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { fromNow } from '../../../../base/common/date.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { showWithPinnedItems } from '../../../../platform/quickinput/browser/quickPickPin.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -206,26 +206,27 @@ export async function showRunRecentQuickPick(
 	if (items.length === 0) {
 		return;
 	}
-	const fuzzySearchToggle = new Toggle({
+	const disposables = new DisposableStore();
+	const fuzzySearchToggle = disposables.add(new Toggle({
 		title: 'Fuzzy search',
 		icon: commandHistoryFuzzySearchIcon,
 		isChecked: filterMode === 'fuzzy',
 		inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 		inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 		inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
-	});
-	fuzzySearchToggle.onChange(() => {
+	}));
+	disposables.add(fuzzySearchToggle.onChange(() => {
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);
-	});
-	const outputProvider = instantiationService.createInstance(TerminalOutputProvider);
-	const quickPick = quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>();
+	}));
+	const outputProvider = disposables.add(instantiationService.createInstance(TerminalOutputProvider));
+	const quickPick = disposables.add(quickInputService.createQuickPick<Item | IQuickPickItem & { rawLabel: string }>({ useSeparators: true }));
 	const originalItems = items;
 	quickPick.items = [...originalItems];
 	quickPick.sortByLabel = false;
 	quickPick.placeholder = placeholder;
 	quickPick.matchOnLabelMode = filterMode || 'contiguous';
 	quickPick.toggles = [fuzzySearchToggle];
-	quickPick.onDidTriggerItemButton(async e => {
+	disposables.add(quickPick.onDidTriggerItemButton(async e => {
 		if (e.button === removeFromCommandHistoryButton) {
 			if (type === 'command') {
 				instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
@@ -251,32 +252,49 @@ export async function showRunRecentQuickPick(
 			}
 		}
 		await instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, filterMode, value);
-	}
-	);
-	quickPick.onDidChangeValue(async value => {
+	}));
+	disposables.add(quickPick.onDidChangeValue(async value => {
 		if (!value) {
 			await instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, filterMode, value);
 		}
-	});
+	}));
 	let terminalScrollStateSaved = false;
-	quickPick.onDidChangeActive(async () => {
+	function restoreScrollState() {
+		terminalScrollStateSaved = false;
+		instance.xterm?.markTracker.restoreScrollState();
+		instance.xterm?.markTracker.clear();
+	}
+	disposables.add(quickPick.onDidChangeActive(async () => {
 		const xterm = instance.xterm;
 		if (!xterm) {
 			return;
 		}
 		const [item] = quickPick.activeItems;
-		if ('command' in item && item.command) {
+		if (!item) {
+			return;
+		}
+		if ('command' in item && item.command && item.command.marker) {
 			if (!terminalScrollStateSaved) {
 				xterm.markTracker.saveScrollState();
 				terminalScrollStateSaved = true;
 			}
-			xterm.markTracker.revealCommand(item.command);
+			const promptRowCount = item.command.getPromptRowCount();
+			const commandRowCount = item.command.getCommandRowCount();
+			xterm.markTracker.revealRange({
+				start: {
+					x: 1,
+					y: item.command.marker.line - (promptRowCount - 1) + 1
+				},
+				end: {
+					x: instance.cols,
+					y: item.command.marker.line + (commandRowCount - 1) + 1
+				}
+			});
 		} else {
-			terminalScrollStateSaved = false;
-			xterm.markTracker.restoreScrollState();
+			restoreScrollState();
 		}
-	});
-	quickPick.onDidAccept(async () => {
+	}));
+	disposables.add(quickPick.onDidAccept(async () => {
 		const result = quickPick.activeItems[0];
 		let text: string;
 		if (type === 'cwd') {
@@ -289,35 +307,33 @@ export async function showRunRecentQuickPick(
 		if (quickPick.keyMods.alt) {
 			instance.focus();
 		}
-		terminalScrollStateSaved = false;
-		instance.xterm?.markTracker.restoreScrollState();
-	});
-	quickPick.onDidHide(() => {
-		terminalScrollStateSaved = false;
-		instance.xterm?.markTracker.restoreScrollState();
-	});
+		restoreScrollState();
+	}));
+	disposables.add(quickPick.onDidHide(() => restoreScrollState()));
 	if (value) {
 		quickPick.value = value;
 	}
 	return new Promise<void>(r => {
 		terminalInRunCommandPicker.set(true);
-		showWithPinnedItems(storageService, runRecentStorageKey, quickPick, true);
-		quickPick.onDidHide(() => {
+		disposables.add(showWithPinnedItems(storageService, runRecentStorageKey, quickPick, true));
+		disposables.add(quickPick.onDidHide(() => {
 			terminalInRunCommandPicker.set(false);
 			accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
 			r();
-		});
+			disposables.dispose();
+		}));
 	});
 }
 
-class TerminalOutputProvider implements ITextModelContentProvider {
+class TerminalOutputProvider extends Disposable implements ITextModelContentProvider {
 	static scheme = 'TERMINAL_OUTPUT';
 
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService
 	) {
-		textModelResolverService.registerTextModelContentProvider(TerminalOutputProvider.scheme, this);
+		super();
+		this._register(textModelResolverService.registerTextModelContentProvider(TerminalOutputProvider.scheme, this));
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel | null> {

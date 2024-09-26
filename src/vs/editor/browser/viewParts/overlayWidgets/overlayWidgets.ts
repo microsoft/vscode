@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./overlayWidgets';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOverlayWidget, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as dom from 'vs/base/browser/dom';
+import './overlayWidgets.css';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from '../../editorBrowser.js';
+import { PartFingerprint, PartFingerprints, ViewPart } from '../../view/viewPart.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import * as dom from '../../../../base/browser/dom.js';
 
 
 interface IWidgetData {
 	widget: IOverlayWidget;
 	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
+	stack?: number;
 	domNode: FastDomNode<HTMLElement>;
 }
 
@@ -24,6 +25,11 @@ interface IWidgetMap {
 	[key: string]: IWidgetData;
 }
 
+/*
+ * This view part for rendering the overlay widgets, which are
+ * floating widgets positioned based on the editor's viewport,
+ * such as the find widget.
+ */
 export class ViewOverlayWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
@@ -109,14 +115,17 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._updateMaxMinWidth();
 	}
 
-	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null): boolean {
+	public setWidgetPosition(widget: IOverlayWidget, position: IOverlayWidgetPosition | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
-		if (widgetData.preference === preference) {
+		const preference = position ? position.preference : null;
+		const stack = position?.stackOridinal;
+		if (widgetData.preference === preference && widgetData.stack === stack) {
 			this._updateMaxMinWidth();
 			return false;
 		}
 
 		widgetData.preference = preference;
+		widgetData.stack = stack;
 		this.setShouldRender();
 		this._updateMaxMinWidth();
 
@@ -150,7 +159,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._context.viewLayout.setOverlayWidgetsMinWidth(maxMinWidth);
 	}
 
-	private _renderWidget(widgetData: IWidgetData): void {
+	private _renderWidget(widgetData: IWidgetData, stackCoordinates: number[]): void {
 		const domNode = widgetData.domNode;
 
 		if (widgetData.preference === null) {
@@ -158,16 +167,29 @@ export class ViewOverlayWidgets extends ViewPart {
 			return;
 		}
 
-		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER) {
-			domNode.setTop(0);
-			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
-		} else if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
-			const widgetHeight = domNode.domNode.clientHeight;
-			domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
-			domNode.setRight((2 * this._verticalScrollbarWidth) + this._minimapWidth);
+		const maxRight = (2 * this._verticalScrollbarWidth) + this._minimapWidth;
+		if (widgetData.preference === OverlayWidgetPositionPreference.TOP_RIGHT_CORNER || widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
+			if (widgetData.preference === OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER) {
+				const widgetHeight = domNode.domNode.clientHeight;
+				domNode.setTop((this._editorHeight - widgetHeight - 2 * this._horizontalScrollbarHeight));
+			} else {
+				domNode.setTop(0);
+			}
+
+			if (widgetData.stack !== undefined) {
+				domNode.setTop(stackCoordinates[widgetData.preference]);
+				stackCoordinates[widgetData.preference] += domNode.domNode.clientWidth;
+			} else {
+				domNode.setRight(maxRight);
+			}
 		} else if (widgetData.preference === OverlayWidgetPositionPreference.TOP_CENTER) {
-			domNode.setTop(0);
 			domNode.domNode.style.right = '50%';
+			if (widgetData.stack !== undefined) {
+				domNode.setTop(stackCoordinates[OverlayWidgetPositionPreference.TOP_CENTER]);
+				stackCoordinates[OverlayWidgetPositionPreference.TOP_CENTER] += domNode.domNode.clientHeight;
+			} else {
+				domNode.setTop(0);
+			}
 		} else {
 			const { top, left } = widgetData.preference;
 			const fixedOverflowWidgets = this._context.configuration.options.get(EditorOption.fixedOverflowWidgets);
@@ -194,9 +216,12 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._domNode.setWidth(this._editorWidth);
 
 		const keys = Object.keys(this._widgets);
+		const stackCoordinates = Array.from({ length: OverlayWidgetPositionPreference.TOP_CENTER + 1 }, () => 0);
+		keys.sort((a, b) => (this._widgets[a].stack || 0) - (this._widgets[b].stack || 0));
+
 		for (let i = 0, len = keys.length; i < len; i++) {
 			const widgetId = keys[i];
-			this._renderWidget(this._widgets[widgetId]);
+			this._renderWidget(this._widgets[widgetId], stackCoordinates);
 		}
 	}
 }

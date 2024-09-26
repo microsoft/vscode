@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
+import { CharCode } from './charCode.js';
 
 function roundFloat(number: number, decimalPoints: number): number {
 	const decimal = Math.pow(10, decimalPoints);
@@ -320,6 +320,50 @@ export class Color {
 		return roundFloat(luminance, 4);
 	}
 
+	/**
+	 * Reduces the "foreground" color on this "background" color unti it is
+	 * below the relative luminace ratio.
+	 * @returns the new foreground color
+	 * @see https://github.com/xtermjs/xterm.js/blob/44f9fa39ae03e2ca6d28354d88a399608686770e/src/common/Color.ts#L315
+	 */
+	reduceRelativeLuminace(foreground: Color, ratio: number): Color {
+		// This is a naive but fast approach to reducing luminance as converting to
+		// HSL and back is expensive
+		let { r: fgR, g: fgG, b: fgB } = foreground.rgba;
+
+		let cr = this.getContrastRatio(foreground);
+		while (cr < ratio && (fgR > 0 || fgG > 0 || fgB > 0)) {
+			// Reduce by 10% until the ratio is hit
+			fgR -= Math.max(0, Math.ceil(fgR * 0.1));
+			fgG -= Math.max(0, Math.ceil(fgG * 0.1));
+			fgB -= Math.max(0, Math.ceil(fgB * 0.1));
+			cr = this.getContrastRatio(new Color(new RGBA(fgR, fgG, fgB)));
+		}
+
+		return new Color(new RGBA(fgR, fgG, fgB));
+	}
+
+	/**
+	 * Increases the "foreground" color on this "background" color unti it is
+	 * below the relative luminace ratio.
+	 * @returns the new foreground color
+	 * @see https://github.com/xtermjs/xterm.js/blob/44f9fa39ae03e2ca6d28354d88a399608686770e/src/common/Color.ts#L335
+	 */
+	increaseRelativeLuminace(foreground: Color, ratio: number): Color {
+		// This is a naive but fast approach to reducing luminance as converting to
+		// HSL and back is expensive
+		let { r: fgR, g: fgG, b: fgB } = foreground.rgba;
+		let cr = this.getContrastRatio(foreground);
+		while (cr < ratio && (fgR < 0xFF || fgG < 0xFF || fgB < 0xFF)) {
+			fgR = Math.min(0xFF, fgR + Math.ceil((255 - fgR) * 0.1));
+			fgG = Math.min(0xFF, fgG + Math.ceil((255 - fgG) * 0.1));
+			fgB = Math.min(0xFF, fgB + Math.ceil((255 - fgB) * 0.1));
+			cr = this.getContrastRatio(new Color(new RGBA(fgR, fgG, fgB)));
+		}
+
+		return new Color(new RGBA(fgR, fgG, fgB));
+	}
+
 	private static _relativeLuminanceForComponent(color: number): number {
 		const c = color / 255;
 		return (c <= 0.03928) ? c / 12.92 : Math.pow(((c + 0.055) / 1.055), 2.4);
@@ -363,6 +407,47 @@ export class Color {
 		const lum1 = this.getRelativeLuminance();
 		const lum2 = another.getRelativeLuminance();
 		return lum1 < lum2;
+	}
+
+	/**
+	 * Based on xterm.js: https://github.com/xtermjs/xterm.js/blob/44f9fa39ae03e2ca6d28354d88a399608686770e/src/common/Color.ts#L288
+	 *
+	 * Given a foreground color and a background color, either increase or reduce the luminance of the
+	 * foreground color until the specified contrast ratio is met. If pure white or black is hit
+	 * without the contrast ratio being met, go the other direction using the background color as the
+	 * foreground color and take either the first or second result depending on which has the higher
+	 * contrast ratio.
+	 *
+	 * @param foreground The foreground color.
+	 * @param ratio The contrast ratio to achieve.
+	 * @returns The adjusted foreground color.
+	 */
+	ensureConstrast(foreground: Color, ratio: number): Color {
+		const bgL = this.getRelativeLuminance();
+		const fgL = foreground.getRelativeLuminance();
+		const cr = this.getContrastRatio(foreground);
+		if (cr < ratio) {
+			if (fgL < bgL) {
+				const resultA = this.reduceRelativeLuminace(foreground, ratio);
+				const resultARatio = this.getContrastRatio(resultA);
+				if (resultARatio < ratio) {
+					const resultB = this.increaseRelativeLuminace(foreground, ratio);
+					const resultBRatio = this.getContrastRatio(resultB);
+					return resultARatio > resultBRatio ? resultA : resultB;
+				}
+				return resultA;
+			}
+			const resultA = this.increaseRelativeLuminace(foreground, ratio);
+			const resultARatio = this.getContrastRatio(resultA);
+			if (resultARatio < ratio) {
+				const resultB = this.reduceRelativeLuminace(foreground, ratio);
+				const resultBRatio = this.getContrastRatio(resultB);
+				return resultARatio > resultBRatio ? resultA : resultB;
+			}
+			return resultA;
+		}
+
+		return foreground;
 	}
 
 	lighten(factor: number): Color {

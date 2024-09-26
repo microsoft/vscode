@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IOpenUriOptions } from './extHost.protocol';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 import { WindowState } from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from './extHost.protocol.js';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -28,7 +26,7 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 	private _state = ExtHostWindow.InitialState;
 
-	getState(extension: Readonly<IRelaxedExtensionDescription>): WindowState {
+	getState(): WindowState {
 		// todo@connor4312: this can be changed to just return this._state after proposed api is finalized
 		const state = this._state;
 
@@ -37,7 +35,6 @@ export class ExtHostWindow implements ExtHostWindowShape {
 				return state.focused;
 			},
 			get active() {
-				checkProposedApiEnabled(extension, 'windowActivity');
 				return state.active;
 			},
 		};

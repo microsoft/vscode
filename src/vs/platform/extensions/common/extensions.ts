@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import Severity from '../../../base/common/severity.js';
+import * as strings from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { ExtensionKind } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { getRemoteName } from '../../remote/common/remoteHosts.js';
 
 export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
 export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
@@ -21,19 +21,6 @@ export interface ICommand {
 	category?: string | ILocalizedString;
 }
 
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
-}
-
-export interface IConfiguration {
-	id?: string;
-	order?: number;
-	title?: string;
-	properties: { [key: string]: IConfigurationProperty };
-}
-
 export interface IDebugger {
 	label?: string;
 	type: string;
@@ -41,7 +28,7 @@ export interface IDebugger {
 }
 
 export interface IGrammar {
-	language: string;
+	language?: string;
 }
 
 export interface IJSONValidation {
@@ -182,7 +169,7 @@ export interface ILocalizationContribution {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
+	configuration?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -205,6 +192,7 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
 }
 
 export interface IExtensionCapabilities {
@@ -238,7 +226,9 @@ export interface IExtensionIdentifier {
 }
 
 export const EXTENSION_CATEGORIES = [
+	'AI',
 	'Azure',
+	'Chat',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
@@ -255,8 +245,6 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
-	'AI',
-	'Chat',
 	'Other',
 ];
 
@@ -283,6 +271,7 @@ export interface IRelaxedExtensionManifest {
 	contributes?: IExtensionContributions;
 	repository?: { url: string };
 	bugs?: { url: string };
+	originalEnabledApiProposals?: readonly string[];
 	enabledApiProposals?: readonly string[];
 	api?: string;
 	scripts?: { [key: string]: string };
@@ -324,6 +313,7 @@ export interface IExtension {
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
 	readonly targetPlatform: TargetPlatform;
+	readonly publisherDisplayName?: string;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
@@ -460,6 +450,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
+	publisherDisplayName?: string;
 	targetPlatform: TargetPlatform;
 	isBuiltin: boolean;
 	isUserBuiltin: boolean;
@@ -487,6 +478,17 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
+}
+
+export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
+	return enabledApiProposals.map(proposal => {
+		const [proposalName, version] = proposal.split('@');
+		return { proposalName, version: version ? parseInt(version) : undefined };
+	});
+}
+
+export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
+	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

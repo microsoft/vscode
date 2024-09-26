@@ -122,6 +122,7 @@ export interface RepositoryState {
 	readonly mergeChanges: Change[];
 	readonly indexChanges: Change[];
 	readonly workingTreeChanges: Change[];
+	readonly untrackedChanges: Change[];
 
 	readonly onDidChange: Event<void>;
 }
@@ -144,6 +145,9 @@ export interface LogOptions {
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
 	readonly author?: string;
+	readonly refNames?: string[];
+	readonly maxParents?: number;
+	readonly skip?: number;
 }
 
 export interface CommitOptions {
@@ -180,7 +184,7 @@ export interface InitOptions {
 export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
-	readonly pattern?: string;
+	readonly pattern?: string | string[];
 	readonly sort?: 'alphabetically' | 'committerdate';
 }
 
@@ -226,8 +230,6 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 
-	getDiff(): Promise<string[]>;
-
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
@@ -236,6 +238,8 @@ export interface Repository {
 	getBranches(query: BranchQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 	getBranchBase(name: string): Promise<Branch | undefined>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
+
+	checkIgnore(paths: string[]): Promise<Set<string>>;
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
@@ -405,5 +409,6 @@ export const enum GitErrorCodes {
 	EmptyCommitMessage = 'EmptyCommitMessage',
 	BranchFastForwardRejected = 'BranchFastForwardRejected',
 	BranchNotYetBorn = 'BranchNotYetBorn',
-	TagConflict = 'TagConflict'
+	TagConflict = 'TagConflict',
+	CherryPickEmpty = 'CherryPickEmpty'
 }

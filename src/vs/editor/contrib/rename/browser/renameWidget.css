@@ -13,10 +13,37 @@
 	padding: 4px 4px 0 4px;
 }
 
-.monaco-editor .rename-box .rename-input {
+.monaco-editor .rename-box .rename-input-with-button {
 	padding: 3px;
 	border-radius: 2px;
 	width: calc(100% - 8px); /* 4px padding on each side */
+}
+
+.monaco-editor .rename-box .rename-input {
+	width: calc(100% - 8px); /* 4px padding on each side */
+	padding: 0;
+}
+
+.monaco-editor .rename-box .rename-input:focus {
+	outline: none;
+}
+
+.monaco-editor .rename-box .rename-suggestions-button {
+	display: flex;
+	align-items: center;
+	padding: 3px;
+	background-color: transparent;
+	border: none;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.monaco-editor .rename-box .rename-suggestions-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground)
+}
+
+.monaco-editor .rename-box .rename-candidate-list-container .monaco-list-row {
+	border-radius: 2px;
 }
 
 .monaco-editor .rename-box .rename-label {

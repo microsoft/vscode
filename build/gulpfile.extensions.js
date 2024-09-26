@@ -48,7 +48,6 @@ const compilations = [
 	'extensions/json-language-features/client/tsconfig.json',
 	'extensions/json-language-features/server/tsconfig.json',
 	'extensions/markdown-language-features/preview-src/tsconfig.json',
-	'extensions/markdown-language-features/server/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',
@@ -66,10 +65,13 @@ const compilations = [
 	'extensions/typescript-language-features/tsconfig.json',
 	'extensions/vscode-api-tests/tsconfig.json',
 	'extensions/vscode-colorize-tests/tsconfig.json',
-	'extensions/vscode-test-resolver/tsconfig.json'
+	'extensions/vscode-test-resolver/tsconfig.json',
+
+	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
+	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 ];
 
-const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
+const getBaseUrl = out => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
 
 const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(root, tsconfigFile);
@@ -99,7 +101,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	}
 
 	function createPipeline(build, emitError, transpileOnly) {
-		const nlsDev = require('vscode-nls-dev');
 		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
 
@@ -124,7 +125,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 				.pipe(tsFilter)
 				.pipe(util.loadSourcemaps())
 				.pipe(compilation())
-				.pipe(build ? nlsDev.rewriteLocalizeCalls() : es.through())
 				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
 					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
@@ -134,9 +134,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 					sourceRoot: '../src/',
 				}))
 				.pipe(tsFilter.restore)
-				.pipe(build ? nlsDev.bundleMetaDataFiles(headerId, headerOut) : es.through())
-				// Filter out *.nls.json file. We needed them only to bundle meta data file.
-				.pipe(filter(['**', '!**/*.nls.json'], { dot: true }))
 				.pipe(reporter.end(emitError));
 
 			return es.duplex(input, output);

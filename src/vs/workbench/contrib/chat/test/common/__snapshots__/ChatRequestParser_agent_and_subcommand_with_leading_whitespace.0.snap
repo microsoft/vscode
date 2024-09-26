@@ -32,14 +32,18 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
         locations: [ "panel" ],
-        metadata: { description: "" },
+        metadata: {  },
         slashCommands: [
           {
             name: "subCommand",
             description: ""
           }
-        ]
+        ],
+        disambiguation: [  ]
       },
       kind: "agent"
     },
