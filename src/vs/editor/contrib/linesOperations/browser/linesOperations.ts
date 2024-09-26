@@ -1187,6 +1187,7 @@ export class SnakeCaseAction extends AbstractCaseAction {
 
 export class CamelCaseAction extends AbstractCaseAction {
 	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static validWordStart = new BackwardsCompatibleRegExp('^(\\p{Lu}[^\\p{Lu}])', 'gmu');
 
 	constructor() {
 		super({
@@ -1199,12 +1200,13 @@ export class CamelCaseAction extends AbstractCaseAction {
 
 	protected _modifyText(text: string, wordSeparators: string): string {
 		const wordBoundary = CamelCaseAction.wordBoundary.get();
-		if (!wordBoundary) {
+		const validWordStart = CamelCaseAction.validWordStart.get();
+		if (!wordBoundary || !validWordStart) {
 			// cannot support this
 			return text;
 		}
 		const words = text.split(wordBoundary);
-		const firstWord = words.shift();
+		const firstWord = words.shift()?.replace(validWordStart, (start: string) => start.toLocaleLowerCase());
 		return firstWord + words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
 			.join('');
 	}
