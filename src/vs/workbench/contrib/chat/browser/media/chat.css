@@ -524,12 +524,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 11px;
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
+	position: relative;
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-actions {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
 	gap: 6px;
 	align-items: center;
+	justify-content: end;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
