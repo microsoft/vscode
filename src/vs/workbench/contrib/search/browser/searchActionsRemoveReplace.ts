@@ -113,7 +113,7 @@ registerAction2(class RemoveAction extends Action2 {
 		let nextFocusElement;
 		const shouldRefocusMatch = shouldRefocus(elementsToRemove, focusElement);
 		if (focusElement && shouldRefocusMatch) {
-			nextFocusElement = getElementToFocusAfterRemoved(viewer, focusElement, elementsToRemove);
+			nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToRemove);
 		}
 
 		const searchResult = searchView.searchResult;
@@ -281,7 +281,7 @@ async function performReplace(accessor: ServicesAccessor,
 	}
 	let nextFocusElement;
 	if (focusElement) {
-		nextFocusElement = getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
+		nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
 	}
 
 	const searchResult = viewlet?.searchResult;
@@ -370,17 +370,17 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 /**
  * Returns element to focus after removing the given element
  */
-export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
+export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
 	if (element instanceof FolderMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
 	} else if (element instanceof FileMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FileMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
-			viewer.expand(navigator.current());
+			await viewer.expand(navigator.current());
 		}
 	} else {
 		while (navigator.next() && (!(navigator.current() instanceof Match) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
-			viewer.expand(navigator.current());
+			await viewer.expand(navigator.current());
 		}
 	}
 	return navigator.current();
