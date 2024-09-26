@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { nulToken } from '../utils/cancellation';
 import { isSupportedLanguageMode } from '../configuration/languageIds';
 import { DocumentSelector } from '../configuration/documentSelector';
 import { API } from '../tsServer/api';
@@ -13,25 +12,25 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireMinVersion } from './util/dependentRegistration';
 
 const minVersion = API.v570;
-const dummyDisposable = new vscode.Disposable(() => { });
 
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
-) {
+): vscode.Disposable {
 	return conditionalRegistration([
 		requireMinVersion(client, minVersion),
 	], () => {
 		const ext = vscode.extensions.getExtension('github.copilot');
 		if (!ext) {
-			return dummyDisposable;
+			return new vscode.Disposable(() => { });
 		}
+		const disposers: vscode.Disposable[] = [];
 		ext.activate().then(() => {
 			const relatedAPI = ext.exports as {
 				registerRelatedFilesProvider(
 					providerId: { extensionId: string; languageId: string },
-					callback: (uri: vscode.Uri) => Promise<{ entries: vscode.Uri[]; traits?: { name: string; value: string }[] }>
-				): void;
+					callback: (uri: vscode.Uri, cancellationToken: vscode.CancellationToken) => Promise<{ entries: vscode.Uri[]; traits?: { name: string; value: string }[] }>
+				): vscode.Disposable;
 			} | undefined;
 			if (relatedAPI?.registerRelatedFilesProvider) {
 				for (const syntax of selector.syntax) {
@@ -42,7 +41,7 @@ export function register(
 						extensionId: 'vscode.typescript-language-features',
 						languageId: syntax.language
 					};
-					relatedAPI.registerRelatedFilesProvider(id, async uri => {
+					disposers.push(relatedAPI.registerRelatedFilesProvider(id, async (uri, token) => {
 						let document;
 						try {
 							document = await vscode.workspace.openTextDocument(uri);
@@ -65,16 +64,16 @@ export function register(
 							return { entries: [] };
 						}
 						// @ts-expect-error until ts5.7
-						const response = await client.execute('copilotRelated', { file, }, nulToken) as Proto.CopilotRelatedResponse;
+						const response = await client.execute('copilotRelated', { file, }, token) as Proto.CopilotRelatedResponse;
 						if (response.type !== 'response' || !response.body) {
 							return { entries: [] };
 						}
 						// @ts-expect-error until ts5.7
 						return { entries: response.body.relatedFiles.map(f => client.toResource(f)), traits: [] };
-					});
+					}));
 				}
 			}
 		});
-		return dummyDisposable;
+		return vscode.Disposable.from(...disposers);
 	});
 }
