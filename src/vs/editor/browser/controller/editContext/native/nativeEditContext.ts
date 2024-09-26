@@ -27,6 +27,13 @@ import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 
+// Corresponds to classes in nativeEditContext.css
+enum CompositionClassName {
+	NONE = 'edit-context-composition-none',
+	SECONDARY = 'edit-context-composition-secondary',
+	PRIMARY = 'edit-context-composition-primary',
+}
+
 export class NativeEditContext extends AbstractEditContext {
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
@@ -257,16 +264,21 @@ export class NativeEditContext extends AbstractEditContext {
 			const startPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeStart);
 			const endPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeEnd);
 			const decorationRange = Range.fromPositions(startPositionOfDecoration, endPositionOfDecoration);
-			const classNames = [
-				'edit-context-format-decoration',
-				`underline-style-${f.underlineStyle.toLowerCase()}`,
-				`underline-thickness-${f.underlineThickness.toLowerCase()}`,
-			];
+			const thickness = f.underlineThickness.toLowerCase();
+			let decorationClassName: string = CompositionClassName.NONE;
+			switch (thickness) {
+				case 'thin':
+					decorationClassName = CompositionClassName.SECONDARY;
+					break;
+				case 'thick':
+					decorationClassName = CompositionClassName.PRIMARY;
+					break;
+			}
 			decorations.push({
 				range: decorationRange,
 				options: {
 					description: 'textFormatDecoration',
-					inlineClassName: classNames.join(' '),
+					inlineClassName: decorationClassName,
 				}
 			});
 		});
