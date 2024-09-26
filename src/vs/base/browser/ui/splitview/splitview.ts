@@ -1457,12 +1457,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			if (viewItem.snap) {
 				return index;
 			}
-		}
 
-		// then, hidden views
-		for (const index of indexes) {
-			const viewItem = this.viewItems[index];
-
+			// then, hidden views
 			if (viewItem.visible && viewItem.maximumSize - viewItem.minimumSize > 0) {
 				return undefined;
 			}
