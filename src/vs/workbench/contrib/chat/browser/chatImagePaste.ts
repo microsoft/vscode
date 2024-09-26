@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+// import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { localize } from '../../../../nls.js';
@@ -15,7 +15,7 @@ export class ChatImageDropAndPaste extends Disposable {
 
 	constructor(
 		private readonly inputPart: ChatInputPart,
-		@IClipboardService private readonly clipboardService: IClipboardService,
+		// @IClipboardService private readonly clipboardService: IClipboardService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -26,27 +26,27 @@ export class ChatImageDropAndPaste extends Disposable {
 		}));
 	}
 
-	public async _handlePaste(): Promise<void> {
-		const currClipboard = await this.clipboardService.readImage();
+	// private async _handlePaste(): Promise<void> {
+	// 	const currClipboard = await this.clipboardService.readImage();
 
-		if (!currClipboard || !isImage(currClipboard)) {
-			return;
-		}
-		const context = await getImageAttachContext(currClipboard);
-		if (!context) {
-			return;
-		}
+	// 	if (!currClipboard || !isImage(currClipboard)) {
+	// 		return;
+	// 	}
+	// 	const context = await getImageAttachContext(currClipboard);
+	// 	if (!context) {
+	// 		return;
+	// 	}
 
-		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
-		const filteredContext = [];
+	// 	const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
+	// 	const filteredContext = [];
 
-		if (!currentContextIds.has(context.id)) {
-			currentContextIds.add(context.id);
-			filteredContext.push(context);
-		}
+	// 	if (!currentContextIds.has(context.id)) {
+	// 		currentContextIds.add(context.id);
+	// 		filteredContext.push(context);
+	// 	}
 
-		this.inputPart.attachContext(false, ...filteredContext);
-	}
+	// 	this.inputPart.attachContext(false, ...filteredContext);
+	// }
 }
 
 async function getImageAttachContext(data: Uint8Array): Promise<IChatRequestVariableEntry> {

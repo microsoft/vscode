@@ -17,6 +17,7 @@ import { IChatWidgetService } from './chat.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
@@ -27,9 +28,14 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	constructor(
 		private readonly clipboardService: IClipboardService,
 		private readonly chatWidgetService: IChatWidgetService,
+		private readonly configurationService: IConfigurationService
 	) { }
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
+		if (!this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+			return;
+		}
+
 		const currClipboard = await this.clipboardService.readImage();
 
 		if (!currClipboard || !isImage(currClipboard)) {
@@ -99,8 +105,9 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(clipboardService, chatWidgetService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(clipboardService, chatWidgetService, configurationService)));
 	}
 }
