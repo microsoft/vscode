@@ -1414,6 +1414,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
 			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilter, this.configurationService);
 			if (configuredUntrustedWorkspaceSettings.length) {
+				// Add settings requiring trust.
 				resolvedSettingsRoot.children!.unshift({
 					id: 'workspaceTrust',
 					label: localize('settings require trust', "Workspace Trust"),
