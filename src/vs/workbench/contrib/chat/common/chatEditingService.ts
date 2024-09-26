@@ -15,7 +15,6 @@ export interface IChatEditingService {
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
-	readonly onDidDisposeEditingSession: Event<IChatEditingSession>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
@@ -25,13 +24,17 @@ export interface IChatEditingService {
 export interface IChatEditingSession {
 	readonly chatSessionId: string;
 	readonly onDidChange: Event<void>;
+	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly isVisible: boolean;
 	show(): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
-	dispose(): void;
+	/**
+	 * Will lead to this object getting disposed
+	 */
+	stop(): Promise<void>;
 }
 
 export const enum ModifiedFileEntryState {

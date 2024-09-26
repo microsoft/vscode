@@ -250,20 +250,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
-		let shouldRerenderEditingStateDisposable: IDisposable | null = null;
+		const chatEditingSessionDisposables = this._register(new DisposableStore());
+
 		this._register(this.chatEditingService.onDidCreateEditingSession((session) => {
-			if (session.chatSessionId === this.viewModel?.sessionId) {
-				shouldRerenderEditingStateDisposable = this._register(session.onDidChange(() => {
-					this.renderChatEditingSessionState(session);
-				}));
+			if (session.chatSessionId !== this.viewModel?.sessionId) {
+				// this chat editing session is for a different chat widget
+				return;
+			}
+			// make sure to clean up anything related to the prev session (if any)
+			chatEditingSessionDisposables.clear();
+			this.renderChatEditingSessionState(null); // this is necessary to make sure we dispose previous buttons, etc.
+
+			chatEditingSessionDisposables.add(session.onDidChange(() => {
 				this.renderChatEditingSessionState(session);
-			}
-		}));
-		this._register(this.chatEditingService.onDidDisposeEditingSession((session) => {
-			if (session.chatSessionId === this.viewModel?.sessionId || !this.viewModel) {
-				shouldRerenderEditingStateDisposable?.dispose();
+			}));
+			chatEditingSessionDisposables.add(session.onDidDispose(() => {
+				chatEditingSessionDisposables.clear();
 				this.renderChatEditingSessionState(null);
-			}
+			}));
+			this.renderChatEditingSessionState(session);
 		}));
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
