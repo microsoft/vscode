@@ -31,7 +31,10 @@ export interface IChatEditingSession {
 	show(): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
-	dispose(): void;
+	/**
+	 * Will lead to this object getting disposed
+	 */
+	stop(): Promise<void>;
 }
 
 export const enum ModifiedFileEntryState {

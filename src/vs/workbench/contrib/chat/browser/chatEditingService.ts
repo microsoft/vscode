@@ -8,7 +8,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -86,13 +85,13 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
-				this._killCurrentEditingSession();
+				void this._currentSessionObs.get()?.stop();
 			}
 		}));
 	}
 
 	override dispose(): void {
-		this._killCurrentEditingSession();
+		this._currentSessionObs.get()?.dispose();
 		super.dispose();
 	}
 
@@ -176,10 +175,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		} finally {
 			session.resolve();
 		}
-	}
-
-	private _killCurrentEditingSession() {
-		this._currentSessionObs.get()?.dispose();
 	}
 
 	private _findGroupedEditors() {
@@ -489,7 +484,7 @@ export class ChatEditingStopSessionAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
-		chatEditingService.currentEditingSession?.dispose();
+		await chatEditingService.currentEditingSession?.stop();
 	}
 }
 registerAction2(ChatEditingStopSessionAction);
@@ -578,7 +573,6 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		return this._state;
 	}
 
-	private readonly _editedResources = new ResourceSet();
 	private readonly _onDidChange = new Emitter<void>();
 	get onDidChange() {
 		this._assertNotDisposed();
@@ -666,17 +660,23 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this.editorPane = editorPane;
 	}
 
-	override dispose() {
+	async stop(): Promise<void> {
 		this._assertNotDisposed();
 
 		// Close out all open files
-		this._editorGroupsService.groups.forEach((g) => {
-			g.editors.forEach((e) => {
+		await Promise.allSettled(this._editorGroupsService.groups.map(async (g) => {
+			return Promise.allSettled(g.editors.map(async (e) => {
 				if (e instanceof MultiDiffEditorInput || e instanceof DiffEditorInput && (e.original.resource?.scheme === ModifiedFileEntry.scheme || e.original.resource?.scheme === ChatEditingTextModelContentProvider.scheme)) {
-					g.closeEditor(e);
+					await g.closeEditor(e);
 				}
-			});
-		});
+			}));
+		}));
+
+		this.dispose();
+	}
+
+	override dispose() {
+		this._assertNotDisposed();
 
 		super.dispose();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
@@ -744,7 +744,6 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this._register(entry);
 		this._entries = [...this._entries, entry];
 		this._entriesObs.set(this._entries, undefined);
-		this._editedResources.add(resource);
 		this._onDidChange.fire();
 
 		return entry;

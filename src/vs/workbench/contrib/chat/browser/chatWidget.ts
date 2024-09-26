@@ -259,6 +259,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			// make sure to clean up anything related to the prev session (if any)
 			chatEditingSessionDisposables.clear();
+			this.renderChatEditingSessionState(null); // this is necessary to make sure we dispose previous buttons, etc.
 
 			chatEditingSessionDisposables.add(session.onDidChange(() => {
 				this.renderChatEditingSessionState(session);
