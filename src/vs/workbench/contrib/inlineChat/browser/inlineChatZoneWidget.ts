@@ -168,6 +168,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	reveal(position: Position) {
+		this.editor.revealLinesInCenterIfOutsideViewport(position.lineNumber, position.lineNumber, ScrollType.Immediate);
 		this._scrollUp.reset();
 		this.updatePositionAndHeight(position);
 	}
