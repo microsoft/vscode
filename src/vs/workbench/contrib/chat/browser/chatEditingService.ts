@@ -712,6 +712,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private async _resolve(): Promise<void> {
 		this._state.set(ChatEditingSessionState.Idle, undefined);
+		this._onDidChange.fire();
 	}
 
 	private async _getOrCreateModifiedFileEntry(resource: URI): Promise<ModifiedFileEntry> {
