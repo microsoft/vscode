@@ -863,8 +863,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0 3px;
 }
 
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .monaco-toolbar,
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .actions-container {
+	height: initial;
+}
+
 .quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars {
 	margin-bottom: 1px;
+	align-items: flex-end;
 }
 
 .quick-input-widget .interactive-session .chat-input-container {
