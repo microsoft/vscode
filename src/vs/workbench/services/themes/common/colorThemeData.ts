@@ -24,7 +24,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ThemeConfiguration } from './themeConfiguration.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
-import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
+import { ColorId, FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
 import { toStandardTokenType } from '../../../../editor/common/languages/supports/tokenization.js';
 import { findMatchingThemeRule } from '../../textMate/common/TMHelper.js';
 
@@ -911,12 +911,11 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 	if (!themeRule) {
 		tokenStyle = colorThemeData.resolveScopes(captureNames.map(name => [name]).reverse());
 	}
-	if (!themeRule && !tokenStyle) {
-		return metadata;
-	}
 
-	const standardToken = toStandardTokenType(captureNames[captureNames.length - 1]);
-	metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
+	if (captureNames.length > 0) {
+		const standardToken = toStandardTokenType(captureNames[captureNames.length - 1]);
+		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
+	}
 
 	switch (themeRule?.settings.fontStyle) {
 		case 'italic':
@@ -950,11 +949,8 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 			}
 	}
 	const foreground = themeRule ? themeRule.settings.foreground : tokenStyle?.foreground;
-	if (foreground) {
-		const tokenStyleForeground = colorThemeData.getTokenColorIndex().get(foreground);
-		const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
-		metadata |= foregroundBits;
-	}
+	const tokenStyleForeground = foreground ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
+	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
 
 	return metadata;
 }
