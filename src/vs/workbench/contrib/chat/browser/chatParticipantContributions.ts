@@ -5,14 +5,14 @@
 
 import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -21,7 +21,7 @@ import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
@@ -322,41 +322,50 @@ function getParticipantKey(extensionId: ExtensionIdentifier, participantName: st
 	return `${extensionId.value}_${participantName}`;
 }
 
-export class ChatCompatibilityNotifier implements IWorkbenchContribution {
+export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatCompatNotifier';
+
+	private registeredWelcomeView = false;
 
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService chatAgentService: IChatAgentService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 	) {
+		super();
+
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
 		// but this is only enabled for Copilot Chat now and it needs to be obvious.
 		const isInvalid = CONTEXT_CHAT_EXTENSION_INVALID.bindTo(contextKeyService);
-		extensionsWorkbenchService.queryLocal().then(exts => {
-			const chat = exts.find(ext => ext.identifier.id === 'github.copilot-chat');
-			if (chat?.local?.validations.some(v => v[0] === Severity.Error)) {
-				const showExtensionLabel = localize('showExtension', "Show Extension");
-				const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the {0} extension is not compatible with this version of {1}. Please ensure that the GitHub Copilot Chat extension is up to date.", 'GitHub Copilot Chat', productService.nameLong);
-				const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
-				const versionMessage = `GitHub Copilot Chat version: ${chat.version}`;
-				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-				viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
-					content: [mainMessage, commandButton, versionMessage].join('\n\n'),
-					when: CONTEXT_CHAT_EXTENSION_INVALID,
-				});
-
-				// This catches vscode starting up with the invalid extension, but the extension may still get updated by vscode after this.
-				isInvalid.set(true);
+		this._register(Event.runAndSubscribe(
+			extensionsWorkbenchService.onDidChangeExtensionsNotification,
+			() => {
+				const notification = extensionsWorkbenchService.getExtensionsNotification();
+				const chatExtension = notification?.extensions.find(ext => ext.identifier.id === 'github.copilot-chat');
+				if (chatExtension) {
+					isInvalid.set(true);
+					this.registerWelcomeView(chatExtension);
+				} else {
+					isInvalid.set(false);
+				}
 			}
-		});
+		));
+	}
 
-		const listener = chatAgentService.onDidChangeAgents(() => {
-			if (chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
-				isInvalid.set(false);
-				listener.dispose();
-			}
-		});
+	private registerWelcomeView(chatExtension: IExtension) {
+		if (this.registeredWelcomeView) {
+			return;
+		}
+
+		this.registeredWelcomeView = true;
+		const showExtensionLabel = localize('showExtension', "Show Extension");
+		const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the {0} extension is not compatible with this version of {1}. Please ensure that the GitHub Copilot Chat extension is up to date.", 'GitHub Copilot Chat', this.productService.nameLong);
+		const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
+		const versionMessage = `GitHub Copilot Chat version: ${chatExtension.version}`;
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		this._register(viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
+			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
+			when: CONTEXT_CHAT_EXTENSION_INVALID,
+		}));
 	}
 }
