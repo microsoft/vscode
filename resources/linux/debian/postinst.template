@@ -70,17 +70,24 @@ if [ "@@NAME@@" != "code-oss" ]; then
 		WRITE_SOURCE='ask'
 	fi
 
-	if [ "$WRITE_SOURCE" = 'ask' ] && ! [ -t 1 ]; then
-		# By default, write sources in a non-interactive terminal
-		WRITE_SOURCE='yes'
-	elif [ "$WRITE_SOURCE" = 'ask' ] && [ -e '/usr/share/debconf/confmodule' ]; then
-		# Ask the user whether to actually write the source list
-		db_input high @@NAME@@/add-microsoft-repo || true
-		db_go || true
+	if [ "$WRITE_SOURCE" = 'ask' ]; then
+		if ! [ -t 1 ]; then
+			# By default, write sources in a non-interactive terminal
+			# to match old behavior.
+			WRITE_SOURCE='yes'
+		elif [ -e '/usr/share/debconf/confmodule' ]; then
+			# Ask the user whether to actually write the source list
+			db_input high @@NAME@@/add-microsoft-repo || true
+			db_go || true
 
-		db_get @@NAME@@/add-microsoft-repo
-		if [ "$RET" = false ]; then
-			WRITE_SOURCE='no'
+			db_get @@NAME@@/add-microsoft-repo
+			if [ "$RET" = false ]; then
+				WRITE_SOURCE='no'
+			fi
+		else
+			# The terminal is interactive but there is no debconf.
+			# Write sources to match old behavior.
+			WRITE_SOURCE='yes'
 		fi
 	fi
 
