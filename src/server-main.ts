@@ -231,7 +231,7 @@ async function findFreePort(host: string | undefined, start: number, end: number
 	return undefined;
 }
 
-function loadCode(nlsConfiguration: INLSConfiguration): Promise<typeof import('./vs/server/node/server.main')> {
+function loadCode(nlsConfiguration: INLSConfiguration): Promise<typeof import('./vs/server/node/server.main.js')> {
 	return new Promise((resolve, reject) => {
 
 		// required for `bootstrap-esm` to pick up NLS messages
