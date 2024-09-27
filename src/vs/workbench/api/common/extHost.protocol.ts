@@ -1534,7 +1534,7 @@ export interface SCMProviderFeatures {
 	count?: number;
 	commitTemplate?: string;
 	acceptInputCommand?: languages.Command;
-	actionButton?: SCMActionButtonDto | null;
+	actionButton?: SCMActionButtonDto;
 	statusBarCommands?: ICommandDto[];
 }
 

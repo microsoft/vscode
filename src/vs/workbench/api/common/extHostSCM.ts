@@ -27,6 +27,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { Schemas } from '../../../base/common/network.js';
 import { isLinux } from '../../../base/common/platform.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -654,13 +655,21 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		return this._actionButton;
 	}
+
 	set actionButton(actionButton: vscode.SourceControlActionButton | undefined) {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
-		this._actionButtonDisposables.value = new DisposableStore();
+
+		// We have to do this check before converting the command to it's internal
+		// representation since that would always create a command with a unique
+		// identifier
+		if (structuralEquals(this._actionButton, actionButton)) {
+			return;
+		}
 
 		this._actionButton = actionButton;
+		this._actionButtonDisposables.value = new DisposableStore();
 
-		const internal = actionButton !== undefined ?
+		const actionButtonDto = actionButton !== undefined ?
 			{
 				command: {
 					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
@@ -671,7 +680,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				}),
 				enabled: actionButton.enabled
 			} satisfies SCMActionButtonDto : undefined;
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
+
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto });
 	}
 
 
