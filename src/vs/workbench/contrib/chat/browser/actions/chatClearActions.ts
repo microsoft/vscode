@@ -19,6 +19,7 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED } from '../../common/chatContextKeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
@@ -139,7 +140,7 @@ export function registerNewChatActions() {
 				const viewsService = accessor.get(IViewsService);
 
 				let widget = widgetService.lastFocusedWidget;
-				if (!widget) {
+				if (!widget || widget.location !== ChatAgentLocation.EditingSession) {
 					const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
 					widget = chatView.widget;
 				}
