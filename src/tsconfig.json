@@ -28,8 +28,6 @@
 	"include": [
 		"./bootstrap-window.js",
 		"./main.js",
-		"./vs/base/parts/sandbox/electron-sandbox/preload-aux.js",
-		"./vs/base/parts/sandbox/electron-sandbox/preload.js",
 		"./vs/code/electron-sandbox/processExplorer/processExplorer.js",
 		"./vs/code/electron-sandbox/workbench/workbench.js",
 		"./vs/workbench/contrib/issue/electron-sandbox/issueReporter.js",
