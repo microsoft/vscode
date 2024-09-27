@@ -180,7 +180,7 @@
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .description {
-	font-size: 0.9em;
+	font-size: 12px;
 	padding-right: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;
