@@ -126,7 +126,7 @@ const windowBootstrapFiles = [
 	'out-build/bootstrap-window.js'
 ];
 
-const commonJSEntryPoints = [
+const bootstrapEntryPoints = [
 	'out-build/main.js',
 	'out-build/cli.js',
 	'out-build/bootstrap-fork.js'
@@ -141,27 +141,13 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	optimize.optimizeTask(
 		{
 			out: 'out-vscode',
-			amd: {
+			esm: {
 				src: 'out-build',
-				entryPoints: vscodeEntryPoints,
-				resources: vscodeResources,
-				bundleInfo: undefined
-			},
-			commonJS: {
-				src: 'out-build',
-				entryPoints: commonJSEntryPoints,
-				platform: 'node',
-				external: [
-					'electron',
-					'minimist',
-					'original-fs',
-					// We cannot inline `product.json` from here because
-					// it is being changed during build time at a later
-					// point in time (such as `checksums`)
-					// We have a manual step to inline these later.
-					'../product.json',
-					'../package.json',
-				]
+				entryPoints: [
+					...vscodeEntryPoints,
+					...bootstrapEntryPoints
+				],
+				resources: vscodeResources
 			},
 			manual: [
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
@@ -444,7 +430,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		}
 
 		result = inlineMeta(result, {
-			targetPaths: commonJSEntryPoints,
+			targetPaths: bootstrapEntryPoints,
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});

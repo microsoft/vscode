@@ -92,13 +92,10 @@ const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compi
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
 	{
 		out: 'out-editor',
-		amd: {
+		esm: {
 			src: 'out-editor-build',
 			entryPoints: editorEntryPoints,
-			resources: editorResources,
-			header: BUNDLED_FILE_HEADER,
-			bundleInfo: true,
-			languages
+			resources: editorResources
 		}
 	}
 ));

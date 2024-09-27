@@ -148,10 +148,10 @@ const serverWithWebEntryPoints = [
 	...webEntryPoints,
 ].flat();
 
-const commonJSEntryPoints = [
+const bootstrapEntryPoints = [
 	'out-build/server-main.js',
 	'out-build/server-cli.js',
-	'out-build/bootstrap-fork.js',
+	'out-build/bootstrap-fork.js'
 ];
 
 function getNodeVersion() {
@@ -436,7 +436,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		}
 
 		result = inlineMeta(result, {
-			targetPaths: commonJSEntryPoints,
+			targetPaths: bootstrapEntryPoints,
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
@@ -460,28 +460,14 @@ function tweakProductForServerWeb(product) {
 		optimize.optimizeTask(
 			{
 				out: `out-vscode-${type}`,
-				amd: {
+				esm: {
 					src: 'out-build',
-					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
-					otherSources: [],
+					entryPoints: [
+						...(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+						...bootstrapEntryPoints
+					],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
-					inlineAmdImages: true,
-					bundleInfo: undefined,
 					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-				},
-				commonJS: {
-					src: 'out-build',
-					entryPoints: commonJSEntryPoints,
-					platform: 'node',
-					external: [
-						'minimist',
-						// We cannot inline `product.json` from here because
-						// it is being changed during build time at a later
-						// point in time (such as `checksums`)
-						// We have a manual step to inline these later.
-						'../product.json',
-						'../package.json'
-					]
 				}
 			}
 		)

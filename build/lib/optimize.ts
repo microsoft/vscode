@@ -12,47 +12,25 @@ import * as fs from 'fs';
 import * as pump from 'pump';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
-import { Language, processNlsFiles } from './i18n';
-import * as util from './util';
 import { gulpPostcss } from './postcss';
 import * as esbuild from 'esbuild';
 import * as sourcemaps from 'gulp-sourcemaps';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-export interface IOptimizeAMDTaskOpts {
+export interface IOptimizeESMTaskOpts {
 	/**
 	 * The folder to read files from.
 	 */
 	src: string;
 	/**
-	 * (for AMD files, will get bundled and get Copyright treatment)
+	 * The entry points to bundle.
 	 */
-	entryPoints: bundle.IEntryPoint[];
+	entryPoints: Array<bundle.IEntryPoint | string>;
 	/**
-	 * (svg, etc.)
+	 * Other resources to consider (svg, etc.)
 	 */
-	resources: string[];
-	/**
-	 * Additional info we append to the end of the loader
-	 */
-	externalLoaderInfo?: util.IExternalLoaderInfo;
-	/**
-	 * (true by default - append css and nls to loader)
-	 */
-	bundleLoader?: boolean;
-	/**
-	 * (basically the Copyright treatment)
-	 */
-	header?: string;
-	/**
-	 * (emit bundleInfo.json file)
-	 */
-	bundleInfo: boolean;
-	/**
-	 * Language configuration.
-	 */
-	languages?: Language[];
+	resources?: string[];
 	/**
 	 * File contents interceptor
 	 * @param contents The contents of the file
@@ -61,20 +39,16 @@ export interface IOptimizeAMDTaskOpts {
 	fileContentMapper?: (contents: string, path: string) => string;
 }
 
-const DEFAULT_FILE_HEADER = [
-	'/*!--------------------------------------------------------',
-	' * Copyright (C) Microsoft Corporation. All rights reserved.',
-	' *--------------------------------------------------------*/'
-].join('\n');
-
-function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJSTaskOpts): NodeJS.ReadWriteStream {
+function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 
-	const entryPoints = opts.entryPoints;
-	if (cjsOpts) {
-		cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
-	}
+	const entryPoints = opts.entryPoints.map(entryPoint => {
+		if (typeof entryPoint === 'string') {
+			return { name: path.parse(entryPoint).name };
+		}
+		return entryPoint;
+	});
 
 	const allMentionedModules = new Set<string>();
 	for (const entryPoint of entryPoints) {
@@ -198,7 +172,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 		es.readArray(output.files).pipe(bundlesStream);
 
 		// forward all resources
-		gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
+		gulp.src(opts.resources ?? [], { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
 	});
 
 	const result = es.merge(
@@ -211,31 +185,7 @@ function optimizeESMTask(opts: IOptimizeAMDTaskOpts, cjsOpts?: IOptimizeCommonJS
 			sourceRoot: undefined,
 			addComment: true,
 			includeContent: true
-		}))
-		.pipe(opts.languages && opts.languages.length ? processNlsFiles({
-			out: opts.src,
-			fileHeader: opts.header || DEFAULT_FILE_HEADER,
-			languages: opts.languages
-		}) : es.through());
-}
-
-export interface IOptimizeCommonJSTaskOpts {
-	/**
-	 * The paths to consider for optimizing.
-	 */
-	entryPoints: string[];
-	/**
-	 * The folder to read files from.
-	 */
-	src: string;
-	/**
-	 * ESBuild `platform` option: https://esbuild.github.io/api/#platform
-	 */
-	platform: 'browser' | 'node' | 'neutral';
-	/**
-	 * ESBuild `external` option: https://esbuild.github.io/api/#external
-	 */
-	external: string[];
+		}));
 }
 
 export interface IOptimizeManualTaskOpts {
@@ -266,13 +216,9 @@ export interface IOptimizeTaskOpts {
 	 */
 	out: string;
 	/**
-	 * Optimize AMD modules (using our AMD loader).
-	 */
-	amd: IOptimizeAMDTaskOpts;
-	/**
-	 * Optimize CommonJS modules (using esbuild).
-	 */
-	commonJS?: IOptimizeCommonJSTaskOpts;
+	 * Optimize ESM modules (using esbuild).
+	*/
+	esm: IOptimizeESMTaskOpts;
 	/**
 	 * Optimize manually by concatenating files.
 	 */
@@ -282,7 +228,7 @@ export interface IOptimizeTaskOpts {
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		const optimizers: NodeJS.ReadWriteStream[] = [];
-		optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
+		optimizers.push(optimizeESMTask(opts.esm));
 
 		if (opts.manual) {
 			optimizers.push(optimizeManualTask(opts.manual));

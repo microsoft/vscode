@@ -15,23 +15,19 @@ const fs = require("fs");
 const pump = require("pump");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
-const i18n_1 = require("./i18n");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
-const DEFAULT_FILE_HEADER = [
-    '/*!--------------------------------------------------------',
-    ' * Copyright (C) Microsoft Corporation. All rights reserved.',
-    ' *--------------------------------------------------------*/'
-].join('\n');
-function optimizeESMTask(opts, cjsOpts) {
+function optimizeESMTask(opts) {
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
-    const entryPoints = opts.entryPoints;
-    if (cjsOpts) {
-        cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
-    }
+    const entryPoints = opts.entryPoints.map(entryPoint => {
+        if (typeof entryPoint === 'string') {
+            return { name: path.parse(entryPoint).name };
+        }
+        return entryPoint;
+    });
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
         allMentionedModules.add(entryPoint.name);
@@ -133,7 +129,7 @@ function optimizeESMTask(opts, cjsOpts) {
         // bundle output (JS, CSS, SVG...)
         es.readArray(output.files).pipe(bundlesStream);
         // forward all resources
-        gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
+        gulp.src(opts.resources ?? [], { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
     });
     const result = es.merge(bundlesStream, resourcesStream);
     return result
@@ -141,12 +137,7 @@ function optimizeESMTask(opts, cjsOpts) {
         sourceRoot: undefined,
         addComment: true,
         includeContent: true
-    }))
-        .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
-        out: opts.src,
-        fileHeader: opts.header || DEFAULT_FILE_HEADER,
-        languages: opts.languages
-    }) : es.through());
+    }));
 }
 function optimizeManualTask(options) {
     const concatenations = options.map(opt => {
@@ -159,7 +150,7 @@ function optimizeManualTask(options) {
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
+        optimizers.push(optimizeESMTask(opts.esm));
         if (opts.manual) {
             optimizers.push(optimizeManualTask(opts.manual));
         }

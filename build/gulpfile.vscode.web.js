@@ -164,14 +164,10 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	optimize.optimizeTask(
 		{
 			out: 'out-vscode-web',
-			amd: {
+			esm: {
 				src: 'out-build',
-				entryPoints: vscodeWebEntryPoints.flat(),
-				otherSources: [],
+				entryPoints: vscodeWebEntryPoints,
 				resources: vscodeWebResources,
-				externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
-				inlineAmdImages: true,
-				bundleInfo: undefined,
 				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
 			}
 		}
