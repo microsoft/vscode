@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'node:module';
-import { IProductConfiguration } from './vs/base/common/product';
+import type { IProductConfiguration } from './vs/base/common/product';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,8 +93,10 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 			while (commonSuffixLength < paths.length && paths[paths.length - 1 - commonSuffixLength] === globalPaths[globalPaths.length - 1 - commonSuffixLength]) {
 				commonSuffixLength++;
 			}
+
 			return paths.slice(0, paths.length - commonSuffixLength);
 		}
+
 		return paths;
 	};
 }
@@ -105,7 +107,7 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
 export function configurePortable(product: Partial<IProductConfiguration>): { portableDataPath: string; isPortable: boolean } {
 	const appRoot = path.dirname(__dirname);
 
-	function getApplicationPath() {
+	function getApplicationPath(): string {
 		if (process.env['VSCODE_DEV']) {
 			return appRoot;
 		}
@@ -117,7 +119,7 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 		return path.dirname(path.dirname(appRoot));
 	}
 
-	function getPortableDataPath() {
+	function getPortableDataPath(): string {
 		if (process.env['VSCODE_PORTABLE']) {
 			return process.env['VSCODE_PORTABLE'];
 		}

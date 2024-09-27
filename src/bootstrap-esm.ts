@@ -36,16 +36,15 @@ if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 	register(`data:text/javascript;base64,${Buffer.from(jsCode).toString('base64')}`, import.meta.url);
 }
 
+// Prepare globals that are needed for running
 globalThis._VSCODE_PRODUCT_JSON = { ...product };
 if (process.env['VSCODE_DEV']) {
-	// Patch product overrides when running out of sources
 	try {
 		const overrides = require('../product.overrides.json');
 		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
 	} catch (error) { /* ignore */ }
 }
 globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
-
 globalThis._VSCODE_FILE_ROOT = __dirname;
 
 //#region NLS helpers

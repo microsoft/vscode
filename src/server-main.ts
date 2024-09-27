@@ -257,7 +257,7 @@ function loadCode(nlsConfiguration: INLSConfiguration): Promise<typeof import('.
 	});
 }
 
-function hasStdinWithoutTty() {
+function hasStdinWithoutTty(): boolean {
 	try {
 		return !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
 	} catch (error) {

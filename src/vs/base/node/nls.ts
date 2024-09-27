@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as perf from '../common/performance.js';
-import { ILanguagePacks, INLSConfiguration } from '../../nls.js';
+import type { ILanguagePacks, INLSConfiguration } from '../../nls.js';
 
 export interface IResolveNLSConfigurationContext {
 
@@ -226,6 +226,7 @@ async function exists(path: string): Promise<boolean> {
 
 function touch(path: string): Promise<void> {
 	const date = new Date();
+
 	return fs.promises.utimes(path, date, date);
 }
 

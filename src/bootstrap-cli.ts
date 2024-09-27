@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 // Delete `VSCODE_CWD` very early. We have seen
 // reports where `code .` would use the wrong
 // current working directory due to our variable

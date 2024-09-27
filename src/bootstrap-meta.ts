@@ -6,7 +6,7 @@
 /* eslint-disable local/code-import-patterns */
 
 import { createRequire } from 'node:module';
-import { IProductConfiguration } from './vs/base/common/product.js';
+import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
 

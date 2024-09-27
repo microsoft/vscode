@@ -8,8 +8,8 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
-import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapESM from './bootstrap-esm.js';
+import { configurePortable } from './bootstrap-node.js';
+import { load } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -27,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 perf.mark('code/didStartMain');
 
 // Enable portable support
-const portable = bootstrapNode.configurePortable(product);
+const portable = configurePortable(product);
 
 const args = parseCLIArgs();
 // Configure static command line arguments
@@ -176,7 +176,7 @@ function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	perf.mark('code/willLoadMainBundle');
-	bootstrapESM.load('vs/code/electron-main/main', () => {
+	load('vs/code/electron-main/main', () => {
 		perf.mark('code/didLoadMainBundle');
 	});
 }
@@ -232,7 +232,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 				} else {
 					app.commandLine.appendSwitch(argvKey);
 				}
-			} else if (typeof argvValue === 'string') {
+			} else if (typeof argvValue === 'string' && argvValue) {
 				if (argvKey === 'password-store') {
 					// Password store
 					// TODO@TylerLeonhardt: Remove this migration in 3 months
