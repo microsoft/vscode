@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../typings/require.d.ts" />
-
 //@ts-check
 'use strict';
 
@@ -72,10 +70,7 @@ const module = { exports: {} };
 		};
 	}
 
-	if (!isESM && typeof define === 'function') {
-		// amd
-		define([], function () { return factory(); });
-	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+	if (typeof module === 'object' && typeof module.exports === 'object') {
 		// commonjs
 		module.exports = factory();
 	} else {

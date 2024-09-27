@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../../typings/require.d.ts" />
-
 //@ts-check
 'use strict';
 
@@ -116,15 +114,7 @@ const module = { exports: {} };
 		};
 	}
 
-	if (!isESM && typeof define === 'function') {
-		define(['path', 'os', 'vs/base/common/process'], function (
-			/** @type {typeof import('path')} */ path,
-			/** @type {typeof import('os')} */ os,
-			/** @type {typeof import("../../../base/common/process")} */ process
-		) {
-			return factory(path, os, process.cwd()); // amd
-		});
-	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+	if (typeof module === 'object' && typeof module.exports === 'object') {
 		module.exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
 	} else {
 		throw new Error('Unknown context');
