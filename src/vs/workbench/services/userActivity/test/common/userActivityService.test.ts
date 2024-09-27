@@ -6,9 +6,9 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IMarkActiveOptions, IUserActivityService, UserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IMarkActiveOptions, IUserActivityService, UserActivityService } from '../../common/userActivityService.js';
 
 const MARK_INACTIVE_DEBOUNCE = 10_000;
 

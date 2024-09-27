@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget';
-import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider';
-import { IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
-import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import * as dom from 'vs/base/browser/dom';
-import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
+import { StickyScrollWidget, StickyScrollWidgetState } from './stickyScrollWidget.js';
+import { IStickyLineCandidateProvider, StickyLineCandidateProvider } from './stickyScrollProvider.js';
+import { IModelTokensChangedEvent } from '../../../common/textModelEvents.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ClickLinkGesture, ClickLinkMouseEvent } from '../../gotoSymbol/browser/link/clickLinkGesture.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { getDefinitionsAtPosition } from '../../gotoSymbol/browser/goToSymbol.js';
+import { goToDefinitionWithLocation } from '../../inlayHints/browser/inlayHintsLocations.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { StickyRange } from './stickyScrollElement.js';
+import { IMouseEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { FoldingController } from '../../folding/browser/folding.js';
+import { FoldingModel, toggleCollapseState } from '../../folding/browser/foldingModel.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -572,7 +572,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
+							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						}
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {

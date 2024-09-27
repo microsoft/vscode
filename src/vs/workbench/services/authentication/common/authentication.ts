@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Use this if you don't want the onDidChangeSessions event to fire in the extension host
@@ -165,8 +165,53 @@ export const IAuthenticationExtensionsService = createDecorator<IAuthenticationE
 export interface IAuthenticationExtensionsService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Fires when an account preference for a specific provider has changed for the specified extensions. Does not fire when:
+	 * * An account preference is removed
+	 * * A session preference is changed (because it's deprecated)
+	 * * A session preference is removed (because it's deprecated)
+	 */
+	onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
+	/**
+	 * Returns the accountName (also known as account.label) to pair with `IAuthenticationAccessService` to get the account preference
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to get the preference for
+	 * @returns The accountName of the preference, or undefined if there is no preference set
+	 */
+	getAccountPreference(extensionId: string, providerId: string): string | undefined;
+	/**
+	 * Sets the account preference for the given provider and extension
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to set the preference for
+	 * @param account The account to set the preference to
+	 */
+	updateAccountPreference(extensionId: string, providerId: string, account: AuthenticationSessionAccount): void;
+	/**
+	 * Removes the account preference for the given provider and extension
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to remove the preference for
+	 */
+	removeAccountPreference(extensionId: string, providerId: string): void;
+	/**
+	 * @deprecated Sets the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param session
+	 */
 	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void;
+	/**
+	 * @deprecated Gets the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param scopes
+	 */
 	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined;
+	/**
+	 * @deprecated Removes the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param scopes
+	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
 	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;

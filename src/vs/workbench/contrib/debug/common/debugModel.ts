@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct } from 'vs/base/common/arrays';
-import { findLastIdx } from 'vs/base/common/arraysFind';
-import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { stringHash } from 'vs/base/common/hash';
-import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
-import { mixin } from 'vs/base/common/objects';
-import { autorun } from 'vs/base/common/observable';
-import * as resources from 'vs/base/common/resources';
-import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import * as nls from 'vs/nls';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
-import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
-import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
-import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { distinct } from '../../../../base/common/arrays.js';
+import { findLastIdx } from '../../../../base/common/arraysFind.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
+import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/buffer.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Emitter, Event, trackSetChanges } from '../../../../base/common/event.js';
+import { stringHash } from '../../../../base/common/hash.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { mixin } from '../../../../base/common/objects.js';
+import { autorun } from '../../../../base/common/observable.js';
+import * as resources from '../../../../base/common/resources.js';
+import { isString, isUndefinedOrNull } from '../../../../base/common/types.js';
+import { URI, URI as uri } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import * as nls from '../../../../nls.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from './debug.js';
+import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from './debugSource.js';
+import { DebugStorage } from './debugStorage.js';
+import { IDebugVisualizerService } from './debugVisualizers.js';
+import { DisassemblyViewInput } from './disassemblyViewInput.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -258,7 +258,7 @@ export class VisualizedExpression implements IExpression {
 		return Promise.resolve();
 	}
 	getChildren(): Promise<IExpression[]> {
-		return this.visualizer.getVisualizedChildren(this.treeId, this.treeItem.id);
+		return this.visualizer.getVisualizedChildren(this.session, this.treeId, this.treeItem.id);
 	}
 
 	getId(): string {
@@ -278,11 +278,16 @@ export class VisualizedExpression implements IExpression {
 	}
 
 	constructor(
+		private readonly session: IDebugSession | undefined,
 		private readonly visualizer: IDebugVisualizerService,
 		public readonly treeId: string,
 		public readonly treeItem: IDebugVisualizationTreeItem,
 		public readonly original?: Variable,
 	) { }
+
+	public getSession(): IDebugSession | undefined {
+		return this.session;
+	}
 
 	/** Edits the value, sets the {@link errorMessage} and returns false if unsuccessful */
 	public async edit(newValue: string) {
@@ -1422,7 +1427,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 	private exceptionBreakpoints!: ExceptionBreakpoint[];
 	private dataBreakpoints!: DataBreakpoint[];
 	private watchExpressions!: Expression[];
-	private watchExpressionChangeListeners: DisposableMap<string, IDisposable> = this._register(new DisposableMap());
 	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
@@ -1446,12 +1450,14 @@ export class DebugModel extends Disposable implements IDebugModel {
 			this._onDidChangeWatchExpressions.fire(undefined);
 		}));
 
+		this._register(trackSetChanges(
+			() => new Set(this.watchExpressions),
+			this.onDidChangeWatchExpressions,
+			(we) => we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)))
+		);
+
 		this.instructionBreakpoints = [];
 		this.sessions = [];
-
-		for (const we of this.watchExpressions) {
-			this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
-		}
 	}
 
 	getId(): string {
@@ -2025,7 +2031,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addWatchExpression(name?: string): IExpression {
 		const we = new Expression(name || '');
-		this.watchExpressionChangeListeners.set(we.getId(), we.onDidChangeValue((e) => this._onDidChangeWatchExpressionValue.fire(e)));
 		this.watchExpressions.push(we);
 		this._onDidChangeWatchExpressions.fire(we);
 
@@ -2043,11 +2048,6 @@ export class DebugModel extends Disposable implements IDebugModel {
 	removeWatchExpressions(id: string | null = null): void {
 		this.watchExpressions = id ? this.watchExpressions.filter(we => we.getId() !== id) : [];
 		this._onDidChangeWatchExpressions.fire(undefined);
-		if (!id) {
-			this.watchExpressionChangeListeners.clearAndDisposeAll();
-			return;
-		}
-		this.watchExpressionChangeListeners.deleteAndDispose(id);
 	}
 
 	moveWatchExpression(id: string, position: number): void {

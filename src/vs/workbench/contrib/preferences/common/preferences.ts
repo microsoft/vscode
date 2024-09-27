@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IExtensionRecommendations } from 'vs/base/common/product';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IExtensionRecommendations } from '../../../../base/common/product.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ISearchResult, ISettingsEditorModel } from '../../../services/preferences/common/preferences.js';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -97,6 +98,7 @@ export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutP
 export const ENABLE_LANGUAGE_FILTER = true;
 
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
+export const EXTENSION_FETCH_TIMEOUT_MS = 1000;
 
 export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
@@ -134,9 +136,9 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 			// Recommend prerelease if not on Stable.
 			const isStable = productService.quality === 'stable';
 			try {
-				const [extension] = await extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
-				if (extension) {
-					recommendedExtensionsGalleryInfo[key] = extension;
+				const extensions = await raceTimeout(extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None), EXTENSION_FETCH_TIMEOUT_MS);
+				if (extensions?.length === 1) {
+					recommendedExtensionsGalleryInfo[key] = extensions[0];
 				} else {
 					// same as network connection fail. we do not want a blank settings page: https://github.com/microsoft/vscode/issues/195722
 					// so instead of returning partial data we return undefined here

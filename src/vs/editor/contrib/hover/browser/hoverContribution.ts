@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DecreaseHoverVerbosityLevel, GoToBottomHoverAction, GoToTopHoverAction, IncreaseHoverVerbosityLevel, PageDownHoverAction, PageUpHoverAction, ScrollDownHoverAction, ScrollLeftHoverAction, ScrollRightHoverAction, ScrollUpHoverAction, ShowDefinitionPreviewHoverAction, ShowOrFocusHoverAction } from 'vs/editor/contrib/hover/browser/hoverActions';
-import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
-import 'vs/css!./hover';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ExtHoverAccessibleView, HoverAccessibilityHelp, HoverAccessibleView } from 'vs/editor/contrib/hover/browser/hoverAccessibleViews';
+import { DecreaseHoverVerbosityLevel, GoToBottomHoverAction, GoToTopHoverAction, IncreaseHoverVerbosityLevel, PageDownHoverAction, PageUpHoverAction, ScrollDownHoverAction, ScrollLeftHoverAction, ScrollRightHoverAction, ScrollUpHoverAction, ShowDefinitionPreviewHoverAction, ShowOrFocusHoverAction } from './hoverActions.js';
+import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { editorHoverBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { HoverParticipantRegistry } from './hoverTypes.js';
+import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
+import { MarkerHoverParticipant } from './markerHoverParticipant.js';
+import { ContentHoverController } from './contentHoverController.js';
+import { GlyphHoverController } from './glyphHoverController.js';
+import './hover.css';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ExtHoverAccessibleView, HoverAccessibilityHelp, HoverAccessibleView } from './hoverAccessibleViews.js';
 
 registerEditorContribution(ContentHoverController.ID, ContentHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
-registerEditorContribution(MarginHoverController.ID, MarginHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorContribution(GlyphHoverController.ID, GlyphHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);

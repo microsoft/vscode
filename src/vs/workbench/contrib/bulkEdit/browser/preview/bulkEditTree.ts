@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { Range } from 'vs/editor/common/core/range';
-import * as dom from 'vs/base/browser/dom';
-import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { FileKind } from 'vs/platform/files/common/files';
-import { localize } from 'vs/nls';
-import { ILabelService } from 'vs/platform/label/common/label';
-import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { basename } from 'vs/base/common/resources';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { compare } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from '../../../../../base/browser/ui/tree/tree.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { HighlightedLabel, IHighlight } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../../base/browser/ui/list/list.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from './bulkEditPreview.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { localize } from '../../../../../nls.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import type { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { compare } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
+import { SnippetParser } from '../../../../../editor/contrib/snippet/browser/snippetParser.js';
+import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
 // --- VIEW MODEL
 

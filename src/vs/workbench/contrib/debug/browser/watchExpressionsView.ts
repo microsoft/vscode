@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeMouseEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/common/codicons';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { localize } from 'vs/nls';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { watchExpressionsAdd, watchExpressionsRemoveAll } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { VariablesRenderer, VisualizedVariableRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IExpression, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDragAndDropData } from '../../../../base/browser/dnd.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IHighlight } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeMouseEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { localize } from '../../../../nls.js';
+import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ViewAction, ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IExpression, WATCH_VIEW_ID } from '../common/debug.js';
+import { Expression, Variable, VisualizedExpression } from '../common/debugModel.js';
+import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderViewTree } from './baseDebugView.js';
+import { DebugExpressionRenderer } from './debugExpressionRenderer.js';
+import { watchExpressionsAdd, watchExpressionsRemoveAll } from './debugIcons.js';
+import { VariablesRenderer, VisualizedVariableRenderer } from './variablesView.js';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 let ignoreViewUpdates = false;
@@ -50,6 +50,7 @@ export class WatchExpressionsView extends ViewPane {
 	private watchItemType: IContextKey<string | undefined>;
 	private variableReadonly: IContextKey<boolean>;
 	private menu: IMenu;
+	private expressionRenderer: DebugExpressionRenderer;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -78,6 +79,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.variableReadonly = CONTEXT_VARIABLE_IS_READONLY.bindTo(contextKeyService);
 		this.watchExpressionsExist.set(this.debugService.getModel().getWatchExpressions().length > 0);
 		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
+		this.expressionRenderer = instantiationService.createInstance(DebugExpressionRenderer);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -87,13 +89,12 @@ export class WatchExpressionsView extends ViewPane {
 		container.classList.add('debug-watch');
 		const treeContainer = renderViewTree(container);
 
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, linkDetector);
+		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, this.expressionRenderer);
 		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
 			[
 				expressionsRenderer,
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
-				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
+				this.instantiationService.createInstance(VariablesRenderer, this.expressionRenderer),
+				this.instantiationService.createInstance(VisualizedVariableRenderer, this.expressionRenderer),
 			],
 			this.instantiationService.createInstance(WatchExpressionsDataSource), {
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
@@ -279,7 +280,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	static readonly ID = 'watchexpression';
 
 	constructor(
-		private readonly linkDetector: LinkDetector,
+		private readonly expressionRenderer: DebugExpressionRenderer,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
@@ -330,12 +331,12 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		}
 
 		data.label.set(text, highlights, title);
-		renderExpressionValue(data.elementDisposable, expression, data.value, {
+		data.elementDisposable.add(this.expressionRenderer.renderValue(data.value, expression, {
 			showChanged: true,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-			linkDetector: this.linkDetector,
-			colorize: true
-		}, this.hoverService);
+			colorize: true,
+			session: expression.getSession(),
+		}));
 	}
 
 	protected getInputBoxOptions(expression: IExpression, settingValue: boolean): IInputBoxOptions {

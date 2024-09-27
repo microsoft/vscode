@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStateService } from 'vs/platform/state/node/state';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme } from 'vs/platform/window/common/window';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IStateService } from '../../state/node/state.js';
+import { IPartsSplash } from '../common/themeService.js';
+import { IColorScheme } from '../../window/common/window.js';
 
+// These default colors match our default themes
+// editor background color ("Dark Modern", etc...)
 const DEFAULT_BG_LIGHT = '#FFFFFF';
-const DEFAULT_BG_DARK = '#1E1E1E';
+const DEFAULT_BG_DARK = '#1F1F1F';
 const DEFAULT_BG_HC_BLACK = '#000000';
 const DEFAULT_BG_HC_LIGHT = '#FFFFFF';
 
@@ -132,10 +134,6 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
 				default: background = DEFAULT_BG_DARK;
 			}
-		}
-
-		if (isMacintosh && background.toUpperCase() === DEFAULT_BG_DARK) {
-			background = '#171717'; // https://github.com/electron/electron/issues/5150
 		}
 
 		return background;

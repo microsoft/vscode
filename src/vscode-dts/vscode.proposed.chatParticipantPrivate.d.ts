@@ -26,7 +26,11 @@ declare module 'vscode' {
 		/**
 		 * Code editor inline chat
 		 */
-		Editor = 4
+		Editor = 4,
+		/**
+		 * Chat is happening in an editing session
+		 */
+		EditingSession = 5,
 	}
 
 	export class ChatRequestEditorData {
@@ -55,6 +59,11 @@ declare module 'vscode' {
 		 * If automatic command detection is enabled.
 		 */
 		readonly enableCommandDetection: boolean;
+
+		/**
+		 * If the chat participant or command was automatically assigned.
+		 */
+		readonly isParticipantDetected: boolean;
 
 		/**
 		 * The location at which the chat is happening. This will always be one of the supported values

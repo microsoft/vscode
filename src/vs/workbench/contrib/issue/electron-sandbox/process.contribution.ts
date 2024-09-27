@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchProcessService } from 'vs/workbench/contrib/issue/common/issue';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INativeHostService } from 'vs/platform/native/common/native';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IProcessMainService } from 'vs/platform/issue/common/issue';
-import 'vs/workbench/contrib/issue/electron-sandbox/processService';
-import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
+import { localize, localize2 } from '../../../../nls.js';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { IWorkbenchProcessService } from '../common/issue.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IProcessMainService } from '../../../../platform/issue/common/issue.js';
+import './processService.js';
+import './issueMainService.js';
 
 
 //#region Commands

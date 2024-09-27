@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isUNC } from 'vs/base/common/extpath';
-import { Schemas } from 'vs/base/common/network';
-import { normalize, sep } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
+import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isUNC } from '../../../../base/common/extpath.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { normalize, sep } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { getWebviewContentMimeType } from '../../../../platform/webview/common/mimeTypes.js';
 
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied, NotModified }

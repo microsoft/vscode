@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter } from 'vscode';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef } from 'vscode';
 import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
@@ -512,4 +512,59 @@ export namespace Versions {
 		const [major, minor, patch] = ver.split('.');
 		return from(major, minor, patch, pre);
 	}
+}
+
+export function deltaHistoryItemRefs(before: SourceControlHistoryItemRef[], after: SourceControlHistoryItemRef[]): {
+	added: SourceControlHistoryItemRef[];
+	modified: SourceControlHistoryItemRef[];
+	removed: SourceControlHistoryItemRef[];
+} {
+	if (before.length === 0) {
+		return { added: after, modified: [], removed: [] };
+	}
+
+	const added: SourceControlHistoryItemRef[] = [];
+	const modified: SourceControlHistoryItemRef[] = [];
+	const removed: SourceControlHistoryItemRef[] = [];
+
+	let beforeIdx = 0;
+	let afterIdx = 0;
+
+	while (true) {
+		if (beforeIdx === before.length) {
+			added.push(...after.slice(afterIdx));
+			break;
+		}
+		if (afterIdx === after.length) {
+			removed.push(...before.slice(beforeIdx));
+			break;
+		}
+
+		const beforeElement = before[beforeIdx];
+		const afterElement = after[afterIdx];
+
+		const result = beforeElement.id.localeCompare(afterElement.id);
+
+		if (result === 0) {
+			if (beforeElement.revision !== afterElement.revision) {
+				// modified
+				modified.push(afterElement);
+			}
+
+			beforeIdx += 1;
+			afterIdx += 1;
+		} else if (result < 0) {
+			// beforeElement is smaller -> before element removed
+			removed.push(beforeElement);
+
+			beforeIdx += 1;
+		} else if (result > 0) {
+			// beforeElement is greater -> after element added
+			added.push(afterElement);
+
+			afterIdx += 1;
+		}
+	}
+
+	return { added, modified, removed };
 }

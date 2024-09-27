@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import TelemetryReporter from '@vscode/extension-telemetry';
+import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
+import { IExperimentationTelemetry } from 'vscode-tas-client';
 
 export const enum MicrosoftAccountType {
 	AAD = 'aad',
@@ -11,10 +12,27 @@ export const enum MicrosoftAccountType {
 	Unknown = 'unknown'
 }
 
-export class MicrosoftAuthenticationTelemetryReporter {
+export class MicrosoftAuthenticationTelemetryReporter implements IExperimentationTelemetry {
+	private sharedProperties: Record<string, string> = {};
 	protected _telemetryReporter: TelemetryReporter;
 	constructor(aiKey: string) {
 		this._telemetryReporter = new TelemetryReporter(aiKey);
+	}
+
+	get telemetryReporter(): TelemetryReporter {
+		return this._telemetryReporter;
+	}
+
+	setSharedProperty(name: string, value: string): void {
+		this.sharedProperties[name] = value;
+	}
+
+	postEvent(eventName: string, props: Map<string, string>): void {
+		const eventProperties: TelemetryEventProperties = { ...this.sharedProperties, ...Object.fromEntries(props) };
+		this._telemetryReporter.sendTelemetryEvent(
+			eventName,
+			eventProperties
+		);
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {

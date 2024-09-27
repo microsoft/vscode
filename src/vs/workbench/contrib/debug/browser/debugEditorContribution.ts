@@ -3,55 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { visit } from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { basename } from 'vs/base/common/path';
-import * as env from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { assertType, isDefined } from 'vs/base/common/types';
-import { Constants } from 'vs/base/common/uint';
-import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { InlineValue, InlineValueContext } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import * as nls from 'vs/nls';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
-import { DebugHoverWidget, ShowDebugHoverResult } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
-import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { addDisposableListener, isKeyboardEvent } from '../../../../base/browser/dom.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { illegalArgument, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
+import { visit } from '../../../../base/common/json.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../base/common/numbers.js';
+import { basename } from '../../../../base/common/path.js';
+import * as env from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { assertType, isDefined } from '../../../../base/common/types.js';
+import { Constants } from '../../../../base/common/uint.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CoreEditingCommands } from '../../../../editor/browser/coreCommands.js';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption, IEditorHoverOptions } from '../../../../editor/common/config/editorOptions.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { DEFAULT_WORD_REGEXP } from '../../../../editor/common/core/wordHelper.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
+import { InlineValue, InlineValueContext } from '../../../../editor/common/languages.js';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../../../../editor/common/model.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../../editor/common/services/languageFeatureDebounce.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { HoverStartMode, HoverStartSource } from '../../../../editor/contrib/hover/browser/hoverOperation.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { FloatingEditorClickWidget } from '../../../browser/codeeditor.js';
+import { DebugHoverWidget, ShowDebugHoverResult } from './debugHover.js';
+import { ExceptionWidget } from './exceptionWidget.js';
+import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from '../common/debug.js';
+import { Expression } from '../common/debugModel.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -564,7 +564,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	async addLaunchConfiguration(): Promise<any> {
+	async addLaunchConfiguration(): Promise<void> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return;

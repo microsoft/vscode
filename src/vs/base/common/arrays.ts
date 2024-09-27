@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { ISplice } from 'vs/base/common/sequence';
-import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
+import { CancellationToken } from './cancellation.js';
+import { CancellationError } from './errors.js';
+import { ISplice } from './sequence.js';
 
 /**
  * Returns the last element of an array.
@@ -361,7 +361,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts 
 /**
  * @deprecated Use `Array.copyWithin` instead
  */
-export function move(array: any[], from: number, to: number): void {
+export function move(array: unknown[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
 }
 
@@ -385,7 +385,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
  * Removes duplicates from the given array. The optional keyFn allows to specify
  * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknown = value => value): T[] {
 	const seen = new Set<any>();
 
 	return array.filter(element => {
@@ -411,18 +411,6 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 		seen.add(key);
 		return true;
 	};
-}
-
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[0] : notFoundValue;
-}
-
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[array.length - 1] : notFoundValue;
 }
 
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {

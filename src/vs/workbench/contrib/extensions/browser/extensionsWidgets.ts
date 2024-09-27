@@ -3,46 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionsWidgets';
-import * as semver from 'vs/base/common/semver/semver';
-import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $, reset, addDisposableListener, EventType, finalHandler } from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { EnablementState, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { extensionButtonProminentBackground, ExtensionStatusAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import Severity from 'vs/base/common/severity';
-import { Color } from 'vs/base/common/color';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
+import './media/extensionsWidgets.css';
+import * as semver from '../../../../base/common/semver/semver.js';
+import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from '../common/extensions.js';
+import { append, $, reset, addDisposableListener, EventType, finalHandler } from '../../../../base/browser/dom.js';
+import * as platform from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { IExtensionManagementServerService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { extensionButtonProminentBackground, ExtensionStatusAction } from './extensionsActions.js';
+import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from '../../../common/theme.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from './extensionsIcons.js';
+import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import Severity from '../../../../base/common/severity.js';
+import { Color } from '../../../../base/common/color.js';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -501,7 +501,7 @@ export class ExtensionActivationStatusWidget extends ExtensionWidget {
 			return;
 		}
 
-		const extensionStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
 		if (!extensionStatus || !extensionStatus.activationTimes) {
 			return;
 		}
@@ -647,7 +647,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		const preReleaseMessage = ExtensionHoverWidget.getPreReleaseMessage(this.extension);
-		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionStatus(this.extension);
+		const extensionRuntimeStatus = this.extensionsWorkbenchService.getExtensionRuntimeStatus(this.extension);
 		const extensionStatus = this.extensionStatusAction.status;
 		const runtimeState = this.extension.runtimeState;
 		const recommendationMessage = this.getRecommendationMessage(this.extension);
@@ -683,9 +683,6 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 					markdown.appendMarkdown(`$(${status.icon.id})&nbsp;`);
 				}
 				markdown.appendMarkdown(status.message.value);
-				if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency && this.extension.local) {
-					markdown.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`);
-				}
 				markdown.appendText(`\n`);
 			}
 

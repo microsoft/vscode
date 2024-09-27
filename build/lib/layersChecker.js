@@ -72,6 +72,7 @@ const CORE_TYPES = [
     '__global',
     'PerformanceMark',
     'PerformanceObserver',
+    'ImportMeta'
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -112,6 +113,22 @@ const RULES = [
             // Safe access to requestIdleCallback & cancelIdleCallback
             'requestIdleCallback',
             'cancelIdleCallback'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/common/performance.ts
+    {
+        target: '**/vs/base/common/performance.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to Performance
+            'Performance',
+            'PerformanceEntry',
+            'PerformanceTiming'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
@@ -173,9 +190,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/base/parts/sandbox/electron-sandbox/preload.js
+    // Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
     {
-        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
+        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
         allowedTypes: [
             ...CORE_TYPES,
             // Safe access to a very small subset of node.js
@@ -232,6 +249,22 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
+        ]
+    },
+    // Electron (utility)
+    {
+        target: '**/vs/**/electron-utility/**',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
+            'Event',
+            'Request'
+        ],
+        disallowedTypes: [
+            'ipcMain' // not allowed, use validatedIpcMain instead
+        ],
+        disallowedDefinitions: [
+            'lib.dom.d.ts' // no DOM
         ]
     },
     // Electron (main)
