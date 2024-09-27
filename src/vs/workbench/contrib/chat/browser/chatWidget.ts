@@ -1126,6 +1126,10 @@ export class ChatWidgetService implements IChatWidgetService {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
 	}
 
+	getWidgetByLocation(location: ChatAgentLocation): ChatWidget[] {
+		return this._widgets.filter(w => w.location === location);
+	}
+
 	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
 		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
 	}

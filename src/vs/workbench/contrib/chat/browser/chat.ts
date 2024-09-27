@@ -36,6 +36,7 @@ export interface IChatWidgetService {
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[];
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
