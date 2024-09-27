@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { Sequencer } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -29,20 +29,14 @@ import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_ENABLED, CONTEXT_CHAT_ENABLED } from '../common/chatContextKeys.js';
+import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from './chat.js';
-import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IChatWidgetService } from './chat.js';
 
 const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
@@ -98,7 +92,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super.dispose();
 	}
 
-	async startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<void> {
+	async startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
 		const session = this._currentSessionObs.get();
 		if (session) {
 			if (session.chatSessionId !== chatSessionId) {
@@ -108,7 +102,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._createEditingSession(chatSessionId, options);
 	}
 
-	private async _createEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<void> {
+	private async _createEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
 		if (this._currentSessionObs.get()) {
 			throw new BugIndicatingError('Cannot have more than one active editing session');
 		}
@@ -131,6 +125,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		this._currentSessionObs.set(session, undefined);
 		this._onDidCreateEditingSession.fire(session);
+		return session;
 	}
 
 	public triggerEditComputation(responseModel: IChatResponseModel): Promise<void> {
@@ -471,79 +466,6 @@ export class ChatEditingDiscardAllAction extends Action2 {
 }
 registerAction2(ChatEditingDiscardAllAction);
 
-export class ChatEditingStartSessionAction extends Action2 {
-	static readonly ID = 'chatEditing.startSession';
-	static readonly LABEL = localize2('chatEditing.startSession', 'Start Editing Session');
-
-	constructor() {
-		super({
-			id: ChatEditingStartSessionAction.ID,
-			title: ChatEditingStartSessionAction.LABEL,
-			category: CHAT_CATEGORY,
-			icon: Codicon.edit,
-			precondition: CONTEXT_CHAT_ENABLED,
-			f1: true,
-			menu: [{
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_ENABLED),
-				group: 'navigation',
-				order: 1
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const textEditorService = accessor.get(IEditorService);
-		const variablesService = accessor.get(IChatVariablesService);
-		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (currentEditingSession) {
-			return;
-		}
-
-		const panelWidgets = chatWidgetService.getWidgetByLocation(ChatAgentLocation.Panel);
-
-		const widget = panelWidgets[0] ?? await showChatView(viewsService);
-		if (!widget?.viewModel) {
-			return;
-		}
-
-		const visibleTextEditorControls = textEditorService.visibleTextEditorControls.filter((e) => isCodeEditor(e));
-		visibleTextEditorControls.forEach((e) => {
-			const activeUri = e.getModel()?.uri;
-			if (activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
-				variablesService.attachContext('file', { uri: activeUri, }, ChatAgentLocation.Panel);
-			}
-		});
-		await chatEditingService.startOrContinueEditingSession(widget.viewModel.sessionId, { silent: true });
-	}
-}
-
-
-
-registerAction2(ChatEditingStartSessionAction);
-export class ChatEditingStopSessionAction extends Action2 {
-	static readonly ID = 'chatEditing.stopSession';
-	static readonly LABEL = localize2('chatEditing.stopSession', 'Stop Editing Session');
-
-	constructor() {
-		super({
-			id: ChatEditingStopSessionAction.ID,
-			title: ChatEditingStopSessionAction.LABEL,
-			category: CHAT_CATEGORY,
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		await chatEditingService.currentEditingSession?.stop();
-	}
-}
-registerAction2(ChatEditingStopSessionAction);
-
 export class ChatEditingShowChangesAction extends Action2 {
 	static readonly ID = 'chatEditing.openDiffs';
 	static readonly LABEL = localize('chatEditing.openDiffs', 'Open Diffs');
@@ -727,7 +649,11 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			}));
 		}));
 
-		this.dispose();
+		if (this._state.get() !== ChatEditingSessionState.Disposed) {
+			// session got disposed while we were closing editors
+			this.dispose();
+		}
+
 	}
 
 	override dispose() {
