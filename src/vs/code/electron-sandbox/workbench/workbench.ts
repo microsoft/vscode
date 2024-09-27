@@ -10,12 +10,10 @@
 	type INativeWindowConfiguration = import('vs/platform/window/common/window.ts').INativeWindowConfiguration;
 	type NativeParsedArgs = import('vs/platform/environment/common/argv.js').NativeParsedArgs;
 	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
-	type PreloadGlobals = typeof import('vs/base/parts/sandbox/electron-sandbox/globals.js');
+	type IMainWindowSandboxGlobals = import('vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
 
-	// @ts-ignore (defined in bootstrap-window.js)
-	const bootstrapWindow: IBootstrapWindow = window.MonacoBootstrapWindow;
-	// @ts-ignore (defined in preload.ts)
-	const preloadGlobals: PreloadGlobals = window.vscode;
+	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; 	// defined by bootstrap-window.ts
+	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; 			// defined by preload.ts
 
 	// Add a perf entry right from the top
 	performance.mark('code/didStartRenderer');

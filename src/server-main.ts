@@ -25,8 +25,7 @@ import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/server/start');
-// @ts-ignore
-globalThis.vscodeServerStartTime = performance.now();
+(globalThis as any).vscodeServerStartTime = performance.now();
 
 // Do a quick parse to determine if a server or the cli needs to be started
 const parsedArgs = minimist(process.argv.slice(2), {
@@ -144,8 +143,7 @@ if (shouldSpawnCli) {
 		console.log(output);
 
 		perf.mark('code/server/started');
-		// @ts-ignore
-		globalThis.vscodeServerListenTime = performance.now();
+		(globalThis as any).vscodeServerListenTime = performance.now();
 
 		await getRemoteExtensionHostAgentServer();
 	});

@@ -215,8 +215,7 @@
 				return process.getProcessMemoryInfo();
 			},
 
-			on(type: string, callback: Function): void {
-				// @ts-ignore
+			on(type: string, callback: (...args: any[]) => void): void {
 				process.on(type, callback);
 			}
 		},
@@ -257,7 +256,6 @@
 			console.error(error);
 		}
 	} else {
-		// @ts-ignore
-		window.vscode = globals;
+		(window as any).vscode = globals;
 	}
 }());
