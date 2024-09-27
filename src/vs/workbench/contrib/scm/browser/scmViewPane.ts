@@ -104,6 +104,7 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>;
 
@@ -2988,13 +2989,20 @@ export class SCMActionButton implements IDisposable {
 				actions: actions,
 				addPrimaryActionToDropdown: false,
 				contextMenuProvider: this.contextMenuService,
+				hoverDelegate: createInstantHoverDelegate(),
 				title: button.command.tooltip,
 				supportIcons: true,
 				...defaultButtonStyles
 			});
 		} else {
 			// Button
-			this.button = new Button(this.container, { supportIcons: true, supportShortLabel: !!button.description, title: button.command.tooltip, ...defaultButtonStyles });
+			this.button = new Button(this.container, {
+				hoverDelegate: createInstantHoverDelegate(),
+				supportIcons: true,
+				supportShortLabel: !!button.description,
+				title: button.command.tooltip,
+				...defaultButtonStyles
+			});
 		}
 
 		this.button.enabled = button.enabled;

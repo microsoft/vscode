@@ -385,7 +385,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
+		this._register(getBaseLayerHoverDelegate().setupManagedHover(options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
 		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
 		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
