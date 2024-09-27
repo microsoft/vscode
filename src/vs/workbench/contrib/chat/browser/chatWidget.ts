@@ -808,6 +808,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
+		if (this._location.location === ChatAgentLocation.EditingSession) {
+			const currentSession = this.chatEditingService.currentEditingSession;
+			if (currentSession && (currentSession.chatSessionId !== model.sessionId)) {
+				currentSession?.stop();
+			}
+			this.chatEditingService.startOrContinueEditingSession(model.sessionId);
+		}
+
 		if (this.tree) {
 			this.onDidChangeItems();
 			revealLastElement(this.tree);
