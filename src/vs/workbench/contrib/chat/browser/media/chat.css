@@ -742,8 +742,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	margin-top: -2px;
-	margin-right: -2px;
-	padding-right: 2px;
+	margin-right: -4px;
+	padding-right: 4px;
 	padding-left: 2px;
 	height: calc(100% + 4px);
 }
