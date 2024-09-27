@@ -135,9 +135,9 @@ const bootstrapEntryPoints = [
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
-	// AMD and CommonJS import statements based on the passed
-	// in entry points. In addition, concat window related
-	// bootstrap files into a single file.
+	// import statements based on the passed in entry points.
+	// In addition, concat window related bootstrap files into
+	// a single file.
 	optimize.optimizeTask(
 		{
 			out: 'out-vscode',

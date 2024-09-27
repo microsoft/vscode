@@ -15,6 +15,7 @@ import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySu
 import { AuthInfo } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
+
 const require = createRequire(import.meta.url);
 const http = require('http');
 const https = require('https');

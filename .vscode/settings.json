@@ -11,7 +11,7 @@
 		"build/**/*.js.map": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		},
+		}
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc",

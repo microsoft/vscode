@@ -53,7 +53,7 @@ function getWorker(esmWorkerLocation: URI | undefined, label: string): Worker | 
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);
 }
 
-function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBaseUrl?: string): string {
+function getWorkerBootstrapUrl(label: string, workerScriptUrl: string): string {
 	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
@@ -78,7 +78,6 @@ function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerBas
 	// terminating characters (such as ' or ").
 	const blob = new Blob([coalesce([
 		`/*${label}*/`,
-		workerBaseUrl ? `globalThis.MonacoEnvironment = { baseUrl: ${JSON.stringify(workerBaseUrl)} };` : undefined,
 		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(getNLSMessages())};`,
 		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(getNLSLanguage())};`,
 		`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(globalThis._VSCODE_FILE_ROOT)};`,
