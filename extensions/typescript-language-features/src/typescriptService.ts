@@ -78,6 +78,12 @@ interface StandardTsServerRequests {
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
 	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
 	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
+
+	// Experimental
+
+	// FIll in right types here
+	// You can define the types in `extensions/typescript-language-features/src/tsServer/protocol/protocol.d.ts` before they are officially published
+	'getDropOrPasteEdit': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 }
 
 interface NoResponseTsServerRequests {
