@@ -21,7 +21,7 @@ import { IEditorService } from '../../editor/common/editorService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { canASAR } from '../../../../base/common/amd.js';
+import { canASAR } from '../../../../amdX.js';
 import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { ILanguageDetectionWorker, LanguageDetectionWorkerHost } from './languageDetectionWorker.protocol.js';

@@ -9,7 +9,6 @@ import * as http from 'http';
 import * as net from 'net';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
-import { LoaderStats } from '../../base/common/amd.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
@@ -849,16 +848,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	});
 
 	if (args['print-startup-performance']) {
-		const stats = LoaderStats.get();
 		let output = '';
-		output += '\n\n### Load AMD-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.amdLoad);
-		output += '\n\n### Load commonjs-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.nodeRequire);
-		output += '\n\n### Invoke AMD-module factory\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.amdInvoke);
-		output += '\n\n### Invoke commonjs-module\n';
-		output += LoaderStats.toMarkdownTable(['Module', 'Duration'], stats.nodeEval);
 		output += `Start-up time: ${vscodeServerListenTime - vscodeServerStartTime}\n`;
 		output += `Code loading time: ${vscodeServerCodeLoadedTime - vscodeServerStartTime}\n`;
 		output += `Initialized time: ${currentTime - vscodeServerStartTime}\n`;

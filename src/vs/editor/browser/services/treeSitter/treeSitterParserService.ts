@@ -15,11 +15,10 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { setTimeout0 } from '../../../../base/common/platform.js';
-import { importAMDNodeModule } from '../../../../amdX.js';
+import { canASAR, importAMDNodeModule } from '../../../../amdX.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
-import { canASAR } from '../../../../base/common/amd.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { PromiseResult } from '../../../../base/common/observable.js';
 import { Range } from '../../../common/core/range.js';

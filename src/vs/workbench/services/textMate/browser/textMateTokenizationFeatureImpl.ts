@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { canASAR } from '../../../../base/common/amd.js';
+import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';

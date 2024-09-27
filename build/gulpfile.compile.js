@@ -19,7 +19,6 @@ const optimize = require('./lib/optimize');
 function makeCompileBuildTask(disableMangle) {
 	return task.series(
 		util.rimraf('out-build'),
-		util.buildWebNodePaths('out-build'),
 		date.writeISODate('out-build'),
 		compilation.compileApiProposalNamesTask,
 		compilation.compileTask('src', 'out-build', true, { disableMangle }),

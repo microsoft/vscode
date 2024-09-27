@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { canASAR } from './base/common/amd.js';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath, Schemas, VSCODE_AUTHORITY } from './base/common/network.js';
 import * as platform from './base/common/platform.js';
 import { IProductConfiguration } from './base/common/product.js';
 import { URI } from './base/common/uri.js';
 import { generateUuid } from './base/common/uuid.js';
+
+export const canASAR = false; // TODO@esm: ASAR disabled in ESM
 
 class DefineCall {
 	constructor(
@@ -41,7 +42,6 @@ class AMDModuleImporter {
 	private _initialize(): void {
 		if (this._state === AMDModuleImporterState.Uninitialized) {
 			if ((globalThis as any).define) {
-				console.log('[amdX] AMD loader already present externally');
 				this._state = AMDModuleImporterState.InitializedExternal;
 				return;
 			}
@@ -98,9 +98,7 @@ class AMDModuleImporter {
 		if (this._state === AMDModuleImporterState.InitializedExternal) {
 			return new Promise<T>(resolve => {
 				const tmpModuleId = generateUuid();
-				console.log(`[amdX] Using external define("${tmpModuleId}", ["${scriptSrc}"])`);
 				(globalThis as any).define(tmpModuleId, [scriptSrc], function (moduleResult: T) {
-					console.log(`[amdX] Got a result for ${tmpModuleId}: ${!!moduleResult}`);
 					resolve(moduleResult);
 				});
 			});
@@ -108,7 +106,6 @@ class AMDModuleImporter {
 
 		const defineCall = await (this._isWebWorker ? this._workerLoadScript(scriptSrc) : this._isRenderer ? this._rendererLoadScript(scriptSrc) : this._nodeJSLoadScript(scriptSrc));
 		if (!defineCall) {
-			// throw new Error(`Did not receive a define call from script ${scriptSrc}`);
 			console.warn(`Did not receive a define call from script ${scriptSrc}`);
 			return <T>undefined;
 		}
