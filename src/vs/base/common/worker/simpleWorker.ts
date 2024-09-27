@@ -12,13 +12,6 @@ import { isWeb } from '../platform.js';
 import * as strings from '../strings.js';
 import { URI } from '../uri.js';
 
-// ESM-comment-begin
-// const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-const isESM = true;
-// ESM-uncomment-end
-
 const DEFAULT_CHANNEL = 'default';
 const INITIALIZE = '$initialize';
 
@@ -576,37 +569,13 @@ export class SimpleWorkerServer implements IWorkerServer {
 			globalThis.require.config(loaderConfig);
 		}
 
-		if (isESM) {
-			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-			return import(`${url}`).then((module: { create: IRequestHandlerFactory }) => {
-				this._requestHandler = module.create(this);
+		const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
+		return import(`${url}`).then((module: { create: IRequestHandlerFactory }) => {
+			this._requestHandler = module.create(this);
 
-				if (!this._requestHandler) {
-					throw new Error(`No RequestHandler!`);
-				}
-			});
-		}
-
-		return new Promise<void>((resolve, reject) => {
-			// Use the global require to be sure to get the global config
-
-			// ESM-comment-begin
-			// const req = (globalThis.require || require);
-			// ESM-comment-end
-			// ESM-uncomment-begin
-			const req = globalThis.require;
-			// ESM-uncomment-end
-
-			req([moduleId], (module: { create: IRequestHandlerFactory }) => {
-				this._requestHandler = module.create(this);
-
-				if (!this._requestHandler) {
-					reject(new Error(`No RequestHandler!`));
-					return;
-				}
-
-				resolve();
-			}, reject);
+			if (!this._requestHandler) {
+				throw new Error(`No RequestHandler!`);
+			}
 		});
 	}
 }

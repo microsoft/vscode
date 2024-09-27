@@ -9,9 +9,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -176,7 +173,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
 
   - ${{ elseif and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2

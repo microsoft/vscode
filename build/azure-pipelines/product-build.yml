@@ -100,10 +100,6 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
-  - name: VSCODE_BUILD_AMD # TODO@bpasero TODO@esm remove me once AMD is removed
-    displayName: "️❗ Build as AMD (!FOR EMERGENCY ONLY!) ️❗"
-    type: boolean
-    default: false
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -114,8 +110,6 @@ variables:
     value: ${{ parameters.CARGO_REGISTRY }}
   - name: VSCODE_QUALITY
     value: ${{ parameters.VSCODE_QUALITY }}
-  - name: VSCODE_BUILD_AMD
-    value: ${{ parameters.VSCODE_BUILD_AMD }}
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
@@ -225,7 +219,6 @@ extends:
               - template: build/azure-pipelines/product-compile.yml@self
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
 
       - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - stage: CompileCLI
@@ -363,7 +356,6 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
@@ -378,7 +370,6 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -393,7 +384,6 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -409,7 +399,6 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: x64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -433,7 +422,6 @@ extends:
                   - template: build/azure-pipelines/win32/product-build-win32.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_ARCH: arm64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
@@ -462,7 +450,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -478,7 +465,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: true
@@ -494,7 +480,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -512,7 +497,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -538,7 +522,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -554,7 +537,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -579,7 +561,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: x64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true) }}:
@@ -592,7 +573,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: armhf
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_RUN_INTEGRATION_TESTS: false
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true) }}:
@@ -605,7 +585,6 @@ extends:
                     parameters:
                       VSCODE_ARCH: arm64
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_RUN_INTEGRATION_TESTS: false
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
@@ -658,7 +637,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: true
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -672,7 +650,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: true
@@ -686,7 +663,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -701,7 +677,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false
@@ -716,7 +691,6 @@ extends:
                     - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                       parameters:
                         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                        VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                         VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                         VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                         VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -748,7 +722,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                      VSCODE_BUILD_AMD: ${{ variables.VSCODE_BUILD_AMD }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_UNIT_TESTS: false
                       VSCODE_RUN_INTEGRATION_TESTS: false

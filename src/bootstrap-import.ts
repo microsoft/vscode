@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
+/* eslint-disable local/code-import-patterns */
 
 // *********************************************************************
 // *                                                                   *
@@ -18,15 +18,9 @@ import { join } from 'node:path';
 
 // SEE https://nodejs.org/docs/latest/api/module.html#initialize
 
-/**
- * @type {Object.<string, string>}
- */
-const _specifierToUrl = {};
+const _specifierToUrl: Record<string, string> = {};
 
-/**
- * @param {string} injectPath
- */
-export async function initialize(injectPath) {
+export async function initialize(injectPath: string): Promise<void> {
 	// populate mappings
 
 	const injectPackageJSONPath = fileURLToPath(new URL('../package.json', pathToFileURL(injectPath)));
@@ -55,16 +49,10 @@ export async function initialize(injectPath) {
 	console.log(`[bootstrap-import] Initialized node_modules redirector for: ${injectPath}`);
 }
 
-/**
- * @param {string | number} specifier
- * @param {any} context
- * @param {(arg0: any, arg1: any) => any} nextResolve
- */
-export async function resolve(specifier, context, nextResolve) {
+export async function resolve(specifier: string | number, context: any, nextResolve: (arg0: any, arg1: any) => any) {
 
 	const newSpecifier = _specifierToUrl[specifier];
 	if (newSpecifier !== undefined) {
-		// console.log('[HOOKS]', specifier, '--->', newSpecifier);
 		return {
 			format: 'commonjs',
 			shortCircuit: true,

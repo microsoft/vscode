@@ -84,7 +84,7 @@ class OutputFileNameOracle {
 			} catch (err) {
 				console.error(file, cmdLine.fileNames);
 				console.error(err);
-				throw new err;
+				throw err;
 			}
 		};
 	}

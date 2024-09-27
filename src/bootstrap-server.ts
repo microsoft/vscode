@@ -3,7 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* NOTE: THIS FILE WILL BE OVERWRITTEN DURING BUILD TIME, DO NOT EDIT */
-
-div.monaco.main.css {
-}
+// Keep bootstrap-esm.js from redefining 'fs'.
+delete process.env['ELECTRON_RUN_AS_NODE'];

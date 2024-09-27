@@ -3,34 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+/* eslint-disable local/code-import-patterns */
 
-/**
- * @import { INLSConfiguration } from './vs/nls'
- * @import { NativeParsedArgs } from './vs/platform/environment/common/argv'
- */
-
-// ESM-comment-begin
-// const path = require('path');
-// const fs = require('original-fs');
-// const os = require('os');
-// const bootstrapNode = require('./bootstrap-node');
-// const bootstrapAmd = require('./bootstrap-amd');
-// const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath`);
-// const { parse } = require('./vs/base/common/jsonc');
-// const perf = require('./vs/base/common/performance');
-// const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-// const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
-// const product = require('./bootstrap-meta').product;
-// const { app, protocol, crashReporter, Menu, contentTracing } = require('electron');
-// ESM-comment-end
-// ESM-uncomment-begin
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
-import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import { configurePortable } from './bootstrap-node.js';
+import { load } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -40,21 +19,15 @@ import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js'
 import * as perf from './vs/base/common/performance.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
+import { INLSConfiguration } from './vs/nls.js';
+import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// ESM-uncomment-end
 
 perf.mark('code/didStartMain');
 
 // Enable portable support
-const portable = bootstrapNode.configurePortable(product);
-
-// Enable ASAR support
-bootstrapNode.enableASARSupport();
-
-// ESM-comment-begin
-// const minimist = require('minimist'); // !!! IMPORTANT: MUST come after bootstrap#enableASARSupport
-// ESM-comment-end
+const portable = configurePortable(product);
 
 const args = parseCLIArgs();
 // Configure static command line arguments
@@ -134,10 +107,8 @@ registerListeners();
  * We can resolve the NLS configuration early if it is defined
  * in argv.json before `app.ready` event. Otherwise we can only
  * resolve NLS after `app.ready` event to resolve the OS locale.
- *
- * @type {Promise<INLSConfiguration> | undefined}
  */
-let nlsConfigurationPromise = undefined;
+let nlsConfigurationPromise: Promise<INLSConfiguration> | undefined = undefined;
 
 // Use the most preferred OS language for language recommendation.
 // The API might return an empty array on Linux, such as when
@@ -199,25 +170,18 @@ async function onReady() {
 
 /**
  * Main startup routine
- *
- * @param {string | undefined} codeCachePath
- * @param {INLSConfiguration} nlsConfig
  */
-function startup(codeCachePath, nlsConfig) {
+function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): void {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
-	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	bootstrapAmd.load('vs/code/electron-main/main', () => {
+	load('vs/code/electron-main/main', () => {
 		perf.mark('code/didLoadMainBundle');
 	});
 }
 
-/**
- * @param {NativeParsedArgs} cliArgs
- */
-function configureCommandlineSwitchesSync(cliArgs) {
+function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
 
 		// alias from us for --disable-gpu
@@ -268,7 +232,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				} else {
 					app.commandLine.appendSwitch(argvKey);
 				}
-			} else if (argvValue) {
+			} else if (typeof argvValue === 'string' && argvValue) {
 				if (argvKey === 'password-store') {
 					// Password store
 					// TODO@TylerLeonhardt: Remove this migration in 3 months
@@ -334,11 +298,26 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	return argvConfig;
 }
 
-function readArgvConfigSync() {
+interface IArgvConfig {
+	[key: string]: string | string[] | boolean | undefined;
+	readonly locale?: string;
+	readonly 'disable-lcd-text'?: boolean;
+	readonly 'proxy-bypass-list'?: string;
+	readonly 'disable-hardware-acceleration'?: boolean;
+	readonly 'force-color-profile'?: string;
+	readonly 'enable-crash-reporter'?: boolean;
+	readonly 'crash-reporter-id'?: string;
+	readonly 'enable-proposed-api'?: string[];
+	readonly 'log-level'?: string | string[];
+	readonly 'disable-chromium-sandbox'?: boolean;
+	readonly 'use-inmemory-secretstorage'?: boolean;
+}
+
+function readArgvConfigSync(): IArgvConfig {
 
 	// Read or create the argv.json config file sync before app('ready')
 	const argvConfigPath = getArgvConfigPath();
-	let argvConfig;
+	let argvConfig: IArgvConfig | undefined = undefined;
 	try {
 		argvConfig = parse(fs.readFileSync(argvConfigPath).toString());
 	} catch (error) {
@@ -357,10 +336,7 @@ function readArgvConfigSync() {
 	return argvConfig;
 }
 
-/**
- * @param {string} argvConfigPath
- */
-function createDefaultArgvConfigSync(argvConfigPath) {
+function createDefaultArgvConfigSync(argvConfigPath: string): void {
 	try {
 
 		// Ensure argv config parent exists
@@ -392,7 +368,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 	}
 }
 
-function getArgvConfigPath() {
+function getArgvConfigPath(): string {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
 	if (vscodePortable) {
 		return path.join(vscodePortable, 'argv.json');
@@ -403,12 +379,10 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
-	// @ts-ignore
-	return path.join(os.homedir(), dataFolderName, 'argv.json');
+	return path.join(os.homedir(), dataFolderName!, 'argv.json');
 }
 
-function configureCrashReporter() {
-
+function configureCrashReporter(): void {
 	let crashReporterDirectory = args['crash-reporter-directory'];
 	let submitURL = '';
 	if (crashReporterDirectory) {
@@ -443,7 +417,7 @@ function configureCrashReporter() {
 			const isDarwin = (process.platform === 'darwin');
 			const crashReporterId = argvConfig['crash-reporter-id'];
 			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-			if (uuidPattern.test(crashReporterId)) {
+			if (crashReporterId && uuidPattern.test(crashReporterId)) {
 				if (isWindows) {
 					switch (process.arch) {
 						case 'x64':
@@ -499,12 +473,8 @@ function configureCrashReporter() {
 	});
 }
 
-/**
- * @param {NativeParsedArgs} cliArgs
- * @returns {string | null}
- */
-function getJSFlags(cliArgs) {
-	const jsFlags = [];
+function getJSFlags(cliArgs: NativeParsedArgs): string | null {
+	const jsFlags: string[] = [];
 
 	// Add any existing JS flags we already got from the command line
 	if (cliArgs['js-flags']) {
@@ -514,10 +484,7 @@ function getJSFlags(cliArgs) {
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
-/**
- * @returns {NativeParsedArgs}
- */
-function parseCLIArgs() {
+function parseCLIArgs(): NativeParsedArgs {
 	return minimist(process.argv, {
 		string: [
 			'user-data-dir',
@@ -537,33 +504,25 @@ function parseCLIArgs() {
 	});
 }
 
-function registerListeners() {
+function registerListeners(): void {
 
 	/**
 	 * macOS: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
-	 *
-	 * @type {string[]}
 	 */
-	const macOpenFiles = [];
+	const macOpenFiles: string[] = [];
 	// @ts-ignore
-	global['macOpenFiles'] = macOpenFiles;
+	globalThis['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
 	});
 
 	/**
 	 * macOS: react to open-url requests.
-	 *
-	 * @type {string[]}
 	 */
-	const openUrls = [];
+	const openUrls: string[] = [];
 	const onOpenUrl =
-		/**
-		 * @param {{ preventDefault: () => void; }} event
-		 * @param {string} url
-		 */
-		function (event, url) {
+		function (event: { preventDefault: () => void }, url: string) {
 			event.preventDefault();
 
 			openUrls.push(url);
@@ -574,18 +533,14 @@ function registerListeners() {
 	});
 
 	// @ts-ignore
-	global['getOpenUrls'] = function () {
+	globalThis['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 
 		return openUrls;
 	};
 }
 
-/**
- * @returns {string | undefined} the location to use for the code cache
- * or `undefined` if disabled.
- */
-function getCodeCachePath() {
+function getCodeCachePath(): string | undefined {
 
 	// explicitly disabled via CLI args
 	if (process.argv.indexOf('--no-cached-data') > 0) {
@@ -606,11 +561,7 @@ function getCodeCachePath() {
 	return path.join(userDataPath, 'CachedData', commit);
 }
 
-/**
- * @param {string | undefined} dir
- * @returns {Promise<string | undefined>}
- */
-async function mkdirpIgnoreError(dir) {
+async function mkdirpIgnoreError(dir: string | undefined): Promise<string | undefined> {
 	if (typeof dir === 'string') {
 		try {
 			await fs.promises.mkdir(dir, { recursive: true });
@@ -626,13 +577,10 @@ async function mkdirpIgnoreError(dir) {
 
 //#region NLS Support
 
-/**
- * @param {string} appLocale
- * @returns string
- */
-function processZhLocale(appLocale) {
+function processZhLocale(appLocale: string): string {
 	if (appLocale.startsWith('zh')) {
 		const region = appLocale.split('-')[1];
+
 		// On Windows and macOS, Chinese languages returned by
 		// app.getPreferredSystemLanguages() start with zh-hans
 		// for Simplified Chinese or zh-hant for Traditional Chinese,
@@ -645,17 +593,17 @@ function processZhLocale(appLocale) {
 		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
 			return 'zh-cn';
 		}
+
 		return 'zh-tw';
 	}
+
 	return appLocale;
 }
 
 /**
  * Resolve the NLS configuration
- *
- * @return {Promise<INLSConfiguration>}
  */
-async function resolveNlsConfiguration() {
+async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 
 	// First, we need to test a user defined locale.
 	// If it fails we try the app locale.
@@ -700,11 +648,8 @@ async function resolveNlsConfiguration() {
  * To make this work on case preserving & insensitive FS we do the following:
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.
- *
- * @param {{ locale: string | undefined; }} argvConfig
- * @returns {string | undefined}
  */
-function getUserDefinedLocale(argvConfig) {
+function getUserDefinedLocale(argvConfig: IArgvConfig): string | undefined {
 	const locale = args['locale'];
 	if (locale) {
 		return locale.toLowerCase(); // a directly provided --locale always wins

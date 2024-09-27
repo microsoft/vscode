@@ -3,88 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// @ts-check
-'use strict';
+/* eslint-disable local/code-import-patterns */
 
-/**
- * @import { INLSConfiguration } from './vs/nls'
- * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
- */
-
-// ESM-comment-begin
-// // Keep bootstrap-amd.js from redefining 'fs'.
-// delete process.env['ELECTRON_RUN_AS_NODE'];
-//
-// const path = require('path');
-// const http = require('http');
-// const os = require('os');
-// const readline = require('readline');
-// const performance = require('perf_hooks').performance;
-// const bootstrapNode = require('./bootstrap-node');
-// const bootstrapAmd = require('./bootstrap-amd');
-// const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-// const product = require('./bootstrap-meta').product;
-// const perf = require(`./vs/base/common/performance`);
-// const minimist = require('minimist');
-// ESM-comment-end
-// ESM-uncomment-begin
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 import * as path from 'path';
 import * as http from 'http';
+import { AddressInfo } from 'net';
 import * as os from 'os';
 import * as readline from 'readline';
 import { performance } from 'perf_hooks';
 import { fileURLToPath } from 'url';
 import minimist from 'minimist';
-import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import { devInjectNodeModuleLookupPath } from './bootstrap-node.js';
+import { load } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 import * as perf from './vs/base/common/performance.js';
+import { INLSConfiguration } from './vs/nls.js';
+import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// ESM-uncomment-end
 
 perf.mark('code/server/start');
 // @ts-ignore
-global.vscodeServerStartTime = performance.now();
+globalThis.vscodeServerStartTime = performance.now();
 
-async function start() {
-
-	// Do a quick parse to determine if a server or the cli needs to be started
-	const parsedArgs = minimist(process.argv.slice(2), {
-		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility'],
-		alias: { help: 'h', version: 'v' }
-	});
-	['host', 'port', 'accept-server-license-terms'].forEach(e => {
-		if (!parsedArgs[e]) {
-			const envValue = process.env[`VSCODE_SERVER_${e.toUpperCase().replace('-', '_')}`];
-			if (envValue) {
-				parsedArgs[e] = envValue;
-			}
+// Do a quick parse to determine if a server or the cli needs to be started
+const parsedArgs = minimist(process.argv.slice(2), {
+	boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms', 'update-extensions'],
+	string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'compatibility'],
+	alias: { help: 'h', version: 'v' }
+});
+['host', 'port', 'accept-server-license-terms'].forEach(e => {
+	if (!parsedArgs[e]) {
+		const envValue = process.env[`VSCODE_SERVER_${e.toUpperCase().replace('-', '_')}`];
+		if (envValue) {
+			parsedArgs[e] = envValue;
 		}
-	});
-
-	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
-	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'update-extensions'];
-
-	const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
-
-	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
-
-	if (shouldSpawnCli) {
-		loadCode(nlsConfiguration).then((mod) => {
-			mod.spawnCli();
-		});
-		return;
 	}
+});
 
-	/** @type {IServerAPI | null} */
-	let _remoteExtensionHostAgentServer = null;
-	/** @type {Promise<IServerAPI> | null} */
-	let _remoteExtensionHostAgentServerPromise = null;
-	/** @returns {Promise<IServerAPI>} */
+const extensionLookupArgs = ['list-extensions', 'locate-extension'];
+const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'update-extensions'];
+
+const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
+
+const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
+
+if (shouldSpawnCli) {
+	loadCode(nlsConfiguration).then((mod) => {
+		mod.spawnCli();
+	});
+} else {
+	let _remoteExtensionHostAgentServer: IServerAPI | null = null;
+	let _remoteExtensionHostAgentServerPromise: Promise<IServerAPI> | null = null;
 	const getRemoteExtensionHostAgentServer = () => {
 		if (!_remoteExtensionHostAgentServerPromise) {
 			_remoteExtensionHostAgentServerPromise = loadCode(nlsConfiguration).then(async (mod) => {
@@ -118,8 +90,7 @@ async function start() {
 	let firstRequest = true;
 	let firstWebSocket = true;
 
-	/** @type {string | import('net').AddressInfo | null} */
-	let address = null;
+	let address: string | AddressInfo | null = null;
 	const server = http.createServer(async (req, res) => {
 		if (firstRequest) {
 			firstRequest = false;
@@ -174,7 +145,7 @@ async function start() {
 
 		perf.mark('code/server/started');
 		// @ts-ignore
-		global.vscodeServerListenTime = performance.now();
+		globalThis.vscodeServerListenTime = performance.now();
 
 		await getRemoteExtensionHostAgentServer();
 	});
@@ -186,11 +157,8 @@ async function start() {
 		}
 	});
 }
-/**
- * @param {any} val
- * @returns {string | undefined}
- */
-function sanitizeStringArg(val) {
+
+function sanitizeStringArg(val: any): string | undefined {
 	if (Array.isArray(val)) { // if an argument is passed multiple times, minimist creates an array
 		val = val.pop(); // take the last item
 	}
@@ -205,14 +173,10 @@ function sanitizeStringArg(val) {
  * free port available in range.
  *
  * In absence of specified ports, connect to port 8000.
- * @param {string | undefined} host
- * @param {string | undefined} strPort
- * @returns {Promise<number>}
- * @throws
  */
-async function parsePort(host, strPort) {
+async function parsePort(host: string | undefined, strPort: string | undefined): Promise<number> {
 	if (strPort) {
-		let range;
+		let range: { start: number; end: number } | undefined;
 		if (strPort.match(/^\d+$/)) {
 			return parseInt(strPort, 10);
 		} else if (range = parseRange(strPort)) {
@@ -232,11 +196,7 @@ async function parsePort(host, strPort) {
 	return 8000;
 }
 
-/**
- * @param {string} strRange
- * @returns {{ start: number; end: number } | undefined}
- */
-function parseRange(strRange) {
+function parseRange(strRange: string): { start: number; end: number } | undefined {
 	const match = strRange.match(/^(\d+)-(\d+)$/);
 	if (match) {
 		const start = parseInt(match[1], 10), end = parseInt(match[2], 10);
@@ -250,15 +210,9 @@ function parseRange(strRange) {
 /**
  * Starting at the `start` port, look for a free port incrementing
  * by 1 until `end` inclusive. If no free port is found, undefined is returned.
- *
- * @param {string | undefined} host
- * @param {number} start
- * @param {number} end
- * @returns {Promise<number | undefined>}
- * @throws
  */
-async function findFreePort(host, start, end) {
-	const testPort = (/** @type {number} */ port) => {
+async function findFreePort(host: string | undefined, start: number, end: number): Promise<number | undefined> {
+	const testPort = (port: number) => {
 		return new Promise((resolve) => {
 			const server = http.createServer();
 			server.listen(port, host, () => {
@@ -277,15 +231,11 @@ async function findFreePort(host, start, end) {
 	return undefined;
 }
 
-/**
- * @param {INLSConfiguration} nlsConfiguration
- * @returns { Promise<typeof import('./vs/server/node/server.main')> }
- */
-function loadCode(nlsConfiguration) {
+function loadCode(nlsConfiguration: INLSConfiguration): Promise<typeof import('./vs/server/node/server.main')> {
 	return new Promise((resolve, reject) => {
 
-		/** @type {INLSConfiguration} */
-		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
+		// required for `bootstrap-esm` to pick up NLS messages
+		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration);
 
 		// See https://github.com/microsoft/vscode-remote-release/issues/6543
 		// We would normally install a SIGPIPE listener in bootstrap-node.js
@@ -297,15 +247,17 @@ function loadCode(nlsConfiguration) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
 			process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
+			devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 		} else {
 			delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
-		bootstrapAmd.load('vs/server/node/server.main', resolve, reject);
+
+		// Load Server
+		load('vs/server/node/server.main', resolve, reject);
 	});
 }
 
-function hasStdinWithoutTty() {
+function hasStdinWithoutTty(): boolean {
 	try {
 		return !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
 	} catch (error) {
@@ -314,11 +266,7 @@ function hasStdinWithoutTty() {
 	return false;
 }
 
-/**
- * @param {string} question
- * @returns { Promise<boolean> }
- */
-function prompt(question) {
+function prompt(question: string): Promise<boolean> {
 	const rl = readline.createInterface({
 		input: process.stdin,
 		output: process.stdout
@@ -338,5 +286,3 @@ function prompt(question) {
 		});
 	});
 }
-
-start();

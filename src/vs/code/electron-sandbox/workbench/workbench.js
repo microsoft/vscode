@@ -23,10 +23,7 @@
 	// optimization to prevent a waterfall of loading to happen, because
 	// we know for a fact that workbench.desktop.main will depend on
 	// the related CSS counterpart.
-	bootstrapWindow.load([
-		'vs/workbench/workbench.desktop.main',
-		'vs/css!vs/workbench/workbench.desktop.main'
-	],
+	bootstrapWindow.load('vs/workbench/workbench.desktop.main',
 		function (desktopMain, configuration) {
 
 			// Mark start of workbench
@@ -48,11 +45,7 @@
 			canModifyDOM: function (windowConfig) {
 				showSplash(windowConfig);
 			},
-			beforeLoaderConfig: function (loaderConfig) {
-				// @ts-ignore
-				loaderConfig.recordStats = true;
-			},
-			beforeRequire: function (windowConfig) {
+			beforeImport: function (windowConfig) {
 				performance.mark('code/willLoadWorkbenchMain');
 
 				// Code windows have a `vscodeWindowId` property to identify them
@@ -81,7 +74,7 @@
 	/**
 	 * @returns {{
 	 *   load: (
-	 *     modules: string[],
+	 *     esModule: string,
 	 *     resultCallback: (result: any, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {
@@ -91,8 +84,7 @@
 	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
 	 * 		 },
 	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
-	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *       beforeRequire?: (config: ISandboxConfiguration) => void
+	 *       beforeImport?: (config: ISandboxConfiguration) => void
 	 *     }
 	 *   ) => Promise<unknown>
 	 * }}

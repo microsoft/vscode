@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="typings/require.d.ts" />
-
 //@ts-check
 'use strict';
 
@@ -26,7 +24,7 @@
 	Error.stackTraceLimit = 100;
 
 	/**
-	 * @param {string[]} modulePaths
+	 * @param {string} esModule
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
 	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
@@ -36,11 +34,10 @@
 	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
 	 * 	},
 	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
-	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *  beforeRequire?: (config: ISandboxConfiguration) => void
+	 *  beforeImport?: (config: ISandboxConfiguration) => void
 	 * }} [options]
 	 */
-	async function load(modulePaths, resultCallback, options) {
+	async function load(esModule, resultCallback, options) {
 
 		// Await window configuration from preload
 		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
@@ -67,10 +64,7 @@
 		};
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
 		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
-		/**
-		 * @type {() => void | undefined}
-		 */
-		let developerDeveloperKeybindingsDisposable;
+		let developerDeveloperKeybindingsDisposable = undefined;
 		if (enableDeveloperKeybindings) {
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
@@ -88,10 +82,9 @@
 
 		window['MonacoEnvironment'] = {};
 
-		// ESM-uncomment-begin
-		// Signal before require()
-		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire(configuration);
+		// Signal before import()
+		if (typeof options?.beforeImport === 'function') {
+			options.beforeImport(configuration);
 		}
 
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
@@ -138,101 +131,20 @@
 			performance.mark('code/didAddCssLoader');
 		}
 
-		const result = Promise.all(modulePaths.map(modulePath => {
-			if (modulePath.includes('vs/css!')) {
-				// ESM/CSS when seeing the old `vs/css!` prefix we use that as a signal to
-				// load CSS via a <link> tag
-				const cssModule = modulePath.replace('vs/css!', '');
-				const link = document.createElement('link');
-				link.rel = 'stylesheet';
-				link.href = new URL(`${cssModule}.css`, baseUrl).href;
-				document.head.appendChild(link);
-				return Promise.resolve();
+		// ESM Import
+		try {
+			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
 
-			} else {
-				// ESM/JS module loading
-				return import(new URL(`${modulePath}.js`, baseUrl).href);
-			}
-		}));
+			const callbackResult = resultCallback(result, configuration);
+			if (callbackResult instanceof Promise) {
+				await callbackResult;
 
-		result.then((res) => invokeResult(res[0]), onUnexpectedError);
-		// ESM-uncomment-end
-
-		// ESM-comment-begin
-		// /** @type {LoaderConfig} */
-		// const loaderConfig = {
-		// baseUrl: `${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-		// preferScriptTags: true
-		// };
-		//
-		// // use a trusted types policy when loading via script tags
-		// loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-		// createScriptURL(value) {
-		// if (value.startsWith(window.location.origin)) {
-		// return value;
-		// }
-		// throw new Error(`Invalid script url: ${value}`);
-		// }
-		// });
-		//
-		// // Teach the loader the location of the node modules we use in renderers
-		// // This will enable to load these modules via <script> tags instead of
-		// // using a fallback such as node.js require which does not exist in sandbox
-		// const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-		// loaderConfig.paths = {
-		// '@vscode/tree-sitter-wasm': `${baseNodeModulesPath}/@vscode/tree-sitter-wasm/wasm/tree-sitter.js`,
-		// 'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-		// 'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-		// 'vsda': `${baseNodeModulesPath}/vsda/index.js`,
-		// '@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
-		// '@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
-		// '@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
-		// '@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
-		// '@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
-		// '@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
-		// '@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
-		// '@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
-		// 'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-		// '@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-		// 'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
-		// 'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
-		// };
-		//
-		// // Signal before require.config()
-		// if (typeof options?.beforeLoaderConfig === 'function') {
-		// options.beforeLoaderConfig(loaderConfig);
-		// }
-		//
-		// // Configure loader
-		// require.config(loaderConfig);
-		//
-		// // Signal before require()
-		// if (typeof options?.beforeRequire === 'function') {
-		// options.beforeRequire(configuration);
-		// }
-		//
-		// // Actually require the main module as specified
-		// require(modulePaths, invokeResult, onUnexpectedError);
-		// ESM-comment-end
-
-		/**
-		 * @param {any} firstModule
-		 */
-		async function invokeResult(firstModule) {
-			try {
-
-				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(firstModule, configuration);
-				if (callbackResult instanceof Promise) {
-					await callbackResult;
-
-					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
-						developerDeveloperKeybindingsDisposable();
-					}
+				if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+					developerDeveloperKeybindingsDisposable();
 				}
-			} catch (error) {
-				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
+		} catch (error) {
+			onUnexpectedError(error, enableDeveloperKeybindings);
 		}
 	}
 
