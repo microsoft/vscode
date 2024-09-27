@@ -42,11 +42,11 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._xterm = xterm;
 		this._refreshActivatedState();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalCommandGuideSettingId.ShowCommandGuide)) {
 				this._refreshActivatedState();
 			}
-		});
+		}));
 	}
 
 	private _refreshActivatedState() {
