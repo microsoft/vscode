@@ -168,7 +168,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	reveal(position: Position) {
-		this.editor.revealLinesInCenterIfOutsideViewport(position.lineNumber, position.lineNumber, ScrollType.Immediate);
+		const stickyScroll = this.editor.getOption(EditorOption.stickyScroll);
+		const magicValue = stickyScroll.enabled ? stickyScroll.maxLineCount : 0;
+		this.editor.revealLines(position.lineNumber + magicValue, position.lineNumber + magicValue, ScrollType.Immediate);
 		this._scrollUp.reset();
 		this.updatePositionAndHeight(position);
 	}
