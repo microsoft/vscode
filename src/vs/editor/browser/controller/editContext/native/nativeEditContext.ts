@@ -71,6 +71,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext = new ownerWindow.EditContext();
 		console.log('after creating edit context');
 		console.log('this._editContext : ', this._editContext);
+		console.log('this.domNode.domNode : ', this.domNode.domNode);
 		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
