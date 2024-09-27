@@ -147,6 +147,7 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
+	withoutCodeBlocks(): string;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -473,6 +474,18 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._response = this._register(new Response(_response));
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this.id = 'response_' + ChatResponseModel.nextId++;
+	}
+
+	withoutCodeBlocks(): string {
+		const delimiter = '```';
+		let filtered = this._response.toString();
+		let start = filtered.indexOf(delimiter);
+		while (start >= 0) {
+			const end = filtered.indexOf(delimiter, start + delimiter.length);
+			filtered = filtered.slice(0, start) + filtered.slice(end + delimiter.length);
+			start = filtered.indexOf(delimiter);
+		}
+		return filtered;
 	}
 
 	/**

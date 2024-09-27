@@ -769,7 +769,8 @@ class ChatSynthesizerSessions {
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	async start(controller: IChatSynthesizerSessionController): Promise<void> {
@@ -839,9 +840,10 @@ class ChatSynthesizerSessions {
 
 	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
+		const filter = this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.FilterCode);
 
-		const text = response.response.toString();
-
+		const text = filter ? response.withoutCodeBlocks() : response.response.toString();
+		console.log(text);
 		if (response.isComplete) {
 			chunk = text.substring(offset);
 			offset = text.length + 1;

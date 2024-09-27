@@ -1,9 +1,0 @@
-{
-	"editor.minimap.enabled": false, // see https://github.com/microsoft/vscode/issues/115747
-	"workbench.editor.languageDetection": false,
-	"typescript.disableAutomaticTypeAcquisition": true,
-	"json.schemaDownload.enable": false,
-	"npm.fetchOnlinePackageInfo": false,
-	"npm.autoDetect": "off",
-	"workbench.localHistory.enabled": false
-}
