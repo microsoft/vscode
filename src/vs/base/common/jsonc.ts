@@ -52,7 +52,7 @@ export function stripComments(content: string): string {
  * @param content the content to strip comments from
  * @returns the parsed content as JSON
 */
-export function parse(content: string): any {
+export function parse<T>(content: string): T {
 	const commentsStripped = stripComments(content);
 
 	try {
