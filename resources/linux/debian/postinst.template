@@ -44,7 +44,7 @@ if [ "@@NAME@@" != "code-oss" ]; then
 
 	# Determine whether to write the Microsoft repository source list
 	WRITE_SOURCE='no'
-	elif [ "$RET" = false ]; then
+	if [ "$RET" = false ]; then
 		# The user specified in debconf not to add the Microsoft repository
 		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
