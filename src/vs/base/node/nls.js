@@ -19,7 +19,6 @@ import * as perf from '../common/performance.js';
 const module = { exports: {} };
 
 (function () {
-	const isESM = true;
 
 	/**
 	 * @param {typeof import('path')} path

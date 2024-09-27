@@ -10,7 +10,6 @@
 const module = { exports: {} };
 
 (function () {
-	const isESM = true;
 
 	/**
 	 * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}
@@ -82,7 +81,7 @@ const module = { exports: {} };
 		} else if (typeof process === 'object') {
 			// node.js: use the normal polyfill but add the timeOrigin
 			// from the node perf_hooks API as very first mark
-			const timeOrigin = performance?.timeOrigin;// ?? Math.round((require.__$__nodeRequire ?? require /* TODO@esm this is fishy */)('perf_hooks').performance.timeOrigin);
+			const timeOrigin = performance?.timeOrigin;
 			return _definePolyfillMarks(timeOrigin);
 
 		} else {
@@ -115,10 +114,7 @@ const module = { exports: {} };
 		sharedObj = {};
 	}
 
-	if (!isESM && typeof define === 'function') {
-		// amd
-		define([], function () { return _factory(sharedObj); });
-	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+	if (typeof module === 'object' && typeof module.exports === 'object') {
 		// commonjs
 		module.exports = _factory(sharedObj);
 	} else {

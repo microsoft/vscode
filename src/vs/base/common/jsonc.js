@@ -10,7 +10,6 @@
 const module = { exports: {} };
 
 (function () {
-	const isESM = true;
 
 	function factory() {
 		// First group matches a double quoted string

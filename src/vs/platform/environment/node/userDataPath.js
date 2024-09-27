@@ -13,7 +13,6 @@ import * as path from 'path';
 const module = { exports: {} };
 
 (function () {
-	const isESM = true;
 
 	/**
 	 * @import { NativeParsedArgs } from '../../environment/common/argv'

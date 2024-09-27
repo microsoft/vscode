@@ -10,7 +10,6 @@
 const module = { exports: {} };
 
 (function () {
-	const isESM = true;
 
 	function factory() {
 
@@ -141,10 +140,7 @@ const module = { exports: {} };
 		};
 	}
 
-	if (!isESM && typeof define === 'function') {
-		// amd
-		define([], function () { return factory(); });
-	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+	if (typeof module === 'object' && typeof module.exports === 'object') {
 		// commonjs
 		module.exports = factory();
 	} else {

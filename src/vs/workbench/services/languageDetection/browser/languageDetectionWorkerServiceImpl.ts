@@ -71,7 +71,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			modelService,
 			languageService,
 			telemetryService,
-			// TODO@esm: See if it's possible to bundle vscode-languagedetection
+			// TODO See if it's possible to bundle vscode-languagedetection
 			useAsar
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/dist/lib/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${moduleLocation}/dist/lib/index.js`).toString(true),

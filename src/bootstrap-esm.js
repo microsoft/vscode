@@ -158,7 +158,7 @@ module.exports.load = function (esModule, onLoad, onError) {
 
 	setupNLS().then(() => {
 		performance.mark(`code/fork/willLoadCode`);
-		import([`./${esModule}.js`].join('/') /* TODO@esm workaround to prevent esbuild from inlining this */).then(onLoad, onError);
+		import([`./${esModule}.js`].join('/') /* workaround to prevent esbuild from inlining this */).then(onLoad, onError);
 	});
 };
 
