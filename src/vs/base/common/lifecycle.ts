@@ -698,17 +698,6 @@ export class ImmortalReference<T> implements IReference<T> {
 	dispose(): void { /* noop */ }
 }
 
-/**
- * A reference that will be automatically cleared upon dispose. This is useful
- * to clear out any references that could lead to leaks upon dispose.
- */
-export class AutoClearingReference<T> implements IReference<T | undefined> {
-	private _object: T | undefined;
-	get object() { return this._object; }
-	constructor(object: T) { this._object = object; }
-	dispose(): void { this._object = undefined; }
-}
-
 export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
 	const store = new DisposableStore();
 	try {

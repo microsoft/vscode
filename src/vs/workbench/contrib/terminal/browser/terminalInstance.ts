@@ -17,7 +17,7 @@ import { ErrorNoTelemetry, onUnexpectedError } from '../../../../base/common/err
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
-import { AutoClearingReference, Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -355,11 +355,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _onDidPaste = this._register(new Emitter<string>());
 	readonly onDidPaste = this._onDidPaste.event;
 
-	private _onLineDataFirstListener: IReference<Function | undefined> = this._register(new AutoClearingReference(async () => {
-		const xterm = this.xterm || await this._xtermReadyPromise;
-		xterm.raw.loadAddon(this._lineDataEventAddon!);
+	private readonly _onLineData = this._register(new Emitter<string>({
+		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise).raw.loadAddon(this._lineDataEventAddon!)
 	}));
-	private readonly _onLineData = this._register(new Emitter<string>({ onDidAddFirstListener: this._onLineDataFirstListener.object?.() }));
 	readonly onLineData = this._onLineData.event;
 
 	constructor(

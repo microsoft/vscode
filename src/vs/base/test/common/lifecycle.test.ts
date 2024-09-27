@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../common/event.js';
-import { AutoClearingReference, DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from '../../common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, SafeDisposable, toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
@@ -260,17 +260,6 @@ suite('Reference Collection', () => {
 
 		ref4.dispose();
 		assert.strictEqual(collection.count, 0);
-	});
-});
-
-suite('AutoClearingReference', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('simple', () => {
-		const ref = new AutoClearingReference(1);
-		assert.strictEqual(ref.object, 1);
-		ref.dispose();
-		assert.strictEqual(ref.object, undefined);
 	});
 });
 
