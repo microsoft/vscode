@@ -6,12 +6,12 @@
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
 import { BugIndicatingError, CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
-import { extUri as defaultExtUri, IExtUri } from './resources.js';
-import { URI } from './uri.js';
-import { setTimeout0 } from './platform.js';
-import { MicrotaskDelay } from './symbols.js';
 import { Lazy } from './lazy.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
+import { setTimeout0 } from './platform.js';
+import { extUri as defaultExtUri, IExtUri } from './resources.js';
+import { MicrotaskDelay } from './symbols.js';
+import { URI } from './uri.js';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -1173,6 +1173,7 @@ export class ThrottledWorker<T> extends Disposable {
 
 	private readonly throttler = this._register(new MutableDisposable<RunOnceScheduler>());
 	private disposed = false;
+	private lastExecutionTime: number = 0;
 
 	constructor(
 		private options: IThrottledWorkerOptions,
@@ -1225,11 +1226,19 @@ export class ThrottledWorker<T> extends Disposable {
 			this.pendingWork.push(unit);
 		}
 
+		const timeSinceLastExecution = Date.now() - this.lastExecutionTime;
+
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has
 		// past, pending work will be worked again.
-		if (!this.throttler.value) {
+		if (!this.throttler.value && timeSinceLastExecution >= this.options.throttleDelay) {
 			this.doWork();
+		} else {
+			this.throttler.value = new RunOnceScheduler(() => {
+				this.throttler.clear();
+				this.doWork();
+			}, Math.max(this.options.throttleDelay - timeSinceLastExecution, 0));
+			this.throttler.value.schedule();
 		}
 
 		return true; // work accepted
@@ -1239,6 +1248,7 @@ export class ThrottledWorker<T> extends Disposable {
 
 		// Extract chunk to handle and handle it
 		this.handler(this.pendingWork.splice(0, this.options.maxWorkChunkSize));
+		this.lastExecutionTime = Date.now();
 
 		// If we have remaining work, schedule it after a delay
 		if (this.pendingWork.length > 0) {
