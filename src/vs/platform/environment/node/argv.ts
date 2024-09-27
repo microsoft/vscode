@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'minimist';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import minimist from 'minimist';
+import { isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { NativeParsedArgs } from '../common/argv.js';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -120,6 +120,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 
 	'inspect-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugPluginHost'], args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	'inspect-brk-extensions': { type: 'string', allowEmptyValue: true, deprecates: ['debugBrkPluginHost'], args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
+	'disable-lcd-text': { type: 'boolean', cat: 't', description: localize('disableLCDText', "Disable LCD font rendering.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
 	'disable-chromium-sandbox': { type: 'boolean', cat: 't', description: localize('disableChromiumSandbox', "Use this option only when there is requirement to launch the application as sudo user on Linux or when running as an elevated user in an applocker environment on Windows.") },
 	'sandbox': { type: 'boolean' },
@@ -204,6 +205,10 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-dev-shm-usage': { type: 'boolean' },
 	'profile-temp': { type: 'boolean' },
 	'ozone-platform': { type: 'string' },
+	'enable-tracing': { type: 'string' },
+	'trace-startup-format': { type: 'string' },
+	'trace-startup-file': { type: 'string' },
+	'trace-startup-duration': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };

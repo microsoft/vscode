@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI } from './uri.js';
 
 export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	let result = map.get(key);
@@ -455,6 +455,29 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._state++;
 	}
 
+	protected trimNew(newSize: number) {
+		if (newSize >= this.size) {
+			return;
+		}
+		if (newSize === 0) {
+			this.clear();
+			return;
+		}
+		let current = this._tail;
+		let currentSize = this.size;
+		while (current && currentSize > newSize) {
+			this._map.delete(current.key);
+			current = current.previous;
+			currentSize--;
+		}
+		this._tail = current;
+		this._size = currentSize;
+		if (current) {
+			current.next = undefined;
+		}
+		this._state++;
+	}
+
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -601,10 +624,10 @@ export class LinkedMap<K, V> implements Map<K, V> {
 	}
 }
 
-export class LRUCache<K, V> extends LinkedMap<K, V> {
+abstract class Cache<K, V> extends LinkedMap<K, V> {
 
-	private _limit: number;
-	private _ratio: number;
+	protected _limit: number;
+	protected _ratio: number;
 
 	constructor(limit: number, ratio: number = 1) {
 		super();
@@ -640,14 +663,52 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 
 	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
-		this.checkTrim();
 		return this;
 	}
 
-	private checkTrim() {
+	protected checkTrim() {
 		if (this.size > this._limit) {
-			this.trimOld(Math.round(this._limit * this._ratio));
+			this.trim(Math.round(this._limit * this._ratio));
 		}
+	}
+
+	protected abstract trim(newSize: number): void;
+}
+
+export class LRUCache<K, V> extends Cache<K, V> {
+
+	constructor(limit: number, ratio: number = 1) {
+		super(limit, ratio);
+	}
+
+	protected override trim(newSize: number) {
+		this.trimOld(newSize);
+	}
+
+	override set(key: K, value: V): this {
+		super.set(key, value);
+		this.checkTrim();
+		return this;
+	}
+}
+
+export class MRUCache<K, V> extends Cache<K, V> {
+
+	constructor(limit: number, ratio: number = 1) {
+		super(limit, ratio);
+	}
+
+	protected override trim(newSize: number) {
+		this.trimNew(newSize);
+	}
+
+	override set(key: K, value: V): this {
+		if (this._limit <= this.size && !this.has(key)) {
+			this.trim(Math.round(this._limit * this._ratio) - 1);
+		}
+
+		super.set(key, value);
+		return this;
 	}
 }
 
@@ -813,4 +874,94 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 	}
 
 	return true;
+}
+
+/**
+ * A map that is addressable with 2 separate keys. This is useful in high performance scenarios
+ * where creating a composite key whenever the data is accessed is too expensive.
+ */
+export class TwoKeyMap<TFirst extends string | number, TSecond extends string | number, TValue> {
+	private _data: { [key: string | number]: { [key: string | number]: TValue | undefined } | undefined } = {};
+
+	public set(first: TFirst, second: TSecond, value: TValue): void {
+		if (!this._data[first]) {
+			this._data[first] = {};
+		}
+		this._data[first as string | number]![second] = value;
+	}
+
+	public get(first: TFirst, second: TSecond): TValue | undefined {
+		return this._data[first as string | number]?.[second];
+	}
+
+	public clear(): void {
+		this._data = {};
+	}
+
+	public *values(): IterableIterator<TValue> {
+		for (const first in this._data) {
+			for (const second in this._data[first]) {
+				const value = this._data[first]![second];
+				if (value) {
+					yield value;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * A map that is addressable with 3 separate keys. This is useful in high performance scenarios
+ * where creating a composite key whenever the data is accessed is too expensive.
+ */
+export class ThreeKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TValue> {
+	private _data: { [key: string | number]: TwoKeyMap<TSecond, TThird, TValue> | undefined } = {};
+
+	public set(first: TFirst, second: TSecond, third: TThird, value: TValue): void {
+		if (!this._data[first]) {
+			this._data[first] = new TwoKeyMap();
+		}
+		this._data[first as string | number]!.set(second, third, value);
+	}
+
+	public get(first: TFirst, second: TSecond, third: TThird): TValue | undefined {
+		return this._data[first as string | number]?.get(second, third);
+	}
+
+	public clear(): void {
+		this._data = {};
+	}
+
+	public *values(): IterableIterator<TValue> {
+		for (const first in this._data) {
+			for (const value of this._data[first]!.values()) {
+				if (value) {
+					yield value;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * A map that is addressable with 4 separate keys. This is useful in high performance scenarios
+ * where creating a composite key whenever the data is accessed is too expensive.
+ */
+export class FourKeyMap<TFirst extends string | number, TSecond extends string | number, TThird extends string | number, TFourth extends string | number, TValue> {
+	private _data: TwoKeyMap<TFirst, TSecond, TwoKeyMap<TThird, TFourth, TValue>> = new TwoKeyMap();
+
+	public set(first: TFirst, second: TSecond, third: TThird, fourth: TFourth, value: TValue): void {
+		if (!this._data.get(first, second)) {
+			this._data.set(first, second, new TwoKeyMap());
+		}
+		this._data.get(first, second)!.set(third, fourth, value);
+	}
+
+	public get(first: TFirst, second: TSecond, third: TThird, fourth: TFourth): TValue | undefined {
+		return this._data.get(first, second)?.get(third, fourth);
+	}
+
+	public clear(): void {
+		this._data.clear();
+	}
 }

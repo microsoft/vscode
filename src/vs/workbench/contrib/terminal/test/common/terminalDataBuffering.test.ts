@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TerminalDataBufferer } from '../../../../../platform/terminal/common/terminalDataBuffering.js';
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 

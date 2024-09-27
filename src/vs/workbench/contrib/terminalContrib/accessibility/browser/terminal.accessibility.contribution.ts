@@ -3,36 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize2 } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService, NavigationType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
-import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize2 } from '../../../../../nls.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { AccessibilityHelpAction, AccessibleViewAction } from '../../../accessibility/browser/accessibleViewActions.js';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { BufferContentTracker } from './bufferContentTracker.js';
+import { TerminalAccessibilityHelpProvider } from './terminalAccessibilityHelp.js';
+import { TextAreaSyncAddon } from './textAreaSyncAddon.js';
 import type { Terminal } from '@xterm/xterm';
-import { Position } from 'vs/editor/common/core/position';
-import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { Event } from 'vs/base/common/event';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from './terminalAccessibleBufferProvider.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { TerminalAccessibilitySettingId } from '../common/terminalAccessibilityConfiguration.js';
+import { TerminalAccessibilityCommandId } from '../common/terminal.accessibility.js';
+import { IAccessibleViewService, AccessibleViewProviderId, NavigationType } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+
+// #region Terminal Contributions
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -58,7 +62,6 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	}
 }
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
-
 
 export class TerminalAccessibleViewContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.accessibleBufferProvider';
@@ -97,7 +100,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
+			if (e.affectsConfiguration(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
 				this._updateCommandExecutedListener();
 			}
 		}));
@@ -137,7 +140,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		if (!this._instance.capabilities.has(TerminalCapability.CommandDetection)) {
 			return;
 		}
-		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
+		if (!this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewFocusOnCommandExecution)) {
 			this._onDidRunCommand.clear();
 			return;
 		} else if (this._onDidRunCommand.value) {
@@ -168,7 +171,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
 			}));
 		}
-		const position = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
+		const position = this._configurationService.getValue(TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
 		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
@@ -183,13 +186,18 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		const command = filteredCommands[0];
-		this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
 		const commandLine = command.command.command;
-		if (commandLine) {
+		if (!isWindows && commandLine) {
+			this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true);
 			alert(commandLine);
+		} else {
+			this._accessibleViewService.setPosition(new Position(command.lineNumber, 1), true, true);
 		}
+
 		if (command.exitCode) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
+		} else {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandSucceeded);
 		}
 	}
 
@@ -261,11 +269,14 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 }
 registerTerminalContribution(TerminalAccessibilityHelpContribution.ID, TerminalAccessibilityHelpContribution);
 
+// #endregion
+
+// #region Actions
 
 class FocusAccessibleBufferAction extends Action2 {
 	constructor() {
 		super({
-			id: TerminalCommandId.FocusAccessibleBuffer,
+			id: TerminalAccessibilityCommandId.FocusAccessibleBuffer,
 			title: localize2('workbench.action.terminal.focusAccessibleBuffer', "Focus Accessible Terminal View"),
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 			keybinding: [
@@ -294,7 +305,7 @@ class FocusAccessibleBufferAction extends Action2 {
 registerAction2(FocusAccessibleBufferAction);
 
 registerTerminalAction({
-	id: TerminalCommandId.AccessibleBufferGoToNextCommand,
+	id: TerminalAccessibilityCommandId.AccessibleBufferGoToNextCommand,
 	title: localize2('workbench.action.terminal.accessibleBufferGoToNextCommand', "Accessible Buffer Go to Next Command"),
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: [
@@ -313,9 +324,8 @@ registerTerminalAction({
 	}
 });
 
-
 registerTerminalAction({
-	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
+	id: TerminalAccessibilityCommandId.AccessibleBufferGoToPreviousCommand,
 	title: localize2('workbench.action.terminal.accessibleBufferGoToPreviousCommand', "Accessible Buffer Go to Previous Command"),
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: [
@@ -335,7 +345,7 @@ registerTerminalAction({
 });
 
 registerTerminalAction({
-	id: TerminalCommandId.ScrollToBottomAccessibleView,
+	id: TerminalAccessibilityCommandId.ScrollToBottomAccessibleView,
 	title: localize2('workbench.action.terminal.scrollToBottomAccessibleView', 'Scroll to Accessible View Bottom'),
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: {
@@ -355,7 +365,7 @@ registerTerminalAction({
 });
 
 registerTerminalAction({
-	id: TerminalCommandId.ScrollToTopAccessibleView,
+	id: TerminalAccessibilityCommandId.ScrollToTopAccessibleView,
 	title: localize2('workbench.action.terminal.scrollToTopAccessibleView', 'Scroll to Accessible View Top'),
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
 	keybinding: {
@@ -366,6 +376,8 @@ registerTerminalAction({
 	},
 	run: (c, accessor) => {
 		const accessibleViewService = accessor.get(IAccessibleViewService);
-		accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
+		accessibleViewService.setPosition(new Position(1, 1), true);
 	}
 });
+
+// #endregion

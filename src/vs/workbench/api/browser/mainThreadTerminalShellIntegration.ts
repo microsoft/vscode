@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, toDisposable, type IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { TerminalCapability, type ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { extHostNamedCustomer, type IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { TerminalShellExecutionCommandLineConfidence } from 'vs/workbench/api/common/extHostTypes';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { TerminalCapability, type ITerminalCommand } from '../../../platform/terminal/common/capabilities/capabilities.js';
+import { ExtHostContext, MainContext, type ExtHostTerminalShellIntegrationShape, type MainThreadTerminalShellIntegrationShape } from '../common/extHost.protocol.js';
+import { ITerminalService } from '../../contrib/terminal/browser/terminal.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { extHostNamedCustomer, type IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { TerminalShellExecutionCommandLineConfidence } from '../common/extHostTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalShellIntegration)
 export class MainThreadTerminalShellIntegration extends Disposable implements MainThreadTerminalShellIntegrationShape {
@@ -60,7 +60,7 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			// TerminalShellExecution.createDataStream
 			// Debounce events to reduce the message count - when this listener is disposed the events will be flushed
 			instanceDataListeners.get(instanceId)?.dispose();
-			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => this._proxy.$shellExecutionData(instanceId, events.join())));
+			instanceDataListeners.set(instanceId, Event.accumulate(e.instance.onData, 50, this._store)(events => this._proxy.$shellExecutionData(instanceId, events.join(''))));
 		}));
 
 		// onDidEndTerminalShellExecution
@@ -69,7 +69,10 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 			currentCommand = undefined;
 			const instanceId = e.instance.instanceId;
 			instanceDataListeners.get(instanceId)?.dispose();
-			this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
+			// Send end in a microtask to ensure the data events are sent first
+			setTimeout(() => {
+				this._proxy.$shellExecutionEnd(instanceId, e.data.command, convertToExtHostCommandLineConfidence(e.data), e.data.isTrusted, e.data.exitCode);
+			});
 		}));
 
 		// onDidChangeTerminalShellIntegration via cwd

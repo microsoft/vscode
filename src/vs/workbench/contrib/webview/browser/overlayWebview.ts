@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindowById } from 'vs/base/browser/dom';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { CodeWindow } from 'vs/base/browser/window';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKey, IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
+import { FastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
 /**
  * Webview that is absolutely positioned over another element and that can creates and destroys an underlying webview as needed.

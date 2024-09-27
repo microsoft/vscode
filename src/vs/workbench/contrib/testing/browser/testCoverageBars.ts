@@ -3,26 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
-import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { assertNever } from 'vs/base/common/assert';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { clamp } from 'vs/base/common/numbers';
-import { ITransaction, autorun, observableValue } from 'vs/base/common/observable';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { asCssVariableName, chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
-import { IExplorerFileContribution } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
-import { AbstractFileCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { ICoverageCount } from 'vs/workbench/contrib/testing/common/testTypes';
+import { h } from '../../../../base/browser/dom.js';
+import type { IManagedHover, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ITransaction, autorun, observableValue } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ExplorerExtensions, IExplorerFileContribution, IExplorerFileContributionRegistry } from '../../files/browser/explorerFileContrib.js';
+import * as coverUtils from './codeCoverageDisplayUtils.js';
+import { ITestingCoverageBarThresholds, TestingConfigKeys, getTestingConfiguration, observeTestingConfiguration } from '../common/configuration.js';
+import { AbstractFileCoverage } from '../common/testCoverage.js';
+import { ITestCoverageService } from '../common/testCoverageService.js';
 
 export interface TestCoverageBarsOptions {
 	/**
@@ -30,6 +28,10 @@ export interface TestCoverageBarsOptions {
 	 * overall bar is shown and more details are given in the hover.
 	 */
 	compact: boolean;
+	/**
+	 * Whether the overall stat is shown, defaults to true.
+	 */
+	overall?: boolean;
 	/**
 	 * Container in which is render the bars.
 	 */
@@ -64,7 +66,7 @@ export class ManagedTestCoverageBars extends Disposable {
 	});
 
 	private readonly visibleStore = this._register(new DisposableStore());
-	private readonly customHovers: IUpdatableHover[] = [];
+	private readonly customHovers: IManagedHover[] = [];
 
 	/** Gets whether coverage is currently visible for the resource. */
 	public get visible() {
@@ -79,8 +81,8 @@ export class ManagedTestCoverageBars extends Disposable {
 		super();
 	}
 
-	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IUpdatableHoverTooltipMarkdownString | undefined) {
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
+	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IManagedHoverTooltipMarkdownString | undefined) {
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
 	}
 
 	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
@@ -96,7 +98,7 @@ export class ManagedTestCoverageBars extends Disposable {
 
 		if (!this._coverage) {
 			const root = this.el.value.root;
-			ds.add(toDisposable(() => this.options.container.removeChild(root)));
+			ds.add(toDisposable(() => root.remove()));
 			this.options.container.appendChild(root);
 			ds.add(this.configurationService.onDidChangeConfiguration(c => {
 				if (!this._coverage) {
@@ -118,20 +120,22 @@ export class ManagedTestCoverageBars extends Disposable {
 
 		const precision = this.options.compact ? 0 : 2;
 		const thresholds = getTestingConfiguration(this.configurationService, TestingConfigKeys.CoverageBarThresholds);
-		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
-		el.overall.textContent = displayPercent(overallStat, precision);
+		const overallStat = coverUtils.calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
+		if (this.options.overall !== false) {
+			el.overall.textContent = coverUtils.displayPercent(overallStat, precision);
+		} else {
+			el.overall.style.display = 'none';
+		}
 		if ('tpcBar' in el) { // compact mode
 			renderBar(el.tpcBar, overallStat, false, thresholds);
 		} else {
-			renderBar(el.statement, percent(coverage.statement), coverage.statement.total === 0, thresholds);
-			renderBar(el.function, coverage.declaration && percent(coverage.declaration), coverage.declaration?.total === 0, thresholds);
-			renderBar(el.branch, coverage.branch && percent(coverage.branch), coverage.branch?.total === 0, thresholds);
+			renderBar(el.statement, coverUtils.percent(coverage.statement), coverage.statement.total === 0, thresholds);
+			renderBar(el.function, coverage.declaration && coverUtils.percent(coverage.declaration), coverage.declaration?.total === 0, thresholds);
+			renderBar(el.branch, coverage.branch && coverUtils.percent(coverage.branch), coverage.branch?.total === 0, thresholds);
 		}
 	}
 }
 
-const percent = (cc: ICoverageCount) => clamp(cc.total === 0 ? 1 : cc.covered / cc.total, 0, 1);
-const epsilon = 10e-8;
 const barWidth = 16;
 
 const renderBar = (bar: HTMLElement, pct: number | undefined, isZero: boolean, thresholds: ITestingCoverageBarThresholds) => {
@@ -151,61 +155,16 @@ const renderBar = (bar: HTMLElement, pct: number | undefined, isZero: boolean, t
 		return;
 	}
 
-	let best = colorThresholds[0].color; //  red
-	let distance = pct;
-	for (const { key, color } of colorThresholds) {
-		const t = thresholds[key] / 100;
-		if (t && pct >= t && pct - t < distance) {
-			best = color;
-			distance = pct - t;
-		}
-	}
-
-	bar.style.color = best;
+	bar.style.color = coverUtils.getCoverageColor(pct, thresholds);
 	bar.style.opacity = '1';
 };
 
-const colorThresholds = [
-	{ color: `var(${asCssVariableName(chartsRed)})`, key: 'red' },
-	{ color: `var(${asCssVariableName(chartsYellow)})`, key: 'yellow' },
-	{ color: `var(${asCssVariableName(chartsGreen)})`, key: 'green' },
-] as const;
-
-const calculateDisplayedStat = (coverage: CoverageBarSource, method: TestingDisplayedCoveragePercent) => {
-	switch (method) {
-		case TestingDisplayedCoveragePercent.Statement:
-			return percent(coverage.statement);
-		case TestingDisplayedCoveragePercent.Minimum: {
-			let value = percent(coverage.statement);
-			if (coverage.branch) { value = Math.min(value, percent(coverage.branch)); }
-			if (coverage.declaration) { value = Math.min(value, percent(coverage.declaration)); }
-			return value;
-		}
-		case TestingDisplayedCoveragePercent.TotalCoverage:
-			return getTotalCoveragePercent(coverage.statement, coverage.branch, coverage.declaration);
-		default:
-			assertNever(method);
-	}
-
-};
-
-const displayPercent = (value: number, precision = 2) => {
-	const display = (value * 100).toFixed(precision);
-
-	// avoid showing 100% coverage if it just rounds up:
-	if (value < 1 - epsilon && display === '100') {
-		return `${100 - (10 ** -precision)}%`;
-	}
-
-	return `${display}%`;
-};
-
 const nf = new Intl.NumberFormat();
-const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', nf.format(coverage.statement.covered), nf.format(coverage.statement.total), displayPercent(percent(coverage.statement)));
-const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), displayPercent(percent(coverage.declaration)));
-const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), displayPercent(percent(coverage.branch)));
+const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', nf.format(coverage.statement.covered), nf.format(coverage.statement.total), coverUtils.displayPercent(coverUtils.percent(coverage.statement)));
+const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), coverUtils.displayPercent(coverUtils.percent(coverage.declaration)));
+const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), coverUtils.displayPercent(coverUtils.percent(coverage.branch)));
 
-const getOverallHoverText = (coverage: CoverageBarSource): IUpdatableHoverTooltipMarkdownString => {
+const getOverallHoverText = (coverage: CoverageBarSource): IManagedHoverTooltipMarkdownString => {
 	const str = [
 		stmtCoverageText(coverage),
 		fnCoverageText(coverage),
@@ -224,6 +183,22 @@ const getOverallHoverText = (coverage: CoverageBarSource): IUpdatableHoverToolti
  */
 export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements IExplorerFileContribution {
 	private readonly resource = observableValue<URI | undefined>(this, undefined);
+	private static hasRegistered = false;
+	public static register() {
+		if (this.hasRegistered) {
+			return;
+		}
+
+		this.hasRegistered = true;
+		Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
+			create(insta, container) {
+				return insta.createInstance(
+					ExplorerTestCoverageBars,
+					{ compact: true, container }
+				);
+			},
+		});
+	}
 
 	constructor(
 		options: TestCoverageBarsOptions,

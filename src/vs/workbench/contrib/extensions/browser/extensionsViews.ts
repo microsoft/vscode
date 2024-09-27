@@ -3,64 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { isCancellationError, getErrorMessage } from 'vs/base/common/errors';
-import { createErrorWithActions } from 'vs/base/common/errorMessage';
-import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { areSameExtensions, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { append, $ } from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
-import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from 'vs/workbench/browser/parts/views/viewPane';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
-import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { ILogService } from 'vs/platform/log/common/log';
-import { isOfflineError } from 'vs/base/parts/request/common/request';
-import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
-import { URI } from 'vs/base/common/uri';
-import { isString } from 'vs/base/common/types';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { localize } from '../../../../nls.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { isCancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { createErrorWithActions } from '../../../../base/common/errorMessage.js';
+import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from '../../../../base/common/paging.js';
+import { SortOrder, IQueryOptions as IGalleryQueryOptions, SortBy as GallerySortBy, InstallExtensionInfo, ExtensionGalleryErrorCode, ExtensionGalleryError } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionRecommendationsService } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
+import { areSameExtensions, getExtensionDependencies } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { append, $ } from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Delegate, Renderer, IExtensionsViewState } from './extensionsList.js';
+import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from '../common/extensions.js';
+import { Query } from '../common/extensionQuery.js';
+import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
+import { ManageExtensionAction, getContextMenuActions, ExtensionAction } from './extensionsActions.js';
+import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IAction, Action, Separator, ActionRunner } from '../../../../base/common/actions.js';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from '../../../../platform/extensions/common/extensions.js';
+import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from '../../../../base/common/async.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { isOfflineError } from '../../../../base/parts/request/common/request.js';
+import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from '../../../services/extensionManagement/common/extensionFeatures.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isString } from '../../../../base/common/types.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export const NONE_CATEGORY = 'none';
 
@@ -207,7 +205,7 @@ export class ExtensionsListView extends ViewPane {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
-			accessibilityProvider: <IListAccessibilityProvider<IExtension | null>>{
+			accessibilityProvider: {
 				getAriaLabel(extension: IExtension | null): string {
 					return getAriaLabelForExtension(extension);
 				},
@@ -215,9 +213,7 @@ export class ExtensionsListView extends ViewPane {
 					return localize('extensions', "Extensions");
 				}
 			},
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
-			},
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			openOnSingleClick: true
 		}) as WorkbenchPagedList<IExtension>;
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
@@ -556,11 +552,24 @@ export class ExtensionsListView extends ViewPane {
 				return isE1Running ? -1 : 1;
 			};
 
+			const incompatible: IExtension[] = [];
+			const missingDeps: IExtension[] = [];
+			const deprecated: IExtension[] = [];
 			const outdated: IExtension[] = [];
 			const actionRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
-			result.forEach(e => {
-				if (e.outdated) {
+
+			for (const e of result) {
+				if (e.enablementState === EnablementState.DisabledByInvalidExtension) {
+					incompatible.push(e);
+				}
+				else if (e.enablementState === EnablementState.DisabledByExtensionDependency) {
+					missingDeps.push(e);
+				}
+				else if (e.deprecationInfo) {
+					deprecated.push(e);
+				}
+				else if (e.outdated) {
 					outdated.push(e);
 				}
 				else if (e.runtimeState) {
@@ -569,9 +578,16 @@ export class ExtensionsListView extends ViewPane {
 				else {
 					noActionRequired.push(e);
 				}
-			});
+			}
 
-			result = [...outdated.sort(defaultSort), ...actionRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
+			result = [
+				...incompatible.sort(defaultSort),
+				...missingDeps.sort(defaultSort),
+				...deprecated.sort(defaultSort),
+				...outdated.sort(defaultSort),
+				...actionRequired.sort(defaultSort),
+				...noActionRequired.sort(defaultSort)
+			];
 		}
 		return result;
 	}
@@ -704,20 +720,24 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterExtensionsByFeature(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		const value = query.value.replace(/@feature:/g, '').trim().toLowerCase();
+		const value = query.value.replace(/@feature:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
 			return [];
 		}
 		const renderer = feature.renderer ? this.instantiationService.createInstance<IExtensionFeatureRenderer>(feature.renderer) : undefined;
-		const result = local.filter(e => {
-			if (!e.local) {
-				return false;
-			}
-			return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
-		});
-		return this.sortExtensions(result, options);
+		try {
+			const result = local.filter(e => {
+				if (!e.local) {
+					return false;
+				}
+				return renderer?.shouldRender(e.local.manifest) || this.extensionFeaturesManagementService.getAccessData(new ExtensionIdentifier(e.identifier.id), featureId);
+			});
+			return this.sortExtensions(result, options);
+		} finally {
+			renderer?.dispose();
+		}
 	}
 
 	private mergeAddedExtensions(extensions: IExtension[], newExtensions: IExtension[]): IExtension[] | undefined {
@@ -897,16 +917,26 @@ export class ExtensionsListView extends ViewPane {
 				}
 			}
 			if (galleryExtensions.length) {
-				const extensions = await this.extensionsWorkbenchService.getExtensions(galleryExtensions.map(id => ({ id })), { source: options.source }, token);
-				for (const extension of extensions) {
-					if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
-						result.push(extension);
+				try {
+					const extensions = await this.extensionsWorkbenchService.getExtensions(galleryExtensions.map(id => ({ id })), { source: options.source }, token);
+					for (const extension of extensions) {
+						if (extension.gallery && !extension.deprecationInfo && (await this.extensionManagementService.canInstall(extension.gallery))) {
+							result.push(extension);
+						}
+					}
+				} catch (error) {
+					if (!resourceExtensions.length || !this.isOfflineError(error)) {
+						throw error;
 					}
 				}
 			}
 			if (resourceExtensions.length) {
 				const extensions = await this.extensionsWorkbenchService.getResourceExtensions(resourceExtensions, true);
-				result.push(...extensions);
+				for (const extension of extensions) {
+					if (await this.extensionsWorkbenchService.canInstall(extension)) {
+						result.push(extension);
+					}
+				}
 			}
 		}
 		return result;
@@ -974,30 +1004,53 @@ export class ExtensionsListView extends ViewPane {
 			.map(extensionId => isString(extensionId) ? extensionId.toLowerCase() : extensionId);
 
 		return distinct(
-			flatten(await Promise.all([
+			(await Promise.all([
 				// Order is important
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
+			])).flat().filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
 			), extensionId => extensionId.toLowerCase());
 	}
 
 	// Get All types of recommendations, trimmed to show a max of 8 at any given time
 	private async getAllRecommendationsModel(options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
-		const local = (await this.extensionsWorkbenchService.queryLocal(this.options.server)).map(e => e.identifier.id.toLowerCase());
+		const localExtensions = await this.extensionsWorkbenchService.queryLocal(this.options.server);
+		const localExtensionIds = localExtensions.map(e => e.identifier.id.toLowerCase());
 
 		const allRecommendations = distinct(
-			flatten(await Promise.all([
+			(await Promise.all([
 				// Order is important
 				this.getWorkspaceRecommendations(),
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(extensionId => !isString(extensionId) || !local.includes(extensionId.toLowerCase())));
+			])).flat().filter(extensionId => {
+				if (isString(extensionId)) {
+					return !localExtensionIds.includes(extensionId.toLowerCase());
+				}
+				return !localExtensions.some(localExtension => localExtension.local && this.uriIdentityService.extUri.isEqual(localExtension.local.location, extensionId));
+			}));
 
 		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);
-		return new PagedModel(installableRecommendations.slice(0, 8));
+
+		const result: IExtension[] = [];
+		for (let i = 0; i < installableRecommendations.length && result.length < 8; i++) {
+			const recommendation = allRecommendations[i];
+			if (isString(recommendation)) {
+				const extension = installableRecommendations.find(extension => areSameExtensions(extension.identifier, { id: recommendation }));
+				if (extension) {
+					result.push(extension);
+				}
+			} else {
+				const extension = installableRecommendations.find(extension => extension.resourceExtension && this.uriIdentityService.extUri.isEqual(extension.resourceExtension.location, recommendation));
+				if (extension) {
+					result.push(extension);
+				}
+			}
+		}
+
+		return new PagedModel(result);
 	}
 
 	private async searchRecommendations(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
@@ -1040,7 +1093,7 @@ export class ExtensionsListView extends ViewPane {
 
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
-					if (isOfflineError(error)) {
+					if (this.isOfflineError(error)) {
 						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
 						this.bodyTemplate.messageBox.textContent = localize('offline error', "Unable to search the Marketplace when offline, please check your network connection.");
 					} else {
@@ -1056,6 +1109,13 @@ export class ExtensionsListView extends ViewPane {
 		}
 
 		this.updateSize();
+	}
+
+	private isOfflineError(error: Error): boolean {
+		if (error instanceof ExtensionGalleryError) {
+			return error.code === ExtensionGalleryErrorCode.Offline;
+		}
+		return isOfflineError(error);
 	}
 
 	protected updateSize() {

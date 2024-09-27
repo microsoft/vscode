@@ -3,31 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import severity from 'vs/base/common/severity';
-import { URI, UriComponents, URI as uri } from 'vs/base/common/uri';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModel as EditorIModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IDataBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IAction } from '../../../../base/common/actions.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Color } from '../../../../base/common/color.js';
+import { Event } from '../../../../base/common/event.js';
+import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import severity from '../../../../base/common/severity.js';
+import { URI, UriComponents, URI as uri } from '../../../../base/common/uri.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import * as editorCommon from '../../../../editor/common/editorCommon.js';
+import { ITextModel as EditorIModel } from '../../../../editor/common/model.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITelemetryEndpoint } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorPane } from '../../../common/editor.js';
+import { DebugCompoundRoot } from './debugCompoundRoot.js';
+import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from './debugModel.js';
+import { Source } from './debugSource.js';
+import { ITaskIdentifier } from '../../tasks/common/tasks.js';
+import { LiveTestResult } from '../../testing/common/testResult.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -50,9 +51,9 @@ export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', f
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false, { type: 'boolean', description: nls.localize('breakpointWidgetVisibile', "True when breakpoint editor zone widget is visible, false otherwise.") });
 export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false, { type: 'boolean', description: nls.localize('inBreakpointWidget', "True when focus is in the breakpoint editor zone widget, false otherwise.") });
 export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true, { type: 'boolean', description: nls.localize('breakpointsFocused', "True when the BREAKPOINTS view is focused, false otherwise.") });
-export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true, { type: 'boolean', description: nls.localize('watchExpressionsFocused', "True when the WATCH view is focused, false otherwsie.") });
+export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true, { type: 'boolean', description: nls.localize('watchExpressionsFocused', "True when the WATCH view is focused, false otherwise.") });
 export const CONTEXT_WATCH_EXPRESSIONS_EXIST = new RawContextKey<boolean>('watchExpressionsExist', false, { type: 'boolean', description: nls.localize('watchExpressionsExist', "True when at least one watch expression exists, false otherwise.") });
-export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true, { type: 'boolean', description: nls.localize('variablesFocused', "True when the VARIABLES views is focused, false otherwsie") });
+export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true, { type: 'boolean', description: nls.localize('variablesFocused', "True when the VARIABLES views is focused, false otherwise") });
 export const CONTEXT_EXPRESSION_SELECTED = new RawContextKey<boolean>('expressionSelected', false, { type: 'boolean', description: nls.localize('expressionSelected', "True when an expression input box is open in either the WATCH or the VARIABLES view, false otherwise.") });
 export const CONTEXT_BREAKPOINT_INPUT_FOCUSED = new RawContextKey<boolean>('breakpointInputFocused', false, { type: 'boolean', description: nls.localize('breakpointInputFocused', "True when the input box has focus in the BREAKPOINTS view.") });
 export const CONTEXT_CALLSTACK_ITEM_TYPE = new RawContextKey<string>('callStackItemType', undefined, { type: 'string', description: nls.localize('callStackItemType', "Represents the item type of the focused element in the CALL STACK view. For example: 'session', 'thread', 'stackFrame'") });
@@ -71,7 +72,7 @@ export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('foc
 export const CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG = new RawContextKey<boolean>('focusedSessionIsNoDebug', false, { type: 'boolean', description: nls.localize('focusedSessionIsNoDebug', "True when the focused session is run without debugging.") });
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false, { type: 'boolean', description: nls.localize('stepBackSupported', "True when the focused session supports 'stepBack' requests.") });
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false, { type: 'boolean', description: nls.localize('restartFrameSupported', "True when the focused session supports 'restartFrame' requests.") });
-export const CONTEXT_STACK_FRAME_SUPPORTS_RESTART = new RawContextKey<boolean>('stackFrameSupportsRestart', false, { type: 'boolean', description: nls.localize('stackFrameSupportsRestart', "True when the focused stack frame suppots 'restartFrame'.") });
+export const CONTEXT_STACK_FRAME_SUPPORTS_RESTART = new RawContextKey<boolean>('stackFrameSupportsRestart', false, { type: 'boolean', description: nls.localize('stackFrameSupportsRestart', "True when the focused stack frame supports 'restartFrame'.") });
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false, { type: 'boolean', description: nls.localize('jumpToCursorSupported', "True when the focused session supports 'jumpToCursor' request.") });
 export const CONTEXT_STEP_INTO_TARGETS_SUPPORTED = new RawContextKey<boolean>('stepIntoTargetsSupported', false, { type: 'boolean', description: nls.localize('stepIntoTargetsSupported', "True when the focused session supports 'stepIntoTargets' request.") });
 export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false, { type: 'boolean', description: nls.localize('breakpointsExist', "True when at least one breakpoint exists.") });
@@ -163,11 +164,13 @@ export interface IExpressionValue {
 
 export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly hasChildren: boolean;
+	getSession(): IDebugSession | undefined;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly memoryReference?: string;
 	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
+	readonly valueLocationReference?: number;
 }
 
 export interface IExpression extends IExpressionContainer {
@@ -219,6 +222,11 @@ export interface LoadedSourceEvent {
 
 export type IDebugSessionReplMode = 'separate' | 'mergeWithParent';
 
+export interface IDebugTestRunReference {
+	runId: string;
+	taskId: string;
+}
+
 export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
@@ -231,6 +239,11 @@ export interface IDebugSessionOptions {
 	suppressDebugToolbar?: boolean;
 	suppressDebugStatusbar?: boolean;
 	suppressDebugView?: boolean;
+	/**
+	 * Set if the debug session is correlated with a test run. Stopping/restarting
+	 * the session will instead stop/restart the test run.
+	 */
+	testRun?: IDebugTestRunReference;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -335,6 +348,19 @@ export interface INewReplElementData {
 	source?: IReplElementSource;
 }
 
+export interface IDebugEvaluatePosition {
+	line: number;
+	column: number;
+	source: DebugProtocol.Source;
+}
+
+export interface IDebugLocationReferenced {
+	line: number;
+	column: number;
+	endLine?: number;
+	endColumn?: number;
+	source: Source;
+}
 
 export interface IDebugSession extends ITreeElement {
 
@@ -353,6 +379,8 @@ export interface IDebugSession extends ITreeElement {
 	readonly suppressDebugStatusbar: boolean;
 	readonly suppressDebugView: boolean;
 	readonly lifecycleManagedByParent: boolean;
+	/** Test run this debug session was spawned by */
+	readonly correlatedTestRun?: LiveTestResult;
 
 	setSubId(subId: string | undefined): void;
 
@@ -382,10 +410,12 @@ export interface IDebugSession extends ITreeElement {
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
 	readonly onDidChangeState: Event<void>;
-	readonly onDidChangeReplElements: Event<void>;
+	readonly onDidChangeReplElements: Event<IReplElement | undefined>;
 
-	// DA capabilities
+	/** DA capabilities. Set only when there is a running session available. */
 	readonly capabilities: DebugProtocol.Capabilities;
+	/** DA capabilities. These are retained on the session even after is implementation ends. */
+	readonly rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	// DAP events
 
@@ -413,12 +443,13 @@ export interface IDebugSession extends ITreeElement {
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
 	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
+	resolveLocationReference(locationReference: number): Promise<IDebugLocationReferenced>;
 
 	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse | undefined>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
 	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse | undefined>;
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse | undefined>;
-	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined>;
+	evaluate(expression: string, frameId?: number, context?: string, location?: IDebugEvaluatePosition): Promise<DebugProtocol.EvaluateResponse | undefined>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
 	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
 	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
@@ -534,7 +565,8 @@ export interface IStackFrame extends ITreeElement {
 }
 
 export function isFrameDeemphasized(frame: IStackFrame): boolean {
-	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize' || frame.presentationHint === 'subtle';
+	const hint = frame.presentationHint ?? frame.source.presentationHint;
+	return hint === 'deemphasize' || hint === 'subtle';
 }
 
 export interface IEnablement extends ITreeElement {
@@ -723,7 +755,14 @@ export interface IDebugModel extends ITreeElement {
 	getBreakpointModes(forBreakpointType: 'source' | 'exception' | 'data' | 'instruction'): DebugProtocol.BreakpointMode[];
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
+	/**
+	 * The expression has been added, removed, or repositioned.
+	 */
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+	/**
+	 * The expression's value has changed.
+	 */
+	onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
 
 	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
@@ -772,8 +811,9 @@ export interface IDebugConfiguration {
 	disassemblyView: {
 		showSourceCode: boolean;
 	};
-	autoExpandLazyVariables: boolean;
+	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
+	showVariableTypes: boolean;
 }
 
 export interface IGlobalConfig {
@@ -874,7 +914,6 @@ export interface IDebugAdapterInlineImpl extends IDisposable {
 
 export interface IDebugAdapterImpl {
 	readonly type: 'implementation';
-	readonly implementation: IDebugAdapterInlineImpl;
 }
 
 export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;
@@ -1150,7 +1189,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(name?: string, id?: string, mode?: string): void;
+	addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): void;
 
 	/**
 	 * Updates an already existing function breakpoint.

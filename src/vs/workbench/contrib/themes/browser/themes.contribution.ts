@@ -3,53 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from 'vs/platform/actions/common/actions';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Color } from 'vs/base/common/color';
-import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
-import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { IQuickInputButton, IQuickInputService, IQuickInputToggle, IQuickPick, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from 'vs/workbench/services/themes/browser/productIconThemeData';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { Codicon } from 'vs/base/common/codicons';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Emitter } from 'vs/base/common/event';
-import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { isWeb } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { mainWindow } from 'vs/base/browser/window';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { COLOR_THEME_CONFIGURATION_SETTINGS_TAG } from 'vs/workbench/services/themes/common/themeConfiguration';
+import { localize, localize2 } from '../../../../nls.js';
+import { KeyMod, KeyChord, KeyCode } from '../../../../base/common/keyCodes.js';
+import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from '../../../../platform/actions/common/actions.js';
+import { equalsIgnoreCase } from '../../../../base/common/strings.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from '../../../services/themes/common/workbenchThemeService.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IColorRegistry, Extensions as ColorRegistryExtensions } from '../../../../platform/theme/common/colorRegistry.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Color } from '../../../../base/common/color.js';
+import { ColorScheme, isHighContrast } from '../../../../platform/theme/common/theme.js';
+import { colorThemeSchemaId } from '../../../services/themes/common/colorThemeSchema.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { IQuickInputButton, IQuickInputService, IQuickInputToggle, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
+import { DEFAULT_PRODUCT_ICON_THEME_ID, ProductIconThemeData } from '../../../services/themes/browser/productIconThemeData.js';
+import { ThrottledDelayer } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { FileIconThemeData } from '../../../services/themes/browser/fileIconThemeData.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { INotificationService, IPromptChoice, Severity } from '../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -82,7 +79,7 @@ class MarketplaceThemesPicker {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		this._installedExtensions = extensionManagementService.getInstalled().then(installed => {
@@ -169,8 +166,9 @@ class MarketplaceThemesPicker {
 
 	public openQuickPick(value: string, currentTheme: IWorkbenchTheme | undefined, selectTheme: (theme: IWorkbenchTheme | undefined, applyTheme: boolean) => void): Promise<PickerResult> {
 		let result: PickerResult | undefined = undefined;
+		const disposables = new DisposableStore();
 		return new Promise<PickerResult>((s, _) => {
-			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+			const quickpick = disposables.add(this.quickInputService.createQuickPick<ThemeItem>());
 			quickpick.items = [];
 			quickpick.sortByLabel = false;
 			quickpick.matchOnDescription = true;
@@ -178,8 +176,8 @@ class MarketplaceThemesPicker {
 			quickpick.title = 'Marketplace Themes';
 			quickpick.placeholder = localize('themes.selectMarketplaceTheme', "Type to Search More. Select to Install. Up/Down Keys to Preview");
 			quickpick.canSelectMany = false;
-			quickpick.onDidChangeValue(() => this.trigger(quickpick.value));
-			quickpick.onDidAccept(async _ => {
+			disposables.add(quickpick.onDidChangeValue(() => this.trigger(quickpick.value)));
+			disposables.add(quickpick.onDidAccept(async _ => {
 				const themeItem = quickpick.selectedItems[0];
 				if (themeItem?.galleryExtension) {
 					result = 'selected';
@@ -191,42 +189,41 @@ class MarketplaceThemesPicker {
 						selectTheme(currentTheme, true);
 					}
 				}
-			});
+			}));
 
-			quickpick.onDidTriggerItemButton(e => {
+			disposables.add(quickpick.onDidTriggerItemButton(e => {
 				if (isItem(e.item)) {
 					const extensionId = e.item.theme?.extensionData?.extensionId;
 					if (extensionId) {
-						openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+						this.extensionsWorkbenchService.openSearch(`@id:${extensionId}`);
 					} else {
-						openExtensionViewlet(this.paneCompositeService, `${this.marketplaceQuery} ${quickpick.value}`);
+						this.extensionsWorkbenchService.openSearch(`${this.marketplaceQuery} ${quickpick.value}`);
 					}
 				}
-			});
-			quickpick.onDidChangeActive(themes => {
+			}));
+			disposables.add(quickpick.onDidChangeActive(themes => {
 				if (result === undefined) {
 					selectTheme(themes[0]?.theme, false);
 				}
-			});
+			}));
 
-			quickpick.onDidHide(() => {
+			disposables.add(quickpick.onDidHide(() => {
 				if (result === undefined) {
 					selectTheme(currentTheme, true);
 					result = 'cancelled';
 
 				}
-				quickpick.dispose();
 				s(result);
-			});
+			}));
 
-			quickpick.onDidTriggerButton(e => {
+			disposables.add(quickpick.onDidTriggerButton(e => {
 				if (e === this.quickInputService.backButton) {
 					result = 'back';
 					quickpick.hide();
 				}
-			});
+			}));
 
-			this.onDidChange(() => {
+			disposables.add(this.onDidChange(() => {
 				let items = this.themes;
 				if (this._searchOngoing) {
 					items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
@@ -240,14 +237,16 @@ class MarketplaceThemesPicker {
 				if (newActiveItem) {
 					quickpick.activeItems = [newActiveItem as ThemeItem];
 				}
-			});
+			}));
 			this.trigger(value);
 			quickpick.show();
+		}).finally(() => {
+			disposables.dispose();
 		});
 	}
 
 	private async installExtension(galleryExtension: IGalleryExtension) {
-		openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
+		this.extensionsWorkbenchService.openSearch(`@id:${galleryExtension.identifier.id}`);
 		const result = await this.dialogService.confirm({
 			message: localize('installExtension.confirm', "This will install extension '{0}' published by '{1}'. Do you want to continue?", galleryExtension.displayName, galleryExtension.publisherDisplayName),
 			primaryButton: localize('installExtension.button.ok', "OK")
@@ -292,7 +291,7 @@ interface InstalledThemesPickerOptions {
 	readonly title?: string;
 	readonly description?: string;
 	readonly toggles?: IQuickInputToggle[];
-	readonly onToggle?: (toggle: IQuickInputToggle, quickInput: IQuickPick<ThemeItem>) => Promise<void>;
+	readonly onToggle?: (toggle: IQuickInputToggle, quickInput: IQuickPick<ThemeItem, { useSeparators: boolean }>) => Promise<void>;
 }
 
 class InstalledThemesPicker {
@@ -302,7 +301,7 @@ class InstalledThemesPicker {
 		private readonly getMarketplaceColorThemes: (publisher: string, name: string, version: string) => Promise<IWorkbenchTheme[]>,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -339,12 +338,11 @@ class InstalledThemesPicker {
 		};
 
 		const pickInstalledThemes = (activeItemId: string | undefined) => {
+			const disposables = new DisposableStore();
 			return new Promise<void>((s, _) => {
 				let isCompleted = false;
-				const disposables = new DisposableStore();
-
 				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === activeItemId);
-				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+				const quickpick = disposables.add(this.quickInputService.createQuickPick<ThemeItem>({ useSeparators: true }));
 				quickpick.items = picks;
 				quickpick.title = this.options.title;
 				quickpick.description = this.options.description;
@@ -353,15 +351,15 @@ class InstalledThemesPicker {
 				quickpick.canSelectMany = false;
 				quickpick.toggles = this.options.toggles;
 				quickpick.toggles?.forEach(toggle => {
-					toggle.onChange(() => this.options.onToggle?.(toggle, quickpick), undefined, disposables);
+					disposables.add(toggle.onChange(() => this.options.onToggle?.(toggle, quickpick)));
 				});
 				quickpick.matchOnDescription = true;
-				quickpick.onDidAccept(async _ => {
+				disposables.add(quickpick.onDidAccept(async _ => {
 					isCompleted = true;
 					const theme = quickpick.selectedItems[0];
 					if (!theme || theme.configureItem) { // 'pick in marketplace' entry
 						if (!theme || theme.configureItem === ConfigureItem.EXTENSIONS_VIEW) {
-							openExtensionViewlet(this.paneCompositeService, `${this.options.marketplaceTag} ${quickpick.value}`);
+							this.extensionsWorkbenchService.openSearch(`${this.options.marketplaceTag} ${quickpick.value}`);
 						} else if (theme.configureItem === ConfigureItem.BROWSE_GALLERY) {
 							if (marketplaceThemePicker) {
 								const res = await marketplaceThemePicker.openQuickPick(quickpick.value, currentTheme, selectTheme);
@@ -376,27 +374,28 @@ class InstalledThemesPicker {
 
 					quickpick.hide();
 					s();
-				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false));
-				quickpick.onDidHide(() => {
+				}));
+				disposables.add(quickpick.onDidChangeActive(themes => selectTheme(themes[0]?.theme, false)));
+				disposables.add(quickpick.onDidHide(() => {
 					if (!isCompleted) {
 						selectTheme(currentTheme, true);
 						s();
 					}
 					quickpick.dispose();
-					disposables.dispose();
-				});
-				quickpick.onDidTriggerItemButton(e => {
+				}));
+				disposables.add(quickpick.onDidTriggerItemButton(e => {
 					if (isItem(e.item)) {
 						const extensionId = e.item.theme?.extensionData?.extensionId;
 						if (extensionId) {
-							openExtensionViewlet(this.paneCompositeService, `@id:${extensionId}`);
+							this.extensionsWorkbenchService.openSearch(`@id:${extensionId}`);
 						} else {
-							openExtensionViewlet(this.paneCompositeService, `${this.options.marketplaceTag} ${quickpick.value}`);
+							this.extensionsWorkbenchService.openSearch(`${this.options.marketplaceTag} ${quickpick.value}`);
 						}
 					}
-				});
+				}));
 				quickpick.show();
+			}).finally(() => {
+				disposables.dispose();
 			});
 		};
 		await pickInstalledThemes(currentTheme.id);
@@ -423,14 +422,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	private getTitle(colorScheme: ColorScheme | undefined): string | undefined {
+	private getTitle(colorScheme: ColorScheme | undefined): string {
 		switch (colorScheme) {
-			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for Dark Mode");
-			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for Light Mode");
-			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for Dark High Contrast Mode");
-			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for Light High Contrast Mode");
+			case ColorScheme.DARK: return localize('themes.selectTheme.darkScheme', "Select Color Theme for System Dark Mode");
+			case ColorScheme.LIGHT: return localize('themes.selectTheme.lightScheme', "Select Color Theme for System Light Mode");
+			case ColorScheme.HIGH_CONTRAST_DARK: return localize('themes.selectTheme.darkHC', "Select Color Theme for High Contrast Dark Mode");
+			case ColorScheme.HIGH_CONTRAST_LIGHT: return localize('themes.selectTheme.lightHC', "Select Color Theme for High Contrast Light Mode");
 			default:
-				return undefined;
+				return localize('themes.selectTheme.default', "Select Color Theme (detect system color mode disabled)");
 		}
 	}
 
@@ -443,15 +442,15 @@ registerAction2(class extends Action2 {
 		let modeConfigureToggle;
 		if (preferredColorScheme) {
 			modeConfigureToggle = new Toggle({
-				title: 'Automatic Mode Switching is Enabled. Click to configure.',
+				title: localize('themes.configure.switchingEnabled', 'Detect system color mode enabled. Click to configure.'),
 				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
 		} else {
 			modeConfigureToggle = new Toggle({
-				title: 'Click to configure automatic mode switching.',
-				icon: Codicon.gear,
+				title: localize('themes.configure.switchingDisabled', 'Detect system color mode disabled. Click to configure.'),
+				icon: Codicon.colorMode,
 				isChecked: false,
 				...defaultToggleStyles
 			});
@@ -460,12 +459,12 @@ registerAction2(class extends Action2 {
 		const options = {
 			installMessage: localize('installColorThemes', "Install Additional Color Themes..."),
 			browseMessage: '$(plus) ' + localize('browseColorThemes', "Browse Additional Color Themes..."),
-			placeholderMessage: this.getTitle(preferredColorScheme) ?? 'Select Color Theme (Mode Switching Disabled)',
+			placeholderMessage: this.getTitle(preferredColorScheme),
 			marketplaceTag: 'category:themes',
 			toggles: [modeConfigureToggle],
 			onToggle: async (toggle, picker) => {
 				picker.hide();
-				await preferencesService.openSettings({ query: `@tag:${COLOR_THEME_CONFIGURATION_SETTINGS_TAG}` });
+				await preferencesService.openSettings({ query: ThemeSettings.DETECT_COLOR_SCHEME });
 			}
 		} satisfies InstalledThemesPickerOptions;
 		const setTheme = (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => themeService.setColorTheme(theme as IWorkbenchColorTheme, settingsTarget);
@@ -605,14 +604,6 @@ function configurationEntry(label: string, configureItem: ConfigureItem): QuickP
 	};
 }
 
-function openExtensionViewlet(paneCompositeService: IPaneCompositePartService, query: string) {
-	return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
-		if (viewlet) {
-			(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-			viewlet.focus();
-		}
-	});
-}
 interface ThemeItem extends IQuickPickItem {
 	readonly id: string | undefined;
 	readonly theme?: IWorkbenchTheme;
@@ -722,6 +713,21 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor) {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const configurationService = accessor.get(IConfigurationService);
+		const notificationService = accessor.get(INotificationService);
+		const preferencesService = accessor.get(IPreferencesService);
+
+		if (configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			const message = localize({ key: 'cannotToggle', comment: ['{0} is a setting name'] }, "Cannot toggle between light and dark themes when `{0}` is enabled in settings.", ThemeSettings.DETECT_COLOR_SCHEME);
+			notificationService.prompt(Severity.Info, message, [
+				{
+					label: localize('goToSetting', "Open Settings"),
+					run: () => {
+						return preferencesService.openUserSettings({ query: ThemeSettings.DETECT_COLOR_SCHEME });
+					}
+				}
+			]);
+			return;
+		}
 
 		const currentTheme = themeService.getColorTheme();
 		let newSettingsId: string = ThemeSettings.PREFERRED_DARK_THEME;
@@ -801,18 +807,18 @@ registerAction2(class extends Action2 {
 });
 
 const ThemesSubMenu = new MenuId('ThemesSubMenu');
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+} satisfies ISubmenuItem);
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7
-});
+} satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CSSPluginUtilities, rewriteUrls } from 'vs/css.build';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { CSSPluginUtilities, rewriteUrls } from '../../../css.build.js';
 
 suite('CSSPlugin', () => {
 

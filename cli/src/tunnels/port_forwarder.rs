@@ -12,7 +12,10 @@ use crate::{
 	util::errors::{AnyError, CannotForwardControlPort, ServerHasClosed},
 };
 
-use super::{dev_tunnels::ActiveTunnel, protocol::PortPrivacy};
+use super::{
+	dev_tunnels::ActiveTunnel,
+	protocol::{PortPrivacy, PortProtocol},
+};
 
 pub enum PortForwardingRec {
 	Forward(u16, PortPrivacy, oneshot::Sender<Result<String, AnyError>>),
@@ -89,7 +92,9 @@ impl PortForwardingProcessor {
 		}
 
 		if !self.forwarded.contains(&port) {
-			tunnel.add_port_tcp(port, privacy).await?;
+			tunnel
+				.add_port_tcp(port, privacy, PortProtocol::Auto)
+				.await?;
 			self.forwarded.insert(port);
 		}
 

@@ -3,35 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="typings/require.d.ts" />
-
 //@ts-check
 'use strict';
 
+/**
+ * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
+ * @typedef {any} LoaderConfig
+ */
+
 /* eslint-disable no-restricted-globals */
 
-// Simple module style to support node.js and browser environments
-(function (globalThis, factory) {
-
-	// Node.js
-	if (typeof exports === 'object') {
-		module.exports = factory();
-	}
-
-	// Browser
-	else {
-		// @ts-ignore
-		globalThis.MonacoBootstrapWindow = factory();
-	}
-}(this, function () {
-	const bootstrapLib = bootstrap();
+(function (factory) {
+	// @ts-ignore
+	globalThis.MonacoBootstrapWindow = factory();
+}(function () {
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
 
+	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+	Error.stackTraceLimit = 100;
+
 	/**
-	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
-	 * @param {string[]} modulePaths
+	 * @param {string} esModule
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
 	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
@@ -41,11 +34,10 @@
 	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
 	 * 	},
 	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
-	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *  beforeRequire?: (config: ISandboxConfiguration) => void
+	 *  beforeImport?: (config: ISandboxConfiguration) => void
 	 * }} [options]
 	 */
-	async function load(modulePaths, resultCallback, options) {
+	async function load(esModule, resultCallback, options) {
 
 		// Await window configuration from preload
 		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
@@ -72,108 +64,88 @@
 		};
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
 		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
-		/**
-		 * @type {() => void | undefined}
-		 */
-		let developerDeveloperKeybindingsDisposable;
+		let developerDeveloperKeybindingsDisposable = undefined;
 		if (enableDeveloperKeybindings) {
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Get the nls configuration into the process.env as early as possible
-		// @ts-ignore
-		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
-
-		let locale = nlsConfig.availableLanguages['*'] || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
+		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
+		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
+		let language = configuration.nls.language || 'en';
+		if (language === 'zh-tw') {
+			language = 'zh-Hant';
+		} else if (language === 'zh-cn') {
+			language = 'zh-Hans';
 		}
 
-		window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentElement.setAttribute('lang', language);
 
 		window['MonacoEnvironment'] = {};
 
-		/**
-		 * @typedef {any} LoaderConfig
-		 */
-		/** @type {LoaderConfig} */
-		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			'vs/nls': nlsConfig,
-			preferScriptTags: true
-		};
+		// Signal before import()
+		if (typeof options?.beforeImport === 'function') {
+			options.beforeImport(configuration);
+		}
 
-		// use a trusted types policy when loading via script tags
-		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-			createScriptURL(value) {
-				if (value.startsWith(window.location.origin)) {
-					return value;
-				}
-				throw new Error(`Invalid script url: ${value}`);
+		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
+		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
+
+		// DEV ---------------------------------------------------------------------------------------
+		// DEV: This is for development and enables loading CSS via import-statements via import-maps.
+		// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
+		// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
+		// DEV ---------------------------------------------------------------------------------------
+		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
+			performance.mark('code/willAddCssLoader');
+
+			const style = document.createElement('style');
+			style.type = 'text/css';
+			style.media = 'screen';
+			style.id = 'vscode-css-loading';
+			document.head.appendChild(style);
+
+			globalThis._VSCODE_CSS_LOAD = function (url) {
+				style.textContent += `@import url(${url});\n`;
+			};
+
+			/**
+			 * @type { { imports: Record<string, string> }}
+			 */
+			const importMap = { imports: {} };
+			for (const cssModule of configuration.cssModules) {
+				const cssUrl = new URL(cssModule, baseUrl).href;
+				const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+				const blob = new Blob([jsSrc], { type: 'application/javascript' });
+				importMap.imports[cssUrl] = URL.createObjectURL(blob);
 			}
-		});
 
-		// Teach the loader the location of the node modules we use in renderers
-		// This will enable to load these modules via <script> tags instead of
-		// using a fallback such as node.js require which does not exist in sandbox
-		const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-		loaderConfig.paths = {
-			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
-			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
-			'@xterm/addon-canvas': `${baseNodeModulesPath}/@xterm/addon-canvas/lib/addon-canvas.js`,
-			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
-			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
-			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
-			'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
-			'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
-			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
-			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-			'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
-			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
-		};
+			const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
+			const importMapSrc = JSON.stringify(importMap, undefined, 2);
+			const importMapScript = document.createElement('script');
+			importMapScript.type = 'importmap';
+			importMapScript.setAttribute('nonce', '0c6a828f1297');
+			// @ts-ignore
+			importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
+			document.head.appendChild(importMapScript);
 
-		// Signal before require.config()
-		if (typeof options?.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(loaderConfig);
+			performance.mark('code/didAddCssLoader');
 		}
 
-		// Configure loader
-		require.config(loaderConfig);
+		// ESM Import
+		try {
+			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
 
-		// Handle pseudo NLS
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
+			const callbackResult = resultCallback(result, configuration);
+			if (callbackResult instanceof Promise) {
+				await callbackResult;
 
-		// Signal before require()
-		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire(configuration);
-		}
-
-		// Actually require the main module as specified
-		require(modulePaths, async firstModule => {
-			try {
-
-				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(firstModule, configuration);
-				if (callbackResult instanceof Promise) {
-					await callbackResult;
-
-					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
-						developerDeveloperKeybindingsDisposable();
-					}
+				if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+					developerDeveloperKeybindingsDisposable();
 				}
-			} catch (error) {
-				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
-		}, onUnexpectedError);
+		} catch (error) {
+			onUnexpectedError(error, enableDeveloperKeybindings);
+		}
 	}
 
 	/**
@@ -240,11 +212,35 @@
 	}
 
 	/**
-	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, fallbackAuthority?: string }) => string; }}
+	 * @param {string} path
+	 * @param {{ isWindows?: boolean, scheme?: string, fallbackAuthority?: string }} config
+	 * @returns {string}
 	 */
-	function bootstrap() {
-		// @ts-ignore (defined in bootstrap.js)
-		return window.MonacoBootstrap;
+	function fileUriFromPath(path, config) {
+
+		// Since we are building a URI, we normalize any backslash
+		// to slashes and we ensure that the path begins with a '/'.
+		let pathName = path.replace(/\\/g, '/');
+		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
+			pathName = `/${pathName}`;
+		}
+
+		/** @type {string} */
+		let uri;
+
+		// Windows: in order to support UNC paths (which start with '//')
+		// that have their own authority, we do not use the provided authority
+		// but rather preserve it.
+		if (config.isWindows && pathName.startsWith('//')) {
+			uri = encodeURI(`${config.scheme || 'file'}:${pathName}`);
+		}
+
+		// Otherwise we optionally add the provided authority if specified
+		else {
+			uri = encodeURI(`${config.scheme || 'file'}://${config.fallbackAuthority || ''}${pathName}`);
+		}
+
+		return uri.replace(/#/g, '%23');
 	}
 
 	/**

@@ -3,42 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
+import { localize } from '../../../../../nls.js';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
+import { TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { TerminalChatController } from './terminalChatController.js';
 
-export class TerminalChatAccessibilityHelpContribution extends Disposable {
-	static ID = 'terminalChatAccessiblityHelp';
-	constructor() {
-		super();
-		this._register(AccessibilityHelpAction.addImplementation(110, 'terminalChat', runAccessibilityHelpAction, TerminalChatContextKeys.focused));
+export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentation {
+	readonly priority = 110;
+	readonly name = 'terminalChat';
+	readonly when = TerminalChatContextKeys.focused;
+	readonly type = AccessibleViewType.Help;
+	getProvider(accessor: ServicesAccessor) {
+		const terminalService = accessor.get(ITerminalService);
+
+		const instance = terminalService.activeInstance;
+		if (!instance) {
+			return;
+		}
+
+		const helpText = getAccessibilityHelpText(accessor);
+		return new AccessibleContentProvider(
+			AccessibleViewProviderId.TerminalChat,
+			{ type: AccessibleViewType.Help },
+			() => helpText,
+			() => TerminalChatController.get(instance)?.focus(),
+			AccessibilityVerbositySettingId.TerminalChat,
+		);
 	}
-}
-
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor): Promise<void> {
-	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const terminalService = accessor.get(ITerminalService);
-
-	const instance = terminalService.activeInstance;
-	if (!instance) {
-		return;
-	}
-
-	const helpText = getAccessibilityHelpText(accessor);
-	accessibleViewService.show({
-		id: AccessibleViewProviderId.TerminalChat,
-		verbositySettingKey: AccessibilityVerbositySettingId.TerminalChat,
-		provideContent: () => helpText,
-		onClose: () => TerminalChatController.get(instance)?.focus(),
-		options: { type: AccessibleViewType.Help }
-	});
 }
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
@@ -61,5 +57,5 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	content.push(insertCommandKeybinding ? localize('inlineChat.insertCommand', 'With focus in the input box command editor, the Terminal: Insert Chat Command ({0}) action.', insertCommandKeybinding) : localize('inlineChat.insertCommandNoKb', 'Insert a command by tabbing to the button as the action is currently not triggerable by a keybinding.'));
 	content.push(localize('inlineChat.toolbar', "Use tab to reach conditional parts like commands, status, message responses and more."));
 	content.push(localize('chat.signals', "Accessibility Signals can be changed via settings with a prefix of signals.chat. By default, if a request takes more than 4 seconds, you will hear a sound indicating that progress is still occurring."));
-	return content.join('\n\n');
+	return content.join('\n');
 }

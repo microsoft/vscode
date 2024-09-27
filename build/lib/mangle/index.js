@@ -14,7 +14,7 @@ const ts = require("typescript");
 const url_1 = require("url");
 const workerpool = require("workerpool");
 const staticLanguageServiceHost_1 = require("./staticLanguageServiceHost");
-const buildfile = require('../../../src/buildfile');
+const buildfile = require('../../buildfile');
 class ShortIdent {
     prefix;
     static _keywords = new Set(['await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
@@ -250,7 +250,6 @@ function isNameTakenInFile(node, name) {
 const skippedExportMangledFiles = [
     // Build
     'css.build',
-    'nls.build',
     // Monaco
     'editorCommon',
     'editorOptions',
@@ -264,17 +263,19 @@ const skippedExportMangledFiles = [
     'pfs',
     // entry points
     ...[
-        buildfile.entrypoint('vs/server/node/server.main', []),
-        buildfile.entrypoint('vs/workbench/workbench.desktop.main', []),
-        buildfile.base,
+        buildfile.entrypoint('vs/server/node/server.main'),
+        buildfile.workerEditor,
         buildfile.workerExtensionHost,
         buildfile.workerNotebook,
         buildfile.workerLanguageDetection,
         buildfile.workerLocalFileSearch,
         buildfile.workerProfileAnalysis,
+        buildfile.workerOutputLinks,
+        buildfile.workerBackgroundTokenization,
         buildfile.workbenchDesktop,
         buildfile.workbenchWeb,
-        buildfile.code
+        buildfile.code,
+        buildfile.codeWeb
     ].flat().map(x => x.name),
 ];
 const skippedExportMangledProjects = [

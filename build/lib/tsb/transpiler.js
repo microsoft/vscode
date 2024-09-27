@@ -62,7 +62,7 @@ class OutputFileNameOracle {
             catch (err) {
                 console.error(file, cmdLine.fileNames);
                 console.error(err);
-                throw new err;
+                throw err;
             }
         };
     }
@@ -305,7 +305,7 @@ class SwcTranspiler {
         },
         module: {
             type: 'amd',
-            noInterop: true
+            noInterop: false
         },
         minify: false,
     };
@@ -313,7 +313,7 @@ class SwcTranspiler {
         ...this._swcrcAmd,
         module: {
             type: 'commonjs',
-            importInterop: 'none'
+            importInterop: 'swc'
         }
     };
     static _swcrcEsm = {

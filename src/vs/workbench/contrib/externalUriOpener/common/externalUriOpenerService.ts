@@ -3,23 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { isWeb } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import * as languages from 'vs/editor/common/languages';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExternalOpener, IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { defaultExternalUriOpenerId, ExternalUriOpenersConfiguration, externalUriOpenersSettingId } from 'vs/workbench/contrib/externalUriOpener/common/configuration';
-import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as languages from '../../../../editor/common/languages.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { defaultExternalUriOpenerId, ExternalUriOpenersConfiguration, externalUriOpenersSettingId } from './configuration.js';
+import { testUrlMatchesGlob } from '../../url/common/urlGlob.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 
 export const IExternalUriOpenerService = createDecorator<IExternalUriOpenerService>('externalUriOpenerService');
@@ -126,7 +125,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// See if we have a preferred opener first
-		const preferred = firstOrDefault(validOpeners.filter(x => x.priority === languages.ExternalUriOpenerPriority.Preferred));
+		const preferred = validOpeners.filter(x => x.priority === languages.ExternalUriOpenerPriority.Preferred).at(0);
 		if (preferred) {
 			return [preferred.opener];
 		}

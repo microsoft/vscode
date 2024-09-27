@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isAbsolute } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { FileChangeFilter, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+import { Event } from '../../../base/common/event.js';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { isAbsolute } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { FileChangeFilter, FileChangeType, IFileChange, isParent } from './files.js';
 
 interface IWatchRequest {
 
@@ -88,6 +88,11 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
+export interface IWatcherErrorEvent {
+	readonly error: string;
+	readonly request?: IUniversalWatchRequest;
+}
+
 export interface IWatcher {
 
 	/**
@@ -106,7 +111,7 @@ export interface IWatcher {
 	 * that is unrecoverable. Listeners should restart the
 	 * watcher if possible.
 	 */
-	readonly onDidError: Event<string>;
+	readonly onDidError: Event<IWatcherErrorEvent>;
 
 	/**
 	 * Configures the watcher to watch according to the
@@ -135,14 +140,14 @@ export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
 
 	/**
 	 * Subscribe to file events for the given path. The callback is called
-	 * whenever a file event occurs for the path. I fthe watcher failed,
+	 * whenever a file event occurs for the path. If the watcher failed,
 	 * the error parameter is set to `true`.
 	 *
 	 * @returns an `IDisposable` to stop listening to events or `undefined`
 	 * if no events can be watched for the path given the current set of
 	 * recursive watch requests.
 	 */
-	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined;
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
 }
 
 export interface IRecursiveWatcherOptions {
@@ -190,8 +195,8 @@ export abstract class AbstractWatcherClient extends Disposable {
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private options: {
-			type: string;
-			restartOnError: boolean;
+			readonly type: string;
+			readonly restartOnError: boolean;
 		}
 	) {
 		super();
@@ -212,25 +217,51 @@ export abstract class AbstractWatcherClient extends Disposable {
 		// Wire in event handlers
 		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
 		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
-		disposables.add(this.watcher.onDidError(error => this.onError(error)));
+		disposables.add(this.watcher.onDidError(e => this.onError(e.error, e.request)));
 	}
 
-	protected onError(error: string): void {
+	protected onError(error: string, failedRequest?: IUniversalWatchRequest): void {
 
-		// Restart on error (up to N times, if enabled)
-		if (this.options.restartOnError) {
+		// Restart on error (up to N times, if possible)
+		if (this.canRestart(error, failedRequest)) {
 			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
-				this.error(`restarting watcher after error: ${error}`);
+				this.error(`restarting watcher after unexpected error: ${error}`);
 				this.restart(this.requests);
 			} else {
-				this.error(`gave up attempting to restart watcher after error: ${error}`);
+				this.error(`gave up attempting to restart watcher after unexpected error: ${error}`);
 			}
 		}
 
-		// Do not attempt to restart if not enabled
+		// Do not attempt to restart otherwise, report the error
 		else {
 			this.error(error);
 		}
+	}
+
+	private canRestart(error: string, failedRequest?: IUniversalWatchRequest): boolean {
+		if (!this.options.restartOnError) {
+			return false; // disabled by options
+		}
+
+		if (failedRequest) {
+			// do not treat a failing request as a reason to restart the entire
+			// watcher. it is possible that from a large amount of watch requests
+			// some fail and we would constantly restart all requests only because
+			// of that. rather, continue the watcher and leave the failed request
+			return false;
+		}
+
+		if (
+			error.indexOf('No space left on device') !== -1 ||
+			error.indexOf('EMFILE') !== -1
+		) {
+			// do not restart when the error indicates that the system is running
+			// out of handles for file watching. this is not recoverable anyway
+			// and needs changes to the system before continuing
+			return false;
+		}
+
+		return true;
 	}
 
 	private restart(requests: IUniversalWatchRequest[]): void {
@@ -470,7 +501,7 @@ export function requestFilterToString(filter: FileChangeFilter | undefined): str
 			return '<all>';
 		}
 
-		return filters.join(', ');
+		return `[${filters.join(', ')}]`;
 	}
 
 	return '<none>';

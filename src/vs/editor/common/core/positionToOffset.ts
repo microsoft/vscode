@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLastIdxMonotonous } from 'vs/base/common/arraysFind';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { TextLength } from 'vs/editor/common/core/textLength';
+import { findLastIdxMonotonous } from '../../../base/common/arraysFind.js';
+import { OffsetRange } from './offsetRange.js';
+import { Position } from './position.js';
+import { Range } from './range.js';
+import { TextLength } from './textLength.js';
 
 export class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];

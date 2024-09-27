@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../log/common/log.js';
+import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from './capabilities.js';
+import { ITerminalOutputMatcher } from '../terminal.js';
+import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
+import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
-import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -24,8 +22,12 @@ interface ITerminalDimensions {
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
+	private readonly _promptInputModel: PromptInputModel;
+	get promptInputModel(): IPromptInputModel { return this._promptInputModel; }
+
 	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
+	private _promptTerminator: string | undefined;
 	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
@@ -50,23 +52,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return this._currentCommand;
 	}
 	get cwd(): string | undefined { return this._cwd; }
-	private get _isInputting(): boolean {
-		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
-	}
-
-	get hasInput(): boolean | undefined {
-		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
-			return undefined;
-		}
-		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
-			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
-			if (line === undefined) {
-				return undefined;
-			}
-			return line.length > 0;
-		}
-		return true;
-	}
+	get promptTerminator(): string | undefined { return this._promptTerminator; }
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -86,6 +72,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
+
+		this._promptInputModel = this._register(new PromptInputModel(this._terminal, this.onCommandStarted, this.onCommandExecuted, this._logService));
 
 		// Pull command line from the buffer if it was not set explicitly
 		this._register(this.onCommandExecuted(command => {
@@ -158,6 +146,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	@debounce(500)
 	private _handleCursorMove() {
+		if (this._store.isDisposed) {
+			return;
+		}
 		// Early versions of conpty do not have real support for an alt buffer, in addition certain
 		// commands such as tsc watch will write to the top of the normal buffer. The following
 		// checks when the cursor has moved while the normal buffer is empty and if it is above the
@@ -191,6 +182,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (count > 0) {
 			this._onCommandInvalidated.fire(this._commands.splice(this._commands.length - count, count));
 		}
+	}
+
+	setContinuationPrompt(value: string): void {
+		this._promptInputModel.setContinuationPrompt(value);
+	}
+
+	// TODO: Simplify this, can everything work off the last line?
+	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
+		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
+		this._promptTerminator = promptTerminator;
+		this._promptInputModel.setLastPromptLine(lastPromptLine);
 	}
 
 	setCwd(value: string) {
@@ -392,6 +394,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.command = commandLine;
 		this._currentCommand.commandLineConfidence = 'high';
 		this._currentCommand.isTrusted = isTrusted;
+
+		if (isTrusted) {
+			this._promptInputModel.setConfidentCommandLine(commandLine);
+		}
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
@@ -402,7 +408,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
-			commands
+			commands,
+			promptInputModel: this._promptInputModel.serialize(),
 		};
 	}
 
@@ -436,6 +443,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
+		}
+		if (serialized.promptInputModel) {
+			this._promptInputModel.deserialize(serialized.promptInputModel);
 		}
 	}
 }
@@ -485,7 +495,7 @@ class UnixPtyHeuristics extends Disposable {
 		}));
 	}
 
-	async handleCommandStart(options?: IHandleCommandOptions) {
+	handleCommandStart(options?: IHandleCommandOptions) {
 		this._hooks.commitCommandFinished();
 
 		const currentCommand = this._capability.currentCommand;
@@ -541,7 +551,7 @@ class UnixPtyHeuristics extends Disposable {
 const enum AdjustCommandStartMarkerConstants {
 	MaxCheckLineCount = 10,
 	Interval = 20,
-	MaximumPollCount = 50,
+	MaximumPollCount = 10,
 }
 
 /**
@@ -638,7 +648,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
-	async handleCommandStart() {
+	handleCommandStart() {
 		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
@@ -722,7 +732,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 		if (scannedLineCount < AdjustCommandStartMarkerConstants.MaxCheckLineCount) {
 			this._tryAdjustCommandStartMarkerScannedLineCount = scannedLineCount;
-			if (this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
+			if (++this._tryAdjustCommandStartMarkerPollCount < AdjustCommandStartMarkerConstants.MaximumPollCount) {
 				this._tryAdjustCommandStartMarkerScheduler?.schedule();
 			} else {
 				this._flushPendingHandleCommandStartTask();
@@ -908,7 +918,6 @@ class WindowsPtyHeuristics extends Disposable {
 		if (!line) {
 			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurations.
 		const lineText = line.translateToString(true);
 		if (!lineText) {
 			return;
@@ -936,7 +945,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 
 		// Bash Prompt
-		const bashPrompt = lineText.match(/^(?<prompt>.*\$)/)?.groups?.prompt;
+		const bashPrompt = lineText.match(/^(?<prompt>\$)/)?.groups?.prompt;
 		if (bashPrompt) {
 			const adjustedPrompt = this._adjustPrompt(bashPrompt, lineText, '$');
 			if (adjustedPrompt) {
@@ -951,6 +960,14 @@ class WindowsPtyHeuristics extends Disposable {
 				prompt: pythonPrompt,
 				likelySingleLine: true
 			};
+		}
+
+		// Dynamic prompt detection
+		if (this._capability.promptTerminator && lineText.trim().endsWith(this._capability.promptTerminator)) {
+			const adjustedPrompt = this._adjustPrompt(lineText, lineText, this._capability.promptTerminator);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt

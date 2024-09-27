@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iconlabel';
-import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IMatch } from 'vs/base/common/filters';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { equals } from 'vs/base/common/objects';
-import { Range } from 'vs/base/common/range';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
-import { isString } from 'vs/base/common/types';
-import { stripIcons } from 'vs/base/common/iconLabels';
+import './iconlabel.css';
+import * as dom from '../../dom.js';
+import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { IMatch } from '../../../common/filters.js';
+import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { equals } from '../../../common/objects.js';
+import { Range } from '../../../common/range.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import type { IManagedHoverTooltipMarkdownString } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { isString } from '../../../common/types.js';
+import { stripIcons } from '../../../common/iconLabels.js';
+import { URI } from '../../../common/uri.js';
 
 export interface IIconLabelCreationOptions {
 	readonly supportHighlights?: boolean;
@@ -25,8 +26,8 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelValueOptions {
-	title?: string | IUpdatableHoverTooltipMarkdownString;
-	descriptionTitle?: string | IUpdatableHoverTooltipMarkdownString;
+	title?: string | IManagedHoverTooltipMarkdownString;
+	descriptionTitle?: string | IManagedHoverTooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
@@ -38,12 +39,13 @@ export interface IIconLabelValueOptions {
 	disabledCommand?: boolean;
 	readonly separator?: string;
 	readonly domId?: string;
+	iconPath?: URI;
 }
 
 class FastLabelNode {
 	private disposed: boolean | undefined;
 	private _textContent: string | undefined;
-	private _className: string | undefined;
+	private _classNames: string[] | undefined;
 	private _empty: boolean | undefined;
 
 	constructor(private _element: HTMLElement) {
@@ -62,13 +64,14 @@ class FastLabelNode {
 		this._element.textContent = content;
 	}
 
-	set className(className: string) {
-		if (this.disposed || className === this._className) {
+	set classNames(classNames: string[]) {
+		if (this.disposed || equals(classNames, this._classNames)) {
 			return;
 		}
 
-		this._className = className;
-		this._element.className = className;
+		this._classNames = classNames;
+		this._element.classList.value = '';
+		this._element.classList.add(...classNames);
 	}
 
 	set empty(empty: boolean) {
@@ -153,9 +156,24 @@ export class IconLabel extends Disposable {
 			}
 		}
 
-		this.domNode.className = labelClasses.join(' ');
+		const existingIconNode = this.domNode.element.querySelector('.monaco-icon-label-iconpath');
+		if (options?.iconPath) {
+			let iconNode;
+			if (!existingIconNode || !(dom.isHTMLElement(existingIconNode))) {
+				iconNode = dom.$('.monaco-icon-label-iconpath');
+				this.domNode.element.prepend(iconNode);
+			} else {
+				iconNode = existingIconNode;
+			}
+			iconNode.style.backgroundImage = dom.asCSSUrl(options?.iconPath);
+		} else if (existingIconNode) {
+			existingIconNode.remove();
+		}
+
+		this.domNode.classNames = labelClasses;
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
-		this.labelContainer.className = containerClasses.join(' ');
+		this.labelContainer.classList.value = '';
+		this.labelContainer.classList.add(...containerClasses);
 		this.setupHover(options?.descriptionTitle ? this.labelContainer : this.element, options?.title);
 
 		this.nameNode.setLabel(label, options);
@@ -178,7 +196,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 		const previousCustomHover = this.customHovers.get(htmlElement);
 		if (previousCustomHover) {
 			previousCustomHover.dispose();
@@ -191,7 +209,7 @@ export class IconLabel extends Disposable {
 		}
 
 		if (this.hoverDelegate.showNativeHover) {
-			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 				if (isString(tooltip)) {
 					// Icons don't render in the native hover so we strip them out
 					htmlElement.title = stripIcons(tooltip);
@@ -203,7 +221,7 @@ export class IconLabel extends Disposable {
 			}
 			setupNativeHover(htmlElement, tooltip);
 		} else {
-			const hoverDisposable = getBaseLayerHoverDelegate().setupUpdatableHover(this.hoverDelegate, htmlElement, tooltip);
+			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, htmlElement, tooltip);
 			if (hoverDisposable) {
 				this.customHovers.set(htmlElement, hoverDisposable);
 			}

@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
+
 (function () {
-	'use strict';
+
+	/**
+	 * @import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes'
+	 */
 
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load process explorer into window
-	bootstrapWindow.load(['vs/code/electron-sandbox/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
+	bootstrapWindow.load('vs/code/electron-sandbox/processExplorer/processExplorerMain', function (processExplorer, configuration) {
 		return processExplorer.startup(configuration);
 	}, {
 		configureDeveloperSettings: function () {
@@ -21,12 +26,10 @@
 	});
 
 	/**
-	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @returns {{
 	 *   load: (
-	 *     modules: string[],
-	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     esModule: string,
+	 *     resultCallback: (result: any, configuration: ISandboxConfiguration) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
 	 * 			forceEnableDeveloperKeybindings?: boolean,

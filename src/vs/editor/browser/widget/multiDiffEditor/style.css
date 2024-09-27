@@ -5,7 +5,34 @@
 
 .monaco-component.multiDiffEditor {
 	background: var(--vscode-multiDiffEditor-background);
+
+	position: relative;
+
+	height: 100%;
+	width: 100%;
+
 	overflow-y: hidden;
+
+	> div {
+		position: absolute;
+		top: 0px;
+		left: 0px;
+
+		height: 100%;
+		width: 100%;
+
+		&.placeholder {
+			visibility: hidden;
+
+			&.visible {
+				visibility: visible;
+			}
+
+			display: grid;
+			place-items: center;
+			place-content: center;
+		}
+	}
 
 	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
@@ -36,14 +63,10 @@
 			}
 
 			.header-content {
-				margin: 8px 8px 0px 8px;
+				margin: 8px 0px 0px 0px;
 				padding: 4px 5px;
 
 				border-top: 1px solid var(--vscode-multiDiffEditor-border);
-				border-right: 1px solid var(--vscode-multiDiffEditor-border);
-				border-left: 1px solid var(--vscode-multiDiffEditor-border);
-				border-top-left-radius: 2px;
-				border-top-right-radius: 2px;
 
 				display: flex;
 				align-items: center;
@@ -107,13 +130,7 @@
 			display: flex;
 			flex-direction: column;
 
-			margin-right: 8px;
-			margin-left: 8px;
-
-			border-right: 1px solid var(--vscode-multiDiffEditor-border);
-			border-left: 1px solid var(--vscode-multiDiffEditor-border);
 			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
-			border-radius: 2px;
 			overflow: hidden;
 		}
 

@@ -8,9 +8,8 @@
  * layer breakers and shipping with the standalone monaco editor.
  */
 
-/* TODO: Position correctly */
 .workbench-suggest-widget {
-	position: absolute;
+	position: fixed;
 	left: 0;
 	top: 0;
 }

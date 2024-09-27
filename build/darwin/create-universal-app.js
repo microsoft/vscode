@@ -6,6 +6,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
 const fs = require("fs");
+const minimatch = require("minimatch");
 const vscode_universal_bundler_1 = require("vscode-universal-bundler");
 const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
 const root = path.dirname(path.dirname(__dirname));
@@ -18,26 +19,29 @@ async function main(buildDir) {
     const appName = product.nameLong + '.app';
     const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
     const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
-    const x64AsarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
-    const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
+    const asarRelativePath = path.join('Contents', 'Resources', 'app', 'node_modules.asar');
     const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
     const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
+    const filesToSkip = [
+        '**/CodeResources',
+        '**/Credits.rtf',
+    ];
     await (0, vscode_universal_bundler_1.makeUniversalApp)({
         x64AppPath,
         arm64AppPath,
-        x64AsarPath,
-        arm64AsarPath,
-        filesToSkip: [
-            'product.json',
-            'Credits.rtf',
-            'CodeResources',
-            'fsevents.node',
-            'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
-            'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
-            '.npmrc'
-        ],
+        asarPath: asarRelativePath,
         outAppPath,
-        force: true
+        force: true,
+        mergeASARs: true,
+        x64ArchFiles: '*/kerberos.node',
+        filesToSkipComparison: (file) => {
+            for (const expected of filesToSkip) {
+                if (minimatch(file, expected)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     });
     const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
     Object.assign(productJson, {

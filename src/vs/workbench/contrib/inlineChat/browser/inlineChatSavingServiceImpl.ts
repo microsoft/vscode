@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IInlineChatSessionService } from './inlineChatSessionService';
-import { InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IInlineChatSavingService } from './inlineChatSavingService';
-import { Iterable } from 'vs/base/common/iterator';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { Schemas } from 'vs/base/common/network';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { compare } from 'vs/base/common/strings';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Event } from 'vs/base/common/event';
-import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { Queue, raceCancellation } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor, isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
+import { SaveReason } from '../../../common/editor.js';
+import { Session } from './inlineChatSession.js';
+import { IInlineChatSessionService } from './inlineChatSessionService.js';
+import { InlineChatConfigKeys } from '../common/inlineChat.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IInlineChatSavingService } from './inlineChatSavingService.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { CellUri } from '../../notebook/common/notebookCommon.js';
+import { getNotebookEditorFromEditorPane } from '../../notebook/browser/notebookBrowser.js';
+import { compare } from '../../../../base/common/strings.js';
+import { IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Event } from '../../../../base/common/event.js';
+import { InlineChatController } from './inlineChatController.js';
 
 interface SessionData {
 	readonly resourceUri: URI;

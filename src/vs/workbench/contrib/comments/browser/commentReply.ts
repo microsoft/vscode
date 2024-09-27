@@ -3,35 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { IAction } from 'vs/base/common/actions';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import * as languages from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import * as dom from '../../../../base/browser/dom.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { CommentFormActions } from './commentFormActions.js';
+import { CommentMenus } from './commentMenus.js';
+import { ICommentService } from './commentService.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 let INMEM_MODEL_ID = 0;
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
@@ -60,11 +59,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _pendingComment: string | undefined,
 		private _parentThread: ICommentThreadWidget,
+		focus: boolean,
 		private _actionRunDelegate: (() => void) | null,
 		@ICommentService private commentService: ICommentService,
-		@IThemeService private themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IHoverService private hoverService: IHoverService,
 		@ITextModelService private readonly textModelService: ITextModelService
 	) {
@@ -75,10 +75,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
-		this.initialize();
+		this.initialize(focus);
 	}
 
-	async initialize() {
+	async initialize(focus: boolean) {
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
 		const params = JSON.stringify({
@@ -116,9 +116,11 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
-		if (hasExistingComments) {
+		if (this._pendingComment) {
+			this.expandReplyArea();
+		} else if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this.form);
-		} else if ((this._commentThread.comments && this._commentThread.comments.length === 0) || this._pendingComment) {
+		} else if (focus && (this._commentThread.comments && this._commentThread.comments.length === 0)) {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));
@@ -140,12 +142,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	public updateCommentThread(commentThread: languages.CommentThread<IRange | ICellRange>) {
 		const isReplying = this.commentEditor.hasTextFocus();
+		const oldAndNewBothEmpty = !this._commentThread.comments?.length && !commentThread.comments?.length;
 
 		if (!this._reviewThreadReplyButton) {
 			this.createReplyButton(this.commentEditor, this.form);
 		}
 
-		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
+		if (this._commentThread.comments && this._commentThread.comments.length === 0 && !oldAndNewBothEmpty) {
 			this.expandReplyArea();
 		}
 
@@ -209,32 +212,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	setCommentEditorDecorations() {
-		const model = this.commentEditor.getModel();
-		if (model) {
-			const valueLength = model.getValueLength();
-			const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
-			const placeholder = valueLength > 0
-				? ''
-				: hasExistingComments
-					? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
-					: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
-			const decorations = [{
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
-				},
-				renderOptions: {
-					after: {
-						contentText: placeholder,
-						color: `${resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4)}`
-					}
-				}
-			}];
+		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
+		const placeholder = hasExistingComments
+			? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
+			: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
 
-			this.commentEditor.setDecorationsByType('review-zone-widget', COMMENTEDITOR_DECORATION_KEY, decorations);
-		}
+		this.commentEditor.updateOptions({ placeholder });
 	}
 
 	private createTextModelListener(commentEditor: ICodeEditor, commentForm: HTMLElement) {
@@ -292,7 +275,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
 			await this._actionRunDelegate?.();
 
 			await action.run({
@@ -315,7 +298,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions.setActions(editorMenu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, async (action: IAction) => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, async (action: IAction) => {
 			this._actionRunDelegate?.();
 
 			action.run({
@@ -351,7 +334,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private hideReplyArea() {
-		this.commentEditor.getDomNode()!.style.outline = '';
+		const domNode = this.commentEditor.getDomNode();
+		if (domNode) {
+			domNode.style.outline = '';
+		}
 		this.commentEditor.setValue('');
 		this._pendingComment = '';
 		this.form.classList.remove('expand');
@@ -361,7 +347,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	private createReplyButton(commentEditor: ICodeEditor, commentForm: HTMLElement) {
 		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(commentForm, dom.$(`button.review-thread-reply-button.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this._reviewThreadReplyButton, this._commentOptions?.prompt || nls.localize('reply', "Reply...")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._reviewThreadReplyButton, this._commentOptions?.prompt || nls.localize('reply', "Reply...")));
 
 		this._reviewThreadReplyButton.textContent = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
 		// bind click/escape actions for reviewThreadReplyButton and textArea

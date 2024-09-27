@@ -18,7 +18,9 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        extensionPublisher: "",
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
         locations: [ "panel" ],
         metadata: {  },
         slashCommands: [
@@ -26,7 +28,8 @@
             name: "subCommand",
             description: ""
           }
-        ]
+        ],
+        disambiguation: [  ]
       },
       kind: "agent"
     },

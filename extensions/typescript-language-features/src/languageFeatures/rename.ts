@@ -36,10 +36,6 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.Range | undefined> {
-		if (this.client.apiVersion.lt(API.v310)) {
-			return undefined;
-		}
-
 		const response = await this.execRename(document, position, token);
 		if (!response) {
 			return undefined;
