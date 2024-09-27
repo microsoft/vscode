@@ -327,7 +327,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return null;
 		}));
 
-		const loadedWelcomeContent = storageService.getObject(PersistWelcomeMessageContentKey, StorageScope.APPLICATION);
+		const loadedWelcomeContent = storageService.getObject(`${PersistWelcomeMessageContentKey}.${this.location}`, StorageScope.APPLICATION);
 		if (isChatWelcomeMessageContent(loadedWelcomeContent)) {
 			this.persistedWelcomeMessage = loadedWelcomeContent;
 		}
@@ -512,7 +512,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const messageResult = this._register(renderer.render(welcomeContent.message));
 			dom.append(message, messageResult.element);
 
-			const tipsString = new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(mention)'), { supportThemeIcons: true });
+			const tipsString = this.viewOptions.supportsAdditionalParticipants
+				? new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(mention)'), { supportThemeIcons: true })
+				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} to attach context", '$(attach)'), { supportThemeIcons: true });
 			const tipsResult = this._register(renderer.render(tipsString));
 			tips.appendChild(tipsResult.element);
 		}
