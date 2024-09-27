@@ -365,17 +365,27 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 	private _renderBadges(historyItem: ISCMHistoryItem, templateData: HistoryItemTemplate): void {
 		templateData.elementDisposables.add(autorun(reader => {
 			const labelConfig = this._badgesConfig.read(reader);
-			const firstColoredRef = historyItem.references?.find(ref => ref.color);
 
 			templateData.labelContainer.textContent = '';
 
+			const references = historyItem.references ?
+				historyItem.references.slice(0) : [];
+
+			// If the first reference is colored, we render it
+			// separately since we have to show the description
+			// for the first colored reference.
+			if (references.length > 0 && references[0].color) {
+				this._renderBadge(references[0], true, templateData);
+
+				// Remove the rendered reference from the collection
+				references.splice(0, 1);
+			}
+
 			// Group history item references by color
-			const historyItemRefsByColor = groupBy2(
-				(historyItem.references ?? []),
-				ref => ref.color ? ref.color : '');
+			const historyItemRefsByColor = groupBy2(references, ref => ref.color ? ref.color : '');
 
 			for (const [key, historyItemRefs] of Object.entries(historyItemRefsByColor)) {
-				// Skip badges with no color
+				// If needed skip badges with no color
 				if (key === '' && labelConfig !== 'all') {
 					continue;
 				}
@@ -387,7 +397,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 						continue;
 					}
 
-					this._renderBadge(historyItemRefs[0], historyItemRefs[0] === firstColoredRef, templateData);
+					this._renderBadge(historyItemRefs[0], false, templateData);
 				}
 			}
 		}));
