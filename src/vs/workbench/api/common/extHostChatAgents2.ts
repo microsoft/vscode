@@ -285,7 +285,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
 	private static _participantDetectionProviderIdPool = 0;
-	private readonly _participantDetectionProviders = new Map<number, vscode.ChatParticipantDetectionProvider>();
+	private readonly _participantDetectionProviders = new Map<number, ExtHostParticipantDetector>();
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
@@ -323,9 +323,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return agent.apiAgent;
 	}
 
-	registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider): vscode.Disposable {
+	registerChatParticipantDetectionProvider(extension: IExtensionDescription, provider: vscode.ChatParticipantDetectionProvider): vscode.Disposable {
 		const handle = ExtHostChatAgents2._participantDetectionProviderIdPool++;
-		this._participantDetectionProviders.set(handle, provider);
+		this._participantDetectionProviders.set(handle, new ExtHostParticipantDetector(extension, provider));
 		this._proxy.$registerChatParticipantDetectionProvider(handle);
 		return toDisposable(() => {
 			this._participantDetectionProviders.delete(handle);
@@ -336,13 +336,18 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
 		const { request, location, history } = await this._createRequest(requestDto, context);
 
-		const provider = this._participantDetectionProviders.get(handle);
-		if (!provider) {
+		const detector = this._participantDetectionProviders.get(handle);
+		if (!detector) {
 			return undefined;
 		}
 
-		return provider.provideParticipantDetection(
-			typeConvert.ChatAgentRequest.to(request, location),
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location);
+		if (request.userSelectedModelId && isProposedApiEnabled(detector.extension, 'chatParticipantAdditions')) {
+			extRequest.userSelectedModel = await this._languageModels.getLanguageModelByIdentifier(detector.extension, request.userSelectedModelId);
+		}
+
+		return detector.provider.provideParticipantDetection(
+			extRequest,
 			{ history },
 			{ participants: options.participants, location: typeConvert.ChatLocation.to(options.location) },
 			token
@@ -586,6 +591,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return (await agent.provideSampleQuestions(typeConvert.ChatLocation.to(location), token))
 			.map(f => typeConvert.ChatFollowup.from(f, undefined));
 	}
+}
+
+class ExtHostParticipantDetector {
+	constructor(
+		public readonly extension: IExtensionDescription,
+		public readonly provider: vscode.ChatParticipantDetectionProvider,
+	) { }
 }
 
 class ExtHostChatAgent {
