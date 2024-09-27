@@ -167,7 +167,7 @@ export class CancelAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
-				order: 2,
+				order: 4,
 				group: 'navigation',
 			},
 			keybinding: {
