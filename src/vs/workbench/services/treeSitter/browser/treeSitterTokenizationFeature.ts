@@ -239,15 +239,21 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			}
 		}
 
+		// Account for uncaptured characters at the end of the line
 		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
 			increaseSizeOfTokensByOneToken();
-			endOffsetsAndScopes[tokenIndex].endOffset = lineLength;
+			endOffsetsAndScopes[tokenIndex].endOffset = lineLength - 1;
+			tokenIndex++;
 		}
 
-		const tokens: Uint32Array = new Uint32Array(endOffsetsAndScopes.length * 2);
-		for (let i = 0; i < endOffsetsAndScopes.length; i++) {
-			tokens[i * 2] = endOffsetsAndScopes[i].endOffset;
-			tokens[i * 2 + 1] = findMetadata(this._colorThemeData, endOffsetsAndScopes[i].scopes, encodedLanguageId);
+		const tokens: Uint32Array = new Uint32Array((tokenIndex) * 2);
+		for (let i = 0; i < tokenIndex; i++) {
+			const token = endOffsetsAndScopes[i];
+			if (token.endOffset === 0 && token.scopes.length === 0) {
+				break;
+			}
+			tokens[i * 2] = token.endOffset;
+			tokens[i * 2 + 1] = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId);
 		}
 
 		return tokens;

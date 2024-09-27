@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { isAMD } = require('./lib/amd');
-
 /**
  * @param {string} name
  * @param {string[]=} exclude
@@ -18,7 +16,7 @@ function createModuleDescription(name, exclude) {
 	}
 
 	return {
-		name: name,
+		name,
 		include: [],
 		exclude: excludes
 	};
@@ -28,40 +26,13 @@ function createModuleDescription(name, exclude) {
  * @param {string} name
  */
 function createEditorWorkerModuleDescription(name) {
-	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
-	amdVariant.target = 'amd';
+	const description = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
+	description.name = `${description.name}.esm`;
 
-	const esmVariant = { ...amdVariant, dest: undefined };
-	esmVariant.target = 'esm';
-	esmVariant.name = `${esmVariant.name}.esm`;
-
-	return [amdVariant, esmVariant];
+	return description;
 }
 
-// TODO@esm take the editor simple worker top level and rename away from "base"
-exports.base = [
-	{
-		name: 'vs/editor/common/services/editorSimpleWorker',
-		include: ['vs/base/common/worker/simpleWorker'],
-		exclude: [],
-		prepend: [
-			{ path: 'vs/loader.js' },
-			{ path: 'vs/base/worker/workerMain.js' }
-		],
-		dest: 'vs/base/worker/workerMain.js',
-		target: 'amd'
-	},
-	{
-		name: 'vs/editor/common/services/editorSimpleWorker.esm',
-		target: 'esm'
-	},
-	{
-		name: 'vs/base/common/worker/simpleWorker',
-		exclude: [],
-		target: 'amd'
-	}
-];
-
+exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorker');
 exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker');
 exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker');
 exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker');
@@ -70,34 +41,16 @@ exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform
 exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer');
 exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker');
 
-exports.workbenchDesktop = function () {
-	return !isAMD() ? [
-		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
-		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
-		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
-		createModuleDescription('vs/workbench/workbench.desktop.main')
-	] : [
-		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
-		createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
-		createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
-		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-		createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
-	];
-};
+exports.workbenchDesktop = [
+	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
+	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
+	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
+	createModuleDescription('vs/workbench/workbench.desktop.main')
+];
 
-exports.workbenchWeb = function () {
-	return !isAMD() ? [
-		createModuleDescription('vs/workbench/workbench.web.main')
-	] : [
-		...createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
-		...createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
-		createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main.internal'])
-	];
-};
+exports.workbenchWeb = createModuleDescription('vs/workbench/workbench.web.main');
 
 exports.keyboardMaps = [
 	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
@@ -113,8 +66,6 @@ exports.code = [
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 
-exports.codeWeb = [
-	createModuleDescription('vs/code/browser/workbench/workbench')
-];
+exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');
 
 exports.entrypoint = createModuleDescription;

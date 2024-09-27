@@ -1327,6 +1327,10 @@ class StickyScrollState<T, TFilterData, TRef> {
 		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeStateEquals);
 	}
 
+	contains(element: ITreeNode<T, TFilterData>): boolean {
+		return this.stickyNodes.some(node => node.node.element === element.element);
+	}
+
 	lastNodePartiallyVisible(): boolean {
 		if (this.count === 0) {
 			return false;
@@ -1411,6 +1415,17 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this._register(view.onDidScroll(() => this.update()));
 		this._register(view.onDidChangeContentHeight(() => this.update()));
 		this._register(tree.onDidChangeCollapseState(() => this.update()));
+		this._register(model.onDidSpliceRenderedNodes((e) => {
+			const state = this._widget.state;
+			if (!state) {
+				return;
+			}
+
+			const renderedNodes = e.elements.filter(node => state.contains(node));
+			if (renderedNodes) {
+				this._widget.rerender();
+			}
+		}));
 
 		this.update();
 	}
@@ -1683,6 +1698,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
 	private _previousElements: HTMLElement[] = [];
 	private readonly _previousStateDisposables: DisposableStore = new DisposableStore();
+	get state(): StickyScrollState<T, TFilterData, TRef> | undefined { return this._previousState; }
 
 	private stickyScrollFocus: StickyScrollFocus<T, TFilterData, TRef>;
 	readonly onDidChangeHasFocus: Event<boolean>;
@@ -1754,28 +1770,38 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		}
 		// create new dom elements
 		else {
-			this._previousStateDisposables.clear();
-
-			const elements = Array(state.count);
-			for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
-				const stickyNode = state.stickyNodes[stickyIndex];
-
-				const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
-				elements[stickyIndex] = element;
-
-				this._rootDomNode.appendChild(element);
-				this._previousStateDisposables.add(disposable);
-			}
-
-			this.stickyScrollFocus.updateElements(elements, state);
-
-			this._previousElements = elements;
+			this.renderState(state);
 		}
 
 		this._previousState = state;
 
 		// Set the height of the widget to the bottom of the last sticky node
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
+	}
+
+	private renderState(state: StickyScrollState<T, TFilterData, TRef>): void {
+		this._previousStateDisposables.clear();
+
+		const elements = Array(state.count);
+		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
+			const stickyNode = state.stickyNodes[stickyIndex];
+
+			const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
+			elements[stickyIndex] = element;
+
+			this._rootDomNode.appendChild(element);
+			this._previousStateDisposables.add(disposable);
+		}
+
+		this.stickyScrollFocus.updateElements(elements, state);
+
+		this._previousElements = elements;
+	}
+
+	rerender(): void {
+		if (this._previousState) {
+			this.renderState(this._previousState);
+		}
 	}
 
 	private createElement(stickyNode: StickyScrollNode<T, TFilterData>, stickyIndex: number, stickyNodesTotal: number): { element: HTMLElement; disposable: IDisposable } {

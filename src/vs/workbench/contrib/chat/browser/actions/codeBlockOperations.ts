@@ -7,6 +7,7 @@ import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../../base/common/charCode.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import * as strings from '../../../../../base/common/strings.js';
@@ -241,7 +242,9 @@ export class ApplyCodeBlockOperation {
 					return result;
 				}
 			} catch (e) {
-				this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
+				if (!isCancellationError(e)) {
+					this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
+				}
 			} finally {
 				cancellationTokenSource.dispose();
 			}

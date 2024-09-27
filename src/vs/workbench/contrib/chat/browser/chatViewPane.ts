@@ -34,6 +34,7 @@ interface IViewPaneState extends IChatViewState {
 }
 
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
+export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
 export class ChatViewPane extends ViewPane {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -48,6 +49,7 @@ export class ChatViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession } = { location: ChatAgentLocation.Panel },
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -66,11 +68,11 @@ export class ChatViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
+		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.isInitialized = true;
-			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel) {
 					const sessionId = this.getSessionId();
 					const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
@@ -109,7 +111,7 @@ export class ChatViewPane extends ViewPane {
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId
 			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
-			: this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
 		if (!model) {
 			throw new Error('Could not start chat session');
 		}
@@ -123,7 +125,7 @@ export class ChatViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		if (!this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)) {
+		if (!this.chatAgentService.getContributedDefaultAgent(this.chatOptions.location)) {
 			return true;
 		}
 
@@ -150,9 +152,9 @@ export class ChatViewPane extends ViewPane {
 			const locationBasedColors = this.getLocationBasedColors();
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
-				ChatAgentLocation.Panel,
+				this.chatOptions.location,
 				{ viewId: this.id },
-				{ supportsFileReferences: true },
+				{ supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel },
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: locationBasedColors.background,

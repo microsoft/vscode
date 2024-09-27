@@ -394,17 +394,17 @@ export class SearchView extends ViewPane {
 
 		asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
-			this.onSearchComplete(progressComplete, undefined, undefined, complete);
+			return this.onSearchComplete(progressComplete, undefined, undefined, complete);
 		}, (e) => {
 			clearTimeout(slowTimer);
-			this.onSearchError(e, progressComplete, undefined, undefined);
+			return this.onSearchError(e, progressComplete, undefined, undefined);
 		});
 
 		const collapseResults = this.searchConfig.collapseResults;
 		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
 			const onlyMatch = this.viewModel.searchResult.matches()[0];
 			if (onlyMatch.count() < 50) {
-				this.tree.expand(onlyMatch);
+				await this.tree.expand(onlyMatch);
 			}
 		}
 	}
@@ -1017,7 +1017,7 @@ export class SearchView extends ViewPane {
 		return false;
 	}
 
-	selectNextMatch(): void {
+	async selectNextMatch(): Promise<void> {
 		if (!this.hasSearchResults()) {
 			return;
 		}
@@ -1027,7 +1027,7 @@ export class SearchView extends ViewPane {
 		// Expand the initial selected node, if needed
 		if (selected && !(selected instanceof Match)) {
 			if (this.tree.isCollapsed(selected)) {
-				this.tree.expand(selected);
+				await this.tree.expand(selected);
 			}
 		}
 
@@ -1041,7 +1041,7 @@ export class SearchView extends ViewPane {
 		// Expand until first child is a Match
 		while (next && !(next instanceof Match)) {
 			if (this.tree.isCollapsed(next)) {
-				this.tree.expand(next);
+				await this.tree.expand(next);
 			}
 
 			// Select the first child
@@ -1062,7 +1062,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	selectPreviousMatch(): void {
+	async selectPreviousMatch(): Promise<void> {
 		if (!this.hasSearchResults()) {
 			return;
 		}
@@ -1089,7 +1089,7 @@ export class SearchView extends ViewPane {
 			if (!nextItem) {
 				break;
 			}
-			this.tree.expand(prev);
+			await this.tree.expand(prev);
 			navigator = this.tree.navigate(nextItem); // recreate navigator because modifying the tree can invalidate it
 			prev = nextItem ? navigator.previous() : navigator.last(); // select last child
 		}
@@ -1642,7 +1642,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
 
 		this.state = SearchUIState.Idle;
 
@@ -1656,7 +1656,7 @@ export class SearchView extends ViewPane {
 		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
 			const onlyMatch = this.viewModel.searchResult.matches()[0];
 			if (onlyMatch.count() < 50) {
-				this.tree.expand(onlyMatch);
+				await this.tree.expand(onlyMatch);
 			}
 		}
 
@@ -1745,7 +1745,7 @@ export class SearchView extends ViewPane {
 		this.reLayout();
 	}
 
-	private onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+	private async onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
 		this.state = SearchUIState.Idle;
 		if (errors.isCancellationError(e)) {
 			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed);
@@ -1787,10 +1787,10 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
-			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
 		}, (e) => {
 			clearTimeout(slowTimer);
-			this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
 		});
 
 	}
@@ -1822,10 +1822,10 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.search(query);
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);
-			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
 		}, (e) => {
 			clearTimeout(slowTimer);
-			this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
 		});
 	}
 

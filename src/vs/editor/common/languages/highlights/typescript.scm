@@ -61,7 +61,7 @@
 (function_declaration
   name: (identifier) @entity.name.function)
 (method_definition
-  name: (property_identifier) @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function)
 (method_definition
   name: (property_identifier) @storage.type
   (#eq? @storage.type "constructor"))

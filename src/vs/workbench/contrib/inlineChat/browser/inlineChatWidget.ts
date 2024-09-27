@@ -588,7 +588,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 			...options,
 			chatWidgetViewOptions: {
 				...options.chatWidgetViewOptions,
-				editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() ?? _parentEditor.getDomNode() ?? undefined
+				// editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() ?? _parentEditor.getDomNode() ?? undefined
 			}
 		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
