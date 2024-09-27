@@ -78,7 +78,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
-	readonly actionButton?: ISCMActionButtonDescriptor;
+	readonly actionButton: IObservable<ISCMActionButtonDescriptor | undefined>;
 	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
 	readonly onDidChange: Event<void>;
 
@@ -124,7 +124,7 @@ export interface ISCMActionButtonDescriptor {
 export interface ISCMActionButton {
 	readonly type: 'actionButton';
 	readonly repository: ISCMRepository;
-	readonly button?: ISCMActionButtonDescriptor;
+	readonly button: ISCMActionButtonDescriptor;
 }
 
 export interface ISCMInput {
