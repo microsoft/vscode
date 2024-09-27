@@ -465,7 +465,6 @@ function tweakProductForServerWeb(product) {
 					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
 					otherSources: [],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
-					loaderConfig: optimize.loaderConfig(),
 					inlineAmdImages: true,
 					bundleInfo: undefined,
 					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)

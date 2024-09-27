@@ -145,7 +145,6 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 				src: 'out-build',
 				entryPoints: vscodeEntryPoints,
 				resources: vscodeResources,
-				loaderConfig: optimize.loaderConfig(),
 				bundleInfo: undefined
 			},
 			commonJS: {

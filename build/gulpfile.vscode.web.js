@@ -169,7 +169,6 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 				entryPoints: vscodeWebEntryPoints.flat(),
 				otherSources: [],
 				resources: vscodeWebResources,
-				loaderConfig: optimize.loaderConfig(),
 				externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
 				inlineAmdImages: true,
 				bundleInfo: undefined,

@@ -96,13 +96,6 @@ const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimi
 			src: 'out-editor-build',
 			entryPoints: editorEntryPoints,
 			resources: editorResources,
-			loaderConfig: {
-				paths: {
-					'vs': 'out-editor-build/vs',
-					'vs/css': 'out-editor-build/vs/css.build',
-					'vscode': 'empty:'
-				}
-			},
 			header: BUNDLED_FILE_HEADER,
 			bundleInfo: true,
 			languages

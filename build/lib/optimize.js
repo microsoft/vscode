@@ -4,8 +4,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loaderConfig = loaderConfig;
-exports.optimizeLoaderTask = optimizeLoaderTask;
 exports.optimizeTask = optimizeTask;
 exports.minifyTask = minifyTask;
 const es = require("event-stream");
@@ -22,81 +20,6 @@ const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
-function loaderConfig() {
-    const result = {
-        paths: {
-            'vs': 'out-build/vs',
-            'vscode': 'empty:'
-        },
-        amdModulesPattern: /^vs\//
-    };
-    result['vs/css'] = { inlineResources: true };
-    return result;
-}
-function loaderPlugin(src, base, amdModuleId) {
-    return (gulp
-        .src(src, { base })
-        .pipe(es.through(function (data) {
-        if (amdModuleId) {
-            let contents = data.contents.toString('utf8');
-            contents = contents.replace(/^define\(/m, `define("${amdModuleId}",`);
-            data.contents = Buffer.from(contents);
-        }
-        this.emit('data', data);
-    })));
-}
-function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
-    let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
-    if (bundleLoader) {
-        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'));
-    }
-    const files = [];
-    const order = (f) => {
-        if (f.path.endsWith('loader.js')) {
-            return 0;
-        }
-        if (f.path.endsWith('css.js')) {
-            return 1;
-        }
-        return 2;
-    };
-    return (loaderStream
-        .pipe(es.through(function (data) {
-        files.push(data);
-    }, function () {
-        files.sort((a, b) => {
-            return order(a) - order(b);
-        });
-        files.unshift(new VinylFile({
-            path: 'fake',
-            base: '.',
-            contents: Buffer.from(bundledFileHeader)
-        }));
-        if (externalLoaderInfo !== undefined) {
-            files.push(new VinylFile({
-                path: 'fake2',
-                base: '.',
-                contents: Buffer.from(emitExternalLoaderInfo(externalLoaderInfo))
-            }));
-        }
-        for (const file of files) {
-            this.emit('data', file);
-        }
-        this.emit('end');
-    }))
-        .pipe(concat('vs/loader.js')));
-}
-function emitExternalLoaderInfo(externalLoaderInfo) {
-    const externalBaseUrl = externalLoaderInfo.baseUrl;
-    externalLoaderInfo.baseUrl = '$BASE_URL';
-    // If defined, use the runtime configured baseUrl.
-    const code = `
-(function() {
-	const baseUrl = require.getConfig().baseUrl || ${JSON.stringify(externalBaseUrl)};
-	require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});
-})();`;
-    return code.replace('"$BASE_URL"', 'baseUrl');
-}
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
@@ -232,9 +155,6 @@ function optimizeManualTask(options) {
             .pipe(concat(opt.out));
     });
     return es.merge(...concatenations);
-}
-function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
-    return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
 function optimizeTask(opts) {
     return function () {

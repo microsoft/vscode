@@ -20,97 +20,6 @@ import * as sourcemaps from 'gulp-sourcemaps';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-export function loaderConfig() {
-	const result: any = {
-		paths: {
-			'vs': 'out-build/vs',
-			'vscode': 'empty:'
-		},
-		amdModulesPattern: /^vs\//
-	};
-
-	result['vs/css'] = { inlineResources: true };
-
-	return result;
-}
-
-function loaderPlugin(src: string, base: string, amdModuleId: string | undefined): NodeJS.ReadWriteStream {
-	return (
-		gulp
-			.src(src, { base })
-			.pipe(es.through(function (data: VinylFile) {
-				if (amdModuleId) {
-					let contents = data.contents.toString('utf8');
-					contents = contents.replace(/^define\(/m, `define("${amdModuleId}",`);
-					data.contents = Buffer.from(contents);
-				}
-				this.emit('data', data);
-			}))
-	);
-}
-
-function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: util.IExternalLoaderInfo): NodeJS.ReadWriteStream {
-	let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
-	if (bundleLoader) {
-		loaderStream = es.merge(
-			loaderStream,
-			loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css')
-		);
-	}
-
-	const files: VinylFile[] = [];
-	const order = (f: VinylFile) => {
-		if (f.path.endsWith('loader.js')) {
-			return 0;
-		}
-		if (f.path.endsWith('css.js')) {
-			return 1;
-		}
-		return 2;
-	};
-
-	return (
-		loaderStream
-			.pipe(es.through(function (data) {
-				files.push(data);
-			}, function () {
-				files.sort((a, b) => {
-					return order(a) - order(b);
-				});
-				files.unshift(new VinylFile({
-					path: 'fake',
-					base: '.',
-					contents: Buffer.from(bundledFileHeader)
-				}));
-				if (externalLoaderInfo !== undefined) {
-					files.push(new VinylFile({
-						path: 'fake2',
-						base: '.',
-						contents: Buffer.from(emitExternalLoaderInfo(externalLoaderInfo))
-					}));
-				}
-				for (const file of files) {
-					this.emit('data', file);
-				}
-				this.emit('end');
-			}))
-			.pipe(concat('vs/loader.js'))
-	);
-}
-
-function emitExternalLoaderInfo(externalLoaderInfo: util.IExternalLoaderInfo): string {
-	const externalBaseUrl = externalLoaderInfo.baseUrl;
-	externalLoaderInfo.baseUrl = '$BASE_URL';
-
-	// If defined, use the runtime configured baseUrl.
-	const code = `
-(function() {
-	const baseUrl = require.getConfig().baseUrl || ${JSON.stringify(externalBaseUrl)};
-	require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});
-})();`;
-	return code.replace('"$BASE_URL"', 'baseUrl');
-}
-
 export interface IOptimizeAMDTaskOpts {
 	/**
 	 * The folder to read files from.
@@ -124,7 +33,6 @@ export interface IOptimizeAMDTaskOpts {
 	 * (svg, etc.)
 	 */
 	resources: string[];
-	loaderConfig: any;
 	/**
 	 * Additional info we append to the end of the loader
 	 */
@@ -350,10 +258,6 @@ function optimizeManualTask(options: IOptimizeManualTaskOpts[]): NodeJS.ReadWrit
 	});
 
 	return es.merge(...concatenations);
-}
-
-export function optimizeLoaderTask(src: string, out: string, bundleLoader: boolean, bundledFileHeader = '', externalLoaderInfo?: util.IExternalLoaderInfo): () => NodeJS.ReadWriteStream {
-	return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
 
 export interface IOptimizeTaskOpts {
