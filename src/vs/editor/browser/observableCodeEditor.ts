@@ -5,16 +5,14 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { IObservable, ITransaction, autorun, autorunOpts, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
-import { TransactionImpl } from '../../base/common/observableInternal/base.js';
-import { derivedWithSetter } from '../../base/common/observableInternal/derived.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
+import { IObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { Position } from '../common/core/position.js';
 import { Selection } from '../common/core/selection.js';
 import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
 import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
 import { IModelContentChangedEvent } from '../common/textModelEvents.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.
@@ -183,6 +181,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly valueIsEmpty = derived(this, reader => { this.versionId.read(reader); return this.editor.getModel()?.getValueLength() === 0; });
 	public readonly cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefined(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
 	public readonly cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);
+	public readonly cursorLineNumber = derived<number | null>(this, reader => this.cursorPosition.read(reader)?.lineNumber ?? null);
 
 	public readonly onDidType = observableSignal<string>(this);
 

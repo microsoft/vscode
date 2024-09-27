@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatTreeItem } from './chat.js';
-import { isRequestVM, isResponseVM, isWelcomeVM, IChatResponseViewModel } from '../common/chatViewModel.js';
+import { isRequestVM, isResponseVM, IChatResponseViewModel } from '../common/chatViewModel.js';
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
@@ -38,10 +38,6 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 
 		if (isResponseVM(element)) {
 			return this._getLabelWithCodeBlockCount(element);
-		}
-
-		if (isWelcomeVM(element)) {
-			return element.content.map(c => 'value' in c ? c.value : c.map(followup => followup.message).join('\n')).join('\n');
 		}
 
 		return '';

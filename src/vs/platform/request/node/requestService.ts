@@ -16,7 +16,7 @@ import { IRequestContext, IRequestOptions } from '../../../base/parts/request/co
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { ILogService, ILogger } from '../../log/common/log.js';
+import { ILogService } from '../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
@@ -52,12 +52,11 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	private shellEnvErrorLogged?: boolean;
 
 	constructor(
-		logger: ILogger,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService logService: ILogService,
 	) {
-		super(logger);
+		super(logService);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {

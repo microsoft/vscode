@@ -99,7 +99,7 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService, userDataProfilesMainService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogger, productService, userDataProfilesMainService] = this.createServices();
 
 		try {
 
@@ -133,7 +133,7 @@ class CodeMain {
 				});
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
+				bufferLogger.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
 				Event.once(lifecycleMainService.onWillShutdown)(evt => {
@@ -211,11 +211,7 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService, undefined, false));
 
 		// Request
-		const networkLogger = loggerService.createLogger('network-main', {
-			name: localize('network-main', "Network (Main)"),
-			hidden: true
-		});
-		services.set(IRequestService, new SyncDescriptor(RequestService, [networkLogger], true));
+		services.set(IRequestService, new SyncDescriptor(RequestService, undefined, true));
 
 		// Themes
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));

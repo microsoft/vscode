@@ -100,6 +100,8 @@ class MirrorNotebookDocument {
 				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
+			} else if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+				this.metadata = e.metadata;
 			}
 		});
 	}
@@ -252,6 +254,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		});
  */
 		return {
+			metadataChanged: JSON.stringify(original.metadata) !== JSON.stringify(modified.metadata),
 			cellsDiff: diffResult,
 			// linesDiff: cellLineChanges
 		};

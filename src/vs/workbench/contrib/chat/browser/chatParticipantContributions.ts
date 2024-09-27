@@ -5,14 +5,14 @@
 
 import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -21,12 +21,12 @@ import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { CHAT_VIEW_ID } from './chat.js';
-import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
+import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -175,6 +175,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	) {
 		this._viewContainer = this.registerViewContainer();
 		this.registerDefaultParticipantView();
+		this.registerChatEditingView();
 		this.handleAndRegisterChatExtensions();
 	}
 
@@ -203,7 +204,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations || providerDescriptor.supportsModelPicker) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
@@ -246,6 +247,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							extensionDisplayName: extension.description.displayName ?? extension.description.name,
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
+							supportsModelPicker: providerDescriptor.supportsModelPicker,
 							when: providerDescriptor.when,
 							metadata: {
 								isSticky: providerDescriptor.isSticky,
@@ -315,47 +317,90 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
 		});
 	}
+
+	private registerChatEditingView(): IDisposable {
+		const title = localize2('chatEditing.viewContainer.label', "Copilot Edits");
+		const icon = Codicon.requestChanges;
+		const viewContainerId = CHAT_EDITING_SIDEBAR_PANEL_ID;
+		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+			id: viewContainerId,
+			title,
+			icon,
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
+			storageId: viewContainerId,
+			hideIfEmpty: true,
+			order: 100,
+		}, ViewContainerLocation.AuxiliaryBar);
+
+		const id = 'workbench.panel.chat.view.edits';
+		const viewDescriptor: IViewDescriptor[] = [{
+			id: id,
+			containerIcon: viewContainer.icon,
+			containerTitle: title.value,
+			singleViewPaneContainerTitle: title.value,
+			name: { value: title.value, original: title.value },
+			canToggleVisibility: false,
+			canMoveView: true,
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ id, title: title.value }, { location: ChatAgentLocation.EditingSession }]),
+			when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED
+		}];
+		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
+
+		return toDisposable(() => {
+			Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
+		});
+	}
 }
 
 function getParticipantKey(extensionId: ExtensionIdentifier, participantName: string): string {
 	return `${extensionId.value}_${participantName}`;
 }
 
-export class ChatCompatibilityNotifier implements IWorkbenchContribution {
+export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatCompatNotifier';
+
+	private registeredWelcomeView = false;
 
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService chatAgentService: IChatAgentService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 	) {
+		super();
+
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
 		// but this is only enabled for Copilot Chat now and it needs to be obvious.
 		const isInvalid = CONTEXT_CHAT_EXTENSION_INVALID.bindTo(contextKeyService);
-		extensionsWorkbenchService.queryLocal().then(exts => {
-			const chat = exts.find(ext => ext.identifier.id === 'github.copilot-chat');
-			if (chat?.local?.validations.some(v => v[0] === Severity.Error)) {
-				const showExtensionLabel = localize('showExtension', "Show Extension");
-				const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the {0} extension is not compatible with this version of {1}. Please ensure that the GitHub Copilot Chat extension is up to date.", 'GitHub Copilot Chat', productService.nameLong);
-				const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
-				const versionMessage = `GitHub Copilot Chat version: ${chat.version}`;
-				const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-				viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
-					content: [mainMessage, commandButton, versionMessage].join('\n\n'),
-					when: CONTEXT_CHAT_EXTENSION_INVALID,
-				});
-
-				// This catches vscode starting up with the invalid extension, but the extension may still get updated by vscode after this.
-				isInvalid.set(true);
+		this._register(Event.runAndSubscribe(
+			extensionsWorkbenchService.onDidChangeExtensionsNotification,
+			() => {
+				const notification = extensionsWorkbenchService.getExtensionsNotification();
+				const chatExtension = notification?.extensions.find(ext => ext.identifier.id === 'github.copilot-chat');
+				if (chatExtension) {
+					isInvalid.set(true);
+					this.registerWelcomeView(chatExtension);
+				} else {
+					isInvalid.set(false);
+				}
 			}
-		});
+		));
+	}
 
-		const listener = chatAgentService.onDidChangeAgents(() => {
-			if (chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
-				isInvalid.set(false);
-				listener.dispose();
-			}
-		});
+	private registerWelcomeView(chatExtension: IExtension) {
+		if (this.registeredWelcomeView) {
+			return;
+		}
+
+		this.registeredWelcomeView = true;
+		const showExtensionLabel = localize('showExtension', "Show Extension");
+		const mainMessage = localize('chatFailErrorMessage', "Chat failed to load because the installed version of the {0} extension is not compatible with this version of {1}. Please ensure that the GitHub Copilot Chat extension is up to date.", 'GitHub Copilot Chat', this.productService.nameLong);
+		const commandButton = `[${showExtensionLabel}](command:${showExtensionsWithIdsCommandId}?${encodeURIComponent(JSON.stringify([['GitHub.copilot-chat']]))})`;
+		const versionMessage = `GitHub Copilot Chat version: ${chatExtension.version}`;
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		this._register(viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
+			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
+			when: CONTEXT_CHAT_EXTENSION_INVALID,
+		}));
 	}
 }

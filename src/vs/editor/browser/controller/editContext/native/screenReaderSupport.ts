@@ -5,6 +5,7 @@
 
 import { getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
@@ -62,6 +63,11 @@ export class ScreenReaderSupport {
 
 	private _updateDomAttributes(): void {
 		const options = this._context.configuration.options;
+		this._domNode.domNode.setAttribute('role', 'textbox');
+		this._domNode.domNode.setAttribute('aria-required', options.get(EditorOption.ariaRequired) ? 'true' : 'false');
+		this._domNode.domNode.setAttribute('aria-multiline', 'true');
+		this._domNode.domNode.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
+		this._domNode.domNode.setAttribute('aria-roledescription', localize('editor', "editor"));
 		this._domNode.domNode.setAttribute('aria-label', ariaLabelForScreenReaderContent(options, this._keybindingService));
 		const tabSize = this._context.viewModel.model.getOptions().tabSize;
 		const spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
@@ -101,6 +107,10 @@ export class ScreenReaderSupport {
 	public setAriaOptions(): void { }
 
 	public writeScreenReaderContent(): void {
+		const focusedElement = getActiveWindow().document.activeElement;
+		if (!focusedElement || focusedElement !== this._domNode.domNode) {
+			return;
+		}
 		this._screenReaderContentState = this._getScreenReaderContentState();
 		if (!this._screenReaderContentState) {
 			return;
@@ -112,13 +122,9 @@ export class ScreenReaderSupport {
 	}
 
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
-		// Make the screen reader content always be visible because of the bug and also set the selection
-
-		// TODO @aiday-mar Ultimately uncomment this code when Electron will be upgraded
-		// if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-		// 	return;
-		// }
-		const accessibilityPageSize = this._accessibilitySupport === AccessibilitySupport.Disabled ? 1 : this._accessibilityPageSize;
+		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
+			return;
+		}
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
 				return this._context.viewModel.getLineCount();
@@ -136,7 +142,7 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {

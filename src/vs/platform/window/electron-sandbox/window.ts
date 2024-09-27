@@ -6,6 +6,7 @@
 import { getZoomLevel, setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
 import { getActiveWindow, getWindows } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { ISandboxGlobals, ipcRenderer, webFrame } from '../../../base/parts/sandbox/electron-sandbox/globals.js';
 import { zoomLevelToZoomFactor } from '../common/window.js';
 
@@ -62,3 +63,26 @@ export function zoomIn(target: ApplyZoomTarget | Window): void {
 export function zoomOut(target: ApplyZoomTarget | Window): void {
 	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) - 1, target);
 }
+
+//#region Bootstrap Window
+
+export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfiguration> {
+	configureDeveloperSettings?: (config: T) => {
+		forceDisableShowDevtoolsOnError?: boolean;
+		forceEnableDeveloperKeybindings?: boolean;
+		disallowReloadKeybinding?: boolean;
+		removeDeveloperKeybindingsAfterLoad?: boolean;
+	};
+	canModifyDOM?: (config: T) => void;
+	beforeImport?: (config: T) => void;
+}
+
+export interface IBootstrapWindow {
+	load<T extends ISandboxConfiguration = ISandboxConfiguration>(
+		esModule: string,
+		resultCallback: (result: any, configuration: T) => Promise<unknown> | undefined,
+		options: ILoadOptions<T>
+	): Promise<void>;
+}
+
+//#endregion

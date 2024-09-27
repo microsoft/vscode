@@ -18,6 +18,10 @@ import { LineRange } from '../../../common/viewLayout/viewLineRenderer.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
 
+/**
+ * The whitespace overlay will visual certain whitespace depending on the
+ * current editor configuration (boundary, selection, etc.).
+ */
 export class WhitespaceOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;

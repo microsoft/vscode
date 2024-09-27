@@ -8,7 +8,6 @@ import * as es from 'event-stream';
 import * as Vinyl from 'vinyl';
 import * as vfs from 'vinyl-fs';
 import * as util from '../lib/util';
-import { isAMD } from '../lib/amd';
 // @ts-ignore
 import * as deps from '../lib/dependencies';
 import { ClientSecretCredential } from '@azure/identity';
@@ -30,9 +29,6 @@ function src(base: string, maps = `${base}/**/*.map`) {
 }
 
 function main(): Promise<void> {
-	if (isAMD()) {
-		return Promise.resolve(); // in AMD we run into some issues, but we want to unblock the build for recovery
-	}
 	const sources: any[] = [];
 
 	// vscode client maps (default)

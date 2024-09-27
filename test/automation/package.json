@@ -18,14 +18,12 @@
     "prepublishOnly": "npm run copy-package-version"
   },
   "dependencies": {
-    "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",
     "tmp": "0.2.1",
     "tree-kill": "1.2.2",
     "vscode-uri": "3.0.2"
   },
   "devDependencies": {
-    "@types/mkdirp": "^1.0.1",
     "@types/ncp": "2.0.1",
     "@types/node": "20.x",
     "@types/tmp": "0.2.2",

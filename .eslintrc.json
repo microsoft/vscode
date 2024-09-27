@@ -681,9 +681,7 @@
 						// - browser
 						// - electron-sandbox
 						"when": "hasBrowser",
-						"allow": [
-							"vs/css!./**/*"
-						]
+						"allow": []
 					},
 					{
 						// imports that are allowed in all files of layers:
@@ -758,7 +756,6 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
-							"vs/css.build",
 							"vs/css.build.js",
 							"assert",
 							"sinon",
@@ -846,7 +843,8 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/standalone/~"
+							"vs/editor/standalone/~",
+							"@vscode/tree-sitter-wasm" // type import
 						]
 					},
 					{
@@ -932,6 +930,7 @@
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
 							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							"@vscode/tree-sitter-wasm", // type import
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"
@@ -951,6 +950,7 @@
 							"vs/workbench/contrib/*/~",
 							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
+							"@vscode/tree-sitter-wasm", // type import
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"
@@ -1007,15 +1007,7 @@
 							"vs/code/~",
 							{
 								"when": "hasBrowser",
-								"pattern": "vs/workbench/workbench.web.main"
-							},
-							{
-								"when": "hasBrowser",
 								"pattern": "vs/workbench/workbench.web.main.js"
-							},
-							{
-								"when": "hasBrowser",
-								"pattern": "vs/workbench/workbench.web.main.internal"
 							},
 							{
 								"when": "hasBrowser",
@@ -1067,13 +1059,11 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/terminal.all",
 							"vs/workbench/contrib/terminal/terminal.all.js"
 						]
 					},
@@ -1086,13 +1076,11 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
 							"vs/workbench/workbench.common.main.js"
 						]
 					},
@@ -1105,13 +1093,11 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
 							"vs/workbench/workbench.common.main.js"
 						]
 					},
@@ -1124,13 +1110,11 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
 							"vs/workbench/workbench.common.main.js"
 						]
 					},
@@ -1149,7 +1133,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
+						"target": "src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-node.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-window.ts,cli.ts,main.ts,server-cli.ts,server-main.ts,bootstrap-server.ts}",
 						"restrictions": []
 					}
 				]
@@ -1217,6 +1201,15 @@
 					{
 						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
 							"**/*"
+						]
+					}
+				],
+				"local/code-limited-top-functions": [
+					"error",
+					{
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"webviewPreloads",
+							"preloadsScriptStr"
 						]
 					}
 				]

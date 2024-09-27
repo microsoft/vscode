@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createStyleSheet2 } from '../../../../base/browser/dom.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ISettableObservable, autorun, constObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ISettableObservable, autorun, constObservable, derived, derivedDisposable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { GhostTextWidget } from './ghostTextWidget.js';
-import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IInlineEdit, InlineEditTriggerKind } from '../../../common/languages.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { GhostText, GhostTextPart } from '../../inlineCompletions/browser/model/ghostText.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { InlineEditHintsWidget } from './inlineEditHintsWidget.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
-import { createStyleSheet2 } from '../../../../base/browser/dom.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
-import { derivedDisposable } from '../../../../base/common/observableInternal/derived.js';
-import { InlineEditSideBySideWidget } from './inlineEditSideBySideWidget.js';
-import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { IModelService } from '../../../common/services/model.js';
+import { GhostText, GhostTextPart } from '../../inlineCompletions/browser/model/ghostText.js';
+import { InlineEditsAdapter } from '../../inlineCompletions/browser/model/inlineEditsAdapter.js';
+import { GhostTextWidget } from './ghostTextWidget.js';
+import { InlineEditHintsWidget } from './inlineEditHintsWidget.js';
+import { InlineEditSideBySideWidget } from './inlineEditSideBySideWidget.js';
 
 export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';
@@ -73,7 +74,11 @@ export class InlineEditController extends Disposable {
 	private _jumpBackPosition: Position | undefined;
 	private _isAccepting: ISettableObservable<boolean> = observableValue(this, false);
 
-	private readonly _enabled = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
+	private readonly _inlineCompletionInlineEdits = observableConfigValue(InlineEditsAdapter.experimentalInlineEditsEnabled, false, this._configurationService);
+
+	private readonly _inlineEditEnabled = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
+	private readonly _enabled = derived(this, reader => this._inlineEditEnabled.read(reader) && !this._inlineCompletionInlineEdits.read(reader));
+
 	private readonly _fontFamily = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).fontFamily);
 
 

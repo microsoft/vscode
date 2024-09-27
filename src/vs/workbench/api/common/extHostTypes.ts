@@ -4423,9 +4423,11 @@ export class ChatResponseFileTreePart {
 
 export class ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
+	value2: vscode.Uri | vscode.Location | vscode.SymbolInformation;
 	title?: string;
-	constructor(value: vscode.Uri | vscode.Location, title?: string) {
-		this.value = value;
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value as any;
+		this.value2 = value;
 		this.title = title;
 	}
 }
@@ -4472,6 +4474,13 @@ export class ChatResponseReferencePart {
 		this.value = value;
 		this.iconPath = iconPath;
 		this.options = options;
+	}
+}
+
+export class ChatResponseCodeblockUriPart {
+	value: vscode.Uri;
+	constructor(value: vscode.Uri) {
+		this.value = value;
 	}
 }
 
@@ -4529,6 +4538,7 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+	EditingSession = 5,
 }
 
 export enum ChatResponseReferencePartStatusKind {

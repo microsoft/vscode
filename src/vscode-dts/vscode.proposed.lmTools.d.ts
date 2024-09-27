@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 6
+// version: 7
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -73,14 +73,10 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolResult {
 		/**
-		 * The result can contain arbitrary representations of the content. An example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
+		 * The result can contain arbitrary representations of the content. Use {@link LanguageModelToolInvocationOptions.requested} to request particular types.
+		 * `text/plain` is required to be supported by all tools. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
 		 */
 		[contentType: string]: any;
-
-		/**
-		 * A string representation of the result which can be incorporated back into an LLM prompt without any special handling.
-		 */
-		toString(): string;
 	}
 
 	// Tool registration/invoking between extensions
@@ -98,16 +94,29 @@ declare module 'vscode' {
 
 		/**
 		 * Invoke a tool with the given parameters.
-		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
 		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
+	export type ChatParticipantToolToken = unknown;
+
 	export interface LanguageModelToolInvocationOptions {
+		/**
+		 * When this tool is being invoked within the context of a chat request, this token should be passed from {@link ChatRequest.toolInvocationToken}.
+		 * In that case, a progress bar will be automatically shown for the tool invocation in the chat response view. If the tool is being invoked
+		 * outside of a chat request, `undefined` should be passed instead.
+		 */
+		toolInvocationToken: ChatParticipantToolToken | undefined;
+
 		/**
 		 * Parameters with which to invoke the tool.
 		 */
 		parameters: Object;
+
+		/**
+		 * A tool invoker can request that particular content types be returned from the tool. All tools are required to support `text/plain`.
+		 */
+		requestedContentTypes: string[];
 
 		/**
 		 * Options to hint at how many tokens the tool should return in its response.
@@ -150,11 +159,35 @@ declare module 'vscode' {
 		 * A JSON schema for the parameters this tool accepts.
 		 */
 		parametersSchema?: JSONSchema;
+
+		/**
+		 * The list of content types that the tool has declared support for.
+		 */
+		supportedContentTypes: string[];
+	}
+
+	export interface LanguageModelToolProvideConfirmationMessageOptions {
+		participantName: string;
+		parameters: any;
+	}
+
+	export interface LanguageModelToolConfirmationMessages {
+		title: string;
+		message: string | MarkdownString;
 	}
 
 	export interface LanguageModelTool {
-		// TODO@API should it be LanguageModelToolResult | string?
 		invoke(options: LanguageModelToolInvocationOptions, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+
+		/**
+		 * This can be implemented to customize the message shown to the user when a tool requires confirmation.
+		 */
+		provideToolConfirmationMessages?(options: LanguageModelToolProvideConfirmationMessageOptions, token: CancellationToken): Thenable<LanguageModelToolConfirmationMessages>;
+
+		/**
+		 * This message will be shown with the progress notification when the tool is invoked in a chat session.
+		 */
+		provideToolInvocationMessage?(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 
 	export interface ChatLanguageModelToolReference {
@@ -184,6 +217,11 @@ declare module 'vscode' {
 		 * string-manipulation of the prompt.
 		 */
 		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+
+		/**
+		 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a chat request.
+		 */
+		readonly toolInvocationToken: ChatParticipantToolToken;
 	}
 
 	export interface ChatRequestTurn {
