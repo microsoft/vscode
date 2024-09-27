@@ -841,9 +841,8 @@ class ChatSynthesizerSessions {
 	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 		const filter = this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.FilterCode);
-
 		const text = filter ? response.withoutCodeBlocks() : response.response.toString();
-		console.log(text);
+
 		if (response.isComplete) {
 			chunk = text.substring(offset);
 			offset = text.length + 1;
