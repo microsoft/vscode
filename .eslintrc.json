@@ -1203,6 +1203,15 @@
 							"**/*"
 						]
 					}
+				],
+				"local/code-limited-top-functions": [
+					"error",
+					{
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"webviewPreloads",
+							"preloadsScriptStr"
+						]
+					}
 				]
 			}
 		}
