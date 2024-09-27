@@ -122,7 +122,7 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 2);
 		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, appjs.path);
-		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.INDEX_MODIFIED);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.MODIFIED);
 		assert.strictEqual(repository.state.workingTreeChanges[1].uri.path, newfile.path);
 		assert.strictEqual(repository.state.workingTreeChanges[1].status, Status.UNTRACKED);
 	});
