@@ -116,9 +116,8 @@ export interface ISCMInputChangeEvent {
 }
 
 export interface ISCMActionButtonDescriptor {
-	command: Command;
+	command: Command & { shortTitle?: string };
 	secondaryCommands?: Command[][];
-	description?: string;
 	enabled: boolean;
 }
 
