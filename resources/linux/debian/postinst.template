@@ -44,11 +44,8 @@ if [ "@@NAME@@" != "code-oss" ]; then
 
 	# Determine whether to write the Microsoft repository source list
 	WRITE_SOURCE='no'
-	if [ "$CODE_INSTALL_WITH_REPO" = false ]; then
-		# The user does not want to add the Microsoft repository
-		WRITE_SOURCE='no'
 	elif [ "$RET" = false ]; then
-		# The user does not want to add the Microsoft repository
+		# The user specified in debconf not to add the Microsoft repository
 		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
 		# The user has migrated themselves to the DEB822 format
@@ -63,9 +60,6 @@ if [ "@@NAME@@" != "code-oss" ]; then
 		# The user is already on the new repository
 		WRITE_SOURCE='no'
 	elif [ "$RET" = true ]; then
-		# User explicitly wants to add the Microsoft repository
-		WRITE_SOURCE='yes'
-	elif [ "$CODE_INSTALL_WITH_REPO" = true ]; then
 		# User explicitly wants to add the Microsoft repository
 		WRITE_SOURCE='yes'
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
