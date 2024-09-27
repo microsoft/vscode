@@ -41,8 +41,6 @@
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
-		"src/vs/workbench/workbench.web.main.css": true,
-		"src/vs/workbench/workbench.desktop.main.css": true,
 		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
