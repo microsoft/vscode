@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from '../../../../base/browser/dom.js';
+import { $, Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from '../../../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -54,6 +54,7 @@ import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 
 export interface InlineChatWidgetViewState {
@@ -570,6 +571,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
 
+
 	constructor(
 		location: IChatWidgetLocationOptions,
 		private readonly _parentEditor: ICodeEditor,
@@ -583,12 +585,13 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super(location, {
 			...options,
 			chatWidgetViewOptions: {
 				...options.chatWidgetViewOptions,
-				// editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() ?? _parentEditor.getDomNode() ?? undefined
+				editorOverflowWidgetsDomNode: layoutService.mainContainer.appendChild($('.inline-chat-overflow.monaco-editor'))
 			}
 		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
