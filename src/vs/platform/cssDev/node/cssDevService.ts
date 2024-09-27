@@ -5,12 +5,11 @@
 
 import { spawn } from 'child_process';
 import { relative } from 'path';
-import { isESM } from 'vs/base/common/amd';
-import { FileAccess } from 'vs/base/common/network';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
+import { FileAccess } from '../../../base/common/network.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
 
 export const ICSSDevelopmentService = createDecorator<ICSSDevelopmentService>('ICSSDevelopmentService');
 
@@ -32,7 +31,7 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 	) { }
 
 	get isEnabled(): boolean {
-		return !this.envService.isBuilt && isESM;
+		return !this.envService.isBuilt;
 	}
 
 	getCssModules(): Promise<string[]> {

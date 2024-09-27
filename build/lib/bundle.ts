@@ -51,10 +51,9 @@ export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
+	/** @deprecated unsupported by ESM */
 	prepend?: IExtraFile[];
-	append?: IExtraFile[];
 	dest?: string;
-	target?: 'amd' | 'esm';
 }
 
 interface IEntryPointMap {
@@ -158,9 +157,6 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 		};
 		for (const moduleId in entryPointsMap) {
 			const entryPoint = entryPointsMap[moduleId];
-			if (entryPoint.append) {
-				entryPoint.append = entryPoint.append.map(resolvePath);
-			}
 			if (entryPoint.prepend) {
 				entryPoint.prepend = entryPoint.prepend.map(resolvePath);
 			}
@@ -224,7 +220,6 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 			moduleToBundle,
 			includedModules,
 			info.prepend || [],
-			info.append || [],
 			info.dest
 		);
 
@@ -430,7 +425,6 @@ function emitEntryPoint(
 	entryPoint: string,
 	includedModules: string[],
 	prepend: IExtraFile[],
-	append: IExtraFile[],
 	dest: string | undefined
 ): IEmitEntryPointResult {
 	if (!dest) {
@@ -516,9 +510,8 @@ function emitEntryPoint(
 	};
 
 	const toPrepend = (prepend || []).map(toIFile);
-	const toAppend = (append || []).map(toIFile);
 
-	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
+	mainResult.sources = toPrepend.concat(mainResult.sources);
 
 	return {
 		files: results,

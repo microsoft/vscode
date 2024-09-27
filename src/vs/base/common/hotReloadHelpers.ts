@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
-import { IReader, observableSignalFromEvent } from 'vs/base/common/observable';
+import { isHotReloadEnabled, registerHotReloadHandler } from './hotReload.js';
+import { constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue } from './observable.js';
 
 export function readHotReloadableExport<T>(value: T, reader: IReader | undefined): T {
 	observeHotReloadableExports([value], reader);
@@ -27,4 +27,25 @@ export function observeHotReloadableExports(values: any[], reader: IReader | und
 		);
 		o.read(reader);
 	}
+}
+
+const classes = new Map<string, ISettableObservable<unknown>>();
+
+export function createHotClass<T>(clazz: T): IObservable<T> {
+	if (!isHotReloadEnabled()) {
+		return constObservable(clazz);
+	}
+
+	const id = (clazz as any).name;
+
+	let existing = classes.get(id);
+	if (!existing) {
+		existing = observableValue(id, clazz);
+		classes.set(id, existing);
+	} else {
+		setTimeout(() => {
+			existing!.set(clazz, undefined);
+		}, 0);
+	}
+	return existing as IObservable<T>;
 }

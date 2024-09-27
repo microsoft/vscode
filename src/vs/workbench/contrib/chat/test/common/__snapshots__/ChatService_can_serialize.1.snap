@@ -4,7 +4,6 @@
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [
     {
       message: {
@@ -67,6 +66,7 @@
       ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -129,6 +129,7 @@
       followups: [  ],
       isCanceled: false,
       vote: undefined,
+      voteDownReason: undefined,
       agent: {
         name: "testAgent",
         id: "testAgent",

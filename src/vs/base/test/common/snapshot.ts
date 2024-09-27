@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { Lazy } from '../../common/lazy.js';
+import { FileAccess } from '../../common/network.js';
+import { URI } from '../../common/uri.js';
 
 declare const __readFileInTests: (path: string) => Promise<string>;
 declare const __writeFileInTests: (path: string, contents: string) => Promise<void>;

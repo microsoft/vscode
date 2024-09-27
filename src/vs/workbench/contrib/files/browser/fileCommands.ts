@@ -3,55 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { isWeb, isWindows } from 'vs/base/common/platform';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
-import { Schemas } from 'vs/base/common/network';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { basename, joinPath, isEqual } from 'vs/base/common/resources';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { isCancellationError } from 'vs/base/common/errors';
-import { IAction, toAction } from 'vs/base/common/actions';
-import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
-import { hash } from 'vs/base/common/hash';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
-import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { IListService } from 'vs/platform/list/browser/listService';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from '../../../common/editor.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
+import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from '../../../../platform/window/common/window.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from '../../../../platform/workspace/common/workspace.js';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+import { ExplorerViewPaneContainer } from './explorerViewlet.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyMod, KeyCode, KeyChord } from '../../../../base/common/keyCodes.js';
+import { isWeb, isWindows } from '../../../../base/common/platform.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from './files.js';
+import { IWorkspaceEditingService } from '../../../services/workspaces/common/workspaceEditing.js';
+import { resolveCommandsContext } from '../../../browser/parts/editor/editorCommandsContext.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from '../../../services/editor/common/editorService.js';
+import { IEditorGroupsService, GroupsOrder, IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { basename, joinPath, isEqual } from '../../../../base/common/resources.js';
+import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
+import { EditorOpenSource, EditorResolution } from '../../../../platform/editor/common/editor.js';
+import { hash } from '../../../../base/common/hash.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { RemoveRootFolderAction } from '../../../browser/actions/workspaceActions.js';
+import { OpenEditorsView } from './views/openEditorsView.js';
+import { ExplorerView } from './views/explorerView.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -337,7 +337,9 @@ CommandsRegistry.registerCommand({
 				explorerView.autoReveal = oldAutoReveal;
 			}
 		} else {
-			const openEditorsView = await viewService.openView(OpenEditorsView.ID, false);
+			// Do not reveal the open editors view if it's hidden explicitly
+			// See https://github.com/microsoft/vscode/issues/227378
+			const openEditorsView = viewService.getViewWithId(OpenEditorsView.ID);
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
 				openEditorsView.focus();

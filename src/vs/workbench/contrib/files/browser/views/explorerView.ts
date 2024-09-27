@@ -3,59 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as perf from 'vs/base/common/performance';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
-import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
-import * as DOM from 'vs/base/browser/dom';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ExplorerDecorationsProvider } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITreeContextMenuEvent, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IExplorerService, IExplorerView } from 'vs/workbench/contrib/files/browser/files';
-import { Codicon } from 'vs/base/common/codicons';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
-import { EditorOpenSource } from 'vs/platform/editor/common/editor';
-import { ResourceMap } from 'vs/base/common/map';
-import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
-import { AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import * as nls from '../../../../../nls.js';
+import { URI } from '../../../../../base/common/uri.js';
+import * as perf from '../../../../../base/common/performance.js';
+import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
+import { memoize } from '../../../../../base/common/decorators.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from '../../common/files.js';
+import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { ExplorerDecorationsProvider } from './explorerDecorationsProvider.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
+import { DelayedDragHandler } from '../../../../../base/browser/dnd.js';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from './explorerViewer.js';
+import { IThemeService, IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
+import { IWorkbenchThemeService } from '../../../../services/themes/common/workbenchThemeService.js';
+import { ITreeContextMenuEvent, TreeVisibility } from '../../../../../base/browser/ui/tree/tree.js';
+import { MenuId, Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
+import { ResourceLabels } from '../../../../browser/labels.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IAsyncDataTreeViewState, IAsyncFindProvider } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { fuzzyScore, FuzzyScore } from '../../../../../base/common/filters.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Event } from '../../../../../base/common/event.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IExplorerService, IExplorerView } from '../files.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
+import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { AbstractTreePart, ITreeFindToggleContribution } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { basename, relativePath } from '../../../../../base/common/resources.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { getExcludes, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -149,6 +152,115 @@ export interface IExplorerViewContainerDelegate {
 
 export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
+}
+
+const explorerFuzzyMatch = {
+	id: 'fuzzyMatch',
+	title: 'Fuzzy Match',
+	icon: Codicon.searchFuzzy,
+	isChecked: false
+};
+
+class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
+
+	readonly toggles: ITreeFindToggleContribution[] = [explorerFuzzyMatch];
+	readonly placeholder: string = nls.localize('type to search files', "Type to search files");
+
+	constructor(
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IExplorerService private readonly explorerService: IExplorerService,
+	) { }
+
+	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: ITreeFindToggleContribution[]): AsyncIterable<ExplorerItem> {
+		const isFuzzyMatch = toggleStates.find(t => t.id === explorerFuzzyMatch.id)?.isChecked!!;
+
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		const folderPromises = Promise.all(workspaceFolders.map(async folder => {
+			// Get exclude settings used for search
+			const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.uri })) || {};
+
+			const result = await this.searchService.fileSearch({
+				folderQueries: [{ folder: folder.uri }],
+				type: QueryType.File,
+				shouldGlobMatchFilePattern: !isFuzzyMatch,
+				filePattern: isFuzzyMatch ? pattern : `**/*${pattern}*`,
+				maxResults: 512,
+				sortByScore: true,
+				cacheKey: `explorerfindprovider:${sessionId}`,
+				excludePattern: searchExcludePattern,
+			}, token);
+
+			return { folder: folder.uri, result };
+		}));
+
+		const folderResults = await this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: 1000,
+		}, _progress => folderPromises);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		yield* this.createResultItems(folderResults, pattern, isFuzzyMatch);
+	}
+
+	private async *createResultItems(folderResults: { folder: URI; result: ISearchComplete }[], pattern: string, isFuzzyMatch: boolean): AsyncIterable<ExplorerItem> {
+		const lowercasePattern = pattern.toLowerCase();
+
+		for (const { folder, result } of folderResults) {
+			const folderRoot = new ExplorerItem(folder, this.fileService, this.configurationService, this.filesConfigService, undefined);
+
+			for (const file of result.results) {
+				// If this is a fuzzy search, results can be very poor, so we need to filter them out
+				if (isFuzzyMatch) {
+					const baseName = basename(file.resource);
+					const score = fuzzyScore(pattern, lowercasePattern, 0, baseName, baseName.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+					if (!score) {
+						break; // Results are sorted by score, so we can stop here
+					}
+				}
+
+				const item = this.createItem(file.resource, folderRoot);
+				if (item) {
+					yield item;
+				}
+			}
+		}
+	}
+
+	private createItem(resource: URI, root: ExplorerItem): ExplorerItem | undefined {
+		const relativePathToRoot = relativePath(root.resource, resource);
+		if (!relativePathToRoot) {
+			return undefined;
+		}
+
+		let currentItem = root;
+		let currentResource = root.resource;
+		const pathSegments = relativePathToRoot.split('/');
+		for (const stat of pathSegments) {
+			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
+
+			let child = currentItem.children.get(stat);
+			if (!child) {
+				const isDirectory = pathSegments[pathSegments.length - 1] !== stat;
+				child = new ExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, currentItem, isDirectory);
+			}
+
+			currentItem = child;
+		}
+
+		return currentItem;
+	}
+
+	revealResultInTree(findElement: ExplorerItem): void {
+		this.explorerService.select(findElement.resource, true);
+	}
 }
 
 export class ExplorerView extends ViewPane implements IExplorerView {
@@ -489,7 +601,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			findResultsProvider: this.instantiationService.createInstance(ExplorerFindProvider),
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
@@ -602,7 +715,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
-		if (isInputElement(e.browserEvent.target as HTMLElement)) {
+		if (DOM.isEditableElement(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
 

@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { asPromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Disposable as DisposableCls, toDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ISignService } from 'vs/platform/sign/common/sign';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThreadFocusDto, IStackFrameFocusDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, DebugThread, DebugStackFrame, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
-import { MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebugVisualization, IDebugVisualizationContext, IDebuggerContribution, DebugVisualizationType, IDebugVisualizationTreeItem } from 'vs/workbench/contrib/debug/common/debug';
-import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
-import { IExtHostConfiguration } from '../common/extHostConfiguration';
-import { IExtHostVariableResolverProvider } from './extHostVariableResolverService';
-import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
-import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { coalesce } from 'vs/base/common/arrays';
-import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
+import { coalesce } from '../../../base/common/arrays.js';
+import { asPromise } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable as DisposableCls, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon as ThemeIconUtils } from '../../../base/common/themables.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { ISignService } from '../../../platform/sign/common/sign.js';
+import { IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { AbstractDebugAdapter } from '../../contrib/debug/common/abstractDebugAdapter.js';
+import { DebugVisualizationType, IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterImpl, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
+import { convertToDAPaths, convertToVSCPaths, isDebuggerMainContribution } from '../../contrib/debug/common/debugUtils.js';
+import { ExtensionDescriptionRegistry } from '../../services/extensions/common/extensionDescriptionRegistry.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, IStackFrameFocusDto, IThreadFocusDto, MainContext, MainThreadDebugServiceShape } from './extHost.protocol.js';
+import { IExtHostCommands } from './extHostCommands.js';
+import { IExtHostConfiguration } from './extHostConfiguration.js';
+import { IExtHostEditorTabs } from './extHostEditorTabs.js';
+import { IExtHostExtensionService } from './extHostExtensionService.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
+import { IExtHostTesting } from './extHostTesting.js';
+import * as Convert from './extHostTypeConverters.js';
+import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, DebugStackFrame, DebugThread, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint, ThemeIcon } from './extHostTypes.js';
+import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
+import { IExtHostWorkspace } from './extHostWorkspace.js';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -578,8 +578,8 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		return variableResolver.resolveAnyAsync(ws, config);
 	}
 
-	protected createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
-		if (adapter.type === 'implementation') {
+	protected createDebugAdapter(adapter: vscode.DebugAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
+		if (adapter instanceof DebugAdapterInlineImplementation) {
 			return new DirectDebugAdapter(adapter.implementation);
 		}
 		return undefined;
@@ -600,9 +600,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 				throw new Error(`Couldn't find a debug adapter descriptor for debug type '${session.type}' (extension might have failed to activate)`);
 			}
 
-			const adapterDescriptor = this.convertToDto(daDescriptor);
-
-			const da = this.createDebugAdapter(adapterDescriptor, session);
+			const da = this.createDebugAdapter(daDescriptor, session);
 			if (!da) {
 				throw new Error(`Couldn't create a debug adapter for type '${session.type}'.`);
 			}
@@ -891,33 +889,47 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 	// private & dto helpers
 
 	private convertToDto(x: vscode.DebugAdapterDescriptor): Dto<IAdapterDescriptor> {
-
 		if (x instanceof DebugAdapterExecutable) {
-			return {
-				type: 'executable',
-				command: x.command,
-				args: x.args,
-				options: x.options
-			} satisfies IDebugAdapterExecutable;
+			return this.convertExecutableToDto(x);
 		} else if (x instanceof DebugAdapterServer) {
-			return {
-				type: 'server',
-				port: x.port,
-				host: x.host
-			} satisfies IDebugAdapterServer;
+			return this.convertServerToDto(x);
 		} else if (x instanceof DebugAdapterNamedPipeServer) {
-			return {
-				type: 'pipeServer',
-				path: x.path
-			} satisfies IDebugAdapterNamedPipeServer;
+			return this.convertPipeServerToDto(x);
 		} else if (x instanceof DebugAdapterInlineImplementation) {
-			return {
-				type: 'implementation',
-				implementation: x.implementation
-			} as Dto<IAdapterDescriptor>;
+			return this.convertImplementationToDto(x);
 		} else {
 			throw new Error('convertToDto unexpected type');
 		}
+	}
+
+	protected convertExecutableToDto(x: DebugAdapterExecutable): IDebugAdapterExecutable {
+		return {
+			type: 'executable',
+			command: x.command,
+			args: x.args,
+			options: x.options
+		};
+	}
+
+	protected convertServerToDto(x: DebugAdapterServer): IDebugAdapterServer {
+		return {
+			type: 'server',
+			port: x.port,
+			host: x.host
+		};
+	}
+
+	protected convertPipeServerToDto(x: DebugAdapterNamedPipeServer): IDebugAdapterNamedPipeServer {
+		return {
+			type: 'pipeServer',
+			path: x.path
+		};
+	}
+
+	protected convertImplementationToDto(x: DebugAdapterInlineImplementation): IDebugAdapterImpl {
+		return {
+			type: 'implementation',
+		};
 	}
 
 	private getAdapterDescriptorFactoryByType(type: string): vscode.DebugAdapterDescriptorFactory | undefined {

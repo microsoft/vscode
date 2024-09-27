@@ -17,10 +17,12 @@
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 	background: var(--vscode-inlineChat-background);
+	padding-top: 3px;
+	position: relative;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
-	padding: 4px 6px 0 6px;
+	padding: 4px 8px 0 8px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -32,15 +34,23 @@
 	border-radius: 2px;
 }
 
-.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
-	padding: 4px 0 0 0;
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin: 2px 0 0 4px;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element {
+	border-top-left-radius: 3px;
+	border-top-right-radius: 3px;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
-	gap: 6px;
-	padding-top: 2px;
-	padding-right: 20px;
-	padding-left: 6px;
+	gap: 8px;
+	padding: 3px 20px 3px 8px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .header .avatar {
@@ -60,6 +70,11 @@
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .header {
 	top: 5px;
 	right: 10px;
+	display: none;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .chat-footer-toolbar {
+	display: none;
 }
 
 
@@ -69,7 +84,15 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 6px 6px 0 6px
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.monaco-workbench .inline-chat > .status {
+	.label,
+	.actions {
+		padding-top: 8px;
+	}
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -91,6 +114,8 @@
 
 .monaco-workbench .inline-chat .status .label.status {
 	margin-left: auto;
+	padding-right: 8px;
+	padding-left: 8px;
 }
 
 .monaco-workbench .inline-chat .status .label.hidden,
@@ -114,7 +139,7 @@
 
 
 .monaco-workbench .inline-chat .status .actions,
-.monaco-workbench .inline-chat-content-widget .toolbar  {
+.monaco-workbench .inline-chat-diff-overlay {
 
 	display: flex;
 	height: 18px;
@@ -122,31 +147,73 @@
 	.actions-container {
 		gap: 3px
 	}
+
+	.monaco-button-dropdown > .monaco-dropdown-button {
+		display: flex;
+		align-items: center;
+		padding: 0 4px;
+	}
+
+	.monaco-button.codicon {
+		display: flex;
+	}
+
+	.monaco-button.codicon::before {
+		align-self: center;
+		color: var(--vscode-button-foreground);
+	}
+
+	.monaco-button.secondary.codicon::before {
+		align-self: center;
+		color: var(--vscode-button-secondaryForeground);
+	}
+
+	.monaco-text-button {
+		padding: 0 6px;
+		font-size: 12px;
+		white-space: nowrap;
+	}
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button,
-.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
-	margin-right: 4px;
+.monaco-workbench .inline-chat .status .actions {
+	gap: 4px;
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
-	display: flex;
-	align-items: center;
-	padding: 0 4px;
+.monaco-workbench .inline-chat .status .actions.secondary {
+	display: none;
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon {
-	display: flex;
+.monaco-workbench .inline-chat .status:hover .actions.secondary,
+.monaco-workbench .inline-chat:focus .status .actions.secondary,
+.monaco-workbench .inline-chat .status:focus-within .actions.secondary {
+	display: inherit;
 }
 
-.monaco-workbench .inline-chat .status .actions > .monaco-button.codicon::before {
-	align-self: center;
+.monaco-workbench .inline-chat-diff-overlay {
+
+	.monaco-button {
+		border-radius: 0;
+	}
+
+	.monaco-button.secondary.checked {
+		background-color: var(--vscode-button-secondaryHoverBackground);
+	}
+
+	.monaco-button:first-child {
+		border-top-left-radius: 2px;
+		border-bottom-left-radius: 2px;
+	}
+
+	.monaco-button:last-child {
+		border-top-right-radius: 2px;
+		border-bottom-right-radius: 2px;
+	}
+
+	.monaco-button:not(:last-child) {
+		border-right: 1px solid var(--vscode-button-foreground);
+	}
 }
 
-.monaco-workbench .inline-chat .status .actions .monaco-text-button {
-	padding: 0 2px;
-	white-space: nowrap;
-}
 
 /* TODO@jrieken not needed? */
 .monaco-workbench .inline-chat .status .monaco-toolbar .action-label.checked {

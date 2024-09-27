@@ -3,38 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from '@xterm/headless';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import * as dom from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
-import { asArray } from 'vs/base/common/arrays';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import * as dom from '../../../../../base/browser/dom.js';
+import { IAction } from '../../../../../base/common/actions.js';
+import { asArray } from '../../../../../base/common/arrays.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { DecorationSelector, updateLayout } from '../../../terminal/browser/xterm/decorationStyles.js';
 import type { IDecoration, Terminal } from '@xterm/xterm';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
-import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
-import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
-import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
-import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ActionSet } from '../../../../../platform/actionWidget/common/actionWidget.js';
+import { getLinesForCommand } from '../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from './quickFix.js';
+import { ITerminalCommandSelector } from '../../../../../platform/terminal/common/terminal.js';
+import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { CodeActionKind } from '../../../../../editor/contrib/codeAction/common/types.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 const enum QuickFixDecorationSelector {
 	QuickFix = 'quick-fix'

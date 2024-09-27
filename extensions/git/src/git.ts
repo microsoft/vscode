@@ -491,7 +491,6 @@ export class Git {
 			const repoUri = Uri.file(repositoryRootPath);
 			const pathUri = Uri.file(pathInsidePossibleRepository);
 			if (repoUri.authority.length !== 0 && pathUri.authority.length === 0) {
-				// eslint-disable-next-line local/code-no-look-behind-regex
 				const match = /(?<=^\/?)([a-zA-Z])(?=:\/)/.exec(pathUri.path);
 				if (match !== null) {
 					const [, letter] = match;
@@ -1138,6 +1137,7 @@ export class Repository {
 	}
 
 	async log(options?: LogOptions): Promise<Commit[]> {
+		const spawnOptions: SpawnOptions = {};
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
@@ -1170,17 +1170,26 @@ export class Repository {
 			args.push(`--max-parents=${options.maxParents}`);
 		}
 
+		if (typeof options?.skip === 'number') {
+			args.push(`--skip=${options.skip}`);
+		}
+
 		if (options?.refNames) {
 			args.push('--topo-order');
 			args.push('--decorate=full');
-			args.push(...options.refNames);
+
+			// In order to avoid hitting the command line limit due to large number of reference
+			// names (can happen when the `all` filter is used in the Source Control Graph view),
+			// we are passing the reference names via stdin.
+			spawnOptions.input = options.refNames.join('\n');
+			args.push('--stdin');
 		}
 
 		if (options?.path) {
 			args.push('--', options.path);
 		}
 
-		const result = await this.exec(args);
+		const result = await this.exec(args, spawnOptions);
 		if (result.exitCode) {
 			// An empty repo
 			return [];
@@ -1801,13 +1810,17 @@ export class Repository {
 		await this.exec(['merge', '--abort']);
 	}
 
-	async tag(name: string, message?: string): Promise<void> {
+	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
 		let args = ['tag'];
 
-		if (message) {
-			args = [...args, '-a', name, '-m', message];
+		if (options.message) {
+			args = [...args, '-a', options.name, '-m', options.message];
 		} else {
-			args = [...args, name];
+			args = [...args, options.name];
+		}
+
+		if (options.ref) {
+			args.push(options.ref);
 		}
 
 		await this.exec(args);
@@ -2089,8 +2102,18 @@ export class Repository {
 	}
 
 	async cherryPick(commitHash: string): Promise<void> {
-		const args = ['cherry-pick', commitHash];
-		await this.exec(args);
+		try {
+			await this.exec(['cherry-pick', commitHash]);
+		} catch (err) {
+			if (/The previous cherry-pick is now empty, possibly due to conflict resolution./.test(err.stderr ?? '')) {
+				// Abort the cherry-pick operation
+				await this.exec(['cherry-pick', '--abort']);
+
+				err.gitErrorCode = GitErrorCodes.CherryPickEmpty;
+			}
+
+			throw err;
+		}
 	}
 
 	async blame(path: string): Promise<string> {
@@ -2418,7 +2441,10 @@ export class Repository {
 		args.push('--format', '%(refname) %(objectname) %(*objectname)');
 
 		if (query.pattern) {
-			args.push(query.pattern.startsWith('refs/') ? query.pattern : `refs/${query.pattern}`);
+			const patterns = Array.isArray(query.pattern) ? query.pattern : [query.pattern];
+			for (const pattern of patterns) {
+				args.push(pattern.startsWith('refs/') ? pattern : `refs/${pattern}`);
+			}
 		}
 
 		if (query.contains) {
@@ -2643,7 +2669,7 @@ export class Repository {
 
 	async getDefaultBranch(): Promise<Branch> {
 		const result = await this.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
-		if (!result.stdout) {
+		if (!result.stdout || result.stderr) {
 			throw new Error('No default branch');
 		}
 
@@ -2708,24 +2734,6 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
-	}
-
-	async getCommitFiles(ref: string): Promise<string[]> {
-		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
-		return result.stdout.split('\n').filter(l => !!l);
-	}
-
-	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const args = ['rev-list', '--count', '--left-right', range];
-
-		if (isWindows) {
-			args.splice(0, 0, '-c', 'core.longpaths=true');
-		}
-
-		const result = await this.exec(args);
-		const [ahead, behind] = result.stdout.trim().split('\t');
-
-		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

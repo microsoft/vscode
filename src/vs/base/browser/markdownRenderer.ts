@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import { DomEmitter } from 'vs/base/browser/event';
-import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
-import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
-import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { cloneAndChange } from 'vs/base/common/objects';
-import { dirname, resolvePath } from 'vs/base/common/resources';
-import { escape } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import * as DOM from './dom.js';
+import * as dompurify from './dompurify/dompurify.js';
+import { DomEmitter } from './event.js';
+import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
+import { StandardKeyboardEvent } from './keyboardEvent.js';
+import { StandardMouseEvent } from './mouseEvent.js';
+import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
+import { onUnexpectedError } from '../common/errors.js';
+import { Event } from '../common/event.js';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
+import { defaultGenerator } from '../common/idGenerator.js';
+import { KeyCode } from '../common/keyCodes.js';
+import { Lazy } from '../common/lazy.js';
+import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
+import * as marked from '../common/marked/marked.js';
+import { parse } from '../common/marshalling.js';
+import { FileAccess, Schemas } from '../common/network.js';
+import { cloneAndChange } from '../common/objects.js';
+import { dirname, resolvePath } from '../common/resources.js';
+import { escape } from '../common/strings.js';
+import { URI } from '../common/uri.js';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -180,13 +180,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.actionHandler) {
 		const _activateLink = function (event: StandardMouseEvent | StandardKeyboardEvent): void {
-			let target: HTMLElement | null = event.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
-					return;
-				}
+			const target = event.target.closest('a[data-href]');
+			if (!DOM.isHTMLElement(target)) {
+				return;
 			}
+
 			try {
 				let href = target.dataset['href'];
 				if (href) {
@@ -398,7 +396,7 @@ function sanitizeRenderedMarkdown(
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
+					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(e.attrValue);
 					return;
 				} else if (e.attrName === 'class') {
 					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
@@ -547,9 +545,8 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString, withCodeBlo
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
-
-	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
+	const html = marked.parse(value, { async: false, renderer: withCodeBlocks ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString().replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 }
 
 const unescapeInfo = new Map<string, string>([

@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { importAMDNodeModule } from 'vs/amdX';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { coalesce } from 'vs/base/common/arrays';
-import { isESM } from 'vs/base/common/amd';
+import { Readable, ReadableStream, newWriteableStream, listenStream } from '../../../../base/common/stream.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -325,7 +324,7 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// TODO@bpasero TODO@esm: this used to be `dist/jschardet.min.js`, but we are running into an issue that
 	// https://github.com/aadsm/jschardet/pull/96 mitigates. Long-term we should just add minification
 	// of dependencies into our build process so that we do not depend on how others are doing it.
-	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', isESM ? 'dist/jschardet.js' : 'dist/jschardet.min.js');
+	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.js');
 
 	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);

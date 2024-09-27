@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { OpenEditor, ISortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { coalesce } from 'vs/base/common/arrays';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditableData } from 'vs/workbench/common/views';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { ProgressLocation } from 'vs/platform/progress/common/progress';
-import { isActiveElement } from 'vs/base/browser/dom';
+import { URI } from '../../../../base/common/uri.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { OpenEditor, ISortOrderConfiguration } from '../common/files.js';
+import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier } from '../../../common/editor.js';
+import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ExplorerItem } from '../common/explorerModel.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { AsyncDataTree } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditableData } from '../../../common/views.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { isActiveElement } from '../../../../base/browser/dom.js';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;

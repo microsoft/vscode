@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow, isHTMLInputElement, isHTMLTextAreaElement } from 'vs/base/browser/dom';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { isNative } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { getActiveWindow, isHTMLInputElement, isHTMLTextAreaElement } from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
+import { isNative } from '../../../../../base/common/platform.js';
+import { localize } from '../../../../../nls.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 
 export function openContextMenu(targetWindow: Window, event: MouseEvent, clipboardService: IClipboardService, contextMenuService: IContextMenuService): void {
 	const standardEvent = new StandardMouseEvent(targetWindow, event);

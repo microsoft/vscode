@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { IViewLayout, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { Position } from '../../common/core/position.js';
+import { Range } from '../../common/core/range.js';
+import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
+import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
@@ -71,18 +71,20 @@ export class RenderingContext extends RestrictedRenderingContext {
 	_renderingContextBrand: void = undefined;
 
 	private readonly _viewLines: IViewLines;
+	private readonly _viewLinesGpu?: IViewLines;
 
-	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines) {
+	constructor(viewLayout: IViewLayout, viewportData: ViewportData, viewLines: IViewLines, viewLinesGpu?: IViewLines) {
 		super(viewLayout, viewportData);
 		this._viewLines = viewLines;
+		this._viewLinesGpu = viewLinesGpu;
 	}
 
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
+		return this._viewLines.linesVisibleRangesForRange(range, includeNewLines) ?? this._viewLinesGpu?.linesVisibleRangesForRange(range, includeNewLines) ?? null;
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
-		return this._viewLines.visibleRangeForPosition(position);
+		return this._viewLines.visibleRangeForPosition(position) ?? this._viewLinesGpu?.visibleRangeForPosition(position) ?? null;
 	}
 }
 

@@ -5,14 +5,14 @@
 /* eslint-disable local/code-import-patterns */
 
 import type { Terminal } from '@xterm/xterm';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-import { Emitter } from 'vs/base/common/event';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { PromptInputModel, type IPromptInputModelState } from '../../../../common/capabilities/commandDetection/promptInputModel.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import type { ITerminalCommand } from '../../../../common/capabilities/capabilities.js';
 import { notDeepStrictEqual, strictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { importAMDNodeModule } from 'vs/amdX';
+import { timeout } from '../../../../../../base/common/async.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

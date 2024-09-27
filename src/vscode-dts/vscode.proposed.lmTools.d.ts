@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 7
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -11,7 +11,8 @@ declare module 'vscode' {
 	// TODO@API capabilities
 
 	// API -> LM: an tool/function that is available to the language model
-	export interface LanguageModelChatFunction {
+	export interface LanguageModelChatTool {
+		// TODO@API should use "id" here to match vscode tools, or keep name to match OpenAI?
 		name: string;
 		description: string;
 		parametersSchema?: JSONSchema;
@@ -19,8 +20,8 @@ declare module 'vscode' {
 
 	// API -> LM: add tools as request option
 	export interface LanguageModelChatRequestOptions {
-		// TODO@API this will a heterogeneous array of different types of tools
-		tools?: LanguageModelChatFunction[];
+		// TODO@API this will be a heterogeneous array of different types of tools
+		tools?: LanguageModelChatTool[];
 
 		/**
 		 * Force a specific tool to be used.
@@ -29,11 +30,12 @@ declare module 'vscode' {
 	}
 
 	// LM -> USER: function that should be used
-	export class LanguageModelChatResponseFunctionUsePart {
+	export class LanguageModelChatResponseToolCallPart {
 		name: string;
+		toolCallId: string;
 		parameters: any;
 
-		constructor(name: string, parameters: any);
+		constructor(name: string, toolCallId: string, parameters: any);
 	}
 
 	// LM -> USER: text chunk
@@ -44,34 +46,37 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelChatResponse {
-
-		stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseFunctionUsePart>;
+		stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseToolCallPart>;
 	}
 
 
 	// USER -> LM: the result of a function call
-	export class LanguageModelChatMessageFunctionResultPart {
-		name: string;
+	export class LanguageModelChatMessageToolResultPart {
+		toolCallId: string;
 		content: string;
 		isError: boolean;
 
-		constructor(name: string, content: string, isError?: boolean);
+		constructor(toolCallId: string, content: string, isError?: boolean);
 	}
 
 	export interface LanguageModelChatMessage {
-		content2: string | LanguageModelChatMessageFunctionResultPart;
+		/**
+		 * A heterogeneous array of other things that a message can contain as content.
+		 * Some parts would be message-type specific for some models and wouldn't go together,
+		 * but it's up to the chat provider to decide what to do about that.
+		 * Can drop parts that are not valid for the message type.
+		 * LanguageModelChatMessageToolResultPart: only on User messages
+		 * LanguageModelChatResponseToolCallPart: only on Assistant messages
+		 */
+		content2: (string | LanguageModelChatMessageToolResultPart | LanguageModelChatResponseToolCallPart)[];
 	}
 
 	export interface LanguageModelToolResult {
 		/**
-		 * The result can contain arbitrary representations of the content. An example might be 'prompt-tsx' to indicate an element that can be rendered with the @vscode/prompt-tsx library.
+		 * The result can contain arbitrary representations of the content. Use {@link LanguageModelToolInvocationOptions.requested} to request particular types.
+		 * `text/plain` is required to be supported by all tools. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
 		 */
 		[contentType: string]: any;
-
-		/**
-		 * A string representation of the result which can be incorporated back into an LLM prompt without any special handling.
-		 */
-		toString(): string;
 	}
 
 	// Tool registration/invoking between extensions
@@ -80,7 +85,7 @@ declare module 'vscode' {
 		/**
 		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
 		 */
-		export function registerTool(name: string, tool: LanguageModelTool): Disposable;
+		export function registerTool(id: string, tool: LanguageModelTool): Disposable;
 
 		/**
 		 * A list of all available tools.
@@ -89,9 +94,47 @@ declare module 'vscode' {
 
 		/**
 		 * Invoke a tool with the given parameters.
-		 * TODO@API Could request a set of contentTypes to be returned so they don't all need to be computed?
 		 */
-		export function invokeTool(id: string, parameters: Object, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
+	}
+
+	export type ChatParticipantToolToken = unknown;
+
+	export interface LanguageModelToolInvocationOptions {
+		/**
+		 * When this tool is being invoked within the context of a chat request, this token should be passed from {@link ChatRequest.toolInvocationToken}.
+		 * In that case, a progress bar will be automatically shown for the tool invocation in the chat response view. If the tool is being invoked
+		 * outside of a chat request, `undefined` should be passed instead.
+		 */
+		toolInvocationToken: ChatParticipantToolToken | undefined;
+
+		/**
+		 * Parameters with which to invoke the tool.
+		 */
+		parameters: Object;
+
+		/**
+		 * A tool invoker can request that particular content types be returned from the tool. All tools are required to support `text/plain`.
+		 */
+		requestedContentTypes: string[];
+
+		/**
+		 * Options to hint at how many tokens the tool should return in its response.
+		 */
+		tokenOptions?: {
+			/**
+			 * If known, the maximum number of tokens the tool should emit in its result.
+			 */
+			tokenBudget: number;
+
+			/**
+			 * Count the number of tokens in a message using the model specific tokenizer-logic.
+			 * @param text A string.
+			 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+			 * @returns A thenable that resolves to the number of tokens.
+			 */
+			countTokens(text: string, token?: CancellationToken): Thenable<number>;
+		};
 	}
 
 	export type JSONSchema = object;
@@ -116,11 +159,35 @@ declare module 'vscode' {
 		 * A JSON schema for the parameters this tool accepts.
 		 */
 		parametersSchema?: JSONSchema;
+
+		/**
+		 * The list of content types that the tool has declared support for.
+		 */
+		supportedContentTypes: string[];
+	}
+
+	export interface LanguageModelToolProvideConfirmationMessageOptions {
+		participantName: string;
+		parameters: any;
+	}
+
+	export interface LanguageModelToolConfirmationMessages {
+		title: string;
+		message: string | MarkdownString;
 	}
 
 	export interface LanguageModelTool {
-		// TODO@API should it be LanguageModelToolResult | string?
-		invoke(parameters: any, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		invoke(options: LanguageModelToolInvocationOptions, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+
+		/**
+		 * This can be implemented to customize the message shown to the user when a tool requires confirmation.
+		 */
+		provideToolConfirmationMessages?(options: LanguageModelToolProvideConfirmationMessageOptions, token: CancellationToken): Thenable<LanguageModelToolConfirmationMessages>;
+
+		/**
+		 * This message will be shown with the progress notification when the tool is invoked in a chat session.
+		 */
+		provideToolInvocationMessage?(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 
 	export interface ChatLanguageModelToolReference {
@@ -150,6 +217,11 @@ declare module 'vscode' {
 		 * string-manipulation of the prompt.
 		 */
 		readonly toolReferences: readonly ChatLanguageModelToolReference[];
+
+		/**
+		 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a chat request.
+		 */
+		readonly toolInvocationToken: ChatParticipantToolToken;
 	}
 
 	export interface ChatRequestTurn {
