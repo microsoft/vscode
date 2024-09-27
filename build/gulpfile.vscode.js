@@ -38,7 +38,7 @@ const rcedit = promisify(require('rcedit'));
 
 // Build
 const vscodeEntryPoints = [
-	buildfile.base,
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,

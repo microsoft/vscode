@@ -105,7 +105,7 @@ const DEFAULT_FILE_HEADER = [
 function optimizeESMTask(opts, cjsOpts) {
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
-    const entryPoints = opts.entryPoints.filter(d => d.target !== 'amd');
+    const entryPoints = opts.entryPoints;
     if (cjsOpts) {
         cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
     }

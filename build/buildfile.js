@@ -16,7 +16,7 @@ function createModuleDescription(name, exclude) {
 	}
 
 	return {
-		name: name,
+		name,
 		include: [],
 		exclude: excludes
 	};
@@ -26,40 +26,13 @@ function createModuleDescription(name, exclude) {
  * @param {string} name
  */
 function createEditorWorkerModuleDescription(name) {
-	const amdVariant = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
-	amdVariant.target = 'amd';
+	const description = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
+	description.name = `${description.name}.esm`;
 
-	const esmVariant = { ...amdVariant, dest: undefined };
-	esmVariant.target = 'esm';
-	esmVariant.name = `${esmVariant.name}.esm`;
-
-	return [amdVariant, esmVariant];
+	return description;
 }
 
-// TODO@esm take the editor simple worker top level and rename away from "base"
-exports.base = [
-	{
-		name: 'vs/editor/common/services/editorSimpleWorker',
-		include: ['vs/base/common/worker/simpleWorker'],
-		exclude: [],
-		prepend: [
-			{ path: 'vs/loader.js' },
-			{ path: 'vs/base/worker/workerMain.js' }
-		],
-		dest: 'vs/base/worker/workerMain.js',
-		target: 'amd'
-	},
-	{
-		name: 'vs/editor/common/services/editorSimpleWorker.esm',
-		target: 'esm'
-	},
-	{
-		name: 'vs/base/common/worker/simpleWorker',
-		exclude: [],
-		target: 'amd'
-	}
-];
-
+exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorker');
 exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker');
 exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker');
 exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker');
@@ -93,8 +66,6 @@ exports.code = [
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 
-exports.codeWeb = [
-	createModuleDescription('vs/code/browser/workbench/workbench')
-];
+exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');
 
 exports.entrypoint = createModuleDescription;

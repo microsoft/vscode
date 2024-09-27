@@ -300,7 +300,7 @@ const skippedExportMangledFiles = [
 	// entry points
 	...[
 		buildfile.entrypoint('vs/server/node/server.main'),
-		buildfile.base,
+		buildfile.workerEditor,
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
 		buildfile.workerLanguageDetection,

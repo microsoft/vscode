@@ -73,7 +73,7 @@ const vscodeWebResources = [
 const buildfile = require('./buildfile');
 
 const vscodeWebEntryPoints = [
-	buildfile.base,
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,

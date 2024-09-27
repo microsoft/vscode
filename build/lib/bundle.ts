@@ -53,7 +53,6 @@ export interface IEntryPoint {
 	exclude?: string[];
 	prepend?: IExtraFile[];
 	dest?: string;
-	target?: 'amd' | 'esm';
 }
 
 interface IEntryPointMap {

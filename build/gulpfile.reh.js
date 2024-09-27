@@ -128,7 +128,7 @@ const serverEntryPoints = [
 ];
 
 const webEntryPoints = [
-	buildfile.base,
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
