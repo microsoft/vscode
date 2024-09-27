@@ -2994,13 +2994,13 @@ export class SCMActionButton implements IDisposable {
 			});
 		} else {
 			// Button
-			this.button = new Button(this.container, { supportIcons: true, supportShortLabel: !!button.description, title: button.command.tooltip, ...defaultButtonStyles });
+			this.button = new Button(this.container, { supportIcons: true, supportShortLabel: !!button.command.shortTitle, title: button.command.tooltip, ...defaultButtonStyles });
 		}
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
-		if (this.button instanceof Button && button.description) {
-			this.button.labelShort = button.description;
+		if (this.button instanceof Button && button.command.shortTitle) {
+			this.button.labelShort = button.command.shortTitle;
 		}
 		this.button.onDidClick(async () => await this.executeCommand(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 

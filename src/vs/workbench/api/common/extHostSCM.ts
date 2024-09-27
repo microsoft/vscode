@@ -11,7 +11,7 @@ import { debounce } from '../../../base/common/decorators.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto } from './extHost.protocol.js';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto } from './extHost.protocol.js';
 import { sortedDiff, equals } from '../../../base/common/arrays.js';
 import { comparePaths } from '../../../base/common/comparers.js';
 import type * as vscode from 'vscode';
@@ -662,13 +662,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		const internal = actionButton !== undefined ?
 			{
-				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+				command: {
+					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+					shortTitle: actionButton.command.shortTitle
+				},
 				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
 					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
 				}),
-				description: actionButton.description,
 				enabled: actionButton.enabled
-			} : undefined;
+			} satisfies SCMActionButtonDto : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}
 
