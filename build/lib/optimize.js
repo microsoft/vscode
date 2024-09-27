@@ -64,14 +64,6 @@ function optimizeESMTask(opts) {
                     });
                 }
             };
-            // support for 'preprend' via the esbuild#banner
-            if (entryPoint.prepend?.length) {
-                for (const item of entryPoint.prepend) {
-                    const fullpath = path.join(REPO_ROOT_PATH, opts.src, item.path);
-                    const source = await fs.promises.readFile(fullpath, 'utf8');
-                    banner.js += source + '\n';
-                }
-            }
             const task = esbuild.build({
                 bundle: true,
                 external: entryPoint.exclude,

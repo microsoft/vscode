@@ -51,6 +51,7 @@ export interface IEntryPoint {
 	name: string;
 	include?: string[];
 	exclude?: string[];
+	/** @deprecated unsupported by ESM */
 	prepend?: IExtraFile[];
 	dest?: string;
 }
