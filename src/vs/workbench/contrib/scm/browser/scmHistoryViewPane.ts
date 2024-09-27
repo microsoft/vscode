@@ -375,7 +375,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			// separately since we have to show the description
 			// for the first colored reference.
 			if (references.length > 0 && references[0].color) {
-				this._renderBadge(references[0], true, templateData);
+				this._renderBadge(references[0], 1, true, templateData);
 
 				// Remove the rendered reference from the collection
 				references.splice(0, 1);
@@ -397,13 +397,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 						continue;
 					}
 
-					this._renderBadge(historyItemRefs[0], false, templateData);
+					this._renderBadge(historyItemRefs[0], historyItemRefs.length, false, templateData);
 				}
 			}
 		}));
 	}
 
-	private _renderBadge(historyItemRef: ISCMHistoryItemRef, showDescription: boolean, templateData: HistoryItemTemplate): void {
+	private _renderBadge(historyItemRef: ISCMHistoryItemRef, count: number, showDescription: boolean, templateData: HistoryItemTemplate): void {
 		if (!ThemeIcon.isThemeIcon(historyItemRef.icon)) {
 			return;
 		}
@@ -414,9 +414,13 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				backgroundColor: historyItemRef.color ? asCssVariable(historyItemRef.color) : asCssVariable(historyItemHoverDefaultLabelBackground)
 			}
 		}, [
+			h('div.count@count'),
 			h('div.icon@icon'),
 			h('div.description@description')
 		]);
+
+		elements.count.textContent = count.toString();
+		elements.count.style.display = count > 1 ? '' : 'none';
 
 		elements.icon.classList.add(...ThemeIcon.asClassNameArray(historyItemRef.icon));
 
