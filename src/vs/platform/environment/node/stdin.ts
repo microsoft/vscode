@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import { tmpdir } from 'os';
+import { importAMDNodeModule } from '../../../amdX.js';
 import { Queue } from '../../../base/common/async.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { resolveTerminalEncoding } from '../../../base/node/terminalEncoding.js';
@@ -42,7 +43,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 
 	let [encoding, iconv] = await Promise.all([
 		resolveTerminalEncoding(verbose),	// respect terminal encoding when piping into file
-		import('@vscode/iconv-lite-umd'),	// lazy load encoding module for usage
+		importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js'), // lazy load encoding module for usage
 		fs.promises.appendFile(targetPath, '') // make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
 	]);
 
