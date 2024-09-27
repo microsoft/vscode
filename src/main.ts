@@ -511,8 +511,7 @@ function registerListeners(): void {
 	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 	 */
 	const macOpenFiles: string[] = [];
-	// @ts-ignore
-	globalThis['macOpenFiles'] = macOpenFiles;
+	(globalThis as any)['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
 	});
@@ -532,8 +531,7 @@ function registerListeners(): void {
 		app.on('open-url', onOpenUrl);
 	});
 
-	// @ts-ignore
-	globalThis['getOpenUrls'] = function () {
+	(globalThis as any)['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 
 		return openUrls;

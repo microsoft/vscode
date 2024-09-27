@@ -8,9 +8,7 @@
 (function () {
 
 	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
-
-	// @ts-ignore (defined in bootstrap-window.js)
-	const bootstrapWindow: IBootstrapWindow = window.MonacoBootstrapWindow;
+	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; // defined by bootstrap-window.ts
 
 	bootstrapWindow.load('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain', function (issueReporter, configuration) {
 		return issueReporter.startup(configuration);

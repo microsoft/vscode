@@ -9,10 +9,9 @@
 
 	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
 	type ILoadOptions<T extends ISandboxConfiguration> = import('vs/platform/window/electron-sandbox/window.js').ILoadOptions<T>;
-	type PreloadGlobals = typeof import('./vs/base/parts/sandbox/electron-sandbox/globals.js');
+	type IMainWindowSandboxGlobals = import('./vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
 
-	// @ts-ignore (defined in preload.ts)
-	const preloadGlobals: PreloadGlobals = window.vscode;
+	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
 
 	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -229,6 +228,5 @@
 		}
 	}
 
-	// @ts-ignore
-	globalThis.MonacoBootstrapWindow = { load };
+	(globalThis as any).MonacoBootstrapWindow = { load };
 }());
