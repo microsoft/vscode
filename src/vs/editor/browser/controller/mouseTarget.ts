@@ -742,22 +742,23 @@ export class MouseTargetFactory {
 		// Check if we are hitting a view-line (can happen in the case of inline decorations on empty lines)
 		// See https://github.com/microsoft/vscode/issues/46942
 		if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
-			const spaceWidth = ctx.spaceWidth;
 			const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
 			const lineWidth = ctx.visibleRangeForPosition(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber))?.originalLeft || 0;
 			const pxBehind = request.mouseContentHorizontalOffset - lineWidth;
+			const spaceWidth = ctx.spaceWidth;
 			const colsBehind = Math.floor(pxBehind / spaceWidth);
 
 			if (ctx.viewModel.getLineLength(lineNumber) === 0) {
+				const detail = createEmptyContentDataInLines(pxBehind);
 				const pos = new Position(lineNumber, 1 + colsBehind);
-				//return request.fulfillContentText(pos, null, { mightBeForeignElement: false, injectedText: null });
-				return request.fulfillContentEmpty(pos, createEmptyContentDataInLines(pxBehind));
+				return request.fulfillContentEmpty(pos, detail);
 			}
 
 			if (request.mouseContentHorizontalOffset >= lineWidth) {
+				// TODO: This is wrong for RTL
+				const detail = createEmptyContentDataInLines(pxBehind);
 				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber) + colsBehind);
-				//return request.fulfillContentText(pos, null, { mightBeForeignElement: false, injectedText: null });
-				return request.fulfillContentEmpty(pos, createEmptyContentDataInLines(pxBehind));
+				return request.fulfillContentEmpty(pos, detail);
 			}
 		}
 
