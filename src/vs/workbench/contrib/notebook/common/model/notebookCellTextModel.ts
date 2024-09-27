@@ -160,6 +160,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 					this._alternativeId = this._textModel.getAlternativeVersionId();
 				}
 				this._textBufferHash = null;
+				this._onDidChangeContent.fire('content');
 				this._onDidChangeContent.fire({ type: 'model', event: e });
 			}));
 
