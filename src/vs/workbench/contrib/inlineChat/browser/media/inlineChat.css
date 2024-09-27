@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/*
+ * FIXES https://github.com/microsoft/vscode-copilot/issues/8127
+ * REOPENS https://github.com/microsoft/vscode-internalbacklog/issues/4298
 .monaco-workbench .zone-widget.inline-chat-widget {
 	z-index: 3;
-}
+} */
 
 .monaco-workbench .zone-widget.inline-chat-widget .interactive-session {
 	max-width: unset;
