@@ -7,8 +7,8 @@
 
 ; Literals
 
-(this) @variable.language
-(super) @variable.language
+(this) @variable.language.this
+(super) @variable.language.super
 
 (comment) @comment
 
@@ -61,12 +61,12 @@
 (function_declaration
   name: (identifier) @entity.name.function)
 (method_definition
-  name: (property_identifier) @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function)
 (method_definition
   name: (property_identifier) @storage.type
   (#eq? @storage.type "constructor"))
 (method_signature
-  name: (property_identifier) @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function)
 
 (pair
   key: (property_identifier) @entity.name.function
@@ -210,6 +210,8 @@
 
 ("of") @keyword.operator.expression.of
 
+("is") @keyword.operator.expression.is
+
 [
   "delete"
   "in"
@@ -288,6 +290,27 @@
   "new"
 ] @keyword.operator.new
 
+(public_field_definition
+  ("?") @keyword.operator.optional)
+
+(optional_parameter)
+  ([
+    "?"
+    ":"
+  ]) @keyword.operator.optional
+
+(ternary_expression
+  ([
+    "?"
+    ":"
+  ]) @keyword.operator.ternary)
+
+(optional_chain
+  ("?.") @punctuation.accessor.optional)
+
+(rest_pattern) @keyword.operator.rest
+
+(spread_element) @keyword.operator.spread
 
 ; Language constants
 

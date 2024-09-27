@@ -162,7 +162,7 @@ export function compareHistoryItemRefs(
 	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
 	currentHistoryItemBaseRef?: ISCMHistoryItemRef
 ): number {
-	const getHistoryItemRefPriority = (ref: ISCMHistoryItemRef) => {
+	const getHistoryItemRefOrder = (ref: ISCMHistoryItemRef) => {
 		if (ref.id === currentHistoryItemRef?.id) {
 			return 1;
 		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
@@ -176,13 +176,9 @@ export function compareHistoryItemRefs(
 		return 99;
 	};
 
-	// Assign priority (current > remote > base > color > name)
-	const ref1Priority = getHistoryItemRefPriority(ref1);
-	const ref2Priority = getHistoryItemRefPriority(ref2);
+	// Assign order (current > remote > base > color)
+	const ref1Order = getHistoryItemRefOrder(ref1);
+	const ref2Order = getHistoryItemRefOrder(ref2);
 
-	if (ref1Priority !== ref2Priority) {
-		return ref1Priority - ref2Priority;
-	} else {
-		return ref1.name.localeCompare(ref2.name);
-	}
+	return ref1Order - ref2Order;
 }

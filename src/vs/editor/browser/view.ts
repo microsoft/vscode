@@ -437,6 +437,7 @@ export class View extends ViewEventHandler {
 		}
 
 		this._contentWidgets.overflowingContentWidgetsDomNode.domNode.remove();
+		this._overlayWidgets.overflowingOverlayWidgetsDomNode.domNode.remove();
 
 		this._context.removeEventHandler(this);
 		this._viewGpuContext?.dispose();

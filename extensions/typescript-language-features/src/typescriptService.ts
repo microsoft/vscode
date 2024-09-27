@@ -78,6 +78,7 @@ interface StandardTsServerRequests {
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
 	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
 	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
+	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }
 
 interface NoResponseTsServerRequests {

@@ -117,10 +117,7 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		},
 	});
 
-	constructor(
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService
-	) {
+	constructor(@IAuthenticationService private readonly _authenticationService: IAuthenticationService) {
 		super();
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
@@ -131,7 +128,6 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 		}
 		this._registerHandlers();
 		this._registerAuthenticationExtentionPointHandler();
-		this._registerEnvContributedAuthenticationProviders();
 		this._registerActions();
 	}
 
@@ -165,15 +161,6 @@ class AuthenticationContribution extends Disposable implements IWorkbenchContrib
 				}
 			});
 		});
-	}
-
-	private _registerEnvContributedAuthenticationProviders(): void {
-		if (!this._environmentService.options?.authenticationProviders?.length) {
-			return;
-		}
-		for (const provider of this._environmentService.options.authenticationProviders) {
-			this._authenticationService.registerAuthenticationProvider(provider.id, provider);
-		}
 	}
 
 	private _registerHandlers(): void {

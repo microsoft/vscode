@@ -24,7 +24,9 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ThemeConfiguration } from './themeConfiguration.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
-import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
+import { ColorId, FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
+import { toStandardTokenType } from '../../../../editor/common/languages/supports/tokenization.js';
+import { findMatchingThemeRule } from '../../textMate/common/TMHelper.js';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -899,34 +901,56 @@ function isSemanticTokenColorizationSetting(style: any): style is ISemanticToken
 		|| types.isBoolean(style.underline) || types.isBoolean(style.strikethrough) || types.isBoolean(style.bold));
 }
 
-export function findMetadata(colorThemeData: ColorThemeData, captureName: string): number {
-	const tokenStyle: TokenStyle | undefined = colorThemeData.resolveScopes([[captureName]]);
-	if (!tokenStyle) {
-		return 0;
+export function findMetadata(colorThemeData: ColorThemeData, captureNames: string[], languageId: number): number {
+	let metadata = 0;
+
+	metadata |= (languageId << MetadataConsts.LANGUAGEID_OFFSET);
+
+	const themeRule = findMatchingThemeRule(colorThemeData, captureNames);
+	let tokenStyle: TokenStyle | undefined;
+	if (!themeRule) {
+		tokenStyle = colorThemeData.resolveScopes(captureNames.map(name => [name]).reverse());
 	}
 
-	let metadata = 0;
-	if (typeof tokenStyle.italic !== 'undefined') {
-		const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0);
-		metadata |= italicBit | MetadataConsts.ITALIC_MASK;
+	if (captureNames.length > 0) {
+		const standardToken = toStandardTokenType(captureNames[captureNames.length - 1]);
+		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
 	}
-	if (typeof tokenStyle.bold !== 'undefined') {
-		const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0);
-		metadata |= boldBit | MetadataConsts.BOLD_MASK;
+
+	switch (themeRule?.settings.fontStyle) {
+		case 'italic':
+			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
+			break;
+		case 'bold':
+			metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
+			break;
+		case 'underline':
+			metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
+			break;
+		case 'strikethrough':
+			metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
+			break;
+		default:
+			if (typeof tokenStyle?.italic !== 'undefined') {
+				const italicbit = (tokenStyle?.italic ? FontStyle.Italic : 0);
+				metadata |= italicbit | MetadataConsts.ITALIC_MASK;
+			}
+			if (typeof tokenStyle?.bold !== 'undefined') {
+				const boldBit = (tokenStyle?.bold ? FontStyle.Bold : 0);
+				metadata |= boldBit | MetadataConsts.BOLD_MASK;
+			}
+			if (typeof tokenStyle?.underline !== 'undefined') {
+				const underlineBit = (tokenStyle?.underline ? FontStyle.Underline : 0);
+				metadata |= underlineBit | MetadataConsts.UNDERLINE_MASK;
+			}
+			if (typeof tokenStyle?.strikethrough !== 'undefined') {
+				const strikethroughBit = (tokenStyle?.strikethrough ? FontStyle.Strikethrough : 0);
+				metadata |= strikethroughBit | MetadataConsts.STRIKETHROUGH_MASK;
+			}
 	}
-	if (typeof tokenStyle.underline !== 'undefined') {
-		const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0);
-		metadata |= underlineBit | MetadataConsts.UNDERLINE_MASK;
-	}
-	if (typeof tokenStyle.strikethrough !== 'undefined') {
-		const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0);
-		metadata |= strikethroughBit | MetadataConsts.STRIKETHROUGH_MASK;
-	}
-	if (tokenStyle.foreground) {
-		const tokenStyleForeground = colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
-		const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
-		metadata |= foregroundBits;
-	}
+	const foreground = themeRule ? themeRule.settings.foreground : tokenStyle?.foreground;
+	const tokenStyleForeground = foreground ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
+	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
 
 	return metadata;
 }

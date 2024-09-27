@@ -7,7 +7,7 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
 import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -628,7 +628,8 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * The position of the terminal.
 	 */
-	target?: TerminalLocation;
+	target: TerminalLocation | undefined;
+	targetRef: IReference<TerminalLocation | undefined>;
 
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host

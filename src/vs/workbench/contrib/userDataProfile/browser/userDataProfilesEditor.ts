@@ -1660,9 +1660,9 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 					updateTable();
 				}
 				elementDisposables.add(profileElement.root.onDidChange(e => {
-					if (e.workspaces) {
+					if (profileElement && e.workspaces) {
 						updateTable();
-						that._onDidChangeContentHeight.fire(element);
+						that._onDidChangeContentHeight.fire(profileElement);
 					}
 				}));
 			},
@@ -2097,7 +2097,37 @@ class WorkspaceUriPathColumnRenderer implements ITableRenderer<WorkspaceTableEle
 interface IActionsColumnTemplateData {
 	readonly actionBar: ActionBar;
 	readonly disposables: DisposableStore;
-	readonly renderDisposables: DisposableStore;
+}
+
+class ChangeProfileAction extends Action {
+
+	constructor(
+		private readonly item: WorkspaceTableElement,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+	) {
+		super('changeProfile', '', ThemeIcon.asClassName(editIcon));
+		this.tooltip = localize('change profile', "Change Profile");
+	}
+
+	getSwitchProfileActions(): IAction[] {
+		return this.userDataProfilesService.profiles
+			.filter(profile => !profile.isTransient)
+			.sort((a, b) => a.isDefault ? -1 : b.isDefault ? 1 : a.name.localeCompare(b.name))
+			.map<IAction>(profile => ({
+				id: `switchProfileTo${profile.id}`,
+				label: profile.name,
+				class: undefined,
+				enabled: true,
+				checked: profile.id === this.item.profileElement.profile.id,
+				tooltip: '',
+				run: () => {
+					if (profile.id === this.item.profileElement.profile.id) {
+						return;
+					}
+					this.userDataProfilesService.updateProfile(profile, { workspaces: [...(profile.workspaces ?? []), this.item.workspace] });
+				}
+			}));
+	}
 }
 
 class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTableElement, IActionsColumnTemplateData> {
@@ -2120,8 +2150,8 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		const actionBar = disposables.add(new ActionBar(element, {
 			hoverDelegate,
 			actionViewItemProvider: (action) => {
-				if (action instanceof SubmenuAction) {
-					return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
+				if (action instanceof ChangeProfileAction) {
+					return new DropdownMenuActionViewItem(action, { getActions: () => action.getSwitchProfileActions() }, this.contextMenuService, {
 						classNames: action.class,
 						hoverDelegate,
 					});
@@ -2129,24 +2159,15 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 				return undefined;
 			}
 		}));
-		const renderDisposables = disposables.add(new DisposableStore());
-		return { actionBar, disposables, renderDisposables };
+		return { actionBar, disposables };
 	}
 
 	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
-		const renderActions = () => {
-			templateData.actionBar.clear();
-			const actions: IAction[] = [];
-			actions.push(this.createOpenAction(item));
-			actions.push(this.createChangeProfileAction(item));
-			templateData.actionBar.push(actions, { icon: true });
-		};
-		renderActions();
-		templateData.renderDisposables.add(this.userDataProfilesService.onDidChangeProfiles(e => {
-			if (e.added.length || e.removed.length) {
-				renderActions();
-			}
-		}));
+		templateData.actionBar.clear();
+		const actions: IAction[] = [];
+		actions.push(this.createOpenAction(item));
+		actions.push(new ChangeProfileAction(item, this.userDataProfilesService));
+		templateData.actionBar.push(actions, { icon: true });
 	}
 
 	private createOpenAction(item: WorkspaceTableElement): IAction {
@@ -2160,48 +2181,8 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		};
 	}
 
-	private createChangeProfileAction(item: WorkspaceTableElement): IAction {
-		if (this.userDataProfilesService.profiles.length === 1) {
-			return {
-				label: '',
-				class: ThemeIcon.asClassName(editIcon),
-				enabled: false,
-				id: 'changeProfile',
-				tooltip: localize('change profile', "Change Profile"),
-				run: () => { }
-			};
-		}
-		return new SubmenuAction(
-			'changeProfile',
-			localize('change profile', "Change Profile"),
-			this.userDataProfilesService.profiles
-				.filter(profile => !profile.isTransient)
-				.sort((a, b) => a.isDefault ? -1 : b.isDefault ? 1 : a.name.localeCompare(b.name))
-				.map<IAction>(profile => ({
-					id: `switchProfileTo${profile.id}`,
-					label: profile.name,
-					class: undefined,
-					enabled: true,
-					checked: profile.id === item.profileElement.profile.id,
-					tooltip: '',
-					run: () => {
-						if (profile.id === item.profileElement.profile.id) {
-							return;
-						}
-						this.userDataProfilesService.updateProfile(profile, { workspaces: [...(profile.workspaces ?? []), item.workspace] });
-					}
-				})),
-			ThemeIcon.asClassName(editIcon),
-		);
-	}
-
-	disposeElement(element: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
-		templateData.renderDisposables.clear();
-	}
-
 	disposeTemplate(templateData: IActionsColumnTemplateData): void {
 		templateData.disposables.dispose();
-		templateData.renderDisposables.dispose();
 	}
 
 }

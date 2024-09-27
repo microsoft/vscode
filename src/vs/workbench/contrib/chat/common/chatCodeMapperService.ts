@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CharCode } from '../../../../base/common/charCode.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatResponseModel } from './chatModel.js';
 
 
 export interface ICodeMapperResponse {
@@ -49,6 +53,7 @@ export interface ICodeMapperService {
 	readonly _serviceBrand: undefined;
 	registerCodeMapperProvider(handle: number, provider: ICodeMapperProvider): IDisposable;
 	mapCode(request: ICodeMapperRequest, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
+	mapCodeFromResponse(responseModel: IChatResponseModel, response: ICodeMapperResponse, token: CancellationToken): Promise<ICodeMapperResult | undefined>;
 }
 
 export class CodeMapperService implements ICodeMapperService {
@@ -77,4 +82,76 @@ export class CodeMapperService implements ICodeMapperService {
 		}
 		return undefined;
 	}
+
+	async mapCodeFromResponse(responseModel: IChatResponseModel, response: ICodeMapperResponse, token: CancellationToken) {
+		const fenceLanguageRegex = /^`{3,}/;
+		const codeBlocks: ICodeMapperCodeBlock[] = [];
+
+		const currentBlock = [];
+		const markdownBeforeBlock = [];
+		let currentBlockUri = undefined;
+
+		let fence = undefined; // if set, we are in a block
+
+		for (const lineOrUri of iterateLinesOrUris(responseModel)) {
+			if (isString(lineOrUri)) {
+				const fenceLanguageIdMatch = lineOrUri.match(fenceLanguageRegex);
+				if (fenceLanguageIdMatch) {
+					// we found a line that starts with a fence
+					if (fence !== undefined && fenceLanguageIdMatch[0] === fence) {
+						// we are in a code block and the fence matches the opening fence: Close the code block
+						fence = undefined;
+						if (currentBlockUri) {
+							// report the code block if we have a URI
+							codeBlocks.push({ code: currentBlock.join(''), resource: currentBlockUri });
+							currentBlock.length = 0;
+							markdownBeforeBlock.length = 0;
+							currentBlockUri = undefined;
+						}
+					} else {
+						// we are not in a code block. Open the block
+						fence = fenceLanguageIdMatch[0];
+					}
+				} else {
+					if (fence !== undefined) {
+						currentBlock.push(lineOrUri);
+					} else {
+						markdownBeforeBlock.push(lineOrUri);
+					}
+				}
+			} else {
+				currentBlockUri = lineOrUri;
+			}
+		}
+		return this.mapCode({ codeBlocks, conversation: [] }, response, token);
+	}
+}
+
+function iterateLinesOrUris(responseModel: IChatResponseModel): Iterable<string | URI> {
+	return {
+		*[Symbol.iterator](): Iterator<string | URI> {
+			let lastIncompleteLine = undefined;
+			for (const part of responseModel.response.value) {
+				if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
+					const lines = splitLinesIncludeSeparators(part.content.value);
+					if (lines.length > 0) {
+						if (lastIncompleteLine !== undefined) {
+							lines[0] = lastIncompleteLine + lines[0]; // merge the last incomplete line with the first markdown line
+						}
+						lastIncompleteLine = isLineIncomplete(lines[lines.length - 1]) ? lines.pop() : undefined;
+						for (const line of lines) {
+							yield line;
+						}
+					}
+				} else if (part.kind === 'codeblockUri') {
+					yield part.uri;
+				}
+			}
+		}
+	};
+}
+
+function isLineIncomplete(line: string) {
+	const lastChar = line.charCodeAt(line.length - 1);
+	return lastChar !== CharCode.LineFeed && lastChar !== CharCode.CarriageReturn;
 }
