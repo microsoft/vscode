@@ -4,206 +4,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.loaderConfig = loaderConfig;
-exports.optimizeLoaderTask = optimizeLoaderTask;
 exports.optimizeTask = optimizeTask;
 exports.minifyTask = minifyTask;
 const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
 const filter = require("gulp-filter");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
 const path = require("path");
 const fs = require("fs");
 const pump = require("pump");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
-const i18n_1 = require("./i18n");
-const stats_1 = require("./stats");
-const util = require("./util");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
-const amd_1 = require("./amd");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
-function log(prefix, message) {
-    fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
-}
-function loaderConfig() {
-    const result = {
-        paths: {
-            'vs': 'out-build/vs',
-            'vscode': 'empty:'
-        },
-        amdModulesPattern: /^vs\//
-    };
-    result['vs/css'] = { inlineResources: true };
-    return result;
-}
-const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-function loaderPlugin(src, base, amdModuleId) {
-    return (gulp
-        .src(src, { base })
-        .pipe(es.through(function (data) {
-        if (amdModuleId) {
-            let contents = data.contents.toString('utf8');
-            contents = contents.replace(/^define\(/m, `define("${amdModuleId}",`);
-            data.contents = Buffer.from(contents);
-        }
-        this.emit('data', data);
-    })));
-}
-function loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo) {
-    let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
-    if (bundleLoader) {
-        loaderStream = es.merge(loaderStream, loaderPlugin(`${src}/vs/css.js`, `${src}`, 'vs/css'));
-    }
-    const files = [];
-    const order = (f) => {
-        if (f.path.endsWith('loader.js')) {
-            return 0;
-        }
-        if (f.path.endsWith('css.js')) {
-            return 1;
-        }
-        return 2;
-    };
-    return (loaderStream
-        .pipe(es.through(function (data) {
-        files.push(data);
-    }, function () {
-        files.sort((a, b) => {
-            return order(a) - order(b);
-        });
-        files.unshift(new VinylFile({
-            path: 'fake',
-            base: '.',
-            contents: Buffer.from(bundledFileHeader)
-        }));
-        if (externalLoaderInfo !== undefined) {
-            files.push(new VinylFile({
-                path: 'fake2',
-                base: '.',
-                contents: Buffer.from(emitExternalLoaderInfo(externalLoaderInfo))
-            }));
-        }
-        for (const file of files) {
-            this.emit('data', file);
-        }
-        this.emit('end');
-    }))
-        .pipe(concat('vs/loader.js')));
-}
-function emitExternalLoaderInfo(externalLoaderInfo) {
-    const externalBaseUrl = externalLoaderInfo.baseUrl;
-    externalLoaderInfo.baseUrl = '$BASE_URL';
-    // If defined, use the runtime configured baseUrl.
-    const code = `
-(function() {
-	const baseUrl = require.getConfig().baseUrl || ${JSON.stringify(externalBaseUrl)};
-	require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});
-})();`;
-    return code.replace('"$BASE_URL"', 'baseUrl');
-}
-function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper) {
-    const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
-    // If a bundle ends up including in any of the sources our copyright, then
-    // insert a fake source at the beginning of each bundle with our copyright
-    let containsOurCopyright = false;
-    for (let i = 0, len = sources.length; i < len; i++) {
-        const fileContents = sources[i].contents;
-        if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
-            containsOurCopyright = true;
-            break;
-        }
-    }
-    if (containsOurCopyright) {
-        sources.unshift({
-            path: null,
-            contents: bundledFileHeader
-        });
-    }
-    const treatedSources = sources.map(function (source) {
-        const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-        const base = source.path ? root + `/${src}` : '.';
-        const path = source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake';
-        const contents = source.path ? fileContentMapper(source.contents, path) : source.contents;
-        return new VinylFile({
-            path: path,
-            base: base,
-            contents: Buffer.from(contents)
-        });
-    });
-    return es.readArray(treatedSources)
-        .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-        .pipe(concat(dest))
-        .pipe((0, stats_1.createStatsStream)(dest));
-}
-function toBundleStream(src, bundledFileHeader, bundles, fileContentMapper) {
-    return es.merge(bundles.map(function (bundle) {
-        return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest, fileContentMapper);
-    }));
-}
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
     ' *--------------------------------------------------------*/'
 ].join('\n');
-function optimizeAMDTask(opts) {
-    const src = opts.src;
-    const entryPoints = opts.entryPoints.filter(d => d.target !== 'esm');
-    const resources = opts.resources;
-    const loaderConfig = opts.loaderConfig;
-    const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-    const fileContentMapper = opts.fileContentMapper || ((contents, _path) => contents);
-    const bundlesStream = es.through(); // this stream will contain the bundled files
+function optimizeESMTask(opts) {
     const resourcesStream = es.through(); // this stream will contain the resources
-    const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
-    bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-        if (err || !result) {
-            return bundlesStream.emit('error', JSON.stringify(err));
+    const bundlesStream = es.through(); // this stream will contain the bundled files
+    const entryPoints = opts.entryPoints.map(entryPoint => {
+        if (typeof entryPoint === 'string') {
+            return { name: path.parse(entryPoint).name };
         }
-        toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
-        // Remove css inlined resources
-        const filteredResources = resources.slice();
-        result.cssInlinedResources.forEach(function (resource) {
-            if (process.env['VSCODE_BUILD_VERBOSE']) {
-                log('optimizer', 'excluding inlined: ' + resource);
-            }
-            filteredResources.push('!' + resource);
-        });
-        gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
-        const bundleInfoArray = [];
-        if (opts.bundleInfo) {
-            bundleInfoArray.push(new VinylFile({
-                path: 'bundleInfo.json',
-                base: '.',
-                contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
-            }));
-        }
-        es.readArray(bundleInfoArray).pipe(bundleInfoStream);
+        return entryPoint;
     });
-    const result = es.merge(loader(src, bundledFileHeader, false, opts.externalLoaderInfo), bundlesStream, resourcesStream, bundleInfoStream);
-    return result
-        .pipe(sourcemaps.write('./', {
-        sourceRoot: undefined,
-        addComment: true,
-        includeContent: true
-    }))
-        .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
-        out: opts.src,
-        fileHeader: bundledFileHeader,
-        languages: opts.languages
-    }) : es.through());
-}
-function optimizeESMTask(opts, cjsOpts) {
-    const resourcesStream = es.through(); // this stream will contain the resources
-    const bundlesStream = es.through(); // this stream will contain the bundled files
-    const entryPoints = opts.entryPoints.filter(d => d.target !== 'amd');
-    if (cjsOpts) {
-        cjsOpts.entryPoints.forEach(entryPoint => entryPoints.push({ name: path.parse(entryPoint).name }));
-    }
     const allMentionedModules = new Set();
     for (const entryPoint of entryPoints) {
         allMentionedModules.add(entryPoint.name);
@@ -235,14 +64,6 @@ function optimizeESMTask(opts, cjsOpts) {
                     });
                 }
             };
-            // support for 'preprend' via the esbuild#banner
-            if (entryPoint.prepend?.length) {
-                for (const item of entryPoint.prepend) {
-                    const fullpath = path.join(REPO_ROOT_PATH, opts.src, item.path);
-                    const source = await fs.promises.readFile(fullpath, 'utf8');
-                    banner.js += source + '\n';
-                }
-            }
             const task = esbuild.build({
                 bundle: true,
                 external: entryPoint.exclude,
@@ -295,7 +116,6 @@ function optimizeESMTask(opts, cjsOpts) {
                     files.push(new VinylFile(fileProps));
                 }
             });
-            // await task; // FORCE serial bundling (makes debugging easier)
             tasks.push(task);
         }
         await Promise.all(tasks);
@@ -305,7 +125,7 @@ function optimizeESMTask(opts, cjsOpts) {
         // bundle output (JS, CSS, SVG...)
         es.readArray(output.files).pipe(bundlesStream);
         // forward all resources
-        gulp.src(opts.resources, { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
+        gulp.src(opts.resources ?? [], { base: `${opts.src}`, allowEmpty: true }).pipe(resourcesStream);
     });
     const result = es.merge(bundlesStream, resourcesStream);
     return result
@@ -313,29 +133,6 @@ function optimizeESMTask(opts, cjsOpts) {
         sourceRoot: undefined,
         addComment: true,
         includeContent: true
-    }))
-        .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
-        out: opts.src,
-        fileHeader: opts.header || DEFAULT_FILE_HEADER,
-        languages: opts.languages
-    }) : es.through());
-}
-function optimizeCommonJSTask(opts) {
-    const src = opts.src;
-    const entryPoints = opts.entryPoints;
-    return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
-        .pipe(es.map((f, cb) => {
-        esbuild.build({
-            entryPoints: [f.path],
-            bundle: true,
-            platform: opts.platform,
-            write: false,
-            external: opts.external
-        }).then(res => {
-            const jsFile = res.outputFiles[0];
-            f.contents = Buffer.from(jsFile.contents);
-            cb(undefined, f);
-        });
     }));
 }
 function optimizeManualTask(options) {
@@ -346,21 +143,10 @@ function optimizeManualTask(options) {
     });
     return es.merge(...concatenations);
 }
-function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', externalLoaderInfo) {
-    return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
-}
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        if (!(0, amd_1.isAMD)()) {
-            optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
-        }
-        else {
-            optimizers.push(optimizeAMDTask(opts.amd));
-            if (opts.commonJS) {
-                optimizers.push(optimizeCommonJSTask(opts.commonJS));
-            }
-        }
+        optimizers.push(optimizeESMTask(opts.esm));
         if (opts.manual) {
             optimizers.push(optimizeManualTask(opts.manual));
         }

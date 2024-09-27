@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
-import { canASAR, isESM } from '../../../../base/common/amd.js';
+import { canASAR, importAMDNodeModule, resolveAmdNodeModulePath } from '../../../../amdX.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { equals as equalArray } from '../../../../base/common/arrays.js';
 import { Color } from '../../../../base/common/color.js';
@@ -372,9 +371,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 	private async _loadVSCodeOnigurumaWASM(): Promise<Response | ArrayBuffer> {
 		if (isWeb) {
-			const response = await fetch(isESM
-				? resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm')
-				: FileAccess.asBrowserUri('vscode-oniguruma/../onig.wasm').toString(true));
+			const response = await fetch(resolveAmdNodeModulePath('vscode-oniguruma', 'release/onig.wasm'));
 			// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 			// Otherwise, a TypeError is thrown when using the streaming compiler.
 			// We therefore use the non-streaming compiler :(.

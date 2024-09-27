@@ -17,7 +17,6 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { writeTransientState } from '../../codeEditor/browser/toggleWordWrap.js';
-import { LoaderEventType, LoaderStats, isESM } from '../../../../base/common/amd.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -143,11 +142,10 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 
-				const stats = LoaderStats.get();
 				const md = new MarkdownBuilder();
 				this._addSummary(md);
 				md.blank();
-				this._addSummaryTable(md, stats);
+				this._addSummaryTable(md);
 				md.blank();
 				this._addExtensionsTable(md);
 				md.blank();
@@ -156,12 +154,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 				this._addWorkbenchContributionsPerfMarksTable(md);
 				md.blank();
 				this._addRawPerfMarks(md);
-				if (!isESM) {
-					md.blank();
-					this._addLoaderStats(md, stats);
-					md.blank();
-					this._addCachedDataStats(md);
-				}
 				md.blank();
 				this._addResourceTimingStats(md);
 
@@ -192,7 +184,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		md.li(`Empty Workspace: ${metrics.emptyWorkbench}`);
 	}
 
-	private _addSummaryTable(md: MarkdownBuilder, stats?: LoaderStats): void {
+	private _addSummaryTable(md: MarkdownBuilder): void {
 
 		const metrics = this._timerService.startupMetrics;
 		const contribTimings = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).timings;
@@ -206,7 +198,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		table.push(['create window', metrics.timers.ellapsedWindowCreate, '[main]', `initial startup: ${metrics.initialStartup}, ${metrics.initialStartup ? `state: ${metrics.timers.ellapsedWindowRestoreState}ms, widget: ${metrics.timers.ellapsedBrowserWindowCreate}ms, show: ${metrics.timers.ellapsedWindowMaximize}ms` : ''}`]);
 		table.push(['app.isReady => window.loadUrl()', metrics.timers.ellapsedWindowLoad, '[main]', `initial startup: ${metrics.initialStartup}`]);
 		table.push(['window.loadUrl() => begin to import(workbench.desktop.main.js)', metrics.timers.ellapsedWindowLoadToRequire, '[main->renderer]', StartupKindToString(metrics.windowKind)]);
-		table.push(['import(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}${stats ? `, node_modules took ${stats.nodeRequireTotal}ms` : ''}`]);
+		table.push(['import(workbench.desktop.main.js)', metrics.timers.ellapsedRequire, '[renderer]', `cached data: ${(metrics.didUseCachedData ? 'YES' : 'NO')}`]);
 		table.push(['wait for window config', metrics.timers.ellapsedWaitForWindowConfig, '[renderer]', undefined]);
 		table.push(['init storage (global & workspace)', metrics.timers.ellapsedStorageInit, '[renderer]', undefined]);
 		table.push(['init workspace service', metrics.timers.ellapsedWorkspaceServiceInit, '[renderer]', undefined]);
@@ -310,58 +302,6 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		}
 	}
 
-	private _addLoaderStats(md: MarkdownBuilder, stats: LoaderStats): void {
-		md.heading(2, 'Loader Stats');
-		md.heading(3, 'Load AMD-module');
-		md.table(['Module', 'Duration'], stats.amdLoad);
-		md.blank();
-		md.heading(3, 'Load commonjs-module');
-		md.table(['Module', 'Duration'], stats.nodeRequire);
-		md.blank();
-		md.heading(3, 'Invoke AMD-module factory');
-		md.table(['Module', 'Duration'], stats.amdInvoke);
-		md.blank();
-		md.heading(3, 'Invoke commonjs-module');
-		md.table(['Module', 'Duration'], stats.nodeEval);
-	}
-
-	private _addCachedDataStats(md: MarkdownBuilder): void {
-
-		const map = new Map<LoaderEventType, string[]>();
-		map.set(LoaderEventType.CachedDataCreated, []);
-		map.set(LoaderEventType.CachedDataFound, []);
-		map.set(LoaderEventType.CachedDataMissed, []);
-		map.set(LoaderEventType.CachedDataRejected, []);
-		if (!isESM && typeof require.getStats === 'function') {
-			for (const stat of require.getStats()) {
-				if (map.has(stat.type)) {
-					map.get(stat.type)!.push(stat.detail);
-				}
-			}
-		}
-
-		const printLists = (arr?: string[]) => {
-			if (arr) {
-				arr.sort();
-				for (const e of arr) {
-					md.li(`${e}`);
-				}
-				md.blank();
-			}
-		};
-
-		md.heading(2, 'Node Cached Data Stats');
-		md.blank();
-		md.heading(3, 'cached data used');
-		printLists(map.get(LoaderEventType.CachedDataFound));
-		md.heading(3, 'cached data missed');
-		printLists(map.get(LoaderEventType.CachedDataMissed));
-		md.heading(3, 'cached data rejected');
-		printLists(map.get(LoaderEventType.CachedDataRejected));
-		md.heading(3, 'cached data created (lazy, might need refreshes)');
-		printLists(map.get(LoaderEventType.CachedDataCreated));
-	}
-
 	private _addResourceTimingStats(md: MarkdownBuilder) {
 		const stats = performance.getEntriesByType('resource').map(entry => {
 			return [entry.name, entry.duration];
@@ -394,6 +334,42 @@ class MarkdownBuilder {
 	}
 
 	table(header: string[], rows: Array<Array<{ toString(): string } | undefined>>) {
-		this.value += LoaderStats.toMarkdownTable(header, rows);
+		this.value += this.toMarkdownTable(header, rows);
+	}
+
+	private toMarkdownTable(header: string[], rows: Array<Array<{ toString(): string } | undefined>>): string {
+		let result = '';
+
+		const lengths: number[] = [];
+		header.forEach((cell, ci) => {
+			lengths[ci] = cell.length;
+		});
+		rows.forEach(row => {
+			row.forEach((cell, ci) => {
+				if (typeof cell === 'undefined') {
+					cell = row[ci] = '-';
+				}
+				const len = cell.toString().length;
+				lengths[ci] = Math.max(len, lengths[ci]);
+			});
+		});
+
+		// header
+		header.forEach((cell, ci) => { result += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `; });
+		result += '|\n';
+		header.forEach((_cell, ci) => { result += `| ${'-'.repeat(lengths[ci])} `; });
+		result += '|\n';
+
+		// cells
+		rows.forEach(row => {
+			row.forEach((cell, ci) => {
+				if (typeof cell !== 'undefined') {
+					result += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `;
+				}
+			});
+			result += '|\n';
+		});
+
+		return result;
 	}
 }

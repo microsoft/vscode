@@ -8,6 +8,7 @@
 		"**/.DS_Store": true,
 		".vscode-test": true,
 		"cli/target": true,
+		"build/**/*.js.map": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
 		}
@@ -41,8 +42,6 @@
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
-		"src/vs/workbench/workbench.web.main.css": true,
-		"src/vs/workbench/workbench.desktop.main.css": true,
 		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
@@ -52,8 +51,7 @@
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true,
-		"src2/**": true,
+		"test/integration/browser/out/**": true
 	},
 	"files.readonlyExclude": {
 		"build/builtin/*.js": true,

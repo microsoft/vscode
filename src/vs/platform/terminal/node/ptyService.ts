@@ -31,14 +31,9 @@ import { IProductService } from '../../product/common/productService.js';
 import { join } from 'path';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
-// ESM-comment-begin
-// import { Terminal as XtermTerminal } from '@xterm/headless';
-// ESM-comment-end
-// ESM-uncomment-begin
 import pkg from '@xterm/headless';
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
-// ESM-uncomment-end
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
 	if (typeof descriptor.value !== 'function') {
