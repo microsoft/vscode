@@ -19,7 +19,7 @@ export interface IChatEditingService {
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<void>;
+	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 }
 

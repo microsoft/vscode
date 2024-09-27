@@ -32,7 +32,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { TerminalChatController } from '../../terminal/terminalContribExports.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
-import { IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -270,6 +270,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}));
 			this.renderChatEditingSessionState(session);
 		}));
+
+		if (this._location.location === ChatAgentLocation.EditingSession) {
+			let currentEditSession: IChatEditingSession | undefined = undefined;
+			this._register(this.onDidChangeViewModel(async () => {
+
+				const sessionId = this._viewModel?.sessionId;
+				if (sessionId !== currentEditSession?.chatSessionId) {
+					if (currentEditSession && (currentEditSession.state.get() !== ChatEditingSessionState.Disposed)) {
+						await currentEditSession.stop();
+					}
+					if (sessionId) {
+						currentEditSession = await this.chatEditingService.startOrContinueEditingSession(sessionId, { silent: true });
+					} else {
+						currentEditSession = undefined;
+					}
+				}
+
+			}));
+		}
 
 		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
 			const resource = input.resource;
@@ -807,14 +826,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
 		}));
-
-		if (this._location.location === ChatAgentLocation.EditingSession) {
-			const currentSession = this.chatEditingService.currentEditingSession;
-			if (currentSession && (currentSession.chatSessionId !== model.sessionId)) {
-				currentSession?.stop();
-			}
-			this.chatEditingService.startOrContinueEditingSession(model.sessionId);
-		}
 
 		if (this.tree) {
 			this.onDidChangeItems();
