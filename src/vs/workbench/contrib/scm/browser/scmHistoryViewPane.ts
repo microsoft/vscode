@@ -375,7 +375,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			// separately since we have to show the description
 			// for the first colored reference.
 			if (references.length > 0 && references[0].color) {
-				this._renderBadge(references[0], 1, true, templateData);
+				this._renderBadge([references[0]], true, templateData);
 
 				// Remove the rendered reference from the collection
 				references.splice(0, 1);
@@ -385,7 +385,7 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			const historyItemRefsByColor = groupBy2(references, ref => ref.color ? ref.color : '');
 
 			for (const [key, historyItemRefs] of Object.entries(historyItemRefsByColor)) {
-				// If needed skip badges with no color
+				// If needed skip badges without a color
 				if (key === '' && labelConfig !== 'all') {
 					continue;
 				}
@@ -393,39 +393,40 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 				// Group history item references by icon
 				const historyItemRefByIconId = groupBy2(historyItemRefs, ref => ThemeIcon.isThemeIcon(ref.icon) ? ref.icon.id : '');
 				for (const [key, historyItemRefs] of Object.entries(historyItemRefByIconId)) {
-					if (key === '' || historyItemRefs.length === 0) {
+					// Skip badges without an icon
+					if (key === '') {
 						continue;
 					}
 
-					this._renderBadge(historyItemRefs[0], historyItemRefs.length, false, templateData);
+					this._renderBadge(historyItemRefs, false, templateData);
 				}
 			}
 		}));
 	}
 
-	private _renderBadge(historyItemRef: ISCMHistoryItemRef, count: number, showDescription: boolean, templateData: HistoryItemTemplate): void {
-		if (!ThemeIcon.isThemeIcon(historyItemRef.icon)) {
+	private _renderBadge(historyItemRefs: ISCMHistoryItemRef[], showDescription: boolean, templateData: HistoryItemTemplate): void {
+		if (historyItemRefs.length === 0 || !ThemeIcon.isThemeIcon(historyItemRefs[0].icon)) {
 			return;
 		}
 
 		const elements = h('div.label', {
 			style: {
-				color: historyItemRef.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
-				backgroundColor: historyItemRef.color ? asCssVariable(historyItemRef.color) : asCssVariable(historyItemHoverDefaultLabelBackground)
+				color: historyItemRefs[0].color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
+				backgroundColor: historyItemRefs[0].color ? asCssVariable(historyItemRefs[0].color) : asCssVariable(historyItemHoverDefaultLabelBackground)
 			}
 		}, [
-			h('div.count@count'),
+			h('div.count@count', {
+				style: { display: historyItemRefs.length > 1 ? '' : 'none' }
+			}),
 			h('div.icon@icon'),
-			h('div.description@description')
+			h('div.description@description', {
+				style: { display: showDescription ? '' : 'none' }
+			})
 		]);
 
-		elements.count.textContent = count.toString();
-		elements.count.style.display = count > 1 ? '' : 'none';
-
-		elements.icon.classList.add(...ThemeIcon.asClassNameArray(historyItemRef.icon));
-
-		elements.description.textContent = historyItemRef.name;
-		elements.description.style.display = showDescription ? '' : 'none';
+		elements.count.textContent = historyItemRefs.length.toString();
+		elements.icon.classList.add(...ThemeIcon.asClassNameArray(historyItemRefs[0].icon));
+		elements.description.textContent = historyItemRefs[0].name;
 
 		append(templateData.labelContainer, elements.root);
 	}
