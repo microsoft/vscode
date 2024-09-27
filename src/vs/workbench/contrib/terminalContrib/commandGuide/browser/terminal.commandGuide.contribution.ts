@@ -80,7 +80,7 @@ class TerminalCommandGuideContribution extends Disposable implements ITerminalCo
 		if (!rect) {
 			return;
 		}
-		const mouseCursorY = Math.floor(e.offsetY / (rect.height / xterm.raw.rows));
+		const mouseCursorY = Math.floor((e.clientY - rect.top) / (rect.height / xterm.raw.rows));
 		const command = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.getCommandForLine(xterm.raw.buffer.active.viewportY + mouseCursorY);
 		if (command && 'getOutput' in command) {
 			xterm.markTracker.showCommandGuide(command);
