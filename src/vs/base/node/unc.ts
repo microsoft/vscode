@@ -3,29 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-function processUNCHostAllowlist(): Set<string> {
-
-	// The property `process.uncHostAllowlist` is not available in official node.js
-	// releases, only in our own builds, so we have to probe for availability
-
-	// @ts-ignore
-	return process.uncHostAllowlist;
-}
-
-function toSafeStringArray(arg0: unknown): string[] {
-	const allowedUNCHosts = new Set<string>();
-
-	if (Array.isArray(arg0)) {
-		for (const host of arg0) {
-			if (typeof host === 'string') {
-				allowedUNCHosts.add(host);
-			}
-		}
-	}
-
-	return Array.from(allowedUNCHosts);
-}
-
 export function getUNCHostAllowlist(): string[] {
 	const allowlist = processUNCHostAllowlist();
 	if (allowlist) {
@@ -33,6 +10,15 @@ export function getUNCHostAllowlist(): string[] {
 	}
 
 	return [];
+}
+
+function processUNCHostAllowlist(): Set<string> {
+
+	// The property `process.uncHostAllowlist` is not available in official node.js
+	// releases, only in our own builds, so we have to probe for availability
+
+	// @ts-ignore
+	return process.uncHostAllowlist;
 }
 
 export function addUNCHostToAllowlist(allowedHost: string | string[]): void {
@@ -50,6 +36,20 @@ export function addUNCHostToAllowlist(allowedHost: string | string[]): void {
 			}
 		}
 	}
+}
+
+function toSafeStringArray(arg0: unknown): string[] {
+	const allowedUNCHosts = new Set<string>();
+
+	if (Array.isArray(arg0)) {
+		for (const host of arg0) {
+			if (typeof host === 'string') {
+				allowedUNCHosts.add(host);
+			}
+		}
+	}
+
+	return Array.from(allowedUNCHosts);
 }
 
 export function getUNCHost(maybeUNCPath: string | undefined | null): string | undefined {
