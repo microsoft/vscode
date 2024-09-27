@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+/* eslint-disable local/code-import-patterns */
 
 // Delete `VSCODE_CWD` very early. We have seen
 // reports where `code .` would use the wrong

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+/* eslint-disable local/code-import-patterns */
 
 import * as performance from './vs/base/common/performance.js';
 import * as bootstrapNode from './bootstrap-node.js';
@@ -43,21 +42,16 @@ bootstrapESM.load(process.env['VSCODE_ESM_ENTRYPOINT']);
 
 //#region Helpers
 
-function pipeLoggingToParent() {
+function pipeLoggingToParent(): void {
 	const MAX_STREAM_BUFFER_LENGTH = 1024 * 1024;
 	const MAX_LENGTH = 100000;
 
 	/**
 	 * Prevent circular stringify and convert arguments to real array
-	 *
-	 * @param {ArrayLike<unknown>} args
 	 */
-	function safeToArray(args) {
-		/**
-		 * @type {string[]}
-		 */
-		const seen = [];
-		const argsArray = [];
+	function safeToString(args: ArrayLike<unknown>): string {
+		const seen: string[] = [];
+		const argsArray: unknown[] = [];
 
 		// Massage some arguments with special treatment
 		if (args.length) {
@@ -111,10 +105,7 @@ function pipeLoggingToParent() {
 		}
 	}
 
-	/**
-	 * @param {{ type: string; severity: string; arguments: string; }} arg
-	 */
-	function safeSend(arg) {
+	function safeSend(arg: { type: string; severity: string; arguments: string }): void {
 		try {
 			if (process.send) {
 				process.send(arg);
@@ -124,10 +115,7 @@ function pipeLoggingToParent() {
 		}
 	}
 
-	/**
-	 * @param {unknown} obj
-	 */
-	function isObject(obj) {
+	function isObject(obj: unknown): boolean {
 		return typeof obj === 'object'
 			&& obj !== null
 			&& !Array.isArray(obj)
@@ -135,12 +123,7 @@ function pipeLoggingToParent() {
 			&& !(obj instanceof Date);
 	}
 
-	/**
-	 *
-	 * @param {'log' | 'warn' | 'error'} severity
-	 * @param {string} args
-	 */
-	function safeSendConsoleMessage(severity, args) {
+	function safeSendConsoleMessage(severity: 'log' | 'warn' | 'error', args: string): void {
 		safeSend({ type: '__$console', severity, arguments: args });
 	}
 
@@ -149,14 +132,11 @@ function pipeLoggingToParent() {
 	 *
 	 * The wrapped property is not defined with `writable: false` to avoid
 	 * throwing errors, but rather a no-op setting. See https://github.com/microsoft/vscode-extension-telemetry/issues/88
-	 *
-	 * @param {'log' | 'info' | 'warn' | 'error'} method
-	 * @param {'log' | 'warn' | 'error'} severity
 	 */
-	function wrapConsoleMethod(method, severity) {
+	function wrapConsoleMethod(method: 'log' | 'info' | 'warn' | 'error', severity: 'log' | 'warn' | 'error'): void {
 		Object.defineProperty(console, method, {
 			set: () => { },
-			get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+			get: () => function () { safeSendConsoleMessage(severity, safeToString(arguments)); },
 		});
 	}
 
@@ -165,20 +145,16 @@ function pipeLoggingToParent() {
 	 * renderer or CLI. It both calls through to the original method as well
 	 * as to console.log with complete lines so that they're made available
 	 * to the debugger/CLI.
-	 *
-	 * @param {'stdout' | 'stderr'} streamName
-	 * @param {'log' | 'warn' | 'error'} severity
 	 */
-	function wrapStream(streamName, severity) {
+	function wrapStream(streamName: 'stdout' | 'stderr', severity: 'log' | 'warn' | 'error'): void {
 		const stream = process[streamName];
 		const original = stream.write;
 
-		/** @type string */
 		let buf = '';
 
 		Object.defineProperty(stream, 'write', {
 			set: () => { },
-			get: () => (/** @type {string | Buffer | Uint8Array} */ chunk, /** @type {BufferEncoding | undefined} */ encoding, /** @type {((err?: Error | undefined) => void) | undefined} */ callback) => {
+			get: () => (chunk: string | Buffer | Uint8Array, encoding: BufferEncoding | undefined, callback: ((err?: Error | undefined) => void) | undefined) => {
 				buf += chunk.toString(encoding);
 				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
 				if (eol !== -1) {
@@ -208,7 +184,7 @@ function pipeLoggingToParent() {
 	wrapStream('stdout', 'log');
 }
 
-function handleExceptions() {
+function handleExceptions(): void {
 
 	// Handle uncaught exceptions
 	process.on('uncaughtException', function (err) {
@@ -221,7 +197,7 @@ function handleExceptions() {
 	});
 }
 
-function terminateWhenParentTerminates() {
+function terminateWhenParentTerminates(): void {
 	const parentPid = Number(process.env['VSCODE_PARENT_PID']);
 
 	if (typeof parentPid === 'number' && !isNaN(parentPid)) {
@@ -235,7 +211,7 @@ function terminateWhenParentTerminates() {
 	}
 }
 
-function configureCrashReporter() {
+function configureCrashReporter(): void {
 	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
 	if (crashReporterProcessType) {
 		try {

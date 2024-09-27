@@ -1133,7 +1133,7 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-esm.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
+						"target": "src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
 						"restrictions": []
 					}
 				]
