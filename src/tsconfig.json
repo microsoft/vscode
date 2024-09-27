@@ -39,7 +39,6 @@
 		"./server-main.js",
 		"./server-cli.js",
 		"./vs/base/common/jsonc.js",
-		"./vs/base/common/performance.js",
 		"./vs/base/node/nls.js",
 		"./vs/platform/environment/node/userDataPath.js",
 		"./vs/base/parts/sandbox/electron-sandbox/preload-aux.js",
