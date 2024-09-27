@@ -57,7 +57,7 @@ const vscodeResourceIncludes = [
 	'out-build/nls.keys.json',
 
 	// Workbench
-	'out-build/vs/code/electron-sandbox/workbench/workbench.esm.html',
+	'out-build/vs/code/electron-sandbox/workbench/workbench.html',
 
 	// Electron Preload
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
@@ -94,16 +94,16 @@ const vscodeResourceIncludes = [
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.{js,html}',
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 
 	// Process Explorer
-	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.esm.html',
+	'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.html',
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Issue Reporter
-	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
+	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.html'
 ];
 
 const vscodeResources = [
@@ -115,9 +115,7 @@ const vscodeResources = [
 	'!out-build/vs/code/browser/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
 	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
@@ -256,7 +254,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			'vs/code/electron-sandbox/workbench/workbench.esm.html',
+			'vs/code/electron-sandbox/workbench/workbench.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 

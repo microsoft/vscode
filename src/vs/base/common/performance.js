@@ -6,18 +6,11 @@
 //@ts-check
 'use strict';
 
-// ESM-uncomment-begin
 /** @type any */
 const module = { exports: {} };
-// ESM-uncomment-end
 
 (function () {
-	// ESM-comment-begin
-	// const isESM = false;
-	// ESM-comment-end
-	// ESM-uncomment-begin
 	const isESM = true;
-	// ESM-uncomment-end
 
 	/**
 	 * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}
@@ -136,7 +129,5 @@ const module = { exports: {} };
 
 })();
 
-// ESM-uncomment-begin
 export const mark = module.exports.mark;
 export const getMarks = module.exports.getMarks;
-// ESM-uncomment-end

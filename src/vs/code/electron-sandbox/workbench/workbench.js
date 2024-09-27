@@ -48,11 +48,7 @@
 			canModifyDOM: function (windowConfig) {
 				showSplash(windowConfig);
 			},
-			beforeLoaderConfig: function (loaderConfig) {
-				// @ts-ignore
-				loaderConfig.recordStats = true;
-			},
-			beforeRequire: function (windowConfig) {
+			beforeImport: function (windowConfig) {
 				performance.mark('code/willLoadWorkbenchMain');
 
 				// Code windows have a `vscodeWindowId` property to identify them
@@ -91,8 +87,7 @@
 	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
 	 * 		 },
 	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
-	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *       beforeRequire?: (config: ISandboxConfiguration) => void
+	 *       beforeImport?: (config: ISandboxConfiguration) => void
 	 *     }
 	 *   ) => Promise<unknown>
 	 * }}

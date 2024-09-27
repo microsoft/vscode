@@ -96,8 +96,7 @@ const serverWithWebResourceIncludes = [
 
 const serverWithWebResourceExcludes = [
 	...serverResourceExcludes,
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
+	'!out-build/vs/code/**/*-dev.html'
 ];
 
 const serverWithWebResources = [

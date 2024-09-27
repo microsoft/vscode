@@ -9,7 +9,7 @@ import * as http from 'http';
 import * as net from 'net';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
-import { LoaderStats, isESM } from '../../base/common/amd.js';
+import { LoaderStats } from '../../base/common/amd.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
@@ -40,10 +40,8 @@ import { determineServerConnectionToken, requestHasValidConnectionToken as httpR
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
@@ -785,7 +783,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		serverBasePath = `/${serverBasePath}`;
 	}
 
-	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.${isESM ? 'esm.' : ''}html`).fsPath);
+	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.html`).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!

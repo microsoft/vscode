@@ -53,7 +53,7 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 ];
 exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 
@@ -67,7 +67,6 @@ const vscodeWebResources = [
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 

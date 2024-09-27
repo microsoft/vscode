@@ -13,22 +13,15 @@
  * @import { IResolveNLSConfigurationContext } from './nls'
  */
 
-// ESM-uncomment-begin
 import * as path from 'path';
 import * as fs from 'fs';
 import * as perf from '../common/performance.js';
 
 /** @type any */
 const module = { exports: {} };
-// ESM-uncomment-end
 
 (function () {
-	// ESM-comment-begin
-	// const isESM = false;
-	// ESM-comment-end
-	// ESM-uncomment-begin
 	const isESM = true;
-	// ESM-uncomment-end
 
 	/**
 	 * @param {typeof import('path')} path
@@ -264,17 +257,10 @@ const module = { exports: {} };
 		define(['path', 'fs', 'vs/base/common/performance'], function (/** @type {typeof import('path')} */ path, /** @type {typeof import('fs')} */ fs, /** @type {typeof import('../common/performance')} */ perf) { return factory(path, fs, perf); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
 		// commonjs
-		// ESM-comment-begin
-		// const path = require('path');
-		// const fs = require('fs');
-		// const perf = require('../common/performance');
-		// ESM-comment-end
 		module.exports = factory(path, fs, perf);
 	} else {
 		throw new Error('vs/base/node/nls defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
 
-// ESM-uncomment-begin
 export const resolveNLSConfiguration = module.exports.resolveNLSConfiguration;
-// ESM-uncomment-end

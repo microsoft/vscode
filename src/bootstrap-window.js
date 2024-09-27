@@ -36,8 +36,7 @@
 	 * 		removeDeveloperKeybindingsAfterLoad?: boolean
 	 * 	},
 	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
-	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *  beforeRequire?: (config: ISandboxConfiguration) => void
+	 *  beforeImport?: (config: ISandboxConfiguration) => void
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
@@ -88,10 +87,9 @@
 
 		window['MonacoEnvironment'] = {};
 
-		// ESM-uncomment-begin
-		// Signal before require()
-		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire(configuration);
+		// Signal before import()
+		if (typeof options?.beforeImport === 'function') {
+			options.beforeImport(configuration);
 		}
 
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
@@ -148,72 +146,13 @@
 				link.href = new URL(`${cssModule}.css`, baseUrl).href;
 				document.head.appendChild(link);
 				return Promise.resolve();
-
 			} else {
 				// ESM/JS module loading
 				return import(new URL(`${modulePath}.js`, baseUrl).href);
 			}
 		}));
 
-		result.then((res) => invokeResult(res[0]), onUnexpectedError);
-		// ESM-uncomment-end
-
-		// ESM-comment-begin
-		// /** @type {LoaderConfig} */
-		// const loaderConfig = {
-		// baseUrl: `${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-		// preferScriptTags: true
-		// };
-		//
-		// // use a trusted types policy when loading via script tags
-		// loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-		// createScriptURL(value) {
-		// if (value.startsWith(window.location.origin)) {
-		// return value;
-		// }
-		// throw new Error(`Invalid script url: ${value}`);
-		// }
-		// });
-		//
-		// // Teach the loader the location of the node modules we use in renderers
-		// // This will enable to load these modules via <script> tags instead of
-		// // using a fallback such as node.js require which does not exist in sandbox
-		// const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-		// loaderConfig.paths = {
-		// '@vscode/tree-sitter-wasm': `${baseNodeModulesPath}/@vscode/tree-sitter-wasm/wasm/tree-sitter.js`,
-		// 'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-		// 'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-		// 'vsda': `${baseNodeModulesPath}/vsda/index.js`,
-		// '@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
-		// '@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
-		// '@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
-		// '@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
-		// '@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
-		// '@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
-		// '@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
-		// '@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
-		// 'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-		// '@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-		// 'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
-		// 'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
-		// };
-		//
-		// // Signal before require.config()
-		// if (typeof options?.beforeLoaderConfig === 'function') {
-		// options.beforeLoaderConfig(loaderConfig);
-		// }
-		//
-		// // Configure loader
-		// require.config(loaderConfig);
-		//
-		// // Signal before require()
-		// if (typeof options?.beforeRequire === 'function') {
-		// options.beforeRequire(configuration);
-		// }
-		//
-		// // Actually require the main module as specified
-		// require(modulePaths, invokeResult, onUnexpectedError);
-		// ESM-comment-end
+		result.then(res => invokeResult(res[0]), onUnexpectedError);
 
 		/**
 		 * @param {any} firstModule

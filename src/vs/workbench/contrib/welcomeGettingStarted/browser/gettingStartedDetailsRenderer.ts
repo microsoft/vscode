@@ -225,14 +225,7 @@ export class GettingStartedDetailsRenderer {
 				const contents = await new Promise<string>((resolve, reject) => {
 					const provider = gettingStartedContentRegistry.getProvider(moduleId);
 					if (!provider) {
-						// ESM-comment-begin
-						// require([moduleId], content => {
-						// resolve(content.default());
-						// });
-						// ESM-comment-end
-						// ESM-uncomment-begin
 						reject(`Getting started: no provider registered for ${moduleId}`);
-						// ESM-uncomment-end
 					} else {
 						resolve(provider());
 					}

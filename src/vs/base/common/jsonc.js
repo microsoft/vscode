@@ -8,18 +8,11 @@
 //@ts-check
 'use strict';
 
-// ESM-uncomment-begin
 /** @type any */
 const module = { exports: {} };
-// ESM-uncomment-end
 
 (function () {
-	// ESM-comment-begin
-	// const isESM = false;
-	// ESM-comment-end
-	// ESM-uncomment-begin
 	const isESM = true;
-	// ESM-uncomment-end
 
 	function factory() {
 		// First group matches a double quoted string
@@ -90,7 +83,5 @@ const module = { exports: {} };
 	}
 })();
 
-// ESM-uncomment-begin
 export const stripComments = module.exports.stripComments;
 export const parse = module.exports.parse;
-// ESM-uncomment-end

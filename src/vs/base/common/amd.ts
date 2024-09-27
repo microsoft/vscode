@@ -3,14 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// ESM-comment-begin
-// export const isESM = false;
-// export const canASAR = true;
-// ESM-comment-end
-// ESM-uncomment-begin
-export const isESM = true;
 export const canASAR = false; // TODO@esm: ASAR disabled in ESM
-// ESM-uncomment-end
 
 export const enum LoaderEventType {
 	LoaderAvailable = 1,
