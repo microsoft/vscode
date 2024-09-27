@@ -31,7 +31,6 @@ const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('
 const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
-const { isAMD } = require('./lib/amd');
 const buildfile = require('./buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
@@ -89,12 +88,9 @@ const serverResources = [
 	...serverResourceExcludes
 ];
 
-const serverWithWebResourceIncludes = !isAMD() ? [
+const serverWithWebResourceIncludes = [
 	...serverResourceIncludes,
 	'out-build/vs/code/browser/workbench/*.html',
-	...vscodeWebResourceIncludes
-] : [
-	...serverResourceIncludes,
 	...vscodeWebResourceIncludes
 ];
 
@@ -132,7 +128,7 @@ const serverEntryPoints = [
 	}
 ];
 
-const webEntryPoints = !isAMD() ? [
+const webEntryPoints = [
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -142,15 +138,6 @@ const webEntryPoints = !isAMD() ? [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.codeWeb
-].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
-	buildfile.base,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.keyboardMaps,
-	buildfile.workbenchWeb()
 ].flat();
 
 const serverWithWebEntryPoints = [
@@ -344,7 +331,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...(!isAMD() ? { type: 'module' } : {}) })) // TODO@esm this should be configured in the top level package.json
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...{ type: 'module' } })) // TODO@esm this should be configured in the top level package.json
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);

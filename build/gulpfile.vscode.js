@@ -33,12 +33,11 @@ const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
 const { promisify } = require('util');
-const { isAMD } = require('./lib/amd');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
 
 // Build
-const vscodeEntryPoints = !isAMD() ? [
+const vscodeEntryPoints = [
 	buildfile.base,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
@@ -47,21 +46,11 @@ const vscodeEntryPoints = !isAMD() ? [
 	buildfile.workerProfileAnalysis,
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
-	buildfile.workbenchDesktop(),
-	buildfile.code
-].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
-	buildfile.base,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.workerProfileAnalysis,
-	buildfile.workbenchDesktop(),
+	buildfile.workbenchDesktop,
 	buildfile.code
 ].flat();
 
-const vscodeResourceIncludes = !isAMD() ? [
+const vscodeResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.json',
@@ -115,33 +104,6 @@ const vscodeResourceIncludes = !isAMD() ? [
 
 	// Issue Reporter
 	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.esm.html'
-] : [
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
-	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
-	'!out-build/vs/code/browser/**/*.html',
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
-	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
-	'out-build/vs/base/browser/ui/codicons/codicon/**',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
-	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
-	'out-build/vs/workbench/browser/media/*-theme.css',
-	'out-build/vs/workbench/contrib/debug/**/*.json',
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/*.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.sh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
-	'!out-build/vs/workbench/contrib/issue/**/*-dev.esm.html',
-	'out-build/vs/editor/common/languages/highlights/*.scm',
-	'out-build/vs/**/markdown.css',
-	'out-build/vs/workbench/contrib/tasks/**/*.json',
-	'!**/test/**'
 ];
 
 const vscodeResources = [
@@ -162,11 +124,9 @@ const vscodeResources = [
 // Do not change the order of these files! They will
 // be inlined into the target window file in this order
 // and they depend on each other in this way.
-const windowBootstrapFiles = [];
-if (isAMD()) {
-	windowBootstrapFiles.push('out-build/vs/loader.js');
-}
-windowBootstrapFiles.push('out-build/bootstrap-window.js');
+const windowBootstrapFiles = [
+	'out-build/bootstrap-window.js'
+];
 
 const commonJSEntryPoints = [
 	'out-build/main.js',
@@ -296,7 +256,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
-			!isAMD() ? 'vs/code/electron-sandbox/workbench/workbench.esm.html' : 'vs/code/electron-sandbox/workbench/workbench.html',
+			'vs/code/electron-sandbox/workbench/workbench.esm.html',
 			'vs/code/electron-sandbox/workbench/workbench.js'
 		]);
 
@@ -326,7 +286,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version, ...(!isAMD() ? { type: 'module', main: 'out/main.js' } : {}) }; // TODO@esm this should be configured in the top level package.json
+		const packageJsonUpdates = { name, version, ...{ type: 'module', main: 'out/main.js' } }; // TODO@esm this should be configured in the top level package.json
 
 		// for linux url handling
 		if (platform === 'linux') {
@@ -377,12 +337,10 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
-			], isAMD() ? [
-				'**/*.mk',
-			] : [
+			], [
 				'**/*.mk',
 				'!node_modules/vsda/**' // stay compatible with extensions that depend on us shipping `vsda` into ASAR
-			], isAMD() ? [] : [
+			], [
 				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 

@@ -52,8 +52,7 @@
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true,
-		"src2/**": true,
+		"test/integration/browser/out/**": true
 	},
 	"files.readonlyExclude": {
 		"build/builtin/*.js": true,

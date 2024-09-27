@@ -12,24 +12,16 @@ const es = require("event-stream");
 const gulp = require("gulp");
 const concat = require("gulp-concat");
 const filter = require("gulp-filter");
-const fancyLog = require("fancy-log");
-const ansiColors = require("ansi-colors");
 const path = require("path");
 const fs = require("fs");
 const pump = require("pump");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
 const i18n_1 = require("./i18n");
-const stats_1 = require("./stats");
-const util = require("./util");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
-const amd_1 = require("./amd");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
-function log(prefix, message) {
-    fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
-}
 function loaderConfig() {
     const result = {
         paths: {
@@ -41,7 +33,6 @@ function loaderConfig() {
     result['vs/css'] = { inlineResources: true };
     return result;
 }
-const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
 function loaderPlugin(src, base, amdModuleId) {
     return (gulp
         .src(src, { base })
@@ -106,97 +97,11 @@ function emitExternalLoaderInfo(externalLoaderInfo) {
 })();`;
     return code.replace('"$BASE_URL"', 'baseUrl');
 }
-function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper) {
-    const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
-    // If a bundle ends up including in any of the sources our copyright, then
-    // insert a fake source at the beginning of each bundle with our copyright
-    let containsOurCopyright = false;
-    for (let i = 0, len = sources.length; i < len; i++) {
-        const fileContents = sources[i].contents;
-        if (IS_OUR_COPYRIGHT_REGEXP.test(fileContents)) {
-            containsOurCopyright = true;
-            break;
-        }
-    }
-    if (containsOurCopyright) {
-        sources.unshift({
-            path: null,
-            contents: bundledFileHeader
-        });
-    }
-    const treatedSources = sources.map(function (source) {
-        const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
-        const base = source.path ? root + `/${src}` : '.';
-        const path = source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake';
-        const contents = source.path ? fileContentMapper(source.contents, path) : source.contents;
-        return new VinylFile({
-            path: path,
-            base: base,
-            contents: Buffer.from(contents)
-        });
-    });
-    return es.readArray(treatedSources)
-        .pipe(useSourcemaps ? util.loadSourcemaps() : es.through())
-        .pipe(concat(dest))
-        .pipe((0, stats_1.createStatsStream)(dest));
-}
-function toBundleStream(src, bundledFileHeader, bundles, fileContentMapper) {
-    return es.merge(bundles.map(function (bundle) {
-        return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest, fileContentMapper);
-    }));
-}
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
     ' *--------------------------------------------------------*/'
 ].join('\n');
-function optimizeAMDTask(opts) {
-    const src = opts.src;
-    const entryPoints = opts.entryPoints.filter(d => d.target !== 'esm');
-    const resources = opts.resources;
-    const loaderConfig = opts.loaderConfig;
-    const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
-    const fileContentMapper = opts.fileContentMapper || ((contents, _path) => contents);
-    const bundlesStream = es.through(); // this stream will contain the bundled files
-    const resourcesStream = es.through(); // this stream will contain the resources
-    const bundleInfoStream = es.through(); // this stream will contain bundleInfo.json
-    bundle.bundle(entryPoints, loaderConfig, function (err, result) {
-        if (err || !result) {
-            return bundlesStream.emit('error', JSON.stringify(err));
-        }
-        toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
-        // Remove css inlined resources
-        const filteredResources = resources.slice();
-        result.cssInlinedResources.forEach(function (resource) {
-            if (process.env['VSCODE_BUILD_VERBOSE']) {
-                log('optimizer', 'excluding inlined: ' + resource);
-            }
-            filteredResources.push('!' + resource);
-        });
-        gulp.src(filteredResources, { base: `${src}`, allowEmpty: true }).pipe(resourcesStream);
-        const bundleInfoArray = [];
-        if (opts.bundleInfo) {
-            bundleInfoArray.push(new VinylFile({
-                path: 'bundleInfo.json',
-                base: '.',
-                contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
-            }));
-        }
-        es.readArray(bundleInfoArray).pipe(bundleInfoStream);
-    });
-    const result = es.merge(loader(src, bundledFileHeader, false, opts.externalLoaderInfo), bundlesStream, resourcesStream, bundleInfoStream);
-    return result
-        .pipe(sourcemaps.write('./', {
-        sourceRoot: undefined,
-        addComment: true,
-        includeContent: true
-    }))
-        .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
-        out: opts.src,
-        fileHeader: bundledFileHeader,
-        languages: opts.languages
-    }) : es.through());
-}
 function optimizeESMTask(opts, cjsOpts) {
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
@@ -320,24 +225,6 @@ function optimizeESMTask(opts, cjsOpts) {
         languages: opts.languages
     }) : es.through());
 }
-function optimizeCommonJSTask(opts) {
-    const src = opts.src;
-    const entryPoints = opts.entryPoints;
-    return gulp.src(entryPoints, { base: `${src}`, allowEmpty: true })
-        .pipe(es.map((f, cb) => {
-        esbuild.build({
-            entryPoints: [f.path],
-            bundle: true,
-            platform: opts.platform,
-            write: false,
-            external: opts.external
-        }).then(res => {
-            const jsFile = res.outputFiles[0];
-            f.contents = Buffer.from(jsFile.contents);
-            cb(undefined, f);
-        });
-    }));
-}
 function optimizeManualTask(options) {
     const concatenations = options.map(opt => {
         return gulp
@@ -352,15 +239,7 @@ function optimizeLoaderTask(src, out, bundleLoader, bundledFileHeader = '', exte
 function optimizeTask(opts) {
     return function () {
         const optimizers = [];
-        if (!(0, amd_1.isAMD)()) {
-            optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
-        }
-        else {
-            optimizers.push(optimizeAMDTask(opts.amd));
-            if (opts.commonJS) {
-                optimizers.push(optimizeCommonJSTask(opts.commonJS));
-            }
-        }
+        optimizers.push(optimizeESMTask(opts.amd, opts.commonJS));
         if (opts.manual) {
             optimizers.push(optimizeManualTask(opts.manual));
         }
