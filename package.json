@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.94.0",
-  "distro": "ffcc24343ac46468a625666e5b9e673971dd1a1f",
+  "version": "1.95.0",
+  "distro": "350f0404ef17accb38b1359e82886738870a7377",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -11,17 +11,13 @@
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
-    "test-browser-amd": "npx playwright install && node test/unit/browser/index.amd.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
-    "test-browser-amd-no-install": "node test/unit/browser/index.amd.js",
     "test-node": "mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit",
-    "test-node-amd": "mocha test/unit/node/index.amd.js --delay --ui=tdd --timeout=5000 --exit",
     "test-extension": "vscode-test",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
     "compile": "node ./node_modules/gulp/bin/gulp.js compile",
     "watch": "npm-run-all -lp watch-client watch-extensions",
-    "watch-amd": "npm-run-all -lp watch-client-amd watch-extensions",
     "watchd": "deemon npm run watch",
     "watch-webd": "deemon npm run watch-web",
     "kill-watchd": "deemon --kill npm run watch",
@@ -29,7 +25,6 @@
     "restart-watchd": "deemon --restart npm run watch",
     "restart-watch-webd": "deemon --restart npm run watch-web",
     "watch-client": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js watch-client",
-    "watch-client-amd": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js watch-client-amd",
     "watch-clientd": "deemon npm run watch-client",
     "kill-watch-clientd": "deemon --kill npm run watch-client",
     "watch-extensions": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",

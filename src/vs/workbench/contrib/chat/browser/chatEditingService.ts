@@ -437,7 +437,7 @@ export class ChatEditingStartSessionAction extends Action2 {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_ENABLED),
 				group: 'navigation',
-				order: 5
+				order: 1
 			}]
 		});
 	}

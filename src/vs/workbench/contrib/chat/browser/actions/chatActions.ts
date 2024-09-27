@@ -130,7 +130,7 @@ class ChatHistoryAction extends Action2 {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
 				group: 'navigation',
-				order: -1
+				order: 2
 			},
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,

@@ -11,7 +11,7 @@ import { debounce } from '../../../base/common/decorators.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto } from './extHost.protocol.js';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto } from './extHost.protocol.js';
 import { sortedDiff, equals } from '../../../base/common/arrays.js';
 import { comparePaths } from '../../../base/common/comparers.js';
 import type * as vscode from 'vscode';
@@ -27,6 +27,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/ex
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { Schemas } from '../../../base/common/network.js';
 import { isLinux } from '../../../base/common/platform.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -654,22 +655,33 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
 		return this._actionButton;
 	}
+
 	set actionButton(actionButton: vscode.SourceControlActionButton | undefined) {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
-		this._actionButtonDisposables.value = new DisposableStore();
+
+		// We have to do this check before converting the command to it's internal
+		// representation since that would always create a command with a unique
+		// identifier
+		if (structuralEquals(this._actionButton, actionButton)) {
+			return;
+		}
 
 		this._actionButton = actionButton;
+		this._actionButtonDisposables.value = new DisposableStore();
 
-		const internal = actionButton !== undefined ?
+		const actionButtonDto = actionButton !== undefined ?
 			{
-				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+				command: {
+					...this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+					shortTitle: actionButton.command.shortTitle
+				},
 				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
 					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
 				}),
-				description: actionButton.description,
 				enabled: actionButton.enabled
-			} : undefined;
-		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
+			} satisfies SCMActionButtonDto : undefined;
+
+		this.#proxy.$updateSourceControl(this.handle, { actionButton: actionButtonDto });
 	}
 
 

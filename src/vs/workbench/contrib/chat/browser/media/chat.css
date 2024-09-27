@@ -863,8 +863,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0 3px;
 }
 
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .monaco-toolbar,
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .actions-container {
+	height: initial;
+}
+
 .quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars {
 	margin-bottom: 1px;
+	align-items: flex-end;
 }
 
 .quick-input-widget .interactive-session .chat-input-container {
@@ -954,7 +960,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
-	padding: 4px 6px;
+}
+
+.interactive-response-progress-tree,
+.interactive-session .chat-used-context-list {
+	padding: 4px 3px;
+
+	.monaco-icon-label {
+		padding: 0px 3px;
+	}
 }
 
 .interactive-item-container .chat-notification-widget {

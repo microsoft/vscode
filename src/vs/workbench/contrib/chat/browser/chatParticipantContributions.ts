@@ -23,10 +23,10 @@ import * as extensionsRegistry from '../../../services/extensions/common/extensi
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { CHAT_VIEW_ID } from './chat.js';
-import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
+import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -175,6 +175,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 	) {
 		this._viewContainer = this.registerViewContainer();
 		this.registerDefaultParticipantView();
+		this.registerChatEditingView();
 		this.handleAndRegisterChatExtensions();
 	}
 
@@ -314,6 +315,40 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 		return toDisposable(() => {
 			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, this._viewContainer);
+		});
+	}
+
+	private registerChatEditingView(): IDisposable {
+		const title = localize2('chatEditing.viewContainer.label', "Copilot Edits");
+		const icon = Codicon.requestChanges;
+		const viewContainerId = CHAT_EDITING_SIDEBAR_PANEL_ID;
+		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+			id: viewContainerId,
+			title,
+			icon,
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
+			storageId: viewContainerId,
+			hideIfEmpty: true,
+			order: 100,
+		}, ViewContainerLocation.AuxiliaryBar);
+
+		const id = 'workbench.panel.chat.view.edits';
+		const viewDescriptor: IViewDescriptor[] = [{
+			id: id,
+			containerIcon: viewContainer.icon,
+			containerTitle: title.value,
+			singleViewPaneContainerTitle: title.value,
+			name: { value: title.value, original: title.value },
+			canToggleVisibility: false,
+			canMoveView: true,
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ id, title: title.value }, { location: ChatAgentLocation.EditingSession }]),
+			when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED
+		}];
+		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
+
+		return toDisposable(() => {
+			Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
 		});
 	}
 }

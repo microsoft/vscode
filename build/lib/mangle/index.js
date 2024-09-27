@@ -14,7 +14,6 @@ const ts = require("typescript");
 const url_1 = require("url");
 const workerpool = require("workerpool");
 const staticLanguageServiceHost_1 = require("./staticLanguageServiceHost");
-const amd_1 = require("../amd");
 const buildfile = require('../../buildfile');
 class ShortIdent {
     prefix;
@@ -248,51 +247,37 @@ function isNameTakenInFile(node, name) {
     }
     return false;
 }
-const skippedExportMangledFiles = function () {
-    return [
-        // Build
-        'css.build',
-        // Monaco
-        'editorCommon',
-        'editorOptions',
-        'editorZoom',
-        'standaloneEditor',
-        'standaloneEnums',
-        'standaloneLanguages',
-        // Generated
-        'extensionsApiProposals',
-        // Module passed around as type
-        'pfs',
-        // entry points
-        ...!(0, amd_1.isAMD)() ? [
-            buildfile.entrypoint('vs/server/node/server.main'),
-            buildfile.base,
-            buildfile.workerExtensionHost,
-            buildfile.workerNotebook,
-            buildfile.workerLanguageDetection,
-            buildfile.workerLocalFileSearch,
-            buildfile.workerProfileAnalysis,
-            buildfile.workerOutputLinks,
-            buildfile.workerBackgroundTokenization,
-            buildfile.workbenchDesktop(),
-            buildfile.workbenchWeb(),
-            buildfile.code,
-            buildfile.codeWeb
-        ].flat().map(x => x.name) : [
-            buildfile.entrypoint('vs/server/node/server.main'),
-            buildfile.entrypoint('vs/workbench/workbench.desktop.main'),
-            buildfile.base,
-            buildfile.workerExtensionHost,
-            buildfile.workerNotebook,
-            buildfile.workerLanguageDetection,
-            buildfile.workerLocalFileSearch,
-            buildfile.workerProfileAnalysis,
-            buildfile.workbenchDesktop(),
-            buildfile.workbenchWeb(),
-            buildfile.code
-        ].flat().map(x => x.name),
-    ];
-};
+const skippedExportMangledFiles = [
+    // Build
+    'css.build',
+    // Monaco
+    'editorCommon',
+    'editorOptions',
+    'editorZoom',
+    'standaloneEditor',
+    'standaloneEnums',
+    'standaloneLanguages',
+    // Generated
+    'extensionsApiProposals',
+    // Module passed around as type
+    'pfs',
+    // entry points
+    ...[
+        buildfile.entrypoint('vs/server/node/server.main'),
+        buildfile.workerEditor,
+        buildfile.workerExtensionHost,
+        buildfile.workerNotebook,
+        buildfile.workerLanguageDetection,
+        buildfile.workerLocalFileSearch,
+        buildfile.workerProfileAnalysis,
+        buildfile.workerOutputLinks,
+        buildfile.workerBackgroundTokenization,
+        buildfile.workbenchDesktop,
+        buildfile.workbenchWeb,
+        buildfile.code,
+        buildfile.codeWeb
+    ].flat().map(x => x.name),
+];
 const skippedExportMangledProjects = [
     // Test projects
     'vscode-api-tests',
@@ -536,7 +521,7 @@ class Mangler {
         for (const data of this.allExportedSymbols.values()) {
             if (data.fileName.endsWith('.d.ts')
                 || skippedExportMangledProjects.some(proj => data.fileName.includes(proj))
-                || skippedExportMangledFiles().some(file => data.fileName.endsWith(file + '.ts'))) {
+                || skippedExportMangledFiles.some(file => data.fileName.endsWith(file + '.ts'))) {
                 continue;
             }
             if (!data.shouldMangle(data.replacementName)) {

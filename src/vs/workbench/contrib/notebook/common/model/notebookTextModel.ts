@@ -330,7 +330,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }) {
-		this._increaseVersionId(e === 'content');
+		this._increaseVersionId(e === 'content' || (typeof e === 'object' && e.type === 'model'));
 		switch (e) {
 			case 'content':
 				this._pauseableEmitter.fire({
@@ -357,6 +357,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					synchronous: true,
 					endSelectionState: undefined
 				});
+				break;
+
+			default:
+				if (typeof e === 'object' && e.type === 'model') {
+					this._pauseableEmitter.fire({
+						rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellContent, index: this._getCellIndexByHandle(cell.handle), transient: false }],
+						versionId: this.versionId,
+						synchronous: true,
+						endSelectionState: undefined
+					});
+				}
 				break;
 		}
 	}

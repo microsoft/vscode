@@ -211,12 +211,12 @@ export class ActionButton {
 			command: {
 				command: 'git.sync',
 				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
+				shortTitle: `${icon}${behind}${ahead}`,
 				tooltip: this.state.isSyncInProgress ?
 					l10n.t('Synchronizing Changes...')
 					: this.repository.syncTooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			description: `${icon}${behind}${ahead}`,
 			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
 	}
