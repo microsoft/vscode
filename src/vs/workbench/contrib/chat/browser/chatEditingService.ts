@@ -6,7 +6,7 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
@@ -42,7 +42,7 @@ import { IChatService } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from './chat.js';
-import { ICodeMapperService } from '../common/chatCodeMapperService.js';
+import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
@@ -77,6 +77,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IProgressService private readonly _progressService: IProgressService,
+		@ICodeMapperService private readonly _codeMapperService: ICodeMapperService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
@@ -115,6 +116,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			throw new BugIndicatingError('Cannot have more than one active editing session');
 		}
 
+		// listen for completed responses, run the code mapper and apply the edits to this edit session
+		const chatModelTracker = this.installCodeMappingOnResponse(chatSessionId);
+		this.onDidDisposeEditingSession(() => chatModelTracker.dispose());
+
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 			multiDiffSource: ChatEditingMultiDiffSourceResolver.getMultiDiffSourceUri(),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
@@ -136,6 +141,51 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		if (builder) {
 			return this._continueEditingSession(builder, options);
 		}
+	}
+
+	private installCodeMappingOnResponse(sessionId: string): IDisposable {
+
+		const chatModel = this._chatService.getSession(sessionId);
+		if (!chatModel) {
+			throw new Error(`Edit session was created for a non-existsing chat session: ${sessionId}`);
+		}
+
+		const modelTrackingDisposables = new DisposableStore();
+		const tokenSource = modelTrackingDisposables.add(new CancellationTokenSource());
+
+		const onResponseComplete = (responseModel: IChatResponseModel) => {
+			if (!responseModel.result?.metadata?.autoApply) {
+				return;
+			}
+			this._continueEditingSession(async (builder) => {
+				const codeMapperResponse: ICodeMapperResponse = {
+					textEdit: (resource, edits) => builder.textEdits(resource, edits),
+				};
+				await this._codeMapperService.mapCodeFromResponse(responseModel, codeMapperResponse, tokenSource.token);
+			}, { silent: true });
+		};
+
+		modelTrackingDisposables.add(chatModel.onDidChange(e => {
+			if (e.kind === 'addRequest') {
+				const responseModel = e.request.response;
+				if (responseModel) {
+					if (responseModel.isComplete) {
+						onResponseComplete(responseModel);
+					} else {
+						const disposable = responseModel.onDidChange(() => {
+							if (responseModel.isComplete) {
+								onResponseComplete(responseModel);
+								disposable.dispose();
+							} else if (responseModel.isCanceled || responseModel.isStale) {
+								disposable.dispose();
+							}
+						});
+					}
+				}
+			}
+		}));
+		modelTrackingDisposables.add(chatModel.onDidDispose(() => modelTrackingDisposables.dispose()));
+		return modelTrackingDisposables;
 	}
 
 	private async _continueEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>, options?: { silent?: boolean }): Promise<void> {
@@ -461,7 +511,6 @@ export class ChatEditingStartSessionAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const viewsService = accessor.get(IViewsService);
-		const codemapperService = accessor.get(ICodeMapperService);
 		const currentEditingSession = chatEditingService.currentEditingSession;
 		if (currentEditingSession) {
 			return;
@@ -474,52 +523,6 @@ export class ChatEditingStartSessionAction extends Action2 {
 			return;
 		}
 
-		const chatModel = widget.viewModel.model;
-
-		// track the chat model for responses that want auto apply
-
-		const modelTrackingDisposables = new DisposableStore();
-		const tokenSource = modelTrackingDisposables.add(new CancellationTokenSource());
-
-		const sessionId = widget.viewModel.sessionId;
-		const onResponseComplete = (responseModel: IChatResponseModel) => {
-			if (!responseModel.result?.metadata?.autoApply) {
-				return;
-			}
-
-			chatEditingService.startOrContinueEditingSession(sessionId, async (stream) => {
-				const codeMapperResponse = {
-					textEdit: (resource: URI, textEdits: TextEdit[]) => {
-						stream.textEdits(resource, textEdits);
-					}
-				};
-				await codemapperService.mapCodeFromResponse(responseModel, codeMapperResponse, tokenSource.token);
-			}, { silent: true });
-		};
-
-
-		modelTrackingDisposables.add(chatModel.onDidDispose(() => modelTrackingDisposables.dispose()));
-		modelTrackingDisposables.add(chatModel.onDidChange(e => {
-			if (e.kind === 'addRequest') {
-				const responseModel = e.request.response;
-				if (responseModel) {
-					if (responseModel.isComplete) {
-						onResponseComplete(responseModel);
-					} else {
-						const disposable = responseModel.onDidChange(() => {
-							if (responseModel.isComplete) {
-								onResponseComplete(responseModel);
-								disposable.dispose();
-							} else if (responseModel.isCanceled || responseModel.isStale) {
-								disposable.dispose();
-							}
-						});
-					}
-				}
-			}
-		}));
-		modelTrackingDisposables.add(chatEditingService.onDidDisposeEditingSession(() => modelTrackingDisposables.dispose()));
-
 		const visibleTextEditorControls = textEditorService.visibleTextEditorControls.filter((e) => isCodeEditor(e));
 		visibleTextEditorControls.forEach((e) => {
 			const activeUri = e.getModel()?.uri;
@@ -527,7 +530,7 @@ export class ChatEditingStartSessionAction extends Action2 {
 				variablesService.attachContext('file', { uri: activeUri, }, ChatAgentLocation.Panel);
 			}
 		});
-		await chatEditingService.startOrContinueEditingSession(sessionId, undefined, { silent: true });
+		await chatEditingService.startOrContinueEditingSession(widget.viewModel.sessionId, undefined, { silent: true });
 	}
 }
 
