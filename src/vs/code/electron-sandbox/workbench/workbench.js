@@ -23,10 +23,7 @@
 	// optimization to prevent a waterfall of loading to happen, because
 	// we know for a fact that workbench.desktop.main will depend on
 	// the related CSS counterpart.
-	bootstrapWindow.load([
-		'vs/workbench/workbench.desktop.main',
-		'vs/css!vs/workbench/workbench.desktop.main'
-	],
+	bootstrapWindow.load('vs/workbench/workbench.desktop.main',
 		function (desktopMain, configuration) {
 
 			// Mark start of workbench
@@ -77,7 +74,7 @@
 	/**
 	 * @returns {{
 	 *   load: (
-	 *     modules: string[],
+	 *     esModule: string,
 	 *     resultCallback: (result: any, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {

@@ -26,7 +26,7 @@
 	Error.stackTraceLimit = 100;
 
 	/**
-	 * @param {string[]} modulePaths
+	 * @param {string} esModule
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
 	 *  configureDeveloperSettings?: (config: ISandboxConfiguration) => {
@@ -39,7 +39,7 @@
 	 *  beforeImport?: (config: ISandboxConfiguration) => void
 	 * }} [options]
 	 */
-	async function load(modulePaths, resultCallback, options) {
+	async function load(esModule, resultCallback, options) {
 
 		// Await window configuration from preload
 		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
@@ -66,10 +66,7 @@
 		};
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
 		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
-		/**
-		 * @type {() => void | undefined}
-		 */
-		let developerDeveloperKeybindingsDisposable;
+		let developerDeveloperKeybindingsDisposable = undefined;
 		if (enableDeveloperKeybindings) {
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
@@ -136,42 +133,20 @@
 			performance.mark('code/didAddCssLoader');
 		}
 
-		const result = Promise.all(modulePaths.map(modulePath => {
-			if (modulePath.includes('vs/css!')) {
-				// ESM/CSS when seeing the old `vs/css!` prefix we use that as a signal to
-				// load CSS via a <link> tag
-				const cssModule = modulePath.replace('vs/css!', '');
-				const link = document.createElement('link');
-				link.rel = 'stylesheet';
-				link.href = new URL(`${cssModule}.css`, baseUrl).href;
-				document.head.appendChild(link);
-				return Promise.resolve();
-			} else {
-				// ESM/JS module loading
-				return import(new URL(`${modulePath}.js`, baseUrl).href);
-			}
-		}));
+		// ESM Import
+		try {
+			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
 
-		result.then(res => invokeResult(res[0]), onUnexpectedError);
+			const callbackResult = resultCallback(result, configuration);
+			if (callbackResult instanceof Promise) {
+				await callbackResult;
 
-		/**
-		 * @param {any} firstModule
-		 */
-		async function invokeResult(firstModule) {
-			try {
-
-				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(firstModule, configuration);
-				if (callbackResult instanceof Promise) {
-					await callbackResult;
-
-					if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
-						developerDeveloperKeybindingsDisposable();
-					}
+				if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+					developerDeveloperKeybindingsDisposable();
 				}
-			} catch (error) {
-				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
+		} catch (error) {
+			onUnexpectedError(error, enableDeveloperKeybindings);
 		}
 	}
 

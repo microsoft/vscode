@@ -15,7 +15,7 @@
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load process explorer into window
-	bootstrapWindow.load(['vs/code/electron-sandbox/processExplorer/processExplorerMain'], function (processExplorer, configuration) {
+	bootstrapWindow.load('vs/code/electron-sandbox/processExplorer/processExplorerMain', function (processExplorer, configuration) {
 		return processExplorer.startup(configuration);
 	}, {
 		configureDeveloperSettings: function () {
@@ -28,7 +28,7 @@
 	/**
 	 * @returns {{
 	 *   load: (
-	 *     modules: string[],
+	 *     esModule: string,
 	 *     resultCallback: (result: any, configuration: ISandboxConfiguration) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {

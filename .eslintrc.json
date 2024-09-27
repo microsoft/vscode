@@ -681,9 +681,7 @@
 						// - browser
 						// - electron-sandbox
 						"when": "hasBrowser",
-						"allow": [
-							"vs/css!./**/*"
-						]
+						"allow": []
 					},
 					{
 						// imports that are allowed in all files of layers:
