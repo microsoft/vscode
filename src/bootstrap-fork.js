@@ -8,7 +8,7 @@
 
 import * as performance from './vs/base/common/performance.js';
 import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import * as bootstrapESM from './bootstrap-esm.js';
 
 performance.mark('code/fork/start');
 
@@ -37,8 +37,8 @@ if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
 }
 
-// Load AMD entry point
-bootstrapAmd.load(process.env['VSCODE_AMD_ENTRYPOINT']);
+// Load ESM entry point
+bootstrapESM.load(process.env['VSCODE_ESM_ENTRYPOINT']);
 
 
 //#region Helpers

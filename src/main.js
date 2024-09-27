@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
 import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import * as bootstrapESM from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -184,9 +184,8 @@ function startup(codeCachePath, nlsConfig) {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
-	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	bootstrapAmd.load('vs/code/electron-main/main', () => {
+	bootstrapESM.load('vs/code/electron-main/main', () => {
 		perf.mark('code/didLoadMainBundle');
 	});
 }

@@ -10,7 +10,7 @@ import './bootstrap-cli.js'; // this MUST come before other imports as it change
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import * as bootstrapESM from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
@@ -20,7 +20,7 @@ async function start() {
 
 	// NLS
 	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
 	// Enable portable support
 	// @ts-ignore
@@ -29,8 +29,8 @@ async function start() {
 	// Signal processes that we got launched as CLI
 	process.env['VSCODE_CLI'] = '1';
 
-	// Load CLI through AMD loader
-	bootstrapAmd.load('vs/code/node/cli');
+	// Load CLI
+	bootstrapESM.load('vs/code/node/cli');
 }
 
 start();

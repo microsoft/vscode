@@ -20,7 +20,7 @@ import { performance } from 'perf_hooks';
 import { fileURLToPath } from 'url';
 import minimist from 'minimist';
 import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import * as bootstrapESM from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 import * as perf from './vs/base/common/performance.js';
@@ -267,7 +267,7 @@ function loadCode(nlsConfiguration) {
 	return new Promise((resolve, reject) => {
 
 		/** @type {INLSConfiguration} */
-		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
+		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
 		// See https://github.com/microsoft/vscode-remote-release/issues/6543
 		// We would normally install a SIGPIPE listener in bootstrap-node.js
@@ -283,7 +283,9 @@ function loadCode(nlsConfiguration) {
 		} else {
 			delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		}
-		bootstrapAmd.load('vs/server/node/server.main', resolve, reject);
+
+		// Load Server
+		bootstrapESM.load('vs/server/node/server.main', resolve, reject);
 	});
 }
 

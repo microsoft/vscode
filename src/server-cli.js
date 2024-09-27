@@ -10,7 +10,7 @@ import './bootstrap-server.js'; // this MUST come before other imports as it cha
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapAmd from './bootstrap-amd.js';
+import * as bootstrapESM from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
@@ -20,7 +20,7 @@ async function start() {
 
 	// NLS
 	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
 	if (process.env['VSCODE_DEV']) {
 		// When running out of sources, we need to load node modules from remote/node_modules,
@@ -30,7 +30,9 @@ async function start() {
 	} else {
 		delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 	}
-	bootstrapAmd.load('vs/server/node/server.cli');
+
+	// Load Server CLI
+	bootstrapESM.load('vs/server/node/server.cli');
 }
 
 start();

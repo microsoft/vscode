@@ -80,7 +80,7 @@ function setupNLS() {
  * @returns {Promise<INLSConfiguration | undefined>}
  */
 async function doSetupNLS() {
-	performance.mark('code/amd/willLoadNls');
+	performance.mark('code/willLoadNls');
 
 	/** @type {INLSConfiguration | undefined} */
 	let nlsConfig = undefined;
@@ -134,33 +134,31 @@ async function doSetupNLS() {
 		}
 	}
 
-	performance.mark('code/amd/didLoadNls');
+	performance.mark('code/didLoadNls');
 
 	return nlsConfig;
 }
 
 //#endregion
 
-//#region Loader Config
+//#region ESM Loading
 
 /**
- * @param {string=} entrypoint
+ * @param {string=} esModule
  * @param {(value: any) => void} [onLoad]
  * @param {(err: Error) => void} [onError]
  */
-module.exports.load = function (entrypoint, onLoad, onError) {
-	if (!entrypoint) {
+module.exports.load = function (esModule, onLoad, onError) {
+	if (!esModule) {
 		return;
 	}
-
-	entrypoint = `./${entrypoint}.js`;
 
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
 
 	setupNLS().then(() => {
 		performance.mark(`code/fork/willLoadCode`);
-		import(entrypoint).then(onLoad, onError);
+		import([`./${esModule}.js`].join('/') /* TODO@esm workaround to prevent esbuild from inlining this */).then(onLoad, onError);
 	});
 };
 

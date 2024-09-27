@@ -58,7 +58,7 @@ export async function main(argv: string[]): Promise<any> {
 			const env: IProcessEnvironment = {
 				...process.env
 			};
-			// bootstrap-amd.js determines the electron environment based
+			// bootstrap-esm.js determines the electron environment based
 			// on the following variable. For the server we need to unset
 			// it to prevent importing any electron specific modules.
 			// Refs https://github.com/microsoft/vscode/issues/221883
