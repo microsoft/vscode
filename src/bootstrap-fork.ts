@@ -215,9 +215,9 @@ function configureCrashReporter(): void {
 	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
 	if (crashReporterProcessType) {
 		try {
-			// @ts-ignore
+			//@ts-ignore
 			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
-				// @ts-ignore
+				//@ts-ignore
 				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
 			}
 		} catch (error) {

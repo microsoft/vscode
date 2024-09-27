@@ -3,35 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
-
-/**
- * @import { IProductConfiguration } from './vs/base/common/product'
- */
+/* eslint-disable local/code-import-patterns */
 
 import { createRequire } from 'node:module';
+import { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
-/** @type any */
-const module = { exports: {} };
 
-/** @type Partial<IProductConfiguration> & { BUILD_INSERT_PRODUCT_CONFIGURATION?: string } */
-let productObj = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
+let productObj: Partial<IProductConfiguration> & { BUILD_INSERT_PRODUCT_CONFIGURATION?: string } = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (productObj['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
-	// @ts-ignore
 	productObj = require('../product.json'); // Running out of sources
 }
 
-/** @type object & { BUILD_INSERT_PACKAGE_CONFIGURATION?: string } */
 let pkgObj = { BUILD_INSERT_PACKAGE_CONFIGURATION: 'BUILD_INSERT_PACKAGE_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (pkgObj['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
-	// @ts-ignore
 	pkgObj = require('../package.json'); // Running out of sources
 }
 
-module.exports.product = productObj;
-module.exports.pkg = pkgObj;
-
-export const product = module.exports.product;
-export const pkg = module.exports.pkg;
+export const product = productObj;
+export const pkg = pkgObj;
