@@ -816,35 +816,25 @@ const defaultThemeColors: { [baseTheme: string]: ITextMateThemingRule[] } = {
 
 const noMatch = (_scope: ProbeScope) => -1;
 
-function nameMatcher(identifers: string[], scope: ProbeScope): number {
-	function findInIdents(s: string, lastIndent: number): number {
-		for (let i = lastIndent - 1; i >= 0; i--) {
-			if (scopesAreMatching(s, identifers[i])) {
-				return i;
-			}
-		}
+function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
+	if (scopes.length < identifiers.length) {
 		return -1;
 	}
-	if (scope.length < identifers.length) {
-		return -1;
-	}
-	const minimumLastScopeIndex = scope.length - identifers.length;
-	let lastScopeIndex = scope.length - 1;
-	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
-	if (lastIdentifierIndex >= 0) {
-		const score = (lastIdentifierIndex + 1) * 0x10000 + identifers[lastIdentifierIndex].length;
-		while (lastScopeIndex >= minimumLastScopeIndex) {
-			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
-			if (lastIdentifierIndex === -1) {
-				return -1;
+
+	let lastIndex = 0;
+	let score: number | undefined = undefined;
+	const every = identifiers.every(identifier => {
+		for (let i = lastIndex; i < scopes.length; i++) {
+			if (scopesAreMatching(scopes[i], identifier)) {
+				score = (i + 1) * 0x10000 + identifier.length;
+				lastIndex = i + 1;
+				return true;
 			}
 		}
-		return score;
-	}
-	return -1;
+		return false;
+	});
+	return every && score !== undefined ? score : -1;
 }
-
-
 function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
 	if (!thisScopeName) {
 		return false;
