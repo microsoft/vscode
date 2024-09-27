@@ -265,9 +265,9 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 			}
 
-			// Without this, the response will be done before it renders and so it will not stream. This ensures that if the response is currently
-			// being rendered during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
-			// it has received all the response data.
+			// Without this, the response will be done before it renders and so it will not stream. This ensures that if the response starts
+			// rendering during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
+			// it has received all response data has been received.
 			await timeout(200);
 		}));
 	}
