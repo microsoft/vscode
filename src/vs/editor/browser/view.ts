@@ -134,9 +134,19 @@ export class View extends ViewEventHandler {
 
 		this._viewParts = [];
 
+		this.domNode = createFastDomNode(document.createElement('div'));
+		this.domNode.setAttribute('role', 'code');
+
+		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
+		this._overflowGuardContainer.setClassName('overflow-guard');
+
 		// Keyboard handler
 		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.experimentalEditContextEnabled);
 		this._editContext = this._instantiateEditContext(this._experimentalEditContextEnabled);
+
+		this.domNode.setClassName(this._getEditorClassName());
+		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
 
 		this._viewParts.push(this._editContext);
 
@@ -145,18 +155,9 @@ export class View extends ViewEventHandler {
 		this._linesContent.setClassName('lines-content' + ' monaco-editor-background');
 		this._linesContent.setPosition('absolute');
 
-		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName(this._getEditorClassName());
-		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
-		this.domNode.setAttribute('role', 'code');
-
 		if (this._context.configuration.options.get(EditorOption.experimentalGpuAcceleration) === 'on') {
 			this._viewGpuContext = this._instantiationService.createInstance(ViewGpuContext, this._context);
 		}
-
-		this._overflowGuardContainer = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._overflowGuardContainer, PartFingerprint.OverflowGuard);
-		this._overflowGuardContainer.setClassName('overflow-guard');
 
 		this._scrollbar = new EditorScrollbar(this._context, this._linesContent, this.domNode, this._overflowGuardContainer);
 		this._viewParts.push(this._scrollbar);
@@ -268,7 +269,17 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		return this._instantiationService.createInstance(experimentalEditContextEnabled ? NativeEditContext : TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
+		if (experimentalEditContextEnabled) {
+			const ownerWindow = dom.getWindow(this.domNode.domNode);
+			const document = ownerWindow.document;
+			console.log('this.domNode.domNode : ', this.domNode.domNode);
+			console.log('this._overflowGuardContainer : ', this._overflowGuardContainer);
+			console.log('ownerWindow : ', ownerWindow);
+			console.log('document : ', document);
+			return this._instantiationService.createInstance(NativeEditContext, this._context, ownerWindow, this._viewController, this._createTextAreaHandlerHelper());
+		} else {
+			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._viewController, this._createTextAreaHandlerHelper());
+		}
 	}
 
 	private _updateEditContext(): void {

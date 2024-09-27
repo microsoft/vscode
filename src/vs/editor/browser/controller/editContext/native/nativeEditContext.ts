@@ -26,6 +26,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { CodeWindow } from '../../../../../base/browser/window.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -51,6 +52,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	constructor(
 		context: ViewContext,
+		ownerWindow: CodeWindow,
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -64,7 +66,11 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
-		this._editContext = new EditContext();
+		const doesEditContextExist = 'EditContext' in ownerWindow;
+		console.log('doesEditContextExist : ', doesEditContextExist);
+		this._editContext = new ownerWindow.EditContext();
+		console.log('after creating edit context');
+		console.log('this._editContext : ', this._editContext);
 		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
@@ -96,9 +102,11 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			console.log('text update : ', e);
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			console.log('composition start : ', e);
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
@@ -106,6 +114,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			console.log('composition end : ', e);
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionEnd();
