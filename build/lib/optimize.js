@@ -19,6 +19,11 @@ const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
+const DEFAULT_FILE_HEADER = [
+    '/*!--------------------------------------------------------',
+    ' * Copyright (C) Microsoft Corporation. All rights reserved.',
+    ' *--------------------------------------------------------*/'
+].join('\n');
 function optimizeESMTask(opts) {
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
@@ -119,7 +124,6 @@ function optimizeESMTask(opts) {
                     files.push(new VinylFile(fileProps));
                 }
             });
-            // await task; // FORCE serial bundling (makes debugging easier)
             tasks.push(task);
         }
         await Promise.all(tasks);

@@ -39,6 +39,12 @@ export interface IOptimizeESMTaskOpts {
 	fileContentMapper?: (contents: string, path: string) => string;
 }
 
+const DEFAULT_FILE_HEADER = [
+	'/*!--------------------------------------------------------',
+	' * Copyright (C) Microsoft Corporation. All rights reserved.',
+	' *--------------------------------------------------------*/'
+].join('\n');
+
 function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
@@ -158,7 +164,6 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 				}
 			});
 
-			// await task; // FORCE serial bundling (makes debugging easier)
 			tasks.push(task);
 		}
 
