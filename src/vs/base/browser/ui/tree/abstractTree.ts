@@ -1770,7 +1770,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		}
 		// create new dom elements
 		else {
-			this.renderStickyElements(state);
+			this.renderState(state);
 		}
 
 		this._previousState = state;
@@ -1779,7 +1779,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
 	}
 
-	private renderStickyElements(state: StickyScrollState<T, TFilterData, TRef>): void {
+	private renderState(state: StickyScrollState<T, TFilterData, TRef>): void {
 		this._previousStateDisposables.clear();
 
 		const elements = Array(state.count);
@@ -1800,7 +1800,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	rerender(): void {
 		if (this._previousState) {
-			this.renderStickyElements(this._previousState);
+			this.renderState(this._previousState);
 		}
 	}
 
