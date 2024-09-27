@@ -6,8 +6,8 @@
 /* eslint-disable local/code-import-patterns */
 
 import * as performance from './vs/base/common/performance.js';
-import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapESM from './bootstrap-esm.js';
+import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
+import { load } from './bootstrap-esm.js';
 
 performance.mark('code/fork/start');
 
@@ -15,10 +15,10 @@ performance.mark('code/fork/start');
 configureCrashReporter();
 
 // Remove global paths from the node module lookup (node.js only)
-bootstrapNode.removeGlobalNodeJsModuleLookupPaths();
+removeGlobalNodeJsModuleLookupPaths();
 
 if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process
@@ -37,7 +37,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load ESM entry point
-bootstrapESM.load(process.env['VSCODE_ESM_ENTRYPOINT']);
+load(process.env['VSCODE_ESM_ENTRYPOINT']);
 
 
 //#region Helpers

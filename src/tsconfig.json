@@ -26,12 +26,8 @@
 		]
 	},
 	"include": [
-		"./bootstrap-server.js",
 		"./bootstrap-window.js",
-		"./cli.js",
 		"./main.js",
-		"./server-main.js",
-		"./server-cli.js",
 		"./vs/base/parts/sandbox/electron-sandbox/preload-aux.js",
 		"./vs/base/parts/sandbox/electron-sandbox/preload.js",
 		"./vs/code/electron-sandbox/processExplorer/processExplorer.js",

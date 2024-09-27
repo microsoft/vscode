@@ -3,34 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
-'use strict';
+/* eslint-disable local/code-import-patterns */
 
 import './bootstrap-cli.js'; // this MUST come before other imports as it changes global state
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import * as bootstrapNode from './bootstrap-node.js';
-import * as bootstrapESM from './bootstrap-esm.js';
+import { configurePortable } from './bootstrap-node.js';
+import { load } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-async function start() {
+// NLS
+const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
+process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
 
-	// NLS
-	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-esm` to pick up NLS messages
+// Enable portable support
+configurePortable(product);
 
-	// Enable portable support
-	// @ts-ignore
-	bootstrapNode.configurePortable(product);
+// Signal processes that we got launched as CLI
+process.env['VSCODE_CLI'] = '1';
 
-	// Signal processes that we got launched as CLI
-	process.env['VSCODE_CLI'] = '1';
-
-	// Load CLI
-	bootstrapESM.load('vs/code/node/cli');
-}
-
-start();
+// Load CLI
+load('vs/code/node/cli');
