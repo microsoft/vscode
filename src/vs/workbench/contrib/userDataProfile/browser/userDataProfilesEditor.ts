@@ -1048,7 +1048,7 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 			}, true);
 
 			if (hoverWidget) {
-				iconSelectBox.layout(new Dimension(486, 260));
+				iconSelectBox.layout(new Dimension(486, 292));
 				iconSelectBox.focus();
 			}
 		};
