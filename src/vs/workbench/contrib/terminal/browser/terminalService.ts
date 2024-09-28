@@ -1028,8 +1028,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
 			capabilities: options.capabilities || new TerminalCapabilityStore(),
-			shellIntegrationNonce: '',
-			disableShellIntegrationReporting: false,
 		});
 
 		if (options.readonly) {

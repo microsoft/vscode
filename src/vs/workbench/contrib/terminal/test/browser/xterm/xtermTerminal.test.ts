@@ -119,7 +119,6 @@ suite('XtermTerminal', () => {
 			rows: 30,
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities: capabilityStore,
-			shellIntegrationNonce: '',
 			disableShellIntegrationReporting: true,
 			xtermAddonImpoter: new TestXtermAddonImporter(),
 		}));
@@ -145,7 +144,6 @@ suite('XtermTerminal', () => {
 				xtermAddonImpoter: new TestXtermAddonImporter(),
 				xtermColorProvider: { getBackgroundColor: () => new Color(new RGBA(255, 0, 0)) },
 				capabilities: store.add(new TerminalCapabilityStore()),
-				shellIntegrationNonce: '',
 				disableShellIntegrationReporting: true,
 			}));
 			strictEqual(xterm.raw.options.theme?.background, '#ff0000');
@@ -182,7 +180,6 @@ suite('XtermTerminal', () => {
 				xtermAddonImpoter: new TestXtermAddonImporter(),
 				xtermColorProvider: { getBackgroundColor: () => undefined },
 				capabilities: store.add(new TerminalCapabilityStore()),
-				shellIntegrationNonce: '',
 				disableShellIntegrationReporting: true
 			}));
 			deepStrictEqual(xterm.raw.options.theme, {

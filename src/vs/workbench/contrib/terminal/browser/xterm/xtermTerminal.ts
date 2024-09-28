@@ -73,9 +73,9 @@ export interface IXtermTerminalOptions {
 	/** The capabilities of the terminal. */
 	capabilities: ITerminalCapabilityStore;
 	/** The shell integration nonce to verify data coming from SI is trustworthy. */
-	shellIntegrationNonce: string;
+	shellIntegrationNonce?: string;
 	/** Whether to disable shell integration telemetry reporting. */
-	disableShellIntegrationReporting: boolean;
+	disableShellIntegrationReporting?: boolean;
 	/** The object that imports xterm addons, set this to inject an importer in tests. */
 	xtermAddonImpoter?: XtermAddonImporter;
 }
@@ -260,7 +260,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce, options.disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {

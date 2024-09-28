@@ -84,7 +84,6 @@ suite('Buffer Content Tracker', () => {
 			rows: 30,
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities,
-			shellIntegrationNonce: '',
 			disableShellIntegrationReporting: true
 		}));
 		const container = document.createElement('div');
