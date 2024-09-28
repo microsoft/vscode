@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { marked } from 'vs/base/common/marked/marked';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/annotations';
-import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
-import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { CodeBlockModelCollection } from './codeBlockModelCollection';
-import { hash } from 'vs/base/common/hash';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as marked from '../../../../base/common/marked/marked.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { annotateVulnerabilitiesInText } from './annotations.js';
+import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from './chatAgents.js';
+import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
+import { IParsedChatRequest } from './chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
+import { countWords } from './chatWordCounter.js';
+import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
+import { hash } from '../../../../base/common/hash.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -26,10 +26,6 @@ export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 
 export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
-}
-
-export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel {
-	return !!item && typeof item === 'object' && 'content' in item;
 }
 
 export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | null;
@@ -54,7 +50,7 @@ export interface IChatViewModel {
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 }
@@ -169,6 +165,7 @@ export interface IChatResponseViewModel {
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
+	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
@@ -176,6 +173,7 @@ export interface IChatResponseViewModel {
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
@@ -286,8 +284,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this.updateCodeBlockTextModels(response);
 	}
 
-	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[] {
-		return [...(this._model.welcomeMessage ? [this._model.welcomeMessage] : []), ...this._items];
+	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[] {
+		return [...this._items];
 	}
 
 	override dispose() {
@@ -306,46 +304,13 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		let codeBlockIndex = 0;
-		const renderer = new marked.Renderer();
-		renderer.code = (value, languageId) => {
-			languageId ??= '';
-			this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text: value, languageId });
-			return '';
-		};
-
-		marked.parse(this.ensureFencedCodeBlocksTerminated(content), { renderer });
-	}
-
-	/**
-	 * Marked doesn't consistently render fenced code blocks that aren't terminated.
-	 *
-	 * Try to close them ourselves to workaround this.
-	 */
-	private ensureFencedCodeBlocksTerminated(content: string): string {
-		const lines = content.split('\n');
-
-		let codeBlockState: undefined | { readonly delimiter: string; readonly indent: string };
-		for (let i = 0; i < lines.length; i++) {
-			const line = lines[i];
-
-			if (codeBlockState) {
-				if (new RegExp(`^\\s*${codeBlockState.delimiter}\\s*$`).test(line)) {
-					codeBlockState = undefined;
-				}
-			} else {
-				const match = line.match(/^(\s*)(`{3,}|~{3,}|)/);
-				if (match) {
-					codeBlockState = { delimiter: match[2], indent: match[1] };
-				}
+		marked.walkTokens(marked.lexer(content), token => {
+			if (token.type === 'code') {
+				const lang = token.lang || '';
+				const text = token.text;
+				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang });
 			}
-		}
-
-		// If we're still in a code block at the end of the content, add a closing fence
-		if (codeBlockState) {
-			lines.push(codeBlockState.indent + codeBlockState.delimiter);
-		}
-
-		return lines.join('\n');
+		});
 	}
 }
 
@@ -496,6 +461,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.vote;
 	}
 
+	get voteDownReason() {
+		return this._model.voteDownReason;
+	}
+
 	get requestId() {
 		return this._model.requestId;
 	}
@@ -586,17 +555,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		this._model.setVote(vote);
 	}
 
+	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
+		this._modelChangeCount++;
+		this._model.setVoteDownReason(reason);
+	}
+
 	setEditApplied(edit: IChatTextEditGroup, editCount: number) {
 		this._modelChangeCount++;
 		this._model.setEditApplied(edit, editCount);
 	}
-}
-
-export interface IChatWelcomeMessageViewModel {
-	readonly id: string;
-	readonly username: string;
-	readonly avatarIcon?: URI | ThemeIcon;
-	readonly content: IChatWelcomeMessageContent[];
-	readonly sampleQuestions: IChatFollowup[];
-	currentRenderedHeight?: number;
 }

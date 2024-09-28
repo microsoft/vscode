@@ -290,7 +290,7 @@ export async function scanTestOutput(
 							enqueueExitBlocker(
 								(async () => {
 									const stackInfo = await deriveStackLocations(store, rawErr, tcase!);
-									let message: vscode.TestMessage2;
+									let message: vscode.TestMessage;
 
 									if (hasDiff) {
 										message = new vscode.TestMessage(tryMakeMarkdown(err));

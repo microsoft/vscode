@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IReference } from 'vs/base/common/lifecycle';
-import { mock } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ITextModel } from 'vs/editor/common/model';
-import { IOutlineModelService, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NotebookBreadcrumbsProvider, NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookCellOutlineDataSource } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSource';
-import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { IDataSource } from '../../../../../../base/browser/ui/tree/tree.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ITextModel } from '../../../../../../editor/common/model.js';
+import { IOutlineModelService, OutlineModel } from '../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
+import { NotebookBreadcrumbsProvider, NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from '../../../browser/contrib/outline/notebookOutline.js';
+import { ICellViewModel } from '../../../browser/notebookBrowser.js';
+import { INotebookCellOutlineDataSource } from '../../../browser/viewModel/notebookOutlineDataSource.js';
+import { NotebookOutlineEntryFactory } from '../../../browser/viewModel/notebookOutlineEntryFactory.js';
+import { OutlineEntry } from '../../../browser/viewModel/OutlineEntry.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
+import { MockDocumentSymbol } from '../testNotebookEditor.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 suite('Notebook Outline View Providers', function () {
 
@@ -55,12 +57,27 @@ suite('Notebook Outline View Providers', function () {
 			return 0;
 		}
 	};
+	const textModelService = new class extends mock<ITextModelService>() {
+		override createModelReference(uri: URI) {
+			return Promise.resolve({
+				object: {
+					textEditorModel: {
+						id: uri.toString(),
+						getVersionId() { return 1; }
+					}
+				},
+				dispose() { }
+			} as IReference<IResolvedTextEditorModel>);
+		}
+	};
 
 	// #endregion
 	// #region Helpers
 
 	function createCodeCellViewModel(version: number = 1, source = '# code', textmodelId = 'textId') {
 		return {
+			uri: { toString() { return textmodelId; } },
+			id: textmodelId,
 			textBuffer: {
 				getLineCount() { return 0; }
 			},
@@ -206,9 +223,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -249,9 +266,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -295,9 +312,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -338,9 +355,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -387,9 +404,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {} }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -446,9 +463,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -499,9 +516,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -552,9 +569,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -608,9 +625,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline
@@ -659,9 +676,9 @@ suite('Notebook Outline View Providers', function () {
 		setSymbolsForTextModel([{ name: 'var3', range: {}, kind: 12 }], '$3');
 
 		// Cache symbols
-		const entryFactory = new NotebookOutlineEntryFactory(executionService);
+		const entryFactory = new NotebookOutlineEntryFactory(executionService, outlineModelService, textModelService);
 		for (const cell of cells) {
-			await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
+			await entryFactory.cacheSymbols(cell, CancellationToken.None);
 		}
 
 		// Generate raw outline

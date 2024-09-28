@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import * as Objects from 'vs/base/common/objects';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Platform } from 'vs/base/common/platform';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
+import * as Objects from '../../../../base/common/objects.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { Platform } from '../../../../base/common/platform.js';
+import * as Types from '../../../../base/common/types.js';
+import * as UUID from '../../../../base/common/uuid.js';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase } from '../../../../base/common/parsers.js';
 import {
 	INamedProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry, ProblemMatcher
-} from 'vs/workbench/contrib/tasks/common/problemMatcher';
+} from './problemMatcher.js';
 
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import * as Tasks from './tasks';
-import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry';
-import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { URI } from 'vs/base/common/uri';
-import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import * as Tasks from './tasks.js';
+import { ITaskDefinitionRegistry, TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
+import { ConfiguredInput } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from './taskService.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export const enum ShellQuoting {
 	/**

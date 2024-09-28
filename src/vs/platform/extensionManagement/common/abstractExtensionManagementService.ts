@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, isNonEmptyArray } from 'vs/base/common/arrays';
-import { Barrier, CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { isWeb } from 'vs/base/common/platform';
-import { isDefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import * as nls from 'vs/nls';
+import { distinct, isNonEmptyArray } from '../../../base/common/arrays.js';
+import { Barrier, CancelablePromise, createCancelablePromise } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { isWeb } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
 import {
 	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
@@ -21,18 +20,18 @@ import {
 	IProductVersion, ExtensionGalleryErrorCode,
 	EXTENSION_INSTALL_SOURCE_CONTEXT,
 	DidUpdateExtensionMetadata,
-	UninstallExtensionInfo
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { areApiProposalsCompatible } from 'vs/platform/extensions/common/extensionValidator';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+	UninstallExtensionInfo,
+	ExtensionSignatureVerificationCode
+} from './extensionManagement.js';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from './extensionManagementUtil.js';
+import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from '../../extensions/common/extensions.js';
+import { areApiProposalsCompatible } from '../../extensions/common/extensionValidator.js';
+import { ILogService } from '../../log/common/log.js';
+import { IProductService } from '../../product/common/productService.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
-export type ExtensionVerificationStatus = boolean | string;
 export type InstallableExtension = { readonly manifest: IExtensionManifest; extension: IGalleryExtension | URI; options: InstallOptions };
 
 export type InstallExtensionTaskOptions = InstallOptions & { readonly profileLocation: URI; readonly productVersion: IProductVersion };
@@ -42,7 +41,7 @@ export interface IInstallExtensionTask {
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
 	readonly options: InstallExtensionTaskOptions;
-	readonly verificationStatus?: ExtensionVerificationStatus;
+	readonly verificationStatus?: ExtensionSignatureVerificationCode;
 	run(): Promise<ILocalExtension>;
 	waitUntilTaskIsFinished(): Promise<ILocalExtension>;
 	cancel(): void;
@@ -224,6 +223,32 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 		const getInstallExtensionTaskKey = (extension: IGalleryExtension, profileLocation: URI) => `${ExtensionKey.create(extension).toString()}-${profileLocation.toString()}`;
 		const createInstallExtensionTask = (manifest: IExtensionManifest, extension: IGalleryExtension | URI, options: InstallExtensionTaskOptions, root: IInstallExtensionTask | undefined): void => {
+			if (!URI.isUri(extension)) {
+				if (installingExtensionsMap.has(`${extension.identifier.id.toLowerCase()}-${options.profileLocation.toString()}`)) {
+					return;
+				}
+				const existingInstallingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension, options.profileLocation));
+				if (existingInstallingExtension) {
+					if (root && this.canWaitForTask(root, existingInstallingExtension.task)) {
+						const identifier = existingInstallingExtension.task.identifier;
+						this.logService.info('Waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
+						existingInstallingExtension.waitingTasks.push(root);
+						// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
+						alreadyRequestedInstallations.push(
+							Event.toPromise(
+								Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
+							).then(results => {
+								this.logService.info('Finished waiting for already requested installing extension', identifier.id, root.identifier.id, options.profileLocation.toString());
+								const result = results.find(result => areSameExtensions(result.identifier, identifier));
+								if (!result?.local) {
+									// Extension failed to install
+									throw new Error(`Extension ${identifier.id} is not installed`);
+								}
+							}));
+					}
+					return;
+				}
+			}
 			const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 			const key = `${getGalleryExtensionId(manifest.publisher, manifest.name)}-${options.profileLocation.toString()}`;
 			installingExtensionsMap.set(key, { task: installExtensionTask, root });
@@ -266,31 +291,10 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const installed = await this.getInstalled(undefined, task.options.profileLocation, task.options.productVersion);
 						const options: InstallExtensionTaskOptions = { ...task.options, context: { ...task.options.context, [EXTENSION_INSTALL_DEP_PACK_CONTEXT]: true } };
 						for (const { gallery, manifest } of distinct(allDepsAndPackExtensionsToInstall, ({ gallery }) => gallery.identifier.id)) {
-							if (installingExtensionsMap.has(`${gallery.identifier.id.toLowerCase()}-${options.profileLocation.toString()}`)) {
+							if (installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
 								continue;
 							}
-							const existingInstallingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(gallery, options.profileLocation));
-							if (existingInstallingExtension) {
-								if (this.canWaitForTask(task, existingInstallingExtension.task)) {
-									const identifier = existingInstallingExtension.task.identifier;
-									this.logService.info('Waiting for already requested installing extension', identifier.id, task.identifier.id, options.profileLocation.toString());
-									existingInstallingExtension.waitingTasks.push(task);
-									// add promise that waits until the extension is completely installed, ie., onDidInstallExtensions event is triggered for this extension
-									alreadyRequestedInstallations.push(
-										Event.toPromise(
-											Event.filter(this.onDidInstallExtensions, results => results.some(result => areSameExtensions(result.identifier, identifier)))
-										).then(results => {
-											this.logService.info('Finished waiting for already requested installing extension', identifier.id, task.identifier.id, options.profileLocation.toString());
-											const result = results.find(result => areSameExtensions(result.identifier, identifier));
-											if (!result?.local) {
-												// Extension failed to install
-												throw new Error(`Extension ${identifier.id} is not installed`);
-											}
-										}));
-								}
-							} else if (!installed.some(({ identifier }) => areSameExtensions(identifier, gallery.identifier))) {
-								createInstallExtensionTask(manifest, gallery, options, task);
-							}
+							createInstallExtensionTask(manifest, gallery, options, task);
 						}
 					} catch (error) {
 						// Installing through VSIX
@@ -309,6 +313,11 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					}
 				}
 			}));
+
+			const otherProfilesToUpdate = await this.getOtherProfilesToUpdateExtension([...installingExtensionsMap.values()].map(({ task }) => task));
+			for (const [profileLocation, task] of otherProfilesToUpdate) {
+				createInstallExtensionTask(task.manifest, task.source, { ...task.options, profileLocation }, undefined);
+			}
 
 			// Install extensions in parallel and wait until all extensions are installed / failed
 			await this.joinAllSettled([...installingExtensionsMap.entries()].map(async ([key, { task }]) => {
@@ -434,6 +443,36 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				this._onDidInstallExtensions.fire(results);
 			}
 		}
+	}
+
+	private async getOtherProfilesToUpdateExtension(tasks: IInstallExtensionTask[]): Promise<[URI, IInstallExtensionTask][]> {
+		const otherProfilesToUpdate: [URI, IInstallExtensionTask][] = [];
+		const profileExtensionsCache = new ResourceMap<ILocalExtension[]>();
+		for (const task of tasks) {
+			if (task.operation !== InstallOperation.Update
+				|| task.options.isApplicationScoped
+				|| task.options.pinned
+				|| task.options.installGivenVersion
+				|| URI.isUri(task.source)
+			) {
+				continue;
+			}
+			for (const profile of this.userDataProfilesService.profiles) {
+				if (this.uriIdentityService.extUri.isEqual(profile.extensionsResource, task.options.profileLocation)) {
+					continue;
+				}
+				let installedExtensions = profileExtensionsCache.get(profile.extensionsResource);
+				if (!installedExtensions) {
+					installedExtensions = await this.getInstalled(ExtensionType.User, profile.extensionsResource);
+					profileExtensionsCache.set(profile.extensionsResource, installedExtensions);
+				}
+				const installedExtension = installedExtensions.find(e => areSameExtensions(e.identifier, task.identifier));
+				if (installedExtension && !installedExtension.pinned) {
+					otherProfilesToUpdate.push([profile.extensionsResource, task]);
+				}
+			}
+		}
+		return otherProfilesToUpdate;
 	}
 
 	private canWaitForTask(taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask): boolean {
@@ -849,34 +888,12 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 		durationSinceUpdate
 	}: {
 		extensionData: any;
-		verificationStatus?:
-		ExtensionVerificationStatus;
+		verificationStatus?: ExtensionSignatureVerificationCode;
 		duration?: number;
 		durationSinceUpdate?: number;
 		source?: string;
 		error?: ExtensionManagementError | ExtensionGalleryError;
 	}): void {
-	let errorcode: string | undefined;
-	let errorcodeDetail: string | undefined;
-
-	if (isDefined(verificationStatus)) {
-		if (verificationStatus === true) {
-			verificationStatus = 'Verified';
-		} else if (verificationStatus === false) {
-			verificationStatus = 'Unverified';
-		} else {
-			errorcode = ExtensionManagementErrorCode.Signature;
-			errorcodeDetail = verificationStatus;
-			verificationStatus = 'Unverified';
-		}
-	}
-
-	if (error) {
-		errorcode = error.code;
-		if (error.code === ExtensionManagementErrorCode.Signature) {
-			errorcodeDetail = error.message;
-		}
-	}
 
 	/* __GDPR__
 		"extensionGallery:install" : {
@@ -885,7 +902,6 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"durationSinceUpdate" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -911,7 +927,6 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 			"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
-			"errorcodeDetail": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
 			"verificationStatus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 			"${include}": [
@@ -919,7 +934,15 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 			]
 		}
 	*/
-	telemetryService.publicLog(eventName, { ...extensionData, verificationStatus, success: !error, duration, errorcode, errorcodeDetail, durationSinceUpdate, source });
+	telemetryService.publicLog(eventName, {
+		...extensionData,
+		source,
+		duration,
+		durationSinceUpdate,
+		success: !error,
+		errorcode: error?.code,
+		verificationStatus: verificationStatus === ExtensionSignatureVerificationCode.Success ? 'Verified' : (verificationStatus ?? 'Unverified')
+	});
 }
 
 export abstract class AbstractExtensionTask<T> {

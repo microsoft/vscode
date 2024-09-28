@@ -3,52 +3,52 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle, IPoint } from 'vs/platform/window/common/window';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { AbstractNativeExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
-import { insert } from 'vs/base/common/arrays';
-import { Schemas } from 'vs/base/common/network';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
+import { Event } from '../../../base/common/event.js';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
+import { ISharedProcessService } from '../../../platform/ipc/electron-sandbox/services.js';
+import { INativeHostService, INativeHostOptions, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
+import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle, IPoint } from '../../../platform/window/common/window.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IFileService } from '../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { ITextEditorService } from '../../services/textfile/common/textEditorService.js';
+import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { AbstractNativeExtensionTipsService } from '../../../platform/extensionManagement/common/extensionTipsService.js';
+import { IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../services/lifecycle/common/lifecycle.js';
+import { IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
+import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { TestContextService } from '../common/workbenchTestServices.js';
+import { NativeTextFileService } from '../../services/textfile/electron-sandbox/nativeTextFileService.js';
+import { insert } from '../../../base/common/arrays.js';
+import { Schemas } from '../../../base/common/network.js';
+import { FileService } from '../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
+import { IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
+import { NativeWorkingCopyBackupService } from '../../services/workingCopy/electron-sandbox/workingCopyBackupService.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
+import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -143,7 +143,7 @@ export class TestNativeHostService implements INativeHostService {
 	async closeWindow(): Promise<void> { }
 	async quit(): Promise<void> { }
 	async exit(code: number): Promise<void> { }
-	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
+	async openDevTools(): Promise<void> { }
 	async toggleDevTools(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
@@ -155,6 +155,7 @@ export class TestNativeHostService implements INativeHostService {
 	async readClipboardFindText(): Promise<string> { return ''; }
 	async writeClipboardFindText(text: string): Promise<void> { }
 	async writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readImage(): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }

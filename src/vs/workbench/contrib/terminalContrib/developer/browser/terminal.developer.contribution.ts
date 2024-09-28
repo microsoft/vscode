@@ -4,32 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { Delayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/developer';
-import { localize, localize2 } from 'vs/nls';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { TerminalDeveloperCommandId } from 'vs/workbench/contrib/terminalContrib/developer/common/terminal.developer';
-import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { Delayer } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import './media/developer.css';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
+import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
+import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { TerminalDeveloperCommandId } from '../common/terminal.developer.js';
+import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry, type IStatusbarEntryAccessor } from '../../../../services/statusbar/browser/statusbar.js';
 
 registerTerminalAction({
 	id: TerminalDeveloperCommandId.ShowTextureAtlas,
@@ -256,8 +256,11 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (devMode) {
 			if (commandDetection) {
-				const commandDecorations = new Map<ITerminalCommand, IDisposable[]>();
+				const commandDecorations = new DisposableMap<ITerminalCommand, IDisposable>();
+				const otherDisposables = new DisposableStore();
 				this._activeDevModeDisposables.value = combinedDisposable(
+					commandDecorations,
+					otherDisposables,
 					// Prompt input
 					this._instance.onDidBlur(() => this._updateDevMode()),
 					this._instance.onDidFocus(() => this._updateDevMode()),
@@ -266,17 +269,17 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 					commandDetection.onCommandFinished(command => {
 						const colorClass = `color-${this._currentColor}`;
 						const decorations: IDisposable[] = [];
-						commandDecorations.set(command, decorations);
+						commandDecorations.set(command, combinedDisposable(...decorations));
 						if (command.promptStartMarker) {
 							const d = this._instance.xterm!.raw?.registerDecoration({
 								marker: command.promptStartMarker
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'A';
 									e.classList.add('xterm-sequence-decoration', 'top', 'left', colorClass);
-								});
+								}));
 							}
 						}
 						if (command.marker) {
@@ -286,10 +289,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'B';
 									e.classList.add('xterm-sequence-decoration', 'top', 'right', colorClass);
-								});
+								}));
 							}
 						}
 						if (command.executedMarker) {
@@ -299,10 +302,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'C';
 									e.classList.add('xterm-sequence-decoration', 'bottom', 'left', colorClass);
-								});
+								}));
 							}
 						}
 						if (command.endMarker) {
@@ -311,10 +314,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'D';
 									e.classList.add('xterm-sequence-decoration', 'bottom', 'right', colorClass);
-								});
+								}));
 							}
 						}
 						this._currentColor = (this._currentColor + 1) % 2;
@@ -325,7 +328,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							if (decorations) {
 								dispose(decorations);
 							}
-							commandDecorations.delete(c);
+							commandDecorations.deleteAndDispose(c);
 						}
 					})
 				);

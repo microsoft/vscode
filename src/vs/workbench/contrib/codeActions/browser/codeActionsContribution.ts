@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { CodeActionsExtensionPoint, ContributedCodeAction } from 'vs/workbench/contrib/codeActions/common/codeActionsExtensionPoint';
-import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { Emitter } from '../../../../base/common/event.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { editorConfigurationBaseNode } from '../../../../editor/common/config/editorConfigurationSchema.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from '../../../../editor/contrib/codeAction/browser/codeAction.js';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { CodeActionsExtensionPoint, ContributedCodeAction } from '../common/codeActionsExtensionPoint.js';
+import { IExtensionPoint } from '../../../services/extensions/common/extensionsRegistry.js';
 
 const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {

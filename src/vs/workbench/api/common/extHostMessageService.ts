@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
+import Severity from '../../../base/common/severity.js';
 import type * as vscode from 'vscode';
-import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;

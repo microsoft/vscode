@@ -5,16 +5,16 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MainThreadConfiguration } from 'vs/workbench/api/browser/mainThreadConfiguration';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { URI } from '../../../../base/common/uri.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions, IConfigurationRegistry, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MainThreadConfiguration } from '../../browser/mainThreadConfiguration.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { WorkspaceService } from '../../../services/configuration/browser/configurationService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 suite('MainThreadConfiguration', function () {
 

@@ -250,7 +250,7 @@ impl Platform {
 			Platform::DarwinARM64 => "server-darwin-arm64",
 			Platform::WindowsX64 => "server-win32-x64",
 			Platform::WindowsX86 => "server-win32",
-			Platform::WindowsARM64 => "server-win32-x64", // we don't publish an arm64 server build yet
+			Platform::WindowsARM64 => "server-win32-arm64",
 		}
 		.to_owned()
 	}

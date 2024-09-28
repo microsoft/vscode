@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
-import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
-import { category, getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import * as nls from '../../../../nls.js';
+import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
+import * as Constants from '../common/constants.js';
+import { ISearchHistoryService } from '../common/searchHistoryService.js';
+import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult } from './searchModel.js';
+import { VIEW_ID } from '../../../services/search/common/search.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { SearchStateKey, SearchUIState } from '../common/search.js';
+import { category, getSearchView } from './searchActionsBase.js';
 
 //#region Actions
 registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
@@ -127,7 +127,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		return expandAll(accessor);
 	}
 });
@@ -172,10 +172,10 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setTreeView(true);
+			await searchView.setTreeView(true);
 		}
 	}
 });
@@ -197,10 +197,10 @@ registerAction2(class ViewAsListAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			searchView.setTreeView(false);
+			await searchView.setTreeView(false);
 		}
 	}
 });
@@ -214,12 +214,21 @@ const clearHistoryCommand: ICommandHandler = accessor => {
 	searchHistoryService.clearHistory();
 };
 
-function expandAll(accessor: ServicesAccessor) {
+async function expandAll(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const viewer = searchView.getControl();
-		viewer.expandAll();
+
+		if (searchView.shouldShowAIResults()) {
+			if (searchView.model.hasAIResults) {
+				viewer.expandAll();
+			} else {
+				await viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+			}
+		} else {
+			viewer.expandAll();
+		}
 	}
 }
 
@@ -267,9 +276,9 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					let nodeToTest = node;
 
 					if (node instanceof FolderMatch) {
-						const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
+						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
 					}
 
 					const immediateParent = nodeToTest.parent();
@@ -296,14 +305,14 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					let nodeToTest = node;
 
 					if (node instanceof FolderMatch) {
-						const compressionStartNode = viewer.getCompressedTreeNode(node).element?.elements[0];
+						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match)) ? compressionStartNode : node;
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
 					}
 					const immediateParent = nodeToTest.parent();
 
 					if (immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot) {
-						if (viewer.hasElement(node)) {
+						if (viewer.hasNode(node)) {
 							viewer.collapse(node, true);
 						} else {
 							viewer.collapseAll();
@@ -318,7 +327,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		const firstFocusParent = viewer.getFocus()[0]?.parent();
 
 		if (firstFocusParent && (firstFocusParent instanceof FolderMatch || firstFocusParent instanceof FileMatch) &&
-			viewer.hasElement(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
+			viewer.hasNode(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
 			viewer.domFocus();
 			viewer.focusFirst();
 			viewer.setSelection(viewer.getFocus());
