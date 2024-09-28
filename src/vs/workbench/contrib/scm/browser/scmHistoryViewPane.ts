@@ -428,15 +428,9 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			})
 		]);
 
-		if (historyItemRefs.length > 1) {
-			elements.count.textContent = historyItemRefs.length.toString();
-		}
-
+		elements.count.textContent = historyItemRefs.length > 1 ? historyItemRefs.length.toString() : '';
 		elements.icon.classList.add(...ThemeIcon.asClassNameArray(historyItemRefs[0].icon));
-
-		if (showDescription) {
-			elements.description.textContent = historyItemRefs[0].name;
-		}
+		elements.description.textContent = showDescription ? historyItemRefs[0].name : '';
 
 		append(templateData.labelContainer, elements.root);
 	}
