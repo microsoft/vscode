@@ -23,6 +23,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -160,6 +161,7 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 ];
 
 suite('Workbench - TerminalLocalLinkDetector', () => {
+	const suiteStore = new DisposableStore();
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
@@ -191,8 +193,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		await assertLinks(TerminalBuiltinLinkType.LocalFile, `[${link}]`, [{ uri, range: [[2, 1], [link.length + 1, 1]] }]);
 	}
 
-	setup(async () => {
-		instantiationService = store.add(new TestInstantiationService());
+	suiteSetup(async () => {
+		instantiationService = suiteStore.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
@@ -205,10 +207,18 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 		instantiationService.stub(ITerminalLogService, new NullLogService());
 		resolver = instantiationService.createInstance(TerminalLinkResolver);
-		validResources = [];
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
+		xterm = suiteStore.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
+	});
+
+	suiteTeardown(() => {
+		suiteStore.dispose();
+	});
+
+	setup(() => {
+		validResources = [];
+		xterm.reset();
 	});
 
 	suite('platform independent', () => {
