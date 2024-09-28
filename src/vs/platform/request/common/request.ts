@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CONTEXT_LOG_LEVEL, ILogger, ILoggerService, LogLevel, LogLevelToString } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { streamToBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { localize } from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ILogService } from '../../log/common/log.js';
+import { Registry } from '../../registry/common/platform.js';
 
 export const IRequestService = createDecorator<IRequestService>('requestService');
 
@@ -68,28 +68,21 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly logger: ILogger;
 	private counter = 0;
 
-	constructor(
-		loggerService: ILoggerService
-	) {
+	constructor(protected readonly logService: ILogService) {
 		super();
-		this.logger = loggerService.createLogger('network', {
-			name: localize('request', "Network Requests"),
-			when: CONTEXT_LOG_LEVEL.isEqualTo(LogLevelToString(LogLevel.Trace)).serialize()
-		});
 	}
 
-	protected async logAndRequest(stack: string, options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
-		const prefix = `${stack} #${++this.counter}: ${options.url}`;
-		this.logger.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
+	protected async logAndRequest(options: IRequestOptions, request: () => Promise<IRequestContext>): Promise<IRequestContext> {
+		const prefix = `[network] #${++this.counter}: ${options.url}`;
+		this.logService.trace(`${prefix} - begin`, options.type, new LoggableHeaders(options.headers ?? {}));
 		try {
 			const result = await request();
-			this.logger.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
+			this.logService.trace(`${prefix} - end`, options.type, result.res.statusCode, result.res.headers);
 			return result;
 		} catch (error) {
-			this.logger.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
 			throw error;
 		}
 	}
@@ -209,6 +202,12 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				tags: ['experimental'],
 				default: false,
 				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
+				restricted: true
+			},
+			'http.electronFetch': {
+				type: 'boolean',
+				default: false,
+				description: localize('electronFetch', "Controls whether use of Electron's fetch implementation instead of Node.js' should be enabled. All local extensions will get Electron's fetch implementation for the global fetch API."),
 				restricted: true
 			}
 		}

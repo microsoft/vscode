@@ -7460,9 +7460,10 @@ declare module 'vscode' {
 		 *   if (terminal === myTerm) {
 		 *     const execution = shellIntegration.executeCommand('echo "Hello world"');
 		 *     window.onDidEndTerminalShellExecution(event => {
-		 *     if (event.execution === execution) {
-		 *       console.log(`Command exited with code ${event.exitCode}`);
-		 *     }
+		 *       if (event.execution === execution) {
+		 *         console.log(`Command exited with code ${event.exitCode}`);
+		 *       }
+		 *     });
 		 *   }
 		 * }));
 		 * // Fallback to sendText if there is no shell integration within 3 seconds of launching
@@ -7480,9 +7481,10 @@ declare module 'vscode' {
 		 * if (term.shellIntegration) {
 		 *   const execution = shellIntegration.executeCommand({ commandLine });
 		 *   window.onDidEndTerminalShellExecution(event => {
-		 *   if (event.execution === execution) {
-		 *     console.log(`Command exited with code ${event.exitCode}`);
-		 *   }
+		 *     if (event.execution === execution) {
+		 *       console.log(`Command exited with code ${event.exitCode}`);
+		 *     }
+		 *   });
 		 * } else {
 		 *   term.sendText(commandLine);
 		 *   // Without shell integration, we can't know when the command has finished or what the
@@ -7505,7 +7507,7 @@ declare module 'vscode' {
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
-		 * window.onDidActivateTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		 * window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
 		 *   if (terminal === myTerm) {
 		 *     const command = shellIntegration.executeCommand({
 		 *       command: 'echo',
@@ -13509,8 +13511,9 @@ declare module 'vscode' {
 		 * `**` or path segments), it will be watched recursively and otherwise will be watched
 		 * non-recursively (i.e. only changes to the first level of the path will be reported).
 		 *
-		 * *Note* that paths must exist in the file system to be watched. File watching may stop when
-		 * the watched path is renamed or deleted.
+		 * *Note* that paths that do not exist in the file system will be monitored with a delay until
+		 * created and then watched depending on the parameters provided. If a watched path is deleted,
+		 * the watcher will suspend and not report any events until the path is created again.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
@@ -13525,25 +13528,12 @@ declare module 'vscode' {
 		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
-		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
+		 * that are known to produce many file changes at once (such as `.git` folders). As such,
 		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
 		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
-		 *
-		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
-		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
-		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
-		 * The underlying behaviour depends on the path that is provided for watching:
-		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
-		 *   excluded via `files.watcherExclude` setting
-		 * * if the path is equal to any of the workspace folders, deletions are not tracked
-		 * * if the path is outside of any of the workspace folders, deletions are not tracked
-		 *
-		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
-		 * folder) to not accidentally watch all sibling folders recursively.
 		 *
 		 * *Note* that the file paths that are reported for having changed may have a different path casing
 		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
@@ -18094,6 +18084,34 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A stack frame found in the {@link TestMessage.stackTrace}.
+	 */
+	export class TestMessageStackFrame {
+		/**
+		 * The location of this stack frame. This should be provided as a URI if the
+		 * location of the call frame can be accessed by the editor.
+		 */
+		uri?: Uri;
+
+		/**
+		 * Position of the stack frame within the file.
+		 */
+		position?: Position;
+
+		/**
+		 * The name of the stack frame, typically a method or function name.
+		 */
+		label: string;
+
+		/**
+		 * @param label The name of the stack frame
+		 * @param file The file URI of the stack frame
+		 * @param position The position of the stack frame within the file
+		 */
+		constructor(label: string, uri?: Uri, position?: Position);
+	}
+
+	/**
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
@@ -18148,6 +18166,11 @@ declare module 'vscode' {
 		 * - `message`: the {@link TestMessage} instance.
 		 */
 		contextValue?: string;
+
+		/**
+		 * The stack trace associated with the message or failure.
+		 */
+		stackTrace?: TestMessageStackFrame[];
 
 		/**
 		 * Creates a new TestMessage that will present as a diff in the editor.

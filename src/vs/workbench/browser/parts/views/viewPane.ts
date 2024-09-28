@@ -3,56 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/paneviewlet';
-import * as nls from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
-import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined, PartialExcept } from 'vs/base/common/types';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Link } from 'vs/platform/opener/browser/link';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { URI } from 'vs/base/common/uri';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/views/viewFilter';
-import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { PANEL_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from 'vs/workbench/common/theme';
-import { IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
+import './media/paneviewlet.css';
+import * as nls from '../../../../nls.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { asCssVariable, foreground } from '../../../../platform/theme/common/colorRegistry.js';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from '../../../../base/browser/dom.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Action, IAction, IActionRunner } from '../../../../base/common/actions.js';
+import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IPaneOptions, Pane, IPaneStyles } from '../../../../base/browser/ui/splitview/paneview.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { assertIsDefined, PartialExcept } from '../../../../base/common/types.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { MenuId, Action2, IAction2Options, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
+import { AbstractProgressScope, ScopedProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
+import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { URI } from '../../../../base/common/uri.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { CompositeMenuActions } from '../../actions.js';
+import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { FilterWidget, IFilterWidgetOptions } from './viewFilter.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from '../../../common/theme.js';
+import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -793,15 +793,17 @@ export abstract class FilterViewPane extends ViewPane {
 
 export interface IViewPaneLocationColors {
 	background: string;
+	overlayBackground: string;
 	listOverrideStyles: PartialExcept<IListStyles, 'listBackground' | 'treeStickyScrollBackground'>;
 }
 
 export function getLocationBasedViewColors(location: ViewContainerLocation | null): IViewPaneLocationColors {
-	let background, stickyScrollBackground, stickyScrollBorder, stickyScrollShadow;
+	let background, overlayBackground, stickyScrollBackground, stickyScrollBorder, stickyScrollShadow;
 
 	switch (location) {
 		case ViewContainerLocation.Panel:
 			background = PANEL_BACKGROUND;
+			overlayBackground = PANEL_SECTION_DRAG_AND_DROP_BACKGROUND;
 			stickyScrollBackground = PANEL_STICKY_SCROLL_BACKGROUND;
 			stickyScrollBorder = PANEL_STICKY_SCROLL_BORDER;
 			stickyScrollShadow = PANEL_STICKY_SCROLL_SHADOW;
@@ -811,6 +813,7 @@ export function getLocationBasedViewColors(location: ViewContainerLocation | nul
 		case ViewContainerLocation.AuxiliaryBar:
 		default:
 			background = SIDE_BAR_BACKGROUND;
+			overlayBackground = SIDE_BAR_DRAG_AND_DROP_BACKGROUND;
 			stickyScrollBackground = SIDE_BAR_STICKY_SCROLL_BACKGROUND;
 			stickyScrollBorder = SIDE_BAR_STICKY_SCROLL_BORDER;
 			stickyScrollShadow = SIDE_BAR_STICKY_SCROLL_SHADOW;
@@ -818,6 +821,7 @@ export function getLocationBasedViewColors(location: ViewContainerLocation | nul
 
 	return {
 		background,
+		overlayBackground,
 		listOverrideStyles: {
 			listBackground: background,
 			treeStickyScrollBackground: stickyScrollBackground,
@@ -834,12 +838,13 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): unknown {
 		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
 		if (view) {
 			return this.runInView(accessor, <T>view, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): unknown;
 }

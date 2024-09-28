@@ -3,66 +3,69 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/interactive';
-import * as DOM from 'vs/base/browser/dom';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { ICodeEditorViewState } from 'vs/editor/common/editorCommon';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from 'vs/workbench/common/editor';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IAction } from 'vs/base/common/actions';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ParameterHintsController } from 'vs/editor/contrib/parameterHints/browser/parameterHints';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ITextEditorOptions, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { isEqual } from 'vs/base/common/resources';
-import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
-import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import 'vs/css!./interactiveEditor';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { deepClone } from 'vs/base/common/objects';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
-import { ReplInputHintContentWidget } from 'vs/workbench/contrib/interactive/browser/replInputHintContentWidget';
+import './media/interactive.css';
+import * as DOM from '../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditorViewState, ICompositeCodeEditor } from '../../../../editor/common/editorCommon.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from '../../../common/editor.js';
+import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { InteractiveEditorInput } from './interactiveEditorInput.js';
+import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from '../../notebook/browser/notebookBrowser.js';
+import { NotebookEditorExtensionsRegistry } from '../../notebook/browser/notebookEditorExtensions.js';
+import { IBorrowValue, INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
+import { NotebookEditorWidget } from '../../notebook/browser/notebookEditorWidget.js';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from '../../notebook/browser/contrib/cellStatusBar/executionStatusBarItemController.js';
+import { INotebookKernelService } from '../../notebook/common/notebookKernelService.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from './interactiveCommon.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
+import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
+import { ParameterHintsController } from '../../../../editor/contrib/parameterHints/browser/parameterHints.js';
+import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
+import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
+import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { TabCompletionController } from '../../snippets/browser/tabCompletion.js';
+import { MarkerController } from '../../../../editor/contrib/gotoError/browser/gotoError.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ITextEditorOptions, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
+import { INotebookExecutionStateService, NotebookExecutionType } from '../../notebook/common/notebookExecutionStateService.js';
+import { NOTEBOOK_KERNEL } from '../../notebook/common/notebookContextKeys.js';
+import { ICursorPositionChangedEvent } from '../../../../editor/common/cursorEvents.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { NotebookFindContrib } from '../../notebook/browser/contrib/find/notebookFindWidget.js';
+import { INTERACTIVE_WINDOW_EDITOR_ID } from '../../notebook/common/notebookCommon.js';
+import './interactiveEditor.css';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { ReplInputHintContentWidget } from './replInputHintContentWidget.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { INLINE_CHAT_ID } from '../../inlineChat/common/inlineChat.js';
+import { ReplEditorControl } from '../../replNotebook/browser/replEditor.js';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -146,9 +149,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			themeService,
 			storageService
 		);
-		this._instantiationService = instantiationService;
 		this._notebookWidgetService = notebookWidgetService;
-		this._contextKeyService = contextKeyService;
 		this._configurationService = configurationService;
 		this._notebookKernelService = notebookKernelService;
 		this._languageService = languageService;
@@ -158,6 +159,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._editorGroupService = editorGroupService;
 		this._notebookExecutionStateService = notebookExecutionStateService;
 		this._extensionService = extensionService;
+
+		this._rootElement = DOM.$('.interactive-editor');
+		this._contextKeyService = this._register(contextKeyService.createScoped(this._rootElement));
+		this._contextKeyService.createKey('isCompositeNotebook', true);
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 
 		this._editorOptions = this._computeEditorOptions();
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -189,7 +195,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
+		DOM.append(parent, this._rootElement);
 		this._rootElement.style.position = 'relative';
 		this._notebookEditorContainer = DOM.append(this._rootElement, DOM.$('.notebook-editor-container'));
 		this._inputCellContainer = DOM.append(this._rootElement, DOM.$('.input-cell-container'));
@@ -363,8 +369,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		this._widgetDisposableStore.clear();
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, notebookInput, {
-			isEmbedded: true,
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group.id, notebookInput, {
+			isReplHistory: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
@@ -384,7 +390,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions,
@@ -403,8 +409,9 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 					SnippetController2.ID,
 					TabCompletionController.ID,
 					ContentHoverController.ID,
-					MarginHoverController.ID,
-					MarkerController.ID
+					GlyphHoverController.ID,
+					MarkerController.ID,
+					INLINE_CHAT_ID
 				])
 			}
 		});
@@ -499,6 +506,12 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			}
 		}));
 
+		this._codeEditorWidget.onDidChangeModelDecorations(() => {
+			if (this.isVisible()) {
+				this._updateInputHint();
+			}
+		});
+
 		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeModel(() => {
 			this._updateInputHint();
 		}));
@@ -541,8 +554,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel.getValue();
-			if (this.input?.resource && value !== '') {
-				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
+			if (this.input?.resource) {
+				const historyService = (this.input as InteractiveEditorInput).historyService;
+				if (!historyService.matchesCurrent(this.input.resource, value)) {
+					historyService.replaceLast(this.input.resource, value);
+				}
 			}
 		}));
 
@@ -646,6 +662,15 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		return new DOM.Dimension(Math.max(0, width), Math.max(0, height));
 	}
 
+	private _hasConflictingDecoration() {
+		return Boolean(this._codeEditorWidget.getLineDecorations(1)?.find((d) =>
+			d.options.beforeContentClassName
+			|| d.options.afterContentClassName
+			|| d.options.before?.content
+			|| d.options.after?.content
+		));
+	}
+
 	private _updateInputHint(): void {
 		if (!this._codeEditorWidget) {
 			return;
@@ -654,7 +679,8 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		const shouldHide =
 			!this._codeEditorWidget.hasModel() ||
 			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
-			this._codeEditorWidget.getModel()!.getValueLength() !== 0;
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0 ||
+			this._hasConflictingDecoration();
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
@@ -714,10 +740,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
+	override getControl(): ReplEditorControl & ICompositeCodeEditor {
 		return {
 			notebookEditor: this._notebookWidget.value,
-			codeEditor: this._codeEditorWidget
+			activeCodeEditor: this._codeEditorWidget,
+			onDidChangeActiveEditor: Event.None
 		};
 	}
 }

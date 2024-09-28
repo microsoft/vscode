@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStateReadService, IStateService } from 'vs/platform/state/node/state';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { isString } from 'vs/base/common/types';
-import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { IStateReadService, IStateService } from '../../state/node/state.js';
+import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations } from '../common/userDataProfile.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { isString } from '../../../base/common/types.js';
+import { SaveStrategy, StateService } from '../../state/node/stateService.js';
 
 type StoredUserDataProfileState = StoredUserDataProfile & { location: URI | string };
 

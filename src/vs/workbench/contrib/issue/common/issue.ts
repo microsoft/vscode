@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { OldIssueReporterData } from 'vs/platform/issue/common/issue';
+import { UriComponents } from '../../../../base/common/uri.js';
+import { ISandboxConfiguration } from '../../../../base/parts/sandbox/common/sandboxTypes.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { OldIssueReporterData } from '../../../../platform/issue/common/issue.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
 // should not be sent as their 'toString' method will be stripped. Instead convert to strings before sending.

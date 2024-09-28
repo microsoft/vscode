@@ -3,48 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
-import { IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
-import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IInputBoxStyles, IMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Action } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/browser/findModel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ContextScopedReplaceInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as nls from '../../../../nls.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
+import { IFindInputOptions } from '../../../../base/browser/ui/findinput/findInput.js';
+import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
+import { IInputBoxStyles, IMessage, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from '../../../../editor/contrib/find/browser/findModel.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ContextScopedReplaceInput } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from './searchActionsBase.js';
+import * as Constants from '../common/constants.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { IToggleStyles, Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from './searchIcons.js';
+import { ToggleSearchEditorContextLinesCommandId } from '../../searchEditor/browser/constants.js';
+import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
+import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFilters.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { NotebookEditorInput } from '../../notebook/common/notebookEditorInput.js';
+import { GroupModelChangeKind } from '../../../common/editor.js';
+import { SearchFindInput } from './searchFindInput.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { NotebookFindScopeType } from '../../notebook/common/notebookCommon.js';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -63,7 +63,6 @@ export interface ISearchWidgetOptions {
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
 	notebookOptions?: NotebookToggleState;
-	initialAIButtonVisibility?: boolean;
 }
 
 interface NotebookToggleState {
@@ -422,7 +421,6 @@ export class SearchWidget extends Widget {
 				this.contextMenuService,
 				this.instantiationService,
 				this._notebookFilters,
-				options.initialAIButtonVisibility ?? false,
 				this._hasNotebookOpen()
 			)
 		);
@@ -608,7 +606,6 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
-			const delayMultiplierFromAISearch = (this.searchInput && this.searchInput.isAIEnabled) ? 5 : 1; // expand debounce period to multiple by 5 if AI is enabled
 			if (this.searchInput?.getRegex()) {
 				try {
 					const regex = new RegExp(this.searchInput.getValue(), 'ug');
@@ -628,12 +625,12 @@ export class SearchWidget extends Widget {
 								10; // only things matching empty string
 
 
-					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier * delayMultiplierFromAISearch);
+					this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplier);
 				} catch {
 					// pass
 				}
 			} else {
-				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod * delayMultiplierFromAISearch);
+				this.submitSearch(true, this.searchConfiguration.searchOnTypeDebouncePeriod);
 			}
 		}
 	}

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows, platform } from 'vs/base/common/platform';
-import { TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { timeout } from '../../../base/common/async.js';
+import { debounce } from '../../../base/common/decorators.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { isWindows, platform } from '../../../base/common/platform.js';
+import { GeneralShellType, TerminalShellType, WindowsShellType } from '../common/terminal.js';
 import type * as WindowsProcessTreeType from '@vscode/windows-process-tree';
 
 export interface IWindowsShellHelper extends IDisposable {
@@ -139,12 +139,14 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return WindowsShellType.CommandPrompt;
 			case 'powershell.exe':
 			case 'pwsh.exe':
-				return WindowsShellType.PowerShell;
+				return GeneralShellType.PowerShell;
 			case 'bash.exe':
 			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
-			case 'julia.exe:':
-				return WindowsShellType.Julia;
+			case 'julialauncher.exe':
+				return GeneralShellType.Julia;
+			case 'nu.exe':
+				return GeneralShellType.NuShell;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':
@@ -155,7 +157,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return WindowsShellType.Wsl;
 			default:
 				if (executable.match(/python(\d(\.\d{0,2})?)?\.exe/)) {
-					return WindowsShellType.Python;
+					return GeneralShellType.Python;
 				}
 				return undefined;
 		}

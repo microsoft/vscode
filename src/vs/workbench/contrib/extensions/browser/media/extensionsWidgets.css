@@ -67,7 +67,7 @@
 	bottom: 9px;
 	left: 1px;
 	color: inherit;
-	font-size: 80%;
+	font-size: 80% !important;
 }
 
 .extension-bookmark .recommendation {

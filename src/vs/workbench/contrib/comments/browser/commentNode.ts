@@ -3,53 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import * as languages from 'vs/editor/common/languages';
-import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, IActionRunner, IAction, Separator, ActionRunner } from 'vs/base/common/actions';
-import { Disposable, IDisposable, IReference, dispose } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Emitter, Event } from 'vs/base/common/event';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction';
-import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { MenuItemAction, SubmenuItemAction, IMenu, MenuId } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IRange } from 'vs/editor/common/core/range';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { DomEmitter } from 'vs/base/browser/event';
-import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { FileAccess, Schemas } from 'vs/base/common/network';
-import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MarshalledCommentThread } from 'vs/workbench/common/comments';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import * as nls from '../../../../nls.js';
+import * as dom from '../../../../base/browser/dom.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { ActionsOrientation, ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action, IActionRunner, IAction, Separator, ActionRunner } from '../../../../base/common/actions.js';
+import { Disposable, IDisposable, IReference, dispose } from '../../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommentService } from './commentService.js';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
+import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction.js';
+import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
+import { MenuItemAction, SubmenuItemAction, IMenu, MenuId } from '../../../../platform/actions/common/actions.js';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { CommentFormActions } from './commentFormActions.js';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { TimestampWidget } from './timestamp.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { ICellRange } from '../../notebook/common/notebookRange.js';
+import { CommentMenus } from './commentMenus.js';
+import { Scrollable, ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { DomEmitter } from '../../../../base/browser/event.js';
+import { CommentContextKeys } from '../common/commentContextKeys.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
+import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { MarshalledCommentThread } from '../../../common/comments.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -633,7 +633,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentFormActions?.setActions(menu);
 		}));
 
-		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
+		this._commentFormActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({
@@ -659,7 +659,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditorActions?.setActions(menu);
 		}));
 
-		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, container, (action: IAction): void => {
+		this._commentEditorActions = new CommentFormActions(this.keybindingService, this._contextKeyService, this.contextMenuService, container, (action: IAction): void => {
 			const text = this._commentEditor!.getValue();
 
 			action.run({

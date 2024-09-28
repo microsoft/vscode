@@ -3,56 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalBackend, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { Codicon } from 'vs/base/common/codicons';
-import { Action } from 'vs/base/common/actions';
-import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import Severity from 'vs/base/common/severity';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { disposableTimeout } from 'vs/base/common/async';
-import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { URI } from 'vs/base/common/uri';
-import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IEditableData } from 'vs/workbench/common/views';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
-import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { Emitter } from 'vs/base/common/event';
-import { Schemas } from 'vs/base/common/network';
-import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ITerminalConfigurationService, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from './terminal.js';
+import { localize } from '../../../../nls.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { TerminalCommandId } from '../common/terminal.js';
+import { ITerminalBackend, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Action } from '../../../../base/common/actions.js';
+import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import Severity from '../../../../base/common/severity.js';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../base/browser/ui/list/list.js';
+import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from '../../../../base/browser/ui/list/listView.js';
+import { URI } from '../../../../base/common/uri.js';
+import { getColorClass, getIconId, getUriClasses } from './terminalIcon.js';
+import { IEditableData } from '../../../common/views.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { CodeDataTransfers, containsDragType } from '../../../../platform/dnd/browser/dnd.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IProcessDetails } from '../../../../platform/terminal/common/terminalProcess.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { getTerminalResourcesFromDragEvent, parseTerminalUri } from './terminalUri.js';
+import { getInstanceHoverInfo } from './terminalTooltip.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { getColorForSeverity } from './terminalStatusList.js';
+import { TerminalContextActionRunner } from './terminalContextMenu.js';
+import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 const $ = DOM.$;
 
@@ -588,6 +588,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IHostService private readonly _hostService: IHostService,
+		@IListService private readonly _listService: IListService,
 	) {
 		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
@@ -718,11 +719,21 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		if (!targetInstance) {
 			this._terminalGroupService.moveGroupToEnd(sourceInstances);
 			this._terminalService.setActiveInstance(sourceInstances[0]);
+			const targetGroup = this._terminalGroupService.getGroupForInstance(sourceInstances[0]);
+			if (targetGroup) {
+				const index = this._terminalGroupService.groups.indexOf(targetGroup);
+				this._listService.lastFocusedList?.setSelection([index]);
+			}
 			return;
 		}
 
 		this._terminalGroupService.moveGroup(sourceInstances, targetInstance);
 		this._terminalService.setActiveInstance(sourceInstances[0]);
+		const targetGroup = this._terminalGroupService.getGroupForInstance(sourceInstances[0]);
+		if (targetGroup) {
+			const index = this._terminalGroupService.groups.indexOf(targetGroup);
+			this._listService.lastFocusedList?.setSelection([index]);
+		}
 	}
 
 	private async _handleExternalDrop(instance: ITerminalInstance | undefined, e: DragEvent) {

@@ -2,37 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IMatch } from 'vs/base/common/filters';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
-import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IRange } from 'vs/editor/common/core/range';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
-import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { Event } from 'vs/base/common/event';
-import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { Sequencer } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { Codicon } from 'vs/base/common/codicons';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IMatch } from '../../../../../base/common/filters.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { WorkbenchCompressibleAsyncDataTree, getSelectionKeyboardEvent } from '../../../../../platform/list/browser/listService.js';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessSeparator, PickerQuickAccessProvider, Picks, TriggerAction } from '../../../../../platform/quickinput/browser/pickerQuickAccess.js';
+import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
+import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
+import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
+import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, SearchResult, searchComparer } from '../searchModel.js';
+import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
+import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ITextQueryBuilderOptions, QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from '../../../../services/search/common/search.js';
+import { Event } from '../../../../../base/common/event.js';
+import { PickerEditorState } from '../../../../browser/quickaccess.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { Sequencer } from '../../../../../base/common/async.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -111,9 +111,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			tooltip: localize('goToSearch', "See in Search Panel")
 		}];
 		this.editorViewState.reset();
-		disposables.add(picker.onDidTriggerButton(() => {
+		disposables.add(picker.onDidTriggerButton(async () => {
 			if (this.searchModel.searchResult.count() > 0) {
-				this.moveToSearchViewlet(undefined);
+				await this.moveToSearchViewlet(undefined);
 			} else {
 				this._viewsService.openView(VIEW_ID, true);
 			}
@@ -200,25 +200,25 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			this.currentAsyncSearch = result.asyncResults;
 			await result.asyncResults;
 			const syncResultURIs = new ResourceSet(result.syncResults.map(e => e.resource));
-			return this.searchModel.searchResult.matches().filter(e => !syncResultURIs.has(e.resource));
+			return this.searchModel.searchResult.matches(false).filter(e => !syncResultURIs.has(e.resource));
 		};
 		return {
-			syncResults: this.searchModel.searchResult.matches(),
+			syncResults: this.searchModel.searchResult.matches(false),
 			asyncResults: getAsyncResults()
 		};
 	}
 
-	private moveToSearchViewlet(currentElem: RenderableMatch | undefined) {
+	private async moveToSearchViewlet(currentElem: RenderableMatch | undefined) {
 		// this function takes this._searchModel and moves it to the search viewlet's search model.
 		// then, this._searchModel will construct a new (empty) SearchModel.
 		this._viewsService.openView(VIEW_ID, false);
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
-		viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
+		await viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
 
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
-		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
+		const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = viewlet?.getControl();
 		if (currentElem) {
 			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
 			viewer.setSelection([currentElem], getSelectionKeyboardEvent());
@@ -255,7 +255,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					label: localize('QuickSearchSeeMoreFiles', "See More Files"),
 					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
-						this.moveToSearchViewlet(matches[limit]);
+						await this.moveToSearchViewlet(matches[limit]);
 					}
 				});
 				break;
@@ -290,7 +290,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 						label: localize('QuickSearchMore', "More"),
 						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
-							this.moveToSearchViewlet(element);
+							await this.moveToSearchViewlet(element);
 						}
 					});
 					break;
@@ -320,8 +320,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 							forcePinned: event.inBackground
 						});
 					},
-					trigger: (): TriggerAction => {
-						this.moveToSearchViewlet(element);
+					trigger: async (): Promise<TriggerAction> => {
+						await this.moveToSearchViewlet(element);
 						return TriggerAction.CLOSE_PICKER;
 					},
 					match: element

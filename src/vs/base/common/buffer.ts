@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
-import * as streams from 'vs/base/common/stream';
+import { Lazy } from './lazy.js';
+import * as streams from './stream.js';
 
 declare const Buffer: any;
 

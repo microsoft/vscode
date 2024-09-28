@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize2 } from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { localize2 } from '../../../../../nls.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
+import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
+import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
+import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
+import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { TerminalChatController } from './terminalChatController.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -36,7 +36,7 @@ registerActiveXtermAction({
 			return;
 		}
 
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 
 		if (opts) {
 			opts = typeof opts === 'string' ? { query: opts } : opts;
@@ -76,7 +76,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.clear();
 	}
 });
@@ -98,8 +98,8 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.inlineChatWidget.chatWidget.focusLastMessage();
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
+		contr?.chatWidget?.focusLastMessage();
 	}
 });
 
@@ -121,8 +121,8 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.focus();
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
+		contr?.terminalChatWidget?.focus();
 	}
 });
 
@@ -150,7 +150,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.clear();
 	}
 });
@@ -182,7 +182,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(true);
 	}
 });
@@ -212,7 +212,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(true);
 	}
 });
@@ -243,7 +243,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(false);
 	}
 });
@@ -273,7 +273,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(false);
 	}
 });
@@ -302,7 +302,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.viewInChat();
 	}
 });
@@ -331,7 +331,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptInput();
 	}
 });
@@ -352,7 +352,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.cancel();
 	}
 });
@@ -371,7 +371,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.populateHistory(true);
 	}
 });
@@ -390,7 +390,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.populateHistory(false);
 	}
 });

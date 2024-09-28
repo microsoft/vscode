@@ -3,40 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panel';
-import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-import { basename } from 'vs/base/common/resources';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CommentNode, ICommentThreadChangedEvent, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
-import { IViewPaneOptions, FilterViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CommentsViewFilterFocusContextKey, ICommentsView } from 'vs/workbench/contrib/comments/browser/comments';
-import { CommentsFilters, CommentsFiltersChangeEvent, CommentsSortOrder } from 'vs/workbench/contrib/comments/browser/commentsViewActions';
-import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
-import { CommentThreadApplicability, CommentThreadState } from 'vs/editor/common/languages';
-import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
-import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { CommentsModel, threadHasMeaningfulComments, type ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import type { ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import './media/panel.css';
+import * as nls from '../../../../nls.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { basename } from '../../../../base/common/resources.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { CommentNode, ICommentThreadChangedEvent, ResourceWithCommentThreads } from '../common/commentModel.js';
+import { ICommentService, IWorkspaceCommentThreadsEvent } from './commentService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ResourceLabels } from '../../../browser/labels.js';
+import { CommentsList, COMMENTS_VIEW_TITLE, Filter } from './commentsTreeViewer.js';
+import { IViewPaneOptions, FilterViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { CommentsViewFilterFocusContextKey, ICommentsView } from './comments.js';
+import { CommentsFilters, CommentsFiltersChangeEvent, CommentsSortOrder } from './commentsViewActions.js';
+import { Memento, MementoObject } from '../../../common/memento.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { FilterOptions } from './commentsFilterOptions.js';
+import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
+import { revealCommentThread } from './commentsController.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { CommentsModel, threadHasMeaningfulComments, type ICommentsModel } from './commentsModel.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
+import type { ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 export const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -149,7 +150,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		@IHoverService hoverService: IHoverService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IStorageService storageService: IStorageService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
 	) {
 		const stateMemento = new Memento(VIEW_STORAGE_ID, storageService);
 		const viewState = stateMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -172,7 +173,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.filters = this._register(new CommentsFilters({
 			showResolved: this.viewState['showResolved'] !== false,
 			showUnresolved: this.viewState['showUnresolved'] !== false,
-			sortBy: this.viewState['sortBy'],
+			sortBy: this.viewState['sortBy'] ?? CommentsSortOrder.ResourceAscending,
 		}, this.contextKeyService));
 		this.filter = new Filter(new FilterOptions(this.filterWidget.getFilterText(), this.filters.showResolved, this.filters.showUnresolved));
 
@@ -343,32 +344,43 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 		const replyCount = this.getReplyCountAsString(element, forAriaLabel);
 		const replies = this.getRepliesAsString(element, forAriaLabel);
+		const editor = this.editorService.findEditors(element.resource);
+		const codeEditor = this.editorService.activeEditorPane?.getControl();
+		let content;
+		if (element.range && editor?.length && isCodeEditor(codeEditor)) {
+			content = codeEditor.getModel()?.getValueInRange(element.range);
+			if (content) {
+				content = '\nCorresponding code: \n' + content;
+			}
+		}
 		if (element.range) {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelOutdated',
-					"Outdated from {0} at line {1} column {2} in {3},{4} comment: {5}",
-					element.comment.userName,
-					element.range.startLineNumber,
-					element.range.startColumn,
-					basename(element.resource),
-					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-				) + replies;
-			} else {
-				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
-					"{0} at line {1} column {2} in {3},{4} comment: {5}",
+					"Outdated from {0} at line {1} column {2} in {3}{4}\nComment: {5}{6}",
 					element.comment.userName,
 					element.range.startLineNumber,
 					element.range.startColumn,
 					basename(element.resource),
 					replyCount,
 					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content,
+				) + replies;
+			} else {
+				return accessibleViewHint + nls.localize('resourceWithCommentLabel',
+					"{0} at line {1} column {2} in {3} {4}\nComment: {5}{6}",
+					element.comment.userName,
+					element.range.startLineNumber,
+					element.range.startColumn,
+					basename(element.resource),
+					replyCount,
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content,
 				) + replies;
 			}
 		} else {
 			if (element.threadRelevance === CommentThreadApplicability.Outdated) {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFileOutdated',
-					"Outdated from {0} in {1},{2} comment: {3}",
+					"Outdated from {0} in {1} {2}\nComment: {3}{4}{5}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
@@ -376,11 +388,12 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				) + replies;
 			} else {
 				return accessibleViewHint + nls.localize('resourceWithCommentLabelFile',
-					"{0} in {1},{2} comment: {3}",
+					"{0} in {1} {2}\nComment: {3}{4}",
 					element.comment.userName,
 					basename(element.resource),
 					replyCount,
-					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+					(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value,
+					content
 				) + replies;
 			}
 		}
