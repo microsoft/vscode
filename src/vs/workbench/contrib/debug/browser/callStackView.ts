@@ -51,6 +51,7 @@ import { isSessionAttach } from '../common/debugUtils.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import type { IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const $ = dom.$;
 

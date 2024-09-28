@@ -38,6 +38,8 @@ import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { CONTEXT_IN_CHAT_SESSION } from '../../chat/common/chatContextKeys.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
