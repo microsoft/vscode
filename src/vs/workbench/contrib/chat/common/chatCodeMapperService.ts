@@ -6,12 +6,15 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
+import { DocumentContextItem, isLocation, TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatAgentResult } from './chatAgents.js';
 import { IChatResponseModel } from './chatModel.js';
+import { IChatContentReference } from './chatService.js';
 
 
 export interface ICodeMapperResponse {
@@ -19,8 +22,9 @@ export interface ICodeMapperResponse {
 }
 
 export interface ICodeMapperCodeBlock {
-	code: string;
-	resource: URI;
+	readonly code: string;
+	readonly resource: URI;
+	readonly markdownBeforeBlock?: string;
 }
 
 export interface ConversationRequest {
@@ -31,16 +35,17 @@ export interface ConversationRequest {
 export interface ConversationResponse {
 	readonly type: 'response';
 	readonly message: string;
-	// readonly references?: DocumentContextItem[];
+	readonly result?: IChatAgentResult;
+	readonly references?: DocumentContextItem[];
 }
 
 export interface ICodeMapperRequest {
-	codeBlocks: ICodeMapperCodeBlock[];
-	conversation: (ConversationRequest | ConversationResponse)[];
+	readonly codeBlocks: ICodeMapperCodeBlock[];
+	readonly conversation: (ConversationResponse | ConversationRequest)[];
 }
 
 export interface ICodeMapperResult {
-	errorMessage?: string;
+	readonly errorMessage?: string;
 }
 
 export interface ICodeMapperProvider {
@@ -103,7 +108,7 @@ export class CodeMapperService implements ICodeMapperService {
 						fence = undefined;
 						if (currentBlockUri) {
 							// report the code block if we have a URI
-							codeBlocks.push({ code: currentBlock.join(''), resource: currentBlockUri });
+							codeBlocks.push({ code: currentBlock.join(''), resource: currentBlockUri, markdownBeforeBlock: markdownBeforeBlock.join('') });
 							currentBlock.length = 0;
 							markdownBeforeBlock.length = 0;
 							currentBlockUri = undefined;
@@ -123,7 +128,24 @@ export class CodeMapperService implements ICodeMapperService {
 				currentBlockUri = lineOrUri;
 			}
 		}
-		return this.mapCode({ codeBlocks, conversation: [] }, response, token);
+		const conversation: (ConversationRequest | ConversationResponse)[] = [];
+		for (const request of responseModel.session.getRequests()) {
+			const response = request.response;
+			if (!response || response === responseModel) {
+				break;
+			}
+			conversation.push({
+				type: 'request',
+				message: request.message.text
+			});
+			conversation.push({
+				type: 'response',
+				message: response.response.toMarkdown(),
+				result: response.result,
+				references: getReferencesAsDocumentContext(response.contentReferences)
+			});
+		}
+		return this.mapCode({ codeBlocks, conversation }, response, token);
 	}
 }
 
@@ -154,4 +176,30 @@ function iterateLinesOrUris(responseModel: IChatResponseModel): Iterable<string 
 function isLineIncomplete(line: string) {
 	const lastChar = line.charCodeAt(line.length - 1);
 	return lastChar !== CharCode.LineFeed && lastChar !== CharCode.CarriageReturn;
+}
+
+
+export function getReferencesAsDocumentContext(res: readonly IChatContentReference[]): DocumentContextItem[] {
+	const map = new ResourceMap<DocumentContextItem>();
+	for (const r of res) {
+		let uri;
+		let range;
+		if (URI.isUri(r.reference)) {
+			uri = r.reference;
+		} else if (isLocation(r.reference)) {
+			uri = r.reference.uri;
+			range = r.reference.range;
+		}
+		if (uri) {
+			const item = map.get(uri);
+			if (item) {
+				if (range) {
+					item.ranges.push(range);
+				}
+			} else {
+				map.set(uri, { uri, version: -1, ranges: range ? [range] : [] });
+			}
+		}
+	}
+	return [...map.values()];
 }
