@@ -991,7 +991,7 @@ export interface ITerminalCommandSelector {
 	kind?: 'fix' | 'explain';
 }
 
-export interface ITerminalBackend extends ITerminalBackendContribHooks {
+export interface ITerminalBackend extends ITerminalBackendPtyServiceContributions {
 	readonly remoteAuthority: string | undefined;
 
 	readonly isResponsive: boolean;
@@ -1058,7 +1058,7 @@ export interface ITerminalBackend extends ITerminalBackendContribHooks {
 	restartPtyHost(): void;
 }
 
-export interface ITerminalBackendContribHooks {
+export interface ITerminalBackendPtyServiceContributions {
 	installAutoReply(match: string, reply: string): Promise<void>;
 	uninstallAllAutoReplies(): Promise<void>;
 }

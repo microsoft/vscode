@@ -361,11 +361,14 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		return this._labelService.getWorkspaceLabel(this._workspaceContextService.getWorkspace());
 	}
 
+	// #region Pty service contribution RPC calls
+
 	installAutoReply(match: string, reply: string): Promise<void> {
 		return this._proxy.installAutoReply(match, reply);
 	}
-
 	uninstallAllAutoReplies(): Promise<void> {
 		return this._proxy.uninstallAllAutoReplies();
 	}
+
+	// #endregion
 }
