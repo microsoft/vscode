@@ -205,7 +205,6 @@ export interface ITerminalConfiguration {
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
-	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
 		decorationsEnabled: 'both' | 'gutter' | 'overviewRuler' | 'never';
