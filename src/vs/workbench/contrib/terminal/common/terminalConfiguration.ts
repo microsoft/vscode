@@ -12,17 +12,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from '../../../common/configuration.js';
-
-// Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
-// they need to be declared at part of the rest of the terminal configuration
-import { terminalAccessibilityConfiguration } from '../../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalCommandGuideConfiguration } from '../../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalInitialHintConfiguration } from '../../terminalContrib/chat/common/terminalInitialHintConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalStickyScrollConfiguration } from '../../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalSuggestConfiguration } from '../../terminalContrib/suggest/common/terminalSuggestConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalTypeAheadConfiguration } from '../../terminalContrib/typeAhead/common/terminalTypeAheadConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalZoomConfiguration } from '../../terminalContrib/zoom/common/terminal.zoom.js'; // eslint-disable-line local/code-import-patterns
-import { terminalAutoRepliesConfiguration } from '../../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js'; // eslint-disable-line local/code-import-patterns
+import { terminalAccessibilityConfiguration, terminalAutoRepliesConfiguration, terminalCommandGuideConfiguration, terminalInitialHintConfiguration, terminalStickyScrollConfiguration, terminalSuggestConfiguration, terminalTypeAheadConfiguration, terminalZoomConfiguration } from '../terminalContribExports.js';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
