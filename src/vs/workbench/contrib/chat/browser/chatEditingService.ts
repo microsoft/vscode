@@ -574,6 +574,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 	}
@@ -708,7 +709,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[]): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource);
-		entry.appyEdits(textEdits);
+		entry.applyEdits(textEdits);
+		await this.editorService.openEditor({ original: { resource: entry.originalURI }, modified: { resource: entry.modifiedURI }, options: { inactive: true } });
 	}
 
 	private async _resolve(): Promise<void> {
@@ -796,7 +798,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this._register(resourceRef);
 	}
 
-	appyEdits(textEdits: TextEdit[]): void {
+	applyEdits(textEdits: TextEdit[]): void {
 		this.doc.applyEdits(textEdits);
 		this._stateObs.set(ModifiedFileEntryState.Undecided, undefined);
 	}
