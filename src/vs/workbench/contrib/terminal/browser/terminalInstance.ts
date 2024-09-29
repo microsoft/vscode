@@ -756,6 +756,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			Terminal,
 			this._cols,
 			this._rows,
+			undefined,
 			this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),
 			this.capabilities,
 			this._processManager.shellIntegrationNonce,
