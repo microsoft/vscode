@@ -40,9 +40,15 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 
 	public async provideWorkspaceSymbols(
 		search: string,
-		token: vscode.CancellationToken
+		token: vscode.CancellationToken,
+		maxResults?: number
 	): Promise<vscode.SymbolInformation[]> {
 		let file: string | undefined;
+		let symbols: vscode.SymbolInformation[] = [];
+
+		if (maxResults !== undefined && maxResults > 0) {
+			symbols = symbols.slice(0, maxResults);
+		}
 		if (this.searchAllOpenProjects) {
 			file = undefined;
 		} else {
