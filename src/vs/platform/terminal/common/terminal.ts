@@ -335,7 +335,6 @@ export interface IPtyService {
 
 	installAutoReply(match: string, reply: string): Promise<void>;
 	uninstallAllAutoReplies(): Promise<void>;
-	uninstallAutoReply(match: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
@@ -985,7 +984,7 @@ export interface ITerminalCommandSelector {
 	kind?: 'fix' | 'explain';
 }
 
-export interface ITerminalBackend {
+export interface ITerminalBackend extends ITerminalBackendContribHooks {
 	readonly remoteAuthority: string | undefined;
 
 	readonly isResponsive: boolean;
@@ -995,6 +994,7 @@ export interface ITerminalBackend {
 	 * has been actioned.
 	 */
 	readonly whenReady: Promise<void>;
+
 	/**
 	 * Signal to the backend that persistence has been actioned and is ready for use.
 	 */
@@ -1049,6 +1049,11 @@ export interface ITerminalBackend {
 	): Promise<ITerminalChildProcess>;
 
 	restartPtyHost(): void;
+}
+
+export interface ITerminalBackendContribHooks {
+	installAutoReply(match: string, reply: string): Promise<void>;
+	uninstallAllAutoReplies(): Promise<void>;
 }
 
 export const TerminalExtensions = {

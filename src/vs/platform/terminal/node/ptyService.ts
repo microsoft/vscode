@@ -425,12 +425,6 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 		}
 	}
-	@traceRpc
-	async uninstallAutoReply(match: string) {
-		for (const p of this._ptys.values()) {
-			p.uninstallAutoReply(match);
-		}
-	}
 
 	@traceRpc
 	async getDefaultSystemShell(osOverride: OperatingSystem = OS): Promise<string> {
