@@ -217,7 +217,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	});
 
 	setup(() => {
-		validResources = [];
+		validResources.length = 0;
 		xterm.reset();
 	});
 
