@@ -1629,7 +1629,7 @@ export namespace MappedEditsContext {
 		);
 	}
 
-	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
+	export function from(extContext: vscode.MappedEditsContext): Dto<languages.MappedEditsContext> {
 		return {
 			documents: extContext.documents.map((subArray) =>
 				subArray.map(DocumentContextItem.from)
@@ -1643,6 +1643,7 @@ export namespace MappedEditsContext {
 					{
 						type: 'response',
 						message: item.message,
+						result: item.result ? ChatAgentResult.from(item.result) : undefined,
 						references: item.references?.map(DocumentContextItem.from)
 					}
 			))
@@ -1663,11 +1664,19 @@ export namespace DocumentContextItem {
 		);
 	}
 
-	export function from(item: vscode.DocumentContextItem): languages.DocumentContextItem {
+	export function from(item: vscode.DocumentContextItem): Dto<languages.DocumentContextItem> {
 		return {
-			uri: URI.from(item.uri),
+			uri: item.uri,
 			version: item.version,
 			ranges: item.ranges.map(r => Range.from(r)),
+		};
+	}
+
+	export function to(item: Dto<languages.DocumentContextItem>): vscode.DocumentContextItem {
+		return {
+			uri: URI.revive(item.uri),
+			version: item.version,
+			ranges: item.ranges.map(r => Range.to(r)),
 		};
 	}
 }
@@ -2825,6 +2834,13 @@ export namespace ChatAgentCompletionItem {
 
 export namespace ChatAgentResult {
 	export function to(result: IChatAgentResult): vscode.ChatResult {
+		return {
+			errorDetails: result.errorDetails,
+			metadata: result.metadata,
+			nextQuestion: result.nextQuestion,
+		};
+	}
+	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
