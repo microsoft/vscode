@@ -104,12 +104,7 @@ export class TerminalChatWidget extends Disposable {
 
 		this._focusTracker = this._register(trackFocus(this._container));
 		this._register(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this._register(this._focusTracker.onDidBlur(() => {
-			this._focusedContextKey.set(false);
-			if (!this.inlineChatWidget.responseContent) {
-				this.hide();
-			}
-		}));
+		this._register(this._focusTracker.onDidBlur(() => this._focusedContextKey.set(false)));
 
 		this.hide();
 	}
