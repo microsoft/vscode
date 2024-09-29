@@ -363,6 +363,13 @@ export interface IPtyService {
 }
 export const IPtyService = createDecorator<IPtyService>('ptyService');
 
+export interface IPtyServiceContribution {
+	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void;
+	handleProcessDispose(persistentProcessId: number): void;
+	handleProcessInput(persistentProcessId: number, data: string): void;
+	handleProcessResize(persistentProcessId: number, cols: number, rows: number): void;
+}
+
 export interface IPtyHostController {
 	readonly onPtyHostExit: Event<number>;
 	readonly onPtyHostStart: Event<void>;

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ILogService } from '../../../../log/common/log.js';
-import type { ITerminalChildProcess } from '../../../common/terminal.js';
+import type { IPtyServiceContribution, ITerminalChildProcess } from '../../../common/terminal.js';
 import { TerminalAutoResponder } from './terminalAutoResponder.js';
 
-export class AutoRepliesContribController {
+export class AutoRepliesPtyServiceContribution implements IPtyServiceContribution {
 	private readonly _autoReplies: Map<string, string> = new Map();
-
 	private readonly _terminalProcesses: Map<number, ITerminalChildProcess> = new Map();
 	private readonly _autoResponders: Map<number, Map<string, TerminalAutoResponder>> = new Map();
 
@@ -40,19 +39,11 @@ export class AutoRepliesContribController {
 		}
 	}
 
-	handleProcessReady(persistentProcessId: number, terminalProcess: ITerminalChildProcess): void {
-		this._terminalProcesses.set(persistentProcessId, terminalProcess);
+	handleProcessReady(persistentProcessId: number, process: ITerminalChildProcess): void {
+		this._terminalProcesses.set(persistentProcessId, process);
 		this._autoResponders.set(persistentProcessId, new Map());
 		for (const [match, reply] of this._autoReplies.entries()) {
-			this._processInstallAutoReply(persistentProcessId, terminalProcess, match, reply);
-		}
-	}
-
-	private _processInstallAutoReply(persistentProcessId: number, terminalProcess: ITerminalChildProcess, match: string, reply: string) {
-		const processAutoResponders = this._autoResponders.get(persistentProcessId);
-		if (processAutoResponders) {
-			processAutoResponders.get(match)?.dispose();
-			processAutoResponders.set(match, new TerminalAutoResponder(terminalProcess, match, reply, this._logService));
+			this._processInstallAutoReply(persistentProcessId, process, match, reply);
 		}
 	}
 
@@ -66,7 +57,7 @@ export class AutoRepliesContribController {
 		}
 	}
 
-	handleProcessInput(persistentProcessId: number) {
+	handleProcessInput(persistentProcessId: number, data: string) {
 		const processAutoResponders = this._autoResponders.get(persistentProcessId);
 		if (processAutoResponders) {
 			for (const listener of processAutoResponders.values()) {
@@ -75,12 +66,20 @@ export class AutoRepliesContribController {
 		}
 	}
 
-	handleProcessResize(persistentProcessId: number) {
+	handleProcessResize(persistentProcessId: number, cols: number, rows: number) {
 		const processAutoResponders = this._autoResponders.get(persistentProcessId);
 		if (processAutoResponders) {
 			for (const listener of processAutoResponders.values()) {
 				listener.handleResize();
 			}
+		}
+	}
+
+	private _processInstallAutoReply(persistentProcessId: number, terminalProcess: ITerminalChildProcess, match: string, reply: string) {
+		const processAutoResponders = this._autoResponders.get(persistentProcessId);
+		if (processAutoResponders) {
+			processAutoResponders.get(match)?.dispose();
+			processAutoResponders.set(match, new TerminalAutoResponder(terminalProcess, match, reply, this._logService));
 		}
 	}
 }

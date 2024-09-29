@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { RequestStore } from '../common/requestStore.js';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from '../common/terminal.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution } from '../common/terminal.js';
 import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
@@ -31,7 +31,7 @@ import { join } from 'path';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
-import { AutoRepliesContribController } from './terminalContrib/autoReplies/autoRepliesContribController.js';
+import { AutoRepliesPtyServiceContribution } from './terminalContrib/autoReplies/autoRepliesContribController.js';
 
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
@@ -76,7 +76,23 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string; instanceId: number }>;
 	private readonly _revivedPtyIdMap: Map<string, { newId: number; state: ISerializedTerminalState }> = new Map();
 
-	private readonly _autoRepliesController = new AutoRepliesContribController(this._logService);
+	// #region Pty service contribution RPC calls
+
+	private readonly _autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+	@traceRpc
+	async installAutoReply(match: string, reply: string) {
+		await this._autoRepliesContribution.installAutoReply(match, reply);
+	}
+	@traceRpc
+	async uninstallAllAutoReplies() {
+		await this._autoRepliesContribution.uninstallAllAutoReplies();
+	}
+
+	// #endregion
+
+	private readonly _contributions: IPtyServiceContribution[] = [
+		this._autoRepliesContribution
+	];
 
 	private _lastPtyId: number = 0;
 
@@ -282,7 +298,9 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onProcessExit(event => {
-			this._autoRepliesController.handleProcessDispose(id);
+			for (const contrib of this._contributions) {
+				contrib.handleProcessDispose(id);
+			}
 			persistentProcess.dispose();
 			this._ptys.delete(id);
 			this._onProcessExit.fire({ id, event });
@@ -292,7 +310,11 @@ export class PtyService extends Disposable implements IPtyService {
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
 		persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
-		persistentProcess.onPersistentProcessReady(() => this._autoRepliesController.handleProcessReady(id, process));
+		persistentProcess.onPersistentProcessReady(() => {
+			for (const contrib of this._contributions) {
+				contrib.handleProcessReady(id, process);
+			}
+		});
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -375,7 +397,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async input(id: number, data: string): Promise<void> {
 		const pty = this._throwIfNoPty(id);
 		if (pty) {
-			this._autoRepliesController.handleProcessInput(id);
+			for (const contrib of this._contributions) {
+				contrib.handleProcessInput(id, data);
+			}
 			pty.input(data);
 		}
 	}
@@ -387,7 +411,9 @@ export class PtyService extends Disposable implements IPtyService {
 	async resize(id: number, cols: number, rows: number): Promise<void> {
 		const pty = this._throwIfNoPty(id);
 		if (pty) {
-			this._autoRepliesController.handleProcessResize(id);
+			for (const contrib of this._contributions) {
+				contrib.handleProcessResize(id, cols, rows);
+			}
 			pty.resize(cols, rows);
 		}
 	}
@@ -414,15 +440,6 @@ export class PtyService extends Disposable implements IPtyService {
 	@traceRpc
 	async orphanQuestionReply(id: number): Promise<void> {
 		return this._throwIfNoPty(id).orphanQuestionReply();
-	}
-
-	@traceRpc
-	async installAutoReply(match: string, reply: string) {
-		await this._autoRepliesController.installAutoReply(match, reply);
-	}
-	@traceRpc
-	async uninstallAllAutoReplies() {
-		await this._autoRepliesController.uninstallAllAutoReplies();
 	}
 
 	@traceRpc
