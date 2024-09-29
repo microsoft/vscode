@@ -32,7 +32,7 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 		// Listen for config changes
 		const initialConfig = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
-			// Ensure the reply is value
+			// Ensure the reply is valid
 			const reply = initialConfig.autoReplies[match] as string | null;
 			if (reply) {
 				backend.installAutoReply(match, reply);
@@ -44,7 +44,7 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 				backend.uninstallAllAutoReplies();
 				const config = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
 				for (const match of Object.keys(config.autoReplies)) {
-					// Ensure the reply is value
+					// Ensure the reply is valid
 					const reply = config.autoReplies[match] as string | null;
 					if (reply) {
 						backend.installAutoReply(match, reply);
