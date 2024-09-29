@@ -22,7 +22,6 @@ import { getWindowsBuildNumber } from './terminalEnvironment.js';
 import { TerminalProcess } from './terminalProcess.js';
 import { localize } from '../../../nls.js';
 import { ignoreProcessNames } from './childProcessMonitor.js';
-import { TerminalAutoResponder } from '../common/terminalAutoResponder.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
 import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js';
 import { formatMessageForTerminal } from '../common/terminalStrings.js';
@@ -32,6 +31,8 @@ import { join } from 'path';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
+import { AutoRepliesContribController } from './terminalContrib/autoReplies/autoRepliesContribController.js';
+
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
@@ -74,7 +75,8 @@ export class PtyService extends Disposable implements IPtyService {
 	private readonly _workspaceLayoutInfos = new Map<WorkspaceId, ISetTerminalLayoutInfoArgs>();
 	private readonly _detachInstanceRequestStore: RequestStore<IProcessDetails | undefined, { workspaceId: string; instanceId: number }>;
 	private readonly _revivedPtyIdMap: Map<string, { newId: number; state: ISerializedTerminalState }> = new Map();
-	private readonly _autoReplies: Map<string, string> = new Map();
+
+	private readonly _autoRepliesController = new AutoRepliesContribController(this._logService);
 
 	private _lastPtyId: number = 0;
 
@@ -280,6 +282,7 @@ export class PtyService extends Disposable implements IPtyService {
 		};
 		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, processLaunchOptions, unicodeVersion, this._reconnectConstants, this._logService, isReviving && typeof shellLaunchConfig.initialText === 'string' ? shellLaunchConfig.initialText : undefined, rawReviveBuffer, shellLaunchConfig.icon, shellLaunchConfig.color, shellLaunchConfig.name, shellLaunchConfig.fixedDimensions);
 		process.onProcessExit(event => {
+			this._autoRepliesController.handleProcessDispose(id);
 			persistentProcess.dispose();
 			this._ptys.delete(id);
 			this._onProcessExit.fire({ id, event });
@@ -289,11 +292,7 @@ export class PtyService extends Disposable implements IPtyService {
 		persistentProcess.onProcessReady(event => this._onProcessReady.fire({ id, event }));
 		persistentProcess.onProcessOrphanQuestion(() => this._onProcessOrphanQuestion.fire({ id }));
 		persistentProcess.onDidChangeProperty(property => this._onDidChangeProperty.fire({ id, property }));
-		persistentProcess.onPersistentProcessReady(() => {
-			for (const e of this._autoReplies.entries()) {
-				persistentProcess.installAutoReply(e[0], e[1]);
-			}
-		});
+		persistentProcess.onPersistentProcessReady(() => this._autoRepliesController.handleProcessReady(id, process));
 		this._ptys.set(id, persistentProcess);
 		return id;
 	}
@@ -374,7 +373,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 	@traceRpc
 	async input(id: number, data: string): Promise<void> {
-		return this._throwIfNoPty(id).input(data);
+		const pty = this._throwIfNoPty(id);
+		if (pty) {
+			this._autoRepliesController.handleProcessInput(id);
+			pty.input(data);
+		}
 	}
 	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
@@ -382,7 +385,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 	@traceRpc
 	async resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._throwIfNoPty(id).resize(cols, rows);
+		const pty = this._throwIfNoPty(id);
+		if (pty) {
+			this._autoRepliesController.handleProcessResize(id);
+			pty.resize(cols, rows);
+		}
 	}
 	@traceRpc
 	async getInitialCwd(id: number): Promise<string> {
@@ -411,19 +418,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 	@traceRpc
 	async installAutoReply(match: string, reply: string) {
-		this._autoReplies.set(match, reply);
-		// If the auto reply exists on any existing terminals it will be overridden
-		for (const p of this._ptys.values()) {
-			p.installAutoReply(match, reply);
-		}
+		await this._autoRepliesController.installAutoReply(match, reply);
 	}
 	@traceRpc
 	async uninstallAllAutoReplies() {
-		for (const match of this._autoReplies.keys()) {
-			for (const p of this._ptys.values()) {
-				p.uninstallAutoReply(match);
-			}
-		}
+		await this._autoRepliesController.uninstallAllAutoReplies();
 	}
 
 	@traceRpc
@@ -614,7 +613,6 @@ const enum InteractionState {
 class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
-	private readonly _autoReplies: Map<string, TerminalAutoResponder> = new Map();
 
 	private readonly _pendingCommands = new Map<number, { resolve: (data: any) => void; reject: (err: any) => void }>();
 
@@ -749,14 +747,6 @@ class PersistentTerminalProcess extends Disposable {
 
 		// Data recording for reconnect
 		this._register(this.onProcessData(e => this._serializer.handleData(e)));
-
-		// Clean up other disposables
-		this._register(toDisposable(() => {
-			for (const e of this._autoReplies.values()) {
-				e.dispose();
-			}
-			this._autoReplies.clear();
-		}));
 	}
 
 	async attach(): Promise<void> {
@@ -828,9 +818,6 @@ class PersistentTerminalProcess extends Disposable {
 		if (this._inReplay) {
 			return;
 		}
-		for (const listener of this._autoReplies.values()) {
-			listener.handleInput();
-		}
 		return this._terminalProcess.input(data);
 	}
 	writeBinary(data: string): Promise<void> {
@@ -845,9 +832,6 @@ class PersistentTerminalProcess extends Disposable {
 		// Buffered events should flush when a resize occurs
 		this._bufferer.flushBuffer(this._persistentProcessId);
 
-		for (const listener of this._autoReplies.values()) {
-			listener.handleResize();
-		}
 		return this._terminalProcess.resize(cols, rows);
 	}
 	async clearBuffer(): Promise<void> {
@@ -885,17 +869,6 @@ class PersistentTerminalProcess extends Disposable {
 		this._onProcessReplay.fire(ev);
 		this._terminalProcess.clearUnacknowledgedChars();
 		this._onPersistentProcessReady.fire();
-	}
-
-	installAutoReply(match: string, reply: string) {
-		this._autoReplies.get(match)?.dispose();
-		this._autoReplies.set(match, new TerminalAutoResponder(this._terminalProcess, match, reply, this._logService));
-	}
-
-	uninstallAutoReply(match: string) {
-		const autoReply = this._autoReplies.get(match);
-		autoReply?.dispose();
-		this._autoReplies.delete(match);
 	}
 
 	sendCommandResult(reqId: number, isError: boolean, serializedPayload: any): void {
