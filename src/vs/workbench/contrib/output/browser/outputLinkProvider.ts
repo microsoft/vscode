@@ -98,7 +98,7 @@ class OutputLinkWorkerClient extends Disposable {
 	) {
 		super();
 		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
-			'vs/workbench/contrib/output/common/outputLinkComputer',
+			'vs/workbench/contrib/output/common/outputLinkComputerMain',
 			'OutputLinkDetectionWorker'
 		));
 		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);

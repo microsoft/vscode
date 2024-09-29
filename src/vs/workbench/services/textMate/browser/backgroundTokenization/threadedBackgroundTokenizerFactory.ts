@@ -138,7 +138,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 			onigurumaWASMUri: FileAccess.asBrowserUri(onigurumaWASM).toString(true),
 		};
 		const worker = this._worker = createWebWorker<TextMateTokenizationWorker>(
-			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker',
+			'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain',
 			'TextMateWorker'
 		);
 		TextMateWorkerHost.setChannel(worker, {
