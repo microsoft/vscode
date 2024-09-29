@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 import * as path from 'path';
 import { fileURLToPath } from 'url';

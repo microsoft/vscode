@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as performance from './vs/base/common/performance.js';
 import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { load } from './bootstrap-esm.js';
