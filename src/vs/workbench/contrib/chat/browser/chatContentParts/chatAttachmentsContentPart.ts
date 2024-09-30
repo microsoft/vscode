@@ -18,7 +18,6 @@ import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/hover/hover.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
@@ -48,7 +47,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 		this.variables.forEach(async (attachment) => {
 			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate });
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 
@@ -56,7 +55,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 			const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;
 			const isAttachmentPartialOrOmitted = isAttachmentOmitted || correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Partial;
 
-			let hoverElement: IManagedHoverContentOrFactory;
 			let ariaLabel: string | undefined;
 
 			if (file && attachment.isFile) {
@@ -72,8 +70,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 					ariaLabel = range ? localize('chat.fileAttachmentWithRange3', "Attached: {0}, line {1} to line {2}.", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment3', "Attached: {0}.", friendlyName);
 				}
 
-				hoverElement = file.fsPath;
-
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
@@ -83,7 +79,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
-				hoverElement = dom.$('div.chat-attached-context-hover');
+				const hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				// Custom label
@@ -107,12 +103,14 @@ export class ChatAttachmentsContentPart extends Disposable {
 				}
 
 				widget.style.position = 'relative';
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
+				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
 				label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
 
-				hoverElement = attachmentLabel;
 				ariaLabel = localize('chat.attachment3', "Attached context: {0}.", attachment.name);
 			}
 
@@ -122,7 +120,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 			const description = correspondingContentReference?.options?.status?.description;
 			if (isAttachmentPartialOrOmitted) {
 				ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
-				hoverElement = description;
 				for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
 					const element = label.element.querySelector(selector);
 					if (element) {
@@ -150,9 +147,6 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			widget.ariaLabel = ariaLabel;
 			widget.tabIndex = 0;
-			if (!this.attachedContextDisposables.isDisposed) {
-				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement));
-			}
 		});
 	}
 
