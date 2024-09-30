@@ -78,7 +78,7 @@ suite('NotebookDiff EditorHeightCalculator', () => {
 
 					}
 				};
-				calculator = new DiffEditorHeightCalculatorService(fontInfo.lineHeight, textModelResolver, editorWorkerService, configurationService);
+				calculator = new DiffEditorHeightCalculatorService(fontInfo, undefined, textModelResolver, editorWorkerService, configurationService);
 			});
 
 			test('1 original line with change in same line', async () => {

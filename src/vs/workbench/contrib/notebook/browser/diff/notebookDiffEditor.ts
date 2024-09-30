@@ -110,7 +110,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
-	private readonly diffEditorCalcuator: IDiffEditorHeightCalculatorService;
 	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
 
 	get textModel() {
@@ -154,7 +153,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
-		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
 		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, false, undefined);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
@@ -515,7 +513,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		if (this._model) {
-			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.diffEditorCalcuator, this.fontInfo, undefined));
+			const diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo, (this.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN - 35) / 2);
+			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, diffEditorCalcuator, this.fontInfo, undefined));
 			this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
 				this._list.splice(e.start, e.deleteCount, e.elements);
 				if (this.isOverviewRulerEnabled()) {
