@@ -47,6 +47,7 @@ import { registerZIndex, ZIndex } from '../../../../../platform/layout/browser/z
 import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 const $ = DOM.$;
 
@@ -152,6 +153,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
@@ -448,7 +450,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._layoutCancellationTokenSource = new CancellationTokenSource();
 
 		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
-			if (this._model !== null) {
+			// If the user has made changes to the notebook whilst in the diff editor,
+			// then do not re-compute the diff of the notebook,
+			// As change will result in re-computing diff and re-building entire diff view.
+			if (this._model !== null && this.editorService.activeEditor !== input) {
 				this._layoutCancellationTokenSource?.dispose();
 				this._layoutCancellationTokenSource = new CancellationTokenSource();
 				this.updateLayout(this._layoutCancellationTokenSource.token);
