@@ -44,8 +44,6 @@ import { IAuxiliaryEditorPart, MergeGroupMode } from '../../../services/editor/c
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
@@ -127,8 +125,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private renderDropdownAsChildElement: boolean;
 
-	private readonly tabsHoverDelegate: IHoverDelegate;
-
 	constructor(
 		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
@@ -166,8 +162,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
 
 		this.renderDropdownAsChildElement = false;
-
-		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this.create(parent);
 	}
@@ -465,10 +459,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			};
 		}
 		return title;
-	}
-
-	protected getHoverDelegate(): IHoverDelegate {
-		return this.tabsHoverDelegate;
 	}
 
 	protected updateTabHeight(): void {
