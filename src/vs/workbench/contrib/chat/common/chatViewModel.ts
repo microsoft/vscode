@@ -273,7 +273,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	private onAddResponse(responseModel: IChatResponseModel) {
-		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
+		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this);
 		this._register(response.onDidChange(() => {
 			if (response.isComplete) {
 				this.updateCodeBlockTextModels(response);
@@ -381,7 +381,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get dataId() {
-		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
+		return this._model.id +
+			`_${this._modelChangeCount}` +
+			`_${ChatModelInitState[this._model.session.initState]}` +
+			(this.isLast ? '_last' : '');
 	}
 
 	get sessionId() {
@@ -473,6 +476,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.isStale;
 	}
 
+	get isLast(): boolean {
+		return this._chatViewModel.getItems().at(-1) === this;
+	}
+
 	renderData: IChatResponseRenderData | undefined = undefined;
 	currentRenderedHeight: number | undefined;
 
@@ -505,6 +512,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	constructor(
 		private readonly _model: IChatResponseModel,
+		private readonly _chatViewModel: IChatViewModel,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentNameService private readonly chatAgentNameService: IChatAgentNameService,
 	) {
