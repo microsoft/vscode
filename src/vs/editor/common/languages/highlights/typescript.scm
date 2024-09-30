@@ -61,9 +61,10 @@
 (function_declaration
   name: (identifier) @entity.name.function)
 (method_definition
-  name: (property_identifier) @meta.definition.method @entity.name.function)
+  name: (property_identifier) @meta.definition.method @entity.name.function
+  (#not-eq? @entity.name.function "constructor"))
 (method_definition
-  name: (property_identifier) @storage.type
+  name: (property_identifier) @meta.definition.method @storage.type
   (#eq? @storage.type "constructor"))
 (method_signature
   name: (property_identifier) @meta.definition.method @entity.name.function)
@@ -108,10 +109,6 @@
 (predefined_type) @support.type
 (predefined_type (["string" "boolean" "number" "any"])) @support.type.primitive
 (type_identifier) @entity.name.type
-
-(("const")
-  (variable_declarator
-  	name: (identifier) @variable.other.constant))
 
 ([
   (identifier)
@@ -192,7 +189,6 @@
   "<<="
   "=="
   "!="
-  "=>"
   ">>"
   ">>="
   ">>>"
