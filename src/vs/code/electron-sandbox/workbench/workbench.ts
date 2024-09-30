@@ -231,7 +231,10 @@
 		{
 			configureDeveloperSettings: function (windowConfig) {
 				return {
-					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0, // enable devtools keybindings in extension development window
+					// disable automated devtools opening on error when running extension tests
+					// as this can lead to nondeterministic test execution (devtools steals focus)
+					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string' || windowConfig['enable-smoke-test-driver'] === true,
+					// enable devtools keybindings in extension development window
 					removeDeveloperKeybindingsAfterLoad: true
 				};
 			},

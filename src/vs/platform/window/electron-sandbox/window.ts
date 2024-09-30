@@ -68,6 +68,7 @@ export function zoomOut(target: ApplyZoomTarget | Window): void {
 
 export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfiguration> {
 	configureDeveloperSettings?: (config: T) => {
+		forceDisableShowDevtoolsOnError?: boolean;
 		forceEnableDeveloperKeybindings?: boolean;
 		disallowReloadKeybinding?: boolean;
 		removeDeveloperKeybindingsAfterLoad?: boolean;

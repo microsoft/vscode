@@ -27,7 +27,7 @@
 		options?.canModifyDOM?.(configuration);
 
 		// Developer settings
-		const { enableDeveloperKeybindings, removeDeveloperKeybindingsAfterLoad, developerDeveloperKeybindingsDisposable } = setupDeveloperKeybindings(configuration, options);
+		const { enableDeveloperKeybindings, removeDeveloperKeybindingsAfterLoad, developerDeveloperKeybindingsDisposable, forceDisableShowDevtoolsOnError } = setupDeveloperKeybindings(configuration, options);
 
 		// NLS
 		setupNLS<T>(configuration);
@@ -52,7 +52,7 @@
 
 			return { result, configuration };
 		} catch (error) {
-			onUnexpectedError(error, enableDeveloperKeybindings);
+			onUnexpectedError(error, enableDeveloperKeybindings && !forceDisableShowDevtoolsOnError);
 
 			throw error;
 		}
@@ -74,11 +74,13 @@
 		const {
 			forceEnableDeveloperKeybindings,
 			disallowReloadKeybinding,
-			removeDeveloperKeybindingsAfterLoad
+			removeDeveloperKeybindingsAfterLoad,
+			forceDisableShowDevtoolsOnError
 		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
 			forceEnableDeveloperKeybindings: false,
 			disallowReloadKeybinding: false,
-			removeDeveloperKeybindingsAfterLoad: false
+			removeDeveloperKeybindingsAfterLoad: false,
+			forceDisableShowDevtoolsOnError: false
 		};
 
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
@@ -91,7 +93,8 @@
 		return {
 			enableDeveloperKeybindings,
 			removeDeveloperKeybindingsAfterLoad,
-			developerDeveloperKeybindingsDisposable
+			developerDeveloperKeybindingsDisposable,
+			forceDisableShowDevtoolsOnError
 		};
 	}
 
