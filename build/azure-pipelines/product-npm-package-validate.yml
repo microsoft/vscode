@@ -4,7 +4,7 @@ pr:
   branches:
     include: ["main"]
   paths:
-    include: ["package.json", "package-lock.json"]
+    include: ["package.json"]
 
 variables:
   - name: Codeql.SkipTaskAutoInjection
