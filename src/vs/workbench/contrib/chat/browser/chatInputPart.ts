@@ -936,11 +936,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 					const editedFile = chatEditingSession.entries.get().find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
-					if (editedFile) {
+					if (editedFile?.state.get() === ModifiedFileEntryState.Undecided) {
 						void this.editorService.openEditor({
 							original: { resource: URI.from(editedFile.originalURI, true) },
 							modified: { resource: URI.from(editedFile.modifiedURI, true) },
 						});
+					} else if (editedFile) {
+						void this.editorService.openEditor({ resource: modifiedFileUri });
 					}
 				}
 			}));
