@@ -35,7 +35,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load ESM entry point
-load(process.env['VSCODE_ESM_ENTRYPOINT']);
+load(process.env['VSCODE_ESM_ENTRYPOINT']!);
 
 
 //#region Helpers
