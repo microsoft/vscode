@@ -43,7 +43,6 @@ import { setupTerminalMenus } from './terminalMenus.js';
 import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
 import { TerminalViewPane } from './terminalView.js';
-import { TerminalWslRecommendationContribution } from './terminalWslRecommendationContribution.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { registerColors } from '../common/terminalColorRegistry.js';
 import { registerTerminalConfiguration } from '../common/terminalConfiguration.js';
@@ -64,7 +63,6 @@ registerSingleton(ITerminalProfileService, TerminalProfileService, Instantiation
 // This contribution blocks startup as it's critical to enable the web embedder window.createTerminal API
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTerminalBackendContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(TerminalWslRecommendationContribution.ID, TerminalWslRecommendationContribution, WorkbenchPhase.Eventually);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
