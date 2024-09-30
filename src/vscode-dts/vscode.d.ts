@@ -19062,6 +19062,13 @@ declare module 'vscode' {
 		* The binary data of the reference.
 		*/
 		readonly data: Uint8Array;
+
+		/**
+		 * Creates a new instance of ChatReferenceBinaryData.
+		 * @param mimeType The MIME type of the binary data.
+		 * @param data The binary data of the reference.
+		 */
+		constructor(mimeType: string, data: Uint8Array);
 	}
 
 	/**
