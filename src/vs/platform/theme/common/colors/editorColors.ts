@@ -136,7 +136,7 @@ export const editorSelectionHighlightBorder = registerColor('editor.selectionHig
 
 export const editorCompositionBorder = registerColor('editor.compositionBorder',
 	{ light: '#000000', dark: '#ffffff', hcLight: '#000000', hcDark: '#ffffff' },
-	nls.localize('editorCompositionBorder', "The border color for the composition."));
+	nls.localize('editorCompositionBorder', "The border color for an IME composition."));
 
 
 // ----- editor find
