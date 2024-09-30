@@ -63,39 +63,22 @@ function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineDa
 	return { lineData, lineIndex };
 }
 
-
-// DEBUG: This helper can be used to draw image data to the console, it's commented out as we don't
-//        want to ship it, but this is very useful for investigating texture atlas issues.
-// (console as any).image = (source: ImageData | HTMLCanvasElement, scale: number = 1) => {
-// 	function getBox(width: number, height: number) {
-// 		return {
-// 			string: '+',
-// 			style: 'font-size: 1px; padding: ' + Math.floor(height/2) + 'px ' + Math.floor(width/2) + 'px; line-height: ' + height + 'px;'
-// 		};
-// 	}
-// 	if (source instanceof HTMLCanvasElement) {
-// 		source = source.getContext('2d')?.getImageData(0, 0, source.width, source.height)!;
-// 	}
-// 	const canvas = document.createElement('canvas');
-// 	canvas.width = source.width;
-// 	canvas.height = source.height;
-// 	const ctx = canvas.getContext('2d')!;
-// 	ctx.putImageData(source, 0, 0);
-
-// 	const sw = source.width * scale;
-// 	const sh = source.height * scale;
-// 	const dim = getBox(sw, sh);
-// 	console.log(
-// 		`Image: ${source.width} x ${source.height}\n%c${dim.string}`,
-// 		`${dim.style}background: url(${canvas.toDataURL()}); background-size: ${sw}px ${sh}px; background-repeat: no-repeat; color: transparent;`
-// 	);
-// 	console.groupCollapsed('Zoomed');
-// 	console.log(
-// 		`%c${dim.string}`,
-// 		`${getBox(sw * 10, sh * 10).style}background: url(${canvas.toDataURL()}); background-size: ${sw * 10}px ${sh * 10}px; background-repeat: no-repeat; color: transparent; image-rendering: pixelated;-ms-interpolation-mode: nearest-neighbor;`
-// 	);
-// 	console.groupEnd();
-// };
+export interface IXtermTerminalOptions {
+	/** The columns to initialize the terminal with. */
+	cols: number;
+	/** The rows to initialize the terminal with. */
+	rows: number;
+	/** The color provider for the terminal. */
+	xtermColorProvider: IXtermColorProvider;
+	/** The capabilities of the terminal. */
+	capabilities: ITerminalCapabilityStore;
+	/** The shell integration nonce to verify data coming from SI is trustworthy. */
+	shellIntegrationNonce?: string;
+	/** Whether to disable shell integration telemetry reporting. */
+	disableShellIntegrationReporting?: boolean;
+	/** The object that imports xterm addons, set this to inject an importer in tests. */
+	xtermAddonImpoter?: XtermAddonImporter;
+}
 
 /**
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
@@ -105,6 +88,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	/** The raw xterm.js instance */
 	readonly raw: RawXtermTerminal;
 	private _core: IXtermCore;
+	private readonly _xtermAddonLoader: XtermAddonImporter;
+	private readonly _xtermColorProvider: IXtermColorProvider;
+	private readonly _capabilities: ITerminalCapabilityStore;
+
 	private static _suggestedRendererType: 'dom' | undefined = undefined;
 	private static _checkedWebglCompatible = false;
 	private _attached?: { container: HTMLElement; options: IXtermAttachToElementOptions };
@@ -172,13 +159,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	 */
 	constructor(
 		xtermCtor: typeof RawXtermTerminal,
-		cols: number,
-		rows: number,
-		private readonly _xtermAddonLoader: XtermAddonImporter = new XtermAddonImporter(),
-		private readonly _xtermColorProvider: IXtermColorProvider,
-		private readonly _capabilities: ITerminalCapabilityStore,
-		shellIntegrationNonce: string,
-		disableShellIntegrationReporting: boolean,
+		options: IXtermTerminalOptions,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
@@ -192,14 +173,19 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
+
+		this._xtermAddonLoader = options.xtermAddonImpoter ?? new XtermAddonImporter();
+		this._xtermColorProvider = options.xtermColorProvider;
+		this._capabilities = options.capabilities;
+
 		const font = this._terminalConfigurationService.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._terminalConfigurationService.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
 		this.raw = this._register(new xtermCtor({
 			allowProposedApi: true,
-			cols,
-			rows,
+			cols: options.cols,
+			rows: options.rows,
 			documentOverride: layoutService.mainContainer.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
@@ -269,12 +255,12 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, _capabilities);
+		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, options.capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
