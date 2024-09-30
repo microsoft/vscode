@@ -99,7 +99,7 @@
       {
         "title": "Microsoft",
         "properties": {
-          "microsoft.preview.useMsalBasedAuthentication": {
+          "microsoft.useMsal": {
             "type": "boolean",
             "description": "%useMsal.description%"
           }
