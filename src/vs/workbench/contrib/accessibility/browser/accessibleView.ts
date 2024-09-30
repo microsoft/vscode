@@ -724,7 +724,7 @@ export class AccessibleView extends Disposable {
 		let accessibleViewHelpProvider;
 		if (lastProvider instanceof AccessibleContentProvider) {
 			accessibleViewHelpProvider = new AccessibleContentProvider(
-				lastProvider.id as AccessibleViewProviderId,
+				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 				() => {
@@ -732,11 +732,11 @@ export class AccessibleView extends Disposable {
 					// HACK: Delay to allow the context view to hide #207638
 					queueMicrotask(() => this.show(lastProvider));
 				},
-				lastProvider.verbositySettingKey as AccessibilityVerbositySettingId
+				lastProvider.verbositySettingKey
 			);
 		} else {
 			accessibleViewHelpProvider = new ExtensionContentProvider(
-				lastProvider.id as AccessibleViewProviderId,
+				lastProvider.id,
 				{ type: AccessibleViewType.Help },
 				() => lastProvider.options.customHelp ? lastProvider?.options.customHelp() : this._accessibleViewHelpDialogContent(this._goToSymbolsSupported()),
 				() => {
