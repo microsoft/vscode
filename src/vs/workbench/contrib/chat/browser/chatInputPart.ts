@@ -821,49 +821,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextDisposables.add(disp);
 	}
 
-	private createImagePreview(blob: Blob, maxWidth: number, maxHeight: number): Promise<string> {
-
-		return new Promise<string>((resolve, reject) => {
-			const img = new Image();
-			img.src = URL.createObjectURL(blob);
-
-			img.onload = () => {
-				const canvas = document.createElement('canvas');
-				const ctx = canvas.getContext('2d');
-
-				// Calculate the new dimensions while maintaining the aspect ratio
-				let width = img.width;
-				let height = img.height;
-
-				if (width > height && width > maxWidth) {
-					height *= maxWidth / width;
-					width = maxWidth;
-				} else if (height > width && height > maxHeight) {
-					width *= maxHeight / height;
-					height = maxHeight;
-				}
-
-				canvas.width = width;
-				canvas.height = height;
-
-				ctx?.drawImage(img, 0, 0, width, height);
-				resolve(canvas.toDataURL('image/png'));
-			};
-
-			img.onerror = (error) => {
-				console.error('Error loading image:', error);
-				reject(error);
-			};
-		});
-	}
-
 
 	// Helper function to create and replace image
 	private async createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
 		const blob = new Blob([buffer], { type: 'image/png' });
-		const urlPreviewPill = await this.createImagePreview(blob, 64, 64);
-
-		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: urlPreviewPill, alt: '' });
+		const url = URL.createObjectURL(blob);
+		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
 		const existingPill = widget.querySelector('.chat-attached-context-pill');
@@ -871,11 +834,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			existingPill.replaceWith(pill);
 		}
 
-		const urlHover = await this.createImagePreview(blob, 1024, 1024);
-		const img2 = dom.$('img.chat-attached-context-image', { src: urlHover, alt: '' });
+		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
 
 		// Update hover image
-		hoverElement.appendChild(img2);
+		hoverElement.appendChild(hoverImage);
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
