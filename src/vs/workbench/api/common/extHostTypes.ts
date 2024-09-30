@@ -4562,10 +4562,12 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 }
 
 export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
-	constructor(
-		readonly mimeType: string,
-		readonly data: Uint8Array
-	) { }
+	mimeType: string;
+	data: () => Thenable<Uint8Array>;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+		this.mimeType = mimeType;
+		this.data = data;
+	}
 }
 
 export enum LanguageModelChatMessageRole {

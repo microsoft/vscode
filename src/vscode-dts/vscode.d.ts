@@ -19061,14 +19061,18 @@ declare module 'vscode' {
 		/*
 		* The binary data of the reference.
 		*/
-		readonly data: Uint8Array;
+		/**
+		 * Retrieves the binary data of the reference.
+		 * @returns A promise that resolves to the binary data as a Uint8Array.
+		 */
+		data(): Thenable<Uint8Array>;
 
 		/**
 		 * Creates a new instance of ChatReferenceBinaryData.
 		 * @param mimeType The MIME type of the binary data.
 		 * @param data The binary data of the reference.
 		 */
-		constructor(mimeType: string, data: Uint8Array);
+		constructor(mimeType: string, data: () => Thenable<Uint8Array>);
 	}
 
 	/**
