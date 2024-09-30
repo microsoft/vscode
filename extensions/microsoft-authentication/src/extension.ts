@@ -13,7 +13,7 @@ import Logger from './logger';
 
 function shouldUseMsal(expService: IExperimentationService): boolean {
 	// First check if there is a setting value to allow user to override the default
-	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('useMsal');
+	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('preview.useMsalBasedAuthentication');
 	if (inspect?.workspaceFolderValue !== undefined) {
 		Logger.debug(`Acquired MSAL enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
 		return inspect.workspaceFolderValue;
@@ -28,7 +28,7 @@ function shouldUseMsal(expService: IExperimentationService): boolean {
 	}
 
 	// Then check if the experiment value
-	const expValue = expService.getTreatmentVariable<boolean>('vscode', 'microsoft.useMsal');
+	const expValue = expService.getTreatmentVariable<boolean>('vscode', 'microsoft.preview.useMsalBasedAuthentication');
 	if (expValue !== undefined) {
 		Logger.debug(`Acquired MSAL enablement value from 'exp'. Value: ${expValue}`);
 		return expValue;
@@ -50,7 +50,7 @@ export async function activate(context: ExtensionContext) {
 	useMsal = shouldUseMsal(expService);
 
 	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
-		if (!e.affectsConfiguration('microsoft.useMsal') || useMsal === shouldUseMsal(expService)) {
+		if (!e.affectsConfiguration('microsoft.preview.useMsalBasedAuthentication') || useMsal === shouldUseMsal(expService)) {
 			return;
 		}
 
