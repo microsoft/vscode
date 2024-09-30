@@ -68,7 +68,6 @@ export function zoomOut(target: ApplyZoomTarget | Window): void {
 
 export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfiguration> {
 	configureDeveloperSettings?: (config: T) => {
-		forceDisableShowDevtoolsOnError?: boolean;
 		forceEnableDeveloperKeybindings?: boolean;
 		disallowReloadKeybinding?: boolean;
 		removeDeveloperKeybindingsAfterLoad?: boolean;
@@ -77,12 +76,16 @@ export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfigur
 	beforeImport?: (config: T) => void;
 }
 
+export interface ILoadResult<M, T> {
+	readonly result: M;
+	readonly configuration: T;
+}
+
 export interface IBootstrapWindow {
-	load<T extends ISandboxConfiguration = ISandboxConfiguration>(
+	load<M, T extends ISandboxConfiguration = ISandboxConfiguration>(
 		esModule: string,
-		resultCallback: (result: any, configuration: T) => Promise<unknown> | undefined,
 		options: ILoadOptions<T>
-	): Promise<void>;
+	): Promise<ILoadResult<M, T>>;
 }
 
 //#endregion
