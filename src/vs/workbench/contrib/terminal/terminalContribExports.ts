@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IConfigurationNode } from '../../../platform/configuration/common/configurationRegistry.js';
 import { TerminalAccessibilityCommandId, defaultTerminalAccessibilityCommandsToSkipShell } from '../terminalContrib/accessibility/common/terminal.accessibility.js';
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
@@ -34,21 +35,21 @@ export const enum TerminalContribSettingId {
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since
 // they need to be declared at part of the rest of the terminal configuration
-export const terminalContribConfiguration = {
-	accessibility: terminalAccessibilityConfiguration,
-	autoReplies: terminalAutoRepliesConfiguration,
-	initialHint: terminalInitialHintConfiguration,
-	commandGuide: terminalCommandGuideConfiguration,
-	stickyScroll: terminalStickyScrollConfiguration,
-	suggest: terminalSuggestConfiguration,
-	typeAhead: terminalTypeAheadConfiguration,
-	zoom: terminalZoomConfiguration,
+export const terminalContribConfiguration: IConfigurationNode['properties'] = {
+	...terminalAccessibilityConfiguration,
+	...terminalAutoRepliesConfiguration,
+	...terminalInitialHintConfiguration,
+	...terminalCommandGuideConfiguration,
+	...terminalStickyScrollConfiguration,
+	...terminalSuggestConfiguration,
+	...terminalTypeAheadConfiguration,
+	...terminalZoomConfiguration,
 };
 
 // Export commands to skip shell from terminalContrib - this is an exception to the eslint rule
 // since they need to be included in the terminal module
-export const defaultTerminalContribCommandsToSkipShell = {
-	accessibility: defaultTerminalAccessibilityCommandsToSkipShell,
-	find: defaultTerminalFindCommandToSkipShell,
-	suggest: defaultTerminalSuggestCommandsToSkipShell,
-};
+export const defaultTerminalContribCommandsToSkipShell = [
+	...defaultTerminalAccessibilityCommandsToSkipShell,
+	...defaultTerminalFindCommandToSkipShell,
+	...defaultTerminalSuggestCommandsToSkipShell,
+];

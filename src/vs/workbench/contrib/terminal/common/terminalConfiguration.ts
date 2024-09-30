@@ -608,14 +608,7 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		...terminalContribConfiguration.accessibility,
-		...terminalContribConfiguration.autoReplies,
-		...terminalContribConfiguration.commandGuide,
-		...terminalContribConfiguration.initialHint,
-		...terminalContribConfiguration.stickyScroll,
-		...terminalContribConfiguration.suggest,
-		...terminalContribConfiguration.typeAhead,
-		...terminalContribConfiguration.zoom,
+		...terminalContribConfiguration,
 	}
 };
 

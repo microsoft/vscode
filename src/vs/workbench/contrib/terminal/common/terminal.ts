@@ -618,9 +618,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.runCommand',
 	'workbench.action.terminal.chat.insertCommand',
 	'workbench.action.terminal.chat.viewInChat',
-	...defaultTerminalContribCommandsToSkipShell.accessibility,
-	...defaultTerminalContribCommandsToSkipShell.find,
-	...defaultTerminalContribCommandsToSkipShell.suggest,
+	...defaultTerminalContribCommandsToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

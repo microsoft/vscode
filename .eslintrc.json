@@ -1054,6 +1054,7 @@
 						"target": "src/vs/workbench/contrib/terminal/terminalContribExports.ts",
 						"layer": "browser",
 						"restrictions": [
+							"vs/platform/*/~",
 							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
