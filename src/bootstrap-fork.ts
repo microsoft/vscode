@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as performance from './vs/base/common/performance.js';
 import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { load } from './bootstrap-esm.js';
@@ -37,7 +35,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load ESM entry point
-load(process.env['VSCODE_ESM_ENTRYPOINT']);
+load(process.env['VSCODE_ESM_ENTRYPOINT']!);
 
 
 //#region Helpers

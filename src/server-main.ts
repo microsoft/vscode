@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
 import * as path from 'path';
 import * as http from 'http';
@@ -230,29 +228,27 @@ async function findFreePort(host: string | undefined, start: number, end: number
 }
 
 function loadCode(nlsConfiguration: INLSConfiguration): Promise<typeof import('./vs/server/node/server.main.js')> {
-	return new Promise((resolve, reject) => {
 
-		// required for `bootstrap-esm` to pick up NLS messages
-		process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration);
+	// required for `bootstrap-esm` to pick up NLS messages
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration);
 
-		// See https://github.com/microsoft/vscode-remote-release/issues/6543
-		// We would normally install a SIGPIPE listener in bootstrap-node.js
-		// But in certain situations, the console itself can be in a broken pipe state
-		// so logging SIGPIPE to the console will cause an infinite async loop
-		process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
+	// See https://github.com/microsoft/vscode-remote-release/issues/6543
+	// We would normally install a SIGPIPE listener in bootstrap-node.js
+	// But in certain situations, the console itself can be in a broken pipe state
+	// so logging SIGPIPE to the console will cause an infinite async loop
+	process.env['VSCODE_HANDLES_SIGPIPE'] = 'true';
 
-		if (process.env['VSCODE_DEV']) {
-			// When running out of sources, we need to load node modules from remote/node_modules,
-			// which are compiled against nodejs, not electron
-			process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
-		} else {
-			delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
-		}
+	if (process.env['VSCODE_DEV']) {
+		// When running out of sources, we need to load node modules from remote/node_modules,
+		// which are compiled against nodejs, not electron
+		process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
+		devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	} else {
+		delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
+	}
 
-		// Load Server
-		load('vs/server/node/server.main', resolve, reject);
-	});
+	// Load Server
+	return load<typeof import('./vs/server/node/server.main.js')>('vs/server/node/server.main');
 }
 
 function hasStdinWithoutTty(): boolean {

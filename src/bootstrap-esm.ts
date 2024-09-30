@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -120,18 +118,17 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 
 //#region ESM Loading
 
-export function load(esModule: string | undefined, onLoad?: (value: any) => void, onError?: (err: Error) => void): void {
-	if (!esModule) {
-		return;
+export async function load<T>(esModule: string): Promise<T> {
+	try {
+		// NLS comes first
+		await setupNLS();
+
+		// Then load the ES module
+		return await import([`./${esModule}.js`].join('/') /* workaround to prevent esbuild from inlining this */);
+	} catch (error) {
+		console.error(`Unable to load ${esModule}: ${error}`);
+		throw error;
 	}
-
-	onLoad = onLoad || function () { };
-	onError = onError || function (err) { console.error(err); };
-
-	setupNLS().then(() => {
-		performance.mark(`code/fork/willLoadCode`);
-		import([`./${esModule}.js`].join('/') /* workaround to prevent esbuild from inlining this */).then(onLoad, onError);
-	});
 }
 
 //#endregion

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
@@ -162,7 +160,7 @@ async function onReady() {
 			resolveNlsConfiguration()
 		]);
 
-		startup(codeCachePath, nlsConfig);
+		await startup(codeCachePath, nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
@@ -171,14 +169,13 @@ async function onReady() {
 /**
  * Main startup routine
  */
-function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): void {
+async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): Promise<void> {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	perf.mark('code/willLoadMainBundle');
-	load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
-	});
+	await load('vs/code/electron-main/main');
+	perf.mark('code/didLoadMainBundle');
 }
 
 function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {

@@ -1023,17 +1023,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		const xterm = this._instantiationService.createInstance(
-			XtermTerminal,
-			ctor,
-			options.cols,
-			options.rows,
-			undefined,
-			options.colorProvider,
-			options.capabilities || new TerminalCapabilityStore(),
-			'',
-			false,
-		);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, ctor, {
+			cols: options.cols,
+			rows: options.rows,
+			xtermColorProvider: options.colorProvider,
+			capabilities: options.capabilities || new TerminalCapabilityStore(),
+		});
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);

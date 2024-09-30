@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-import * as path from 'path';
+import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { load } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // NLS
 const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
@@ -22,7 +20,7 @@ process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required
 if (process.env['VSCODE_DEV']) {
 	// When running out of sources, we need to load node modules from remote/node_modules,
 	// which are compiled against nodejs, not electron
-	process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
+	process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'] || join(__dirname, '..', 'remote', 'node_modules');
 	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
 } else {
 	delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
