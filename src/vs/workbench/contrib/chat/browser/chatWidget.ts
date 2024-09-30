@@ -29,7 +29,7 @@ import { WorkbenchObjectTree } from '../../../../platform/list/browser/listServi
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { TerminalChatController } from '../../terminal/terminalContribExports.js';
+import { TerminalChatController } from '../../terminal/terminalContribChatExports.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';

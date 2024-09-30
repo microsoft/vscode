@@ -948,6 +948,7 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribChatExports*",
 							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							"@vscode/tree-sitter-wasm", // type import
@@ -979,7 +980,6 @@
 							// Only allow terminalContrib to import from itself, this works because
 							// terminalContrib is one extra folder deep
 							"vs/workbench/contrib/terminalContrib/*/~",
-							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -1044,9 +1044,17 @@
 						]
 					},
 					{
+						"target": "src/vs/workbench/contrib/terminal/terminalContribChatExports.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/terminalContrib/*/~"
+						]
+					},
+					{
 						"target": "src/vs/workbench/contrib/terminal/terminalContribExports.ts",
 						"layer": "browser",
 						"restrictions": [
+							"vs/platform/*/~",
 							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
