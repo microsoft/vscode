@@ -78,7 +78,13 @@ class CliMain extends Disposable {
 	private registerListeners(): void {
 
 		// Dispose on exit
-		process.once('exit', () => this.dispose());
+		process.once('exit', () => {
+			try {
+				this.dispose();
+			} catch (error) {
+				// ignore on shutdown
+			}
+		});
 	}
 
 	async run(): Promise<void> {
