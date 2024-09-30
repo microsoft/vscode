@@ -18,10 +18,18 @@
 	border-bottom: none;
 }
 
-.monaco-editor .edit-context-composition-secondary {
+.monaco-editor :not(.hc-black, .hc-light) .edit-context-composition-secondary {
 	border-bottom: 1px solid var(--vscode-editor-compositionBorder);
 }
 
-.monaco-editor .edit-context-composition-primary {
+.monaco-editor :not(.hc-black, .hc-light) .edit-context-composition-primary {
 	border-bottom: 2px solid var(--vscode-editor-compositionBorder);
+}
+
+.monaco-editor :is(.hc-black, .hc-light) .edit-context-composition-secondary {
+	border: 1px solid var(--vscode-editor-compositionBorder);
+}
+
+.monaco-editor :is(.hc-black, .hc-light) .edit-context-composition-primary {
+	border: 2px solid var(--vscode-editor-compositionBorder);
 }
