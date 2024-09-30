@@ -546,7 +546,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderChatEditingSessionState(session: IChatEditingSession | null) {
-		this.inputPart.renderChatEditingSessionState(session);
+		this.inputPart.renderChatEditingSessionState(session, undefined, this);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);

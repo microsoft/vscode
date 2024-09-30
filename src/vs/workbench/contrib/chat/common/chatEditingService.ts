@@ -20,6 +20,7 @@ export interface IChatEditingService {
 	readonly currentEditingSession: IChatEditingSession | null;
 
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
+	addFileToWorkingSet(resource: URI): Promise<void>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 }
 
@@ -28,6 +29,7 @@ export interface IChatEditingSession {
 	readonly onDidChange: Event<void>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
+	readonly workingSet: IObservable<readonly URI[]>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly isVisible: boolean;
 	show(): Promise<void>;

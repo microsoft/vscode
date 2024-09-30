@@ -37,6 +37,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, ICha
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { IChatWidgetService } from './chat.js';
+import { ChatContextAttachments } from './contrib/chatContextAttachments.js';
 
 const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
@@ -67,6 +68,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IChatService private readonly _chatService: IChatService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@ICodeMapperService private readonly _codeMapperService: ICodeMapperService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
@@ -85,6 +87,13 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				void this._currentSessionObs.get()?.stop();
 			}
 		}));
+	}
+
+	async addFileToWorkingSet(resource: URI): Promise<void> {
+		const session = this._currentSessionObs.get();
+		if (session) {
+			session.addFileToWorkingSet(resource);
+		}
 	}
 
 	override dispose(): void {
@@ -117,7 +126,13 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		const editorPane = options?.silent ? undefined : await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, editorPane);
+		const contrib = this._chatWidgetService.getWidgetBySessionId(chatSessionId)?.getContrib<ChatContextAttachments>(ChatContextAttachments.ID);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, editorPane, []);
+		for (const attachment of contrib?.getInputState() ?? []) {
+			if (attachment.isFile && URI.isUri(attachment.value)) {
+				session.addFileToWorkingSet(attachment.value);
+			}
+		}
 		this._currentSessionDisposeListener.value = session.onDidDispose(() => {
 			this._currentSessionDisposeListener.clear();
 			this._currentSessionObs.set(null, undefined);
@@ -545,6 +560,12 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private _entries: ModifiedFileEntry[] = [];
 
+	private _workingSetObs = observableValue<readonly URI[]>(this, []);
+	get workingSet() {
+		this._assertNotDisposed();
+		return this._workingSetObs;
+	}
+
 	get state(): IObservable<ChatEditingSessionState> {
 		this._assertNotDisposed();
 		return this._state;
@@ -570,6 +591,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	constructor(
 		public readonly chatSessionId: string,
 		private editorPane: MultiDiffEditor | undefined,
+		private _workingSet: URI[] = [],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
@@ -700,6 +722,12 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._resolve());
+	}
+
+	addFileToWorkingSet(resource: URI) {
+		this._workingSet = [...this._workingSet, resource];
+		this._workingSetObs.set(this._workingSet, undefined);
+		this._onDidChange.fire();
 	}
 
 	private async _acceptStreamingEditsStart(): Promise<void> {
