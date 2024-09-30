@@ -26,6 +26,8 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
 
 const $ = dom.$;
 
@@ -52,7 +54,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
@@ -132,6 +135,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
 				// Update the existing object's codemapperUri
 				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
+				this._onDidChangeHeight.fire();
 			});
 		}
 
@@ -145,7 +149,20 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	layout(width: number): void {
-		this.allRefs.forEach(ref => ref.object.layout(width));
+		this.allRefs.forEach((ref, index) => {
+			const codeblockModel = this.codeblocks[index];
+			if (codeblockModel.codemapperUri) {
+				const fileWidgetAnchor = $('.chat-codeblock');
+				this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codeblockModel.codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
+				const existingCodeblock = ref.object.element.parentElement?.querySelector('.chat-codeblock');
+				if (!existingCodeblock) {
+					ref.object.element.parentElement?.appendChild(fileWidgetAnchor);
+					ref.object.element.style.display = 'none';
+				}
+			} else {
+				ref.object.layout(width);
+			}
+		});
 	}
 
 	addDisposable(disposable: IDisposable): void {

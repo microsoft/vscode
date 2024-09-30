@@ -129,6 +129,24 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/base/common/performance.ts
+	{
+		target: '**/vs/base/common/performance.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to Performance
+			'Performance',
+			'PerformanceEntry',
+			'PerformanceTiming'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/platform/environment/common/*
 	{
 		target: '**/vs/platform/environment/common/*.ts',
@@ -189,9 +207,9 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Common: vs/base/parts/sandbox/electron-sandbox/preload.js
+	// Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
 	{
-		target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
+		target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
 		allowedTypes: [
 			...CORE_TYPES,
 

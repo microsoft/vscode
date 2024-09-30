@@ -31,7 +31,6 @@ import { DecorationAddon } from './decorationAddon.js';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { importAMDNodeModule } from '../../../../../amdX.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../common/terminalContextKey.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -41,17 +40,12 @@ import { IMouseWheelEvent, StandardWheelEvent } from '../../../../../base/browse
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { XtermAddonImporter } from './xtermAddonImporter.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
 }
 
-let ClipboardAddon: typeof ClipboardAddonType;
-let ImageAddon: typeof ImageAddonType;
-let SearchAddon: typeof SearchAddonType;
-let SerializeAddon: typeof SerializeAddonType;
-let Unicode11Addon: typeof Unicode11AddonType;
-let WebglAddon: typeof WebglAddonType;
 
 function getFullBufferLineAsString(lineIndex: number, buffer: IBuffer): { lineData: string | undefined; lineIndex: number } {
 	let line = buffer.getLine(lineIndex);
@@ -180,6 +174,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		xtermCtor: typeof RawXtermTerminal,
 		cols: number,
 		rows: number,
+		private readonly _xtermAddonLoader: XtermAddonImporter = new XtermAddonImporter(),
 		private readonly _xtermColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		shellIntegrationNonce: string,
@@ -281,7 +276,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._getClipboardAddonConstructor().then(ClipboardAddon => {
+		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
 			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
 				async readText(type: ClipboardSelectionType): Promise<string> {
 					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
@@ -309,7 +304,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	async getContentsAsHtml(): Promise<string> {
 		if (!this._serializeAddon) {
-			const Addon = await this._getSerializeAddonConstructor();
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
@@ -319,7 +314,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
 		if (!this._serializeAddon) {
-			const Addon = await this._getSerializeAddonConstructor();
+			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
@@ -485,7 +480,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _searchAddonPromise: Promise<SearchAddonType> | undefined;
 	private _getSearchAddon(): Promise<SearchAddonType> {
 		if (!this._searchAddonPromise) {
-			this._searchAddonPromise = this._getSearchAddonConstructor().then((AddonCtor) => {
+			this._searchAddonPromise = this._xtermAddonLoader.importAddon('search').then((AddonCtor) => {
 				this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
 				this.raw.loadAddon(this._searchAddon);
 				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
@@ -687,7 +682,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 		}
 
-		const Addon = await this._getWebglAddonConstructor();
+		const Addon = await this._xtermAddonLoader.importAddon('webgl');
 		this._webglAddon = new Addon();
 		try {
 			this.raw.loadAddon(this._webglAddon);
@@ -722,7 +717,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// Only allow the image addon when webgl is being used to avoid possible GPU issues
 		if (this._terminalConfigurationService.config.enableImages && this._webglAddon) {
 			if (!this._imageAddon) {
-				const AddonCtor = await this._getImageAddonConstructor();
+				const AddonCtor = await this._xtermAddonLoader.importAddon('image');
 				this._imageAddon = new AddonCtor();
 				this.raw.loadAddon(this._imageAddon);
 			}
@@ -734,48 +729,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 			this._imageAddon = undefined;
 		}
-	}
-
-	protected async _getClipboardAddonConstructor(): Promise<typeof ClipboardAddonType> {
-		if (!ClipboardAddon) {
-			ClipboardAddon = (await importAMDNodeModule<typeof import('@xterm/addon-clipboard')>('@xterm/addon-clipboard', 'lib/addon-clipboard.js')).ClipboardAddon;
-		}
-		return ClipboardAddon;
-	}
-
-	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
-		if (!ImageAddon) {
-			ImageAddon = (await importAMDNodeModule<typeof import('@xterm/addon-image')>('@xterm/addon-image', 'lib/addon-image.js')).ImageAddon;
-		}
-		return ImageAddon;
-	}
-
-	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {
-		if (!SearchAddon) {
-			SearchAddon = (await importAMDNodeModule<typeof import('@xterm/addon-search')>('@xterm/addon-search', 'lib/addon-search.js')).SearchAddon;
-		}
-		return SearchAddon;
-	}
-
-	protected async _getUnicode11Constructor(): Promise<typeof Unicode11AddonType> {
-		if (!Unicode11Addon) {
-			Unicode11Addon = (await importAMDNodeModule<typeof import('@xterm/addon-unicode11')>('@xterm/addon-unicode11', 'lib/addon-unicode11.js')).Unicode11Addon;
-		}
-		return Unicode11Addon;
-	}
-
-	protected async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
-		if (!WebglAddon) {
-			WebglAddon = (await importAMDNodeModule<typeof import('@xterm/addon-webgl')>('@xterm/addon-webgl', 'lib/addon-webgl.js')).WebglAddon;
-		}
-		return WebglAddon;
-	}
-
-	protected async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
-		if (!SerializeAddon) {
-			SerializeAddon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
-		}
-		return SerializeAddon;
 	}
 
 	private _disposeOfWebglRenderer(): void {
@@ -849,7 +802,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private async _updateUnicodeVersion(): Promise<void> {
 		if (!this._unicode11Addon && this._terminalConfigurationService.config.unicodeVersion === '11') {
-			const Addon = await this._getUnicode11Constructor();
+			const Addon = await this._xtermAddonLoader.importAddon('unicode11');
 			this._unicode11Addon = new Addon();
 			this.raw.loadAddon(this._unicode11Addon);
 		}

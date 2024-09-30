@@ -838,10 +838,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		hoverElement.appendChild(img);
 	}
 
-	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
-		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
+	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, initialState?: boolean) {
+		dom.setVisibility(Boolean(chatEditingSession) || Boolean(initialState), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession) {
+		if (!chatEditingSession && !initialState) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
@@ -850,7 +850,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (this._chatEditList && chatEditingSession.state.get() === ChatEditingSessionState.Idle) {
+		if (this._chatEditList && chatEditingSession?.state.get() === ChatEditingSessionState.Idle) {
 			this._chatEditsProgress?.stop();
 			this._chatEditsProgress?.dispose();
 			this._chatEditsProgress = undefined;
@@ -858,13 +858,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
-		const numberOfEditedEntries = chatEditingSession.entries.get().length;
+		const numberOfEditedEntries = chatEditingSession?.entries.get().length ?? 0;
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		if (numberOfEditedEntries !== this._chatEditList?.object.length) {
 			const overviewText = overviewRegion.querySelector('span') ?? dom.append(overviewRegion, $('span'));
 			overviewText.textContent = numberOfEditedEntries === 1
 				? localize('chatEditingSessionOverview.oneFileChanged', "1 file changed")
 				: localize('chatEditingSessionOverview', "{0} files changed", numberOfEditedEntries);
+		}
+
+		if (!chatEditingSession) {
+			return;
 		}
 
 		//#region Chat editing session actions

@@ -31,7 +31,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
 import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
 import { IIntegrityService } from '../services/integrity/common/integrity.js';
-import { isWindows, isMacintosh, isCI } from '../../base/common/platform.js';
+import { isWindows, isMacintosh } from '../../base/common/platform.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
@@ -80,7 +80,6 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
-import { isESM } from '../../base/common/amd.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -707,17 +706,6 @@ export class NativeWindow extends BaseWindow {
 	}
 
 	private async handleWarnings(): Promise<void> {
-
-		// Check for cyclic dependencies
-		if (!isESM && typeof require.hasDependencyCycle === 'function' && require.hasDependencyCycle()) {
-			if (isCI) {
-				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
-				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
-			} else {
-				this.dialogService.error(localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
-				this.nativeHostService.openDevTools();
-			}
-		}
 
 		// After restored phase is fine for the following ones
 		await this.lifecycleService.when(LifecyclePhase.Restored);

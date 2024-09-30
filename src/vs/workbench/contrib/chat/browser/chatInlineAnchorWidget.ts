@@ -40,9 +40,12 @@ import { IChatWidgetService } from './chat.js';
 
 export class InlineAnchorWidget extends Disposable {
 
+	public static readonly className = 'chat-inline-anchor-widget';
+
 	constructor(
-		element: HTMLAnchorElement,
+		element: HTMLAnchorElement | HTMLElement,
 		data: ContentRefData,
+		options: { handleClick?: (uri: URI) => void } = {},
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
@@ -60,7 +63,10 @@ export class InlineAnchorWidget extends Disposable {
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 		const anchorId = new Lazy(generateUuid);
 
-		element.classList.add('chat-inline-anchor-widget', 'show-file-icons');
+		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
+		if (options.handleClick) {
+			element.classList.add('clickable');
+		}
 
 		let iconText: string;
 		let iconClasses: string[];
@@ -128,6 +134,8 @@ export class InlineAnchorWidget extends Disposable {
 				.catch(() => { });
 
 			this._register(dom.addDisposableListener(element, 'click', () => {
+				options.handleClick?.(location.uri);
+
 				telemetryService.publicLog2<{
 					anchorId: string;
 				}, {

@@ -599,7 +599,7 @@ export class StartVoiceChatAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), menuCondition),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), menuCondition),
 					group: 'navigation',
 					order: 3
 				},

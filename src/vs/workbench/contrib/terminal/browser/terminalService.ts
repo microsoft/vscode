@@ -1028,6 +1028,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			ctor,
 			options.cols,
 			options.rows,
+			undefined,
 			options.colorProvider,
 			options.capabilities || new TerminalCapabilityStore(),
 			'',

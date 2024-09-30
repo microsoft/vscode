@@ -188,7 +188,7 @@ class AttachContextAction extends Action2 {
 			title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
-			precondition: AttachContextAction._cdt,
+			precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
@@ -196,7 +196,7 @@ class AttachContextAction extends Action2 {
 			},
 			menu: [
 				{
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), AttachContextAction._cdt),
+					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
 					id: MenuId.ChatInput,
 					group: 'navigation',
 					order: 2

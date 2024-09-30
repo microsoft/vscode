@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -15,13 +16,13 @@ import { basename } from '../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { createAndFillInContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -30,12 +31,14 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ColorScheme } from '../../../../browser/web.api.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/preferences.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
+import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart } from './chatContentParts.js';
 
@@ -59,8 +62,9 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		element: IChatResponseViewModel,
 		contentReferencesListPool: CollapsibleListPool,
 		@IOpenerService openerService: IOpenerService,
+		@IMenuService menuService: IMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 
@@ -120,34 +124,32 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 				}
 			}
 		}));
-		this._register(list.onContextMenu((e) => {
-			e.browserEvent.preventDefault();
-			e.browserEvent.stopPropagation();
 
-			if (e.element && 'reference' in e.element && typeof e.element.reference === 'object') {
-				const uriOrLocation = 'variableName' in e.element.reference ? e.element.reference.value : e.element.reference;
-				const uri = URI.isUri(uriOrLocation) ? uriOrLocation :
-					uriOrLocation?.uri;
-				if (uri) {
-					this.contextMenuService.showContextMenu({
-						getAnchor: () => e.anchor,
-						getActions: () => {
-							return [{
-								id: 'workbench.action.chat.copyReference',
-								title: localize('copyReference', "Copy"),
-								label: localize('copyReference', "Copy"),
-								tooltip: localize('copyReference', "Copy"),
-								enabled: e.element?.kind === 'reference',
-								class: undefined,
-								run: () => {
-									void this.clipboardService.writeResources([uri]);
-								}
-							}];
-						}
-					});
-				}
+		this._register(list.onContextMenu(e => {
+			dom.EventHelper.stop(e.browserEvent, true);
+
+			const uri = e.element && getResourceForElement(e.element);
+			if (!uri) {
+				return;
 			}
 
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => {
+					const menu = menuService.getMenuActions(MenuId.ChatAttachmentsContext, list.contextKeyService, { shouldForwardArgs: true, arg: uri });
+					const primary: IAction[] = [];
+					createAndFillInContextMenuActions(menu, primary);
+					return primary;
+				}
+			});
+		}));
+
+		const resourceContextKey = this._register(this.instantiationService.createInstance(ResourceContextKey));
+		this._register(list.onDidChangeFocus(e => {
+			resourceContextKey.reset();
+			const element = e.elements.length ? e.elements[0] : undefined;
+			const uri = element && getResourceForElement(element);
+			resourceContextKey.set(uri ?? null);
 		}));
 
 		const maxItemsShown = 6;
@@ -197,20 +199,6 @@ export class CollapsibleListPool extends Disposable {
 		const container = $('.chat-used-context-list');
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const getDragURI = (element: IChatCollapsibleListItem): URI | null => {
-			if (element.kind === 'warning') {
-				return null;
-			}
-			const { reference } = element;
-			if (typeof reference === 'string' || 'variableName' in reference) {
-				return null;
-			} else if (URI.isUri(reference)) {
-				return reference;
-			} else {
-				return reference.uri;
-			}
-		};
-
 		const list = this.instantiationService.createInstance(
 			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
@@ -239,9 +227,9 @@ export class CollapsibleListPool extends Disposable {
 					getWidgetAriaLabel: () => localize('chatCollapsibleList', "Collapsible Chat List")
 				},
 				dnd: {
-					getDragURI: (element: IChatCollapsibleListItem) => getDragURI(element)?.toString() ?? null,
+					getDragURI: (element: IChatCollapsibleListItem) => getResourceForElement(element)?.toString() ?? null,
 					getDragLabel: (elements, originalEvent) => {
-						const uris: URI[] = coalesce(elements.map(getDragURI));
+						const uris: URI[] = coalesce(elements.map(getResourceForElement));
 						if (!uris.length) {
 							return undefined;
 						} else if (uris.length === 1) {
@@ -256,7 +244,7 @@ export class CollapsibleListPool extends Disposable {
 					onDragStart: (data, originalEvent) => {
 						try {
 							const elements = data.getData() as IChatCollapsibleListItem[];
-							const uris: URI[] = coalesce(elements.map(getDragURI));
+							const uris: URI[] = coalesce(elements.map(getResourceForElement));
 							this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
 						} catch {
 							// noop
@@ -294,8 +282,8 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 
 interface ICollapsibleListTemplate {
 	toolbar: MenuWorkbenchToolBar | undefined;
-	label: IResourceLabel;
-	templateDisposables: DisposableStore;
+	readonly label: IResourceLabel;
+	readonly templateDisposables: DisposableStore;
 }
 
 class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
@@ -414,3 +402,58 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		templateData.templateDisposables.dispose();
 	}
 }
+
+function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
+	if (element.kind === 'warning') {
+		return null;
+	}
+	const { reference } = element;
+	if (typeof reference === 'string' || 'variableName' in reference) {
+		return null;
+	} else if (URI.isUri(reference)) {
+		return reference;
+	} else {
+		return reference.uri;
+	}
+}
+
+//#region Resource context menu
+
+registerAction2(class AddToChatAction extends Action2 {
+
+	static readonly id = 'workbench.action.chat.addToChatAction';
+
+	constructor() {
+		super({
+			id: AddToChatAction.id,
+			title: {
+				...localize2('addToChat', "Add File to Chat"),
+			},
+			f1: false,
+			menu: [{
+				id: MenuId.ChatAttachmentsContext,
+				group: 'chat',
+				order: 1,
+				when: ExplorerFolderContext.negate(),
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const variablesService = accessor.get(IChatVariablesService);
+
+		if (!resource) {
+			return;
+		}
+
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		variablesService.attachContext('file', resource, widget.location);
+	}
+});
+
+//#endregion

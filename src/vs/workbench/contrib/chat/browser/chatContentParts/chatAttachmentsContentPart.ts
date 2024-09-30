@@ -133,17 +133,19 @@ export class ChatAttachmentsContentPart extends Disposable {
 
 			if (file) {
 				widget.style.cursor = 'pointer';
-				this.attachedContextDisposables.add(dom.addDisposableListener(widget, dom.EventType.CLICK, async (e: MouseEvent) => {
-					dom.EventHelper.stop(e, true);
-					this.openerService.open(
-						file,
-						{
-							fromUserGesture: true,
-							editorOptions: {
-								selection: range
-							} as any
-						});
-				}));
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(dom.addDisposableListener(widget, dom.EventType.CLICK, async (e: MouseEvent) => {
+						dom.EventHelper.stop(e, true);
+						this.openerService.open(
+							file,
+							{
+								fromUserGesture: true,
+								editorOptions: {
+									selection: range
+								} as any
+							});
+					}));
+				}
 			}
 
 			widget.ariaLabel = ariaLabel;

@@ -15,12 +15,13 @@
 
 .monaco-editor .edit-context-composition-none {
 	background-color: transparent;
+	border-bottom: none;
 }
 
 .monaco-editor .edit-context-composition-secondary {
-	background-color: var(--vscode-editor-selectionBackground);
+	border-bottom: 1px solid var(--vscode-editor-compositionBorder);
 }
 
 .monaco-editor .edit-context-composition-primary {
-	background-color: var(--vscode-editor-selectionHighlightBackground);
+	border-bottom: 2px solid var(--vscode-editor-compositionBorder);
 }

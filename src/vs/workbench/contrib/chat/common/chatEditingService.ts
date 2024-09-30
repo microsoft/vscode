@@ -8,6 +8,7 @@ import { IObservable, ITransaction } from '../../../../base/common/observable.js
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IChatResponseModel } from './chatModel.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
@@ -18,7 +19,8 @@ export interface IChatEditingService {
 
 	readonly currentEditingSession: IChatEditingSession | null;
 
-	startOrContinueEditingSession(chatSessionId: string, builder?: (stream: IChatEditingSessionStream) => Promise<void>, options?: { silent?: boolean }): Promise<void>;
+	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
+	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 }
 
 export interface IChatEditingSession {
