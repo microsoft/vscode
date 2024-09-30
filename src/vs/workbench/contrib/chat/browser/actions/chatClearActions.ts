@@ -14,12 +14,11 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { CHAT_CATEGORY, isChatViewTitleActionContext } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
-import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
+import { CHAT_VIEW_ID, EDITS_VIEW_ID } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED } from '../../common/chatContextKeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
@@ -88,14 +87,10 @@ export function registerNewChatActions() {
 				context.chatView.widget.focusInput();
 			} else {
 				// Is running from f1 or keybinding
-				const widgetService = accessor.get(IChatWidgetService);
 				const viewsService = accessor.get(IViewsService);
 
-				let widget = widgetService.lastFocusedWidget;
-				if (!widget) {
-					const chatView = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-					widget = chatView.widget;
-				}
+				const chatView = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
@@ -136,14 +131,9 @@ export function registerNewChatActions() {
 				context.chatView.widget.focusInput();
 			} else {
 				// Is running from f1 or keybinding
-				const widgetService = accessor.get(IChatWidgetService);
 				const viewsService = accessor.get(IViewsService);
-
-				let widget = widgetService.lastFocusedWidget;
-				if (!widget || widget.location !== ChatAgentLocation.EditingSession) {
-					const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
-					widget = chatView.widget;
-				}
+				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
