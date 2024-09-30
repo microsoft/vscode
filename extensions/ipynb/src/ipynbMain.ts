@@ -35,6 +35,10 @@ export function activate(context: vscode.ExtensionContext, serializer: vscode.No
 	keepNotebookModelStoreInSync(context);
 	const notebookSerializerOptions: OptionsWithCellContentMetadata = {
 		transientOutputs: false,
+		transientDocumentMetadata: {
+			cells: true,
+			indentAmount: true
+		},
 		transientCellMetadata: {
 			breakpointMargin: true,
 			id: false,
