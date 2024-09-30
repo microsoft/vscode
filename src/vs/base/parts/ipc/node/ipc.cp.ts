@@ -109,7 +109,7 @@ export class Client implements IChannelClient, IDisposable {
 			listen(event: string, arg?: any) {
 				return that.requestEvent(channelName, event, arg);
 			}
-		} as T;
+		};
 	}
 
 	protected requestPromise<T>(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<T> {

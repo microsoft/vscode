@@ -2420,7 +2420,7 @@ export class Repository {
 		return result.stdout.trim().split('\n')
 			.map(line => line.trim().split('\0'))
 			.filter(([_, upstream]) => upstream === upstreamBranch)
-			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
+			.map(([ref]): Branch => ({ name: ref, type: RefType.Head }));
 	}
 
 	async getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
