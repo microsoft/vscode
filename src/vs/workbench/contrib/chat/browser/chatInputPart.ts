@@ -791,7 +791,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate) {
 
-		const clearButton = new Button(widget, { supportIcons: true, hoverDelegate, title: localize('remove', 'Remove') });
+		const clearButton = new Button(widget, {
+			supportIcons: true,
+			hoverDelegate,
+			title: localize('chat.attachment.clearButton', "Remove from context"),
+		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
 		if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {

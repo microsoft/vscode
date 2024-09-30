@@ -19100,7 +19100,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseAnchorPart(value, title))`.
 		 * An anchor is an inline reference to some type of resource.
 		 *
-		 * @param value A uri, location, or symbol information.
+		 * @param value A uri or location.
 		 * @param title An optional title that is rendered with value.
 		 */
 		anchor(value: Uri | Location, title?: string): void;
