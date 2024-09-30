@@ -127,7 +127,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: any[]) {
 		return expandAll(accessor);
 	}
 });
@@ -214,7 +214,7 @@ const clearHistoryCommand: ICommandHandler = accessor => {
 	searchHistoryService.clearHistory();
 };
 
-function expandAll(accessor: ServicesAccessor) {
+async function expandAll(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
@@ -224,7 +224,7 @@ function expandAll(accessor: ServicesAccessor) {
 			if (searchView.model.hasAIResults) {
 				viewer.expandAll();
 			} else {
-				viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+				await viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
 			}
 		} else {
 			viewer.expandAll();

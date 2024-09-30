@@ -353,9 +353,8 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		if (prev) {
 			prev.xterm.clearBuffer();
 			prev.xterm.clearSearchDecorations();
-			// clearBuffer tries to retain the prompt line, but this doesn't exist for tests.
-			// So clear the screen (J) and move to home (H) to ensure previous data is cleaned up.
-			prev.xterm.write(`\x1b[2J\x1b[0;0H`);
+			// clearBuffer tries to retain the prompt. Reset prompt, scrolling state, etc.
+			prev.xterm.write(`\x1bc`);
 			return prev;
 		}
 

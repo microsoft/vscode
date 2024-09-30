@@ -2102,8 +2102,18 @@ export class Repository {
 	}
 
 	async cherryPick(commitHash: string): Promise<void> {
-		const args = ['cherry-pick', commitHash];
-		await this.exec(args);
+		try {
+			await this.exec(['cherry-pick', commitHash]);
+		} catch (err) {
+			if (/The previous cherry-pick is now empty, possibly due to conflict resolution./.test(err.stderr ?? '')) {
+				// Abort the cherry-pick operation
+				await this.exec(['cherry-pick', '--abort']);
+
+				err.gitErrorCode = GitErrorCodes.CherryPickEmpty;
+			}
+
+			throw err;
+		}
 	}
 
 	async blame(path: string): Promise<string> {

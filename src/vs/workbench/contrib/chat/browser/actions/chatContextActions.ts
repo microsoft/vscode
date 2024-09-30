@@ -23,7 +23,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { isQuickChat } from '../chatWidget.js';
 import { ChatContextAttachments } from '../contrib/chatContextAttachments.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
@@ -39,6 +39,7 @@ import { IClipboardService } from '../../../../../platform/clipboard/common/clip
 import { imageToHash, isImage } from '../chatImagePaste.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -116,8 +117,8 @@ class AttachFileAction extends Action2 {
 			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'attach',
-				order: 1,
+				group: 'a_chat',
+				order: 10,
 			}
 		});
 	}
@@ -128,6 +129,7 @@ class AttachFileAction extends Action2 {
 
 		const activeUri = textEditorService.activeEditor?.resource;
 		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
+			(await showChatView(accessor.get(IViewsService)))?.focusInput();
 			variablesService.attachContext('file', activeUri, ChatAgentLocation.Panel);
 		}
 	}
@@ -146,8 +148,8 @@ class AttachSelectionAction extends Action2 {
 			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'attach',
-				order: 2,
+				group: 'a_chat',
+				order: 11,
 			}
 		});
 	}
@@ -161,6 +163,7 @@ class AttachSelectionAction extends Action2 {
 		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(activeUri.scheme)) {
 			const selection = activeEditor?.getSelection();
 			if (selection) {
+				(await showChatView(accessor.get(IViewsService)))?.focusInput();
 				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
 			}
 		}
@@ -185,7 +188,7 @@ class AttachContextAction extends Action2 {
 			title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
-			precondition: AttachContextAction._cdt,
+			precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
@@ -193,10 +196,16 @@ class AttachContextAction extends Action2 {
 			},
 			menu: [
 				{
-					when: AttachContextAction._cdt,
+					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
 					id: MenuId.ChatInput,
 					group: 'navigation',
 					order: 2
+				},
+				{
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 1
 				},
 			]
 		});
@@ -325,8 +334,6 @@ class AttachContextAction extends Action2 {
 			return;
 		}
 
-		const imageData = await clipboardService.readImage();
-
 		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
 		const quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] = [];
@@ -342,13 +349,16 @@ class AttachContextAction extends Action2 {
 			}
 		}
 
-		if (isImage(imageData) && configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-			quickPickItems.push({
-				id: await imageToHash(imageData),
-				kind: 'image',
-				label: localize('imageFromClipboard', 'Image from Clipboard'),
-				iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-			});
+		if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+			const imageData = await clipboardService.readImage();
+			if (isImage(imageData)) {
+				quickPickItems.push({
+					id: await imageToHash(imageData),
+					kind: 'image',
+					label: localize('imageFromClipboard', 'Image from Clipboard'),
+					iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+				});
+			}
 		}
 
 		if (widget.viewModel?.sessionId) {

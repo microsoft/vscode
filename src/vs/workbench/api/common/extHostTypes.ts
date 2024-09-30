@@ -4538,6 +4538,7 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+	EditingSession = 5,
 }
 
 export enum ChatResponseReferencePartStatusKind {

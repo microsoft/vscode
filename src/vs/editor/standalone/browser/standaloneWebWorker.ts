@@ -71,7 +71,7 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 
 	constructor(modelService: IModelService, opts: IWebWorkerOptions) {
 		const workerDescriptor: IWorkerDescriptor = {
-			amdModuleId: standaloneEditorWorkerDescriptor.amdModuleId,
+			moduleId: standaloneEditorWorkerDescriptor.moduleId,
 			esmModuleLocation: standaloneEditorWorkerDescriptor.esmModuleLocation,
 			label: opts.label,
 		};

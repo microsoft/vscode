@@ -33,7 +33,6 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -72,10 +71,13 @@ export interface IChatViewOpenRequestEntry {
 }
 
 class OpenChatGlobalAction extends Action2 {
+
+	static readonly TITLE = localize2('openChat', "Open Chat");
+
 	constructor() {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
-			title: localize2('openChat', "Open Chat"),
+			title: OpenChatGlobalAction.TITLE,
 			icon: Codicon.commentDiscussion,
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -88,7 +90,7 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'open',
+				group: 'a_chat',
 				order: 1
 			}
 		});
@@ -128,7 +130,7 @@ class ChatHistoryAction extends Action2 {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
 				group: 'navigation',
-				order: -1
+				order: 2
 			},
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
@@ -443,7 +445,6 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextmenuService: IContextMenuService
 	) {
 
 		// TODO@jrieken this isn't proper
@@ -460,11 +461,15 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			const dropdownAction = toAction({ id: agent.id, label: agent.fullName ?? agent.name, run() { } });
+			const dropdownAction = toAction({
+				id: agent.id,
+				label: localize('more', "More..."),
+				run() { }
+			});
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: CHAT_OPEN_ACTION_ID,
-				title: agent.fullName ?? agent.name,
+				title: OpenChatGlobalAction.TITLE,
 				icon: agent.metadata.themeIcon,
 			}, undefined, undefined, undefined, undefined);
 

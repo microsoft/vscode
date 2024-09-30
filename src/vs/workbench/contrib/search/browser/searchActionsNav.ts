@@ -453,9 +453,7 @@ async function focusNextSearchResult(accessor: ServicesAccessor): Promise<any> {
 		return (editorService.activeEditorPane as SearchEditor).focusNextResult();
 	}
 
-	return openSearchView(accessor.get(IViewsService)).then(searchView => {
-		searchView?.selectNextMatch();
-	});
+	return openSearchView(accessor.get(IViewsService)).then(searchView => searchView?.selectNextMatch());
 }
 
 async function focusPreviousSearchResult(accessor: ServicesAccessor): Promise<any> {
@@ -466,9 +464,7 @@ async function focusPreviousSearchResult(accessor: ServicesAccessor): Promise<an
 		return (editorService.activeEditorPane as SearchEditor).focusPreviousResult();
 	}
 
-	return openSearchView(accessor.get(IViewsService)).then(searchView => {
-		searchView?.selectPreviousMatch();
-	});
+	return openSearchView(accessor.get(IViewsService)).then(searchView => searchView?.selectPreviousMatch());
 }
 
 async function findOrReplaceInFiles(accessor: ServicesAccessor, expandSearchReplaceWidget: boolean): Promise<any> {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { AccountInfo, AuthenticationResult, ServerError } from '@azure/msal-node';
-import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Memento, SecretStorage, Uri, window } from 'vscode';
+import { AuthenticationGetSessionOptions, AuthenticationProvider, AuthenticationProviderAuthenticationSessionsChangeEvent, AuthenticationProviderSessionOptions, AuthenticationSession, AuthenticationSessionAccountInformation, CancellationError, env, EventEmitter, ExtensionContext, l10n, LogOutputChannel, Memento, SecretStorage, Uri, window } from 'vscode';
 import { Environment } from '@azure/ms-rest-azure-env';
 import { CachedPublicClientApplicationManager } from './publicClientCache';
 import { UriHandlerLoopbackClient } from '../common/loopbackClientAndOpener';
@@ -147,7 +147,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 	}
 
-	async createSession(scopes: readonly string[]): Promise<AuthenticationSession> {
+	async createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Promise<AuthenticationSession> {
 		const scopeData = new ScopeData(scopes);
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 
@@ -166,7 +166,12 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					// The logic for rendering one or the other of these templates is in the
 					// template itself, so we pass the same one for both.
 					successTemplate: loopbackTemplate,
-					errorTemplate: loopbackTemplate
+					errorTemplate: loopbackTemplate,
+					// Pass the label of the account to the login hint so that we prefer signing in to that account
+					loginHint: options.account?.label,
+					// If we aren't logging in to a specific account, then we can use the prompt to make sure they get
+					// the option to choose a different account.
+					prompt: options.account?.label ? undefined : 'select_account'
 				});
 			} catch (e) {
 				if (e instanceof CancellationError) {
@@ -203,7 +208,9 @@ export class MsalAuthProvider implements AuthenticationProvider {
 				result = await cachedPca.acquireTokenInteractive({
 					openBrowser: (url: string) => loopbackClient.openBrowser(url),
 					scopes: scopeData.scopesToSend,
-					loopbackClient
+					loopbackClient,
+					loginHint: options.account?.label,
+					prompt: options.account?.label ? undefined : 'select_account'
 				});
 			} catch (e) {
 				this._telemetryReporter.sendLoginFailedEvent();

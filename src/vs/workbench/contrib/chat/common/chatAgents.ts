@@ -23,7 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from './chatContextKeys.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
@@ -40,7 +40,8 @@ export enum ChatAgentLocation {
 	Panel = 'panel',
 	Terminal = 'terminal',
 	Notebook = 'notebook',
-	Editor = 'editor'
+	Editor = 'editor',
+	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -50,6 +51,7 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
+			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}
@@ -248,12 +250,14 @@ export class ChatAgentService implements IChatAgentService {
 
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
+	private readonly _editingAgentRegistered: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		this._hasDefaultAgent = CONTEXT_CHAT_ENABLED.bindTo(this.contextKeyService);
 		this._defaultAgentRegistered = CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
+		this._editingAgentRegistered = CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
@@ -262,7 +266,9 @@ export class ChatAgentService implements IChatAgentService {
 			throw new Error(`Agent already registered: ${JSON.stringify(id)}`);
 		}
 
-		if (data.isDefault) {
+		if (data.isDefault && data.locations.includes(ChatAgentLocation.EditingSession)) {
+			this._editingAgentRegistered.set(true);
+		} else if (data.isDefault) {
 			this._defaultAgentRegistered.set(true);
 		}
 
@@ -279,7 +285,9 @@ export class ChatAgentService implements IChatAgentService {
 		this._onDidChangeAgents.fire(undefined);
 		return toDisposable(() => {
 			this._agents.delete(id);
-			if (data.isDefault) {
+			if (data.isDefault && data.locations.includes(ChatAgentLocation.EditingSession)) {
+				this._editingAgentRegistered.set(false);
+			} else if (data.isDefault) {
 				this._defaultAgentRegistered.set(false);
 			}
 

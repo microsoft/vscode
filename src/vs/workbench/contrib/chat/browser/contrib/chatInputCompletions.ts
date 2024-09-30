@@ -254,7 +254,7 @@ class AgentCompletions extends Disposable {
 								detail: c.description,
 								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
-								insertText: label,
+								insertText: label + ' ',
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
 								sortText: `x${chatAgentLeader}${agent.name}${c.name}`,
@@ -382,19 +382,19 @@ class BuiltinDynamicCompletions extends Disposable {
 		const makeFileCompletionItem = (resource: URI): CompletionItem => {
 
 			const basename = this.labelService.getUriBasenameLabel(resource);
-			const insertText = `${chatVariableLeader}file:${basename} `;
+			const text = `${chatVariableLeader}file:${basename}`;
 
 			return {
 				label: { label: basename, description: this.labelService.getUriLabel(resource, { relative: true }) },
 				filterText: `${chatVariableLeader}${basename}`,
-				insertText,
+				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
 				kind: CompletionItemKind.File,
 				sortText: '{', // after `z`
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
-						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + insertText.length },
+						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]
 				}

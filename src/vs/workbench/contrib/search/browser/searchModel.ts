@@ -2289,7 +2289,7 @@ export class SearchModel extends Disposable {
 				this.onSearchProgress(p, searchInstanceID, false, true);
 				onProgress?.(p);
 			}).finally(() => {
-				this.currentAICancelTokenSource?.dispose(true);
+				tokenSource.dispose(true);
 			}).then(
 				value => {
 					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
@@ -2322,7 +2322,7 @@ export class SearchModel extends Disposable {
 		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, asyncGenerateOnProgress);
 		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
-			this.currentCancelTokenSource.token, asyncGenerateOnProgress,
+			tokenSource.token, asyncGenerateOnProgress,
 			notebookResult.openFilesToScan,
 			notebookResult.allScannedFiles,
 		);
@@ -2336,7 +2336,6 @@ export class SearchModel extends Disposable {
 			// resolve async parts of search
 			const allClosedEditorResults = await textResult.asyncResults;
 			const resolvedNotebookResults = await notebookResult.completeData;
-			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
 			const resolvedResult: ISearchComplete = {
 				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
@@ -2349,7 +2348,8 @@ export class SearchModel extends Disposable {
 			return resolvedResult;
 		};
 		return {
-			asyncResults: getAsyncResults(),
+			asyncResults: getAsyncResults()
+				.finally(() => tokenSource.dispose(true)),
 			syncResults
 		};
 	}
@@ -2423,8 +2423,6 @@ export class SearchModel extends Disposable {
 					e => {
 						this.onSearchError(e, Date.now() - start, false);
 						throw e;
-					}).finally(() => {
-						this.currentCancelTokenSource?.dispose(true);
 					}),
 				syncResults
 			};
