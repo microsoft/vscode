@@ -5,72 +5,22 @@
 
 /* eslint-disable no-restricted-globals */
 
-(function () {
-
-	type INativeWindowConfiguration = import('vs/platform/window/common/window.ts').INativeWindowConfiguration;
-	type NativeParsedArgs = import('vs/platform/environment/common/argv.js').NativeParsedArgs;
-	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
-	type IMainWindowSandboxGlobals = import('vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
-
-	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; 	// defined by bootstrap-window.ts
-	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; 			// defined by preload.ts
+(async function () {
 
 	// Add a perf entry right from the top
 	performance.mark('code/didStartRenderer');
 
-	// Load workbench main JS and CSS all in parallel. This is an
-	// optimization to prevent a waterfall of loading to happen, because
-	// we know for a fact that workbench.desktop.main will depend on
-	// the related CSS counterpart.
-	bootstrapWindow.load<INativeWindowConfiguration>('vs/workbench/workbench.desktop.main',
-		function (desktopMain, configuration) {
+	type INativeWindowConfiguration = import('vs/platform/window/common/window.ts').INativeWindowConfiguration;
+	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
+	type IMainWindowSandboxGlobals = import('vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
+	type IDesktopMain = import('vs/workbench/electron-sandbox/desktop.main.js').IDesktopMain;
 
-			// Mark start of workbench
-			performance.mark('code/didLoadWorkbenchMain');
+	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; 	// defined by bootstrap-window.ts
+	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; 			// defined by preload.ts
 
-			return desktopMain.main(configuration);
-		},
-		{
-			configureDeveloperSettings: function (windowConfig) {
-				return {
-					// disable automated devtools opening on error when running extension tests
-					// as this can lead to nondeterministic test execution (devtools steals focus)
-					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string' || windowConfig['enable-smoke-test-driver'] === true,
-					// enable devtools keybindings in extension development window
-					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
-					removeDeveloperKeybindingsAfterLoad: true
-				};
-			},
-			canModifyDOM: function (windowConfig) {
-				showSplash(windowConfig);
-			},
-			beforeImport: function (windowConfig) {
-				performance.mark('code/willLoadWorkbenchMain');
+	//#region Splash Screen Helpers
 
-				// Code windows have a `vscodeWindowId` property to identify them
-				Object.defineProperty(window, 'vscodeWindowId', {
-					get: () => windowConfig.windowId
-				});
-
-				// It looks like browsers only lazily enable
-				// the <canvas> element when needed. Since we
-				// leverage canvas elements in our code in many
-				// locations, we try to help the browser to
-				// initialize canvas when it is idle, right
-				// before we wait for the scripts to be loaded.
-				window.requestIdleCallback(() => {
-					const canvas = document.createElement('canvas');
-					const context = canvas.getContext('2d');
-					context?.clearRect(0, 0, canvas.width, canvas.height);
-					canvas.remove();
-				}, { timeout: 50 });
-			}
-		}
-	);
-
-	//#region Helpers
-
-	function showSplash(configuration: INativeWindowConfiguration & NativeParsedArgs) {
+	function showSplash(configuration: INativeWindowConfiguration) {
 		performance.mark('code/willShowPartsSplash');
 
 		let data = configuration.partsSplash;
@@ -275,4 +225,50 @@
 	}
 
 	//#endregion
+
+	const { result, configuration } = await bootstrapWindow.load<IDesktopMain, INativeWindowConfiguration>('vs/workbench/workbench.desktop.main',
+		{
+			configureDeveloperSettings: function (windowConfig) {
+				return {
+					// disable automated devtools opening on error when running extension tests
+					// as this can lead to nondeterministic test execution (devtools steals focus)
+					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string' || windowConfig['enable-smoke-test-driver'] === true,
+					// enable devtools keybindings in extension development window
+					removeDeveloperKeybindingsAfterLoad: true
+				};
+			},
+			beforeImport: function (windowConfig) {
+
+				// Show our splash as early as possible
+				showSplash(windowConfig);
+
+				// Code windows have a `vscodeWindowId` property to identify them
+				Object.defineProperty(window, 'vscodeWindowId', {
+					get: () => windowConfig.windowId
+				});
+
+				// It looks like browsers only lazily enable
+				// the <canvas> element when needed. Since we
+				// leverage canvas elements in our code in many
+				// locations, we try to help the browser to
+				// initialize canvas when it is idle, right
+				// before we wait for the scripts to be loaded.
+				window.requestIdleCallback(() => {
+					const canvas = document.createElement('canvas');
+					const context = canvas.getContext('2d');
+					context?.clearRect(0, 0, canvas.width, canvas.height);
+					canvas.remove();
+				}, { timeout: 50 });
+
+				// Track import() perf
+				performance.mark('code/willLoadWorkbenchMain');
+			}
+		}
+	);
+
+	// Mark start of workbench
+	performance.mark('code/didLoadWorkbenchMain');
+
+	// Load workbench
+	result.main(configuration);
 }());
