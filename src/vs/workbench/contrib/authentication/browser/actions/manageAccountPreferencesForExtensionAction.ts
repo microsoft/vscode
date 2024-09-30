@@ -23,8 +23,8 @@ export class ManageAccountPreferencesForExtensionAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, extensionId?: string) {
-		return accessor.get(IInstantiationService).createInstance(ManageAccountPreferenceForExtensionActionImpl).run(extensionId);
+	override run(accessor: ServicesAccessor, extensionId?: string, providerId?: string): Promise<void> {
+		return accessor.get(IInstantiationService).createInstance(ManageAccountPreferenceForExtensionActionImpl).run(extensionId, providerId);
 	}
 }
 
@@ -42,7 +42,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) { }
 
-	async run(extensionId?: string) {
+	async run(extensionId?: string, providerId?: string) {
 		if (!extensionId) {
 			return;
 		}
@@ -53,14 +53,19 @@ class ManageAccountPreferenceForExtensionActionImpl {
 
 		const providerIds = new Array<string>();
 		const providerIdToAccounts = new Map<string, ReadonlyArray<AuthenticationSessionAccount>>();
-		for (const providerId of this._authenticationService.getProviderIds()) {
-			const accounts = await this._authenticationService.getAccounts(providerId);
-			for (const account of accounts) {
-				const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => u.extensionId === extensionId.toLowerCase());
-				if (usage) {
-					providerIds.push(providerId);
-					providerIdToAccounts.set(providerId, accounts);
-					break;
+		if (providerId) {
+			providerIds.push(providerId);
+			providerIdToAccounts.set(providerId, await this._authenticationService.getAccounts(providerId));
+		} else {
+			for (const providerId of this._authenticationService.getProviderIds()) {
+				const accounts = await this._authenticationService.getAccounts(providerId);
+				for (const account of accounts) {
+					const usage = this._authenticationUsageService.readAccountUsages(providerId, account.label).find(u => u.extensionId === extensionId.toLowerCase());
+					if (usage) {
+						providerIds.push(providerId);
+						providerIdToAccounts.set(providerId, accounts);
+						break;
+					}
 				}
 			}
 		}

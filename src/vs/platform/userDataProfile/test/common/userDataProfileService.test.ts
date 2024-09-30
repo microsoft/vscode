@@ -259,6 +259,16 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(actual.updated[0].workspaces[0].toString(), workspace.toString());
 	});
 
+	test('associate same workspace to a profile should not duplicate', async () => {
+		const workspace = URI.file('/workspace1');
+		const profile = await testObject.createProfile('id', 'name', { workspaces: [workspace] });
+
+		await testObject.setProfileForWorkspace({ id: workspace.path, uri: workspace }, profile);
+
+		assert.deepStrictEqual(testObject.profiles[1].workspaces?.length, 1);
+		assert.deepStrictEqual(testObject.profiles[1].workspaces[0].toString(), workspace.toString());
+	});
+
 	test('associate workspace to another profile should update workspaces', async () => {
 		const workspace = URI.file('/workspace1');
 		const profile1 = await testObject.createProfile('id', 'name', {}, { id: workspace.path, uri: workspace });
@@ -334,6 +344,23 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.defaultProfile.isDefault, true);
 		assert.deepStrictEqual(testObject.defaultProfile.workspaces?.length, 1);
 		assert.deepStrictEqual(testObject.defaultProfile.workspaces[0].toString(), workspace.toString());
+	});
+
+	test('can create transient and persistent profiles with same name', async () => {
+		const profile1 = await testObject.createNamedProfile('name', { transient: true });
+		const profile2 = await testObject.createNamedProfile('name', { transient: true });
+		const profile3 = await testObject.createNamedProfile('name');
+
+		assert.deepStrictEqual(profile1.name, 'name');
+		assert.deepStrictEqual(!!profile1.isTransient, true);
+		assert.deepStrictEqual(profile2.name, 'name');
+		assert.deepStrictEqual(!!profile2.isTransient, true);
+		assert.deepStrictEqual(profile3.name, 'name');
+		assert.deepStrictEqual(!!profile3.isTransient, false);
+		assert.deepStrictEqual(testObject.profiles.length, 4);
+		assert.deepStrictEqual(testObject.profiles[1].id, profile3.id);
+		assert.deepStrictEqual(testObject.profiles[2].id, profile1.id);
+		assert.deepStrictEqual(testObject.profiles[3].id, profile2.id);
 	});
 
 });

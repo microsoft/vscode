@@ -100,6 +100,9 @@ class GettingStartedAccessibleProvider extends Disposable implements IAccessible
 	}
 
 	onClose(): void {
-		this._gettingStartedPage.focus();
+		if (this._currentStepIndex > -1) {
+			const currentStep = this._activeWalkthroughSteps[this._currentStepIndex];
+			this._gettingStartedPage.makeCategoryVisibleWhenAvailable(this._focusedItem.id, currentStep.id);
+		}
 	}
 }

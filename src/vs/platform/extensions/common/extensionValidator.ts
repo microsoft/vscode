@@ -358,7 +358,7 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 	}
 	const notices: string[] | undefined = Array.isArray(arg1) ? arg1 : undefined;
 	const productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }> = (notices ? undefined : arg1) ?? allApiProposals;
-	const incompatibleNotices: string[] = [];
+	const incompatibleProposals: string[] = [];
 	const parsedProposals = parseApiProposals(apiProposals);
 	for (const { proposalName, version } of parsedProposals) {
 		const existingProposal = productApiProposals[proposalName];
@@ -369,12 +369,22 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 			continue;
 		}
 		if (existingProposal.version !== version) {
-			incompatibleNotices.push(nls.localize('apiProposalMismatch', "This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.", proposalName));
+			incompatibleProposals.push(proposalName);
 		}
 	}
-	notices?.push(...incompatibleNotices);
-	return incompatibleNotices.length === 0;
-
+	if (incompatibleProposals.length) {
+		if (notices) {
+			if (incompatibleProposals.length === 1) {
+				notices.push(nls.localize('apiProposalMismatch1', "This extension is using the API proposal '{0}' that is not compatible with the current version of VS Code.", incompatibleProposals[0]));
+			} else {
+				notices.push(nls.localize('apiProposalMismatch2', "This extension is using the API proposals {0} and '{1}' that are not compatible with the current version of VS Code.",
+					incompatibleProposals.slice(0, incompatibleProposals.length - 1).map(p => `'${p}'`).join(', '),
+					incompatibleProposals[incompatibleProposals.length - 1]));
+			}
+		}
+		return false;
+	}
+	return true;
 }
 
 function isVersionValid(currentVersion: string, date: ProductDate, requestedVersion: string, notices: string[] = []): boolean {

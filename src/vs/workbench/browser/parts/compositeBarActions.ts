@@ -46,6 +46,11 @@ export interface ICompositeBar {
 	isPinned(compositeId: string): boolean;
 
 	/**
+	 * Get pinned composite ids in the composite bar.
+	 */
+	getPinnedCompositeIds(): string[];
+
+	/**
 	 * Returns if badges are enabled for that specified composite.
 	 * @param compositeId The id of the composite to check
 	 */
@@ -689,8 +694,10 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		if (isPinned) {
 			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.compositeBarActionItem.name);
 			this.toggleCompositePinnedAction.checked = false;
+			this.toggleCompositePinnedAction.enabled = this.compositeBar.getPinnedCompositeIds().length > 1;
 		} else {
 			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.compositeBarActionItem.name);
+			this.toggleCompositePinnedAction.enabled = true;
 		}
 
 		const isBadgeEnabled = this.compositeBar.areBadgesEnabled(this.compositeBarActionItem.id);

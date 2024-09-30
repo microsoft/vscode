@@ -13,7 +13,8 @@
     "mappedEditsProvider",
     "codeActionAI",
     "codeActionRanges",
-    "documentPaste"
+    "documentPaste",
+    "editorHoverVerbosityLevel"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -825,16 +826,16 @@
           ],
           "enumDescriptions": [
             "%typescript.locale.auto%",
-						"Deutsch",
-						"español",
+            "Deutsch",
+            "español",
             "English",
-						"français",
-						"italiano",
-						"日本語",
-						"한국어",
-						"русский",
-						"中文(简体)",
-						"中文(繁體)"
+            "français",
+            "italiano",
+            "日本語",
+            "한국어",
+            "русский",
+            "中文(简体)",
+            "中文(繁體)"
           ],
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
@@ -1483,14 +1484,27 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.updateImportsOnPaste%",
-          "tags": ["experimental"]
+          "tags": [
+            "experimental"
+          ]
         },
         "typescript.experimental.updateImportsOnPaste": {
           "scope": "window",
           "type": "boolean",
           "default": false,
           "description": "%configuration.updateImportsOnPaste%",
-          "tags": ["experimental"]
+          "tags": [
+            "experimental"
+          ]
+        },
+        "typescript.experimental.expandableHover": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.expandableHover%",
+          "scope": "window",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },

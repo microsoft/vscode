@@ -14,7 +14,6 @@ import { renderStringAsPlaintext } from '../../../../base/browser/markdownRender
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -28,8 +27,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	constructor(
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -49,9 +47,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		const plainTextResponse = renderStringAsPlaintext(new MarkdownString(responseContent));
-		if (this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) === 'on' && !isVoiceInput) {
-			this._commandService.executeCommand('workbench.action.chat.readChatResponseAloud');
-		} else {
+		if (!isVoiceInput || this._configurationService.getValue(AccessibilityVoiceSettingId.AutoSynthesize) !== 'on') {
 			status(plainTextResponse + errorDetails);
 		}
 	}
