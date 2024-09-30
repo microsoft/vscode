@@ -19,11 +19,9 @@
 }
 
 .monaco-editor .edit-context-composition-secondary {
-	background-color: var(--vscode-editor-compositionBackground);
-	/*border-bottom: 1px solid var(--vscode-editor-compositionBorder);*/
+	border-bottom: 1px solid var(--vscode-editor-compositionBorder);
 }
 
 .monaco-editor .edit-context-composition-primary {
-	background-color: var(--vscode-editor-compositionBackground);
-	/*border-bottom: 1px solid var(--vscode-editor-compositionBorder);*/
+	border-bottom: 2px solid var(--vscode-editor-compositionBorder);
 }

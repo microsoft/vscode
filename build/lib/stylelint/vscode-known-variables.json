@@ -150,7 +150,6 @@
 		"--vscode-editor-placeholder-foreground",
 		"--vscode-editor-rangeHighlightBackground",
 		"--vscode-editor-rangeHighlightBorder",
-		"--vscode-editor-compositionBackground",
 		"--vscode-editor-compositionBorder",
 		"--vscode-editor-selectionBackground",
 		"--vscode-editor-selectionForeground",

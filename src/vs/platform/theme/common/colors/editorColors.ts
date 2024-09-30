@@ -134,12 +134,8 @@ export const editorSelectionHighlightBorder = registerColor('editor.selectionHig
 	{ light: null, dark: null, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
 	nls.localize('editorSelectionHighlightBorder', "Border color for regions with the same content as the selection."));
 
-export const editorCompositionBackground = registerColor('editor.compositionBackground',
-	{ light: '#cfcfcf', dark: '#575757', hcDark: null, hcLight: null },
-	nls.localize('editorCompositionBackground', "The background color for the composition."));
-
 export const editorCompositionBorder = registerColor('editor.compositionBorder',
-	{ light: '#000000', dark: '#ffffff', hcDark: '#ffffff', hcLight: '#000000' },
+	{ light: '#000000', dark: '#ffffff', hcLight: '#000000', hcDark: '#ffffff' },
 	nls.localize('editorCompositionBorder', "The border color for the composition."));
 
 
