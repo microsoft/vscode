@@ -64,6 +64,14 @@ function optimizeESMTask(opts) {
                     });
                 }
             };
+            const overrideExternalPlugin = {
+                name: 'override-external',
+                setup(build) {
+                    build.onResolve({ filter: /^minimist$/ }, () => {
+                        return { path: path.join(REPO_ROOT_PATH, 'node_modules', 'minimist', 'index.js'), external: false };
+                    });
+                },
+            };
             const task = esbuild.build({
                 bundle: true,
                 external: entryPoint.exclude,
@@ -71,7 +79,7 @@ function optimizeESMTask(opts) {
                 platform: 'neutral', // makes esm
                 format: 'esm',
                 sourcemap: 'external',
-                plugins: [boilerplateTrimmer],
+                plugins: [boilerplateTrimmer, overrideExternalPlugin],
                 target: ['es2022'],
                 loader: {
                     '.ttf': 'file',
