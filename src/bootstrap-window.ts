@@ -15,9 +15,6 @@
 	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
 
-	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-	Error.stackTraceLimit = 100;
-
 	async function load<M, T extends ISandboxConfiguration>(esModule: string, options: ILoadOptions<T>): Promise<ILoadResult<M, T>> {
 
 		// Window Configuration from Preload Script
