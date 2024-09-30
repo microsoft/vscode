@@ -21,7 +21,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -459,7 +459,7 @@ class AttachContextAction extends Action2 {
 				}
 			},
 			additionPicks: quickPickItems,
-			filter: (item: IChatContextQuickPickItem) => {
+			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
 
