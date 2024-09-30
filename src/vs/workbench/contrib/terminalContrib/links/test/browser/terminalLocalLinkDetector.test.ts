@@ -169,7 +169,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	let detector: TerminalLocalLinkDetector;
 	let resolver: TerminalLinkResolver;
 	let xterm: Terminal;
-	let validResources: URI[];
+	let validResources: URI[] = [];
 
 	async function assertLinks(
 		type: TerminalBuiltinLinkType,
