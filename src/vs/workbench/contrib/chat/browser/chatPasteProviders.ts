@@ -12,7 +12,6 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IChatWidgetService } from './chat.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
@@ -27,7 +26,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly pasteMimeTypes = ['image/*'];
 	constructor(
-		private readonly clipboardService: IClipboardService,
 		private readonly chatWidgetService: IChatWidgetService,
 		private readonly configurationService: IConfigurationService
 	) { }
@@ -37,11 +35,17 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const currClipboard = await this.clipboardService.readImage();
+		const imageItem = dataTransfer.get('image/png') || dataTransfer.get('image/jpeg') || dataTransfer.get('image/bmp') || dataTransfer.get('image/gif') || dataTransfer.get('image/tiff');
+		if (!imageItem) {
+			return;
+		}
+
+		const currClipboard = await imageItem.asFile()?.data();
 
 		if (!currClipboard || !isImage(currClipboard)) {
 			return;
 		}
+
 		const imageContext = await getImageAttachContext(currClipboard);
 		if (!imageContext) {
 			return;
@@ -97,11 +101,10 @@ export function isImage(array: Uint8Array): boolean {
 export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IClipboardService clipboardService: IClipboardService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(clipboardService, chatWidgetService, configurationService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, configurationService)));
 	}
 }
