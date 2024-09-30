@@ -56,9 +56,9 @@ exports.keyboardMaps = [
 ];
 
 exports.code = [
-	createModuleDescription('vs/code/electron-main/main'),
-	createModuleDescription('vs/code/node/cli'),
-	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
+	// 'vs/code/electron-main/main' is not included here because it comes in via ./src/main.js
+	// 'vs/code/node/cli' is not included here because it comes in via ./src/cli.js
+	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
