@@ -11,7 +11,6 @@
 	performance.mark('code/didStartRenderer');
 
 	type INativeWindowConfiguration = import('vs/platform/window/common/window.ts').INativeWindowConfiguration;
-	type NativeParsedArgs = import('vs/platform/environment/common/argv.js').NativeParsedArgs;
 	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
 	type IMainWindowSandboxGlobals = import('vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
 	type IDesktopMain = import('vs/workbench/electron-sandbox/desktop.main.js').IDesktopMain;
@@ -21,7 +20,7 @@
 
 	//#region Splash Screen Helpers
 
-	function showSplash(configuration: INativeWindowConfiguration & NativeParsedArgs) {
+	function showSplash(configuration: INativeWindowConfiguration) {
 		performance.mark('code/willShowPartsSplash');
 
 		let data = configuration.partsSplash;
