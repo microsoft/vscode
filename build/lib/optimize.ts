@@ -96,6 +96,17 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 				}
 			};
 
+			const overrideExternalPlugin: esbuild.Plugin = {
+				name: 'override-external',
+				setup(build) {
+					// We inline selected modules that are we depend on on startup without
+					// a conditional `await import(...)` by hooking into the resolution.
+					build.onResolve({ filter: /^minimist$/ }, () => {
+						return { path: path.join(REPO_ROOT_PATH, 'node_modules', 'minimist', 'index.js'), external: false };
+					});
+				},
+			};
+
 			const task = esbuild.build({
 				bundle: true,
 				external: entryPoint.exclude,
@@ -103,7 +114,7 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 				platform: 'neutral', // makes esm
 				format: 'esm',
 				sourcemap: 'external',
-				plugins: [boilerplateTrimmer],
+				plugins: [boilerplateTrimmer, overrideExternalPlugin],
 				target: ['es2022'],
 				loader: {
 					'.ttf': 'file',
