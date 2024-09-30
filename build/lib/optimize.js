@@ -67,6 +67,8 @@ function optimizeESMTask(opts) {
             const overrideExternalPlugin = {
                 name: 'override-external',
                 setup(build) {
+                    // We inline selected modules that are we depend on on startup without
+                    // a conditional `await import(...)` by hooking into the resolution.
                     build.onResolve({ filter: /^minimist$/ }, () => {
                         return { path: path.join(REPO_ROOT_PATH, 'node_modules', 'minimist', 'index.js'), external: false };
                     });
