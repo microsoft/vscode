@@ -11,6 +11,7 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { IToolData, IToolImpl, IToolInvocation, LanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { MockChatService } from '../common/mockChatService.js';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,7 +22,7 @@ suite('LanguageModelToolsService', () => {
 	setup(() => {
 		const extensionService = new TestExtensionService();
 		contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService));
+		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService, new MockChatService()));
 	});
 
 	test('registerToolData', () => {
@@ -47,7 +48,9 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(toolData));
 
 		const toolImpl: IToolImpl = {
-			invoke: async () => ({ 'text/plain': 'result' })
+			invoke: async () => ({ 'text/plain': 'result' }),
+			provideToolInvocationMessage: async () => 'test',
+			provideToolConfirmationMessages: async () => ({ title: 'test', message: 'test' }),
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
@@ -101,7 +104,9 @@ suite('LanguageModelToolsService', () => {
 				assert.strictEqual(invocation.toolId, 'testTool');
 				assert.deepStrictEqual(invocation.parameters, { a: 1 });
 				return { 'text/plain': 'result' };
-			}
+			},
+			provideToolInvocationMessage: async () => 'test',
+			provideToolConfirmationMessages: async () => ({ title: 'test', message: 'test' }),
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
@@ -113,7 +118,7 @@ suite('LanguageModelToolsService', () => {
 			parameters: {
 				a: 1
 			},
-			context: { sessionId: 'a' },
+			context: undefined,
 			requestedContentTypes: ['text/plain']
 		};
 

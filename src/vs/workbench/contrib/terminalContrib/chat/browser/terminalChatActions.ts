@@ -36,7 +36,7 @@ registerActiveXtermAction({
 			return;
 		}
 
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 
 		if (opts) {
 			opts = typeof opts === 'string' ? { query: opts } : opts;
@@ -76,7 +76,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.clear();
 	}
 });
@@ -98,8 +98,8 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.inlineChatWidget.chatWidget.focusLastMessage();
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
+		contr?.chatWidget?.focusLastMessage();
 	}
 });
 
@@ -121,8 +121,8 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.focus();
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
+		contr?.terminalChatWidget?.focus();
 	}
 });
 
@@ -150,7 +150,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.clear();
 	}
 });
@@ -182,7 +182,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(true);
 	}
 });
@@ -212,7 +212,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(true);
 	}
 });
@@ -243,7 +243,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(false);
 	}
 });
@@ -273,7 +273,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptCommand(false);
 	}
 });
@@ -302,7 +302,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.viewInChat();
 	}
 });
@@ -331,7 +331,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.acceptInput();
 	}
 });
@@ -352,7 +352,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.cancel();
 	}
 });
@@ -371,7 +371,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.populateHistory(true);
 	}
 });
@@ -390,7 +390,7 @@ registerActiveXtermAction({
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
-		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.populateHistory(false);
 	}
 });

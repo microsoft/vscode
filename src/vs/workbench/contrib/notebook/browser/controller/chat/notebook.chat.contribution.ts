@@ -124,9 +124,9 @@ class NotebookChatContribution extends Disposable implements IWorkbenchContribut
 			}
 
 			result.suggestions.push({
-				label: { label: variable.name, description: variable.value },
+				label: { label: variable.name, description: variable.type },
 				insertText: `${chatVariableLeader}${NotebookKernelVariableKey}:${variable.name} `,
-				filterText: `${chatVariableLeader}${NotebookKernelVariableKey}:${variable.name}`,
+				filterText: `${chatVariableLeader}${variable.name}`,
 				range: info,
 				kind: CompletionItemKind.Variable,
 				sortText: 'z',

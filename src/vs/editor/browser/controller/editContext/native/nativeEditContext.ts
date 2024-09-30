@@ -18,7 +18,7 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
-import { AbstractEditContext } from '../editContextUtils.js';
+import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
@@ -26,6 +26,13 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+
+// Corresponds to classes in nativeEditContext.css
+enum CompositionClassName {
+	NONE = 'edit-context-composition-none',
+	SECONDARY = 'edit-context-composition-secondary',
+	PRIMARY = 'edit-context-composition-primary',
+}
 
 export class NativeEditContext extends AbstractEditContext {
 
@@ -44,6 +51,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	constructor(
 		context: ViewContext,
+		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -54,6 +62,9 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
 		this._updateDomAttributes();
+
+		overflowGuardContainer.appendChild(this.domNode);
+		this._parent = overflowGuardContainer.domNode;
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
@@ -114,11 +125,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		super.dispose();
-	}
-
-	public appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this.domNode);
-		this._parent = overflowGuardContainer.domNode;
 	}
 
 	public setAriaOptions(): void {
@@ -257,16 +263,21 @@ export class NativeEditContext extends AbstractEditContext {
 			const startPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeStart);
 			const endPositionOfDecoration = textModel.getPositionAt(offsetOfEditContextText + f.rangeEnd);
 			const decorationRange = Range.fromPositions(startPositionOfDecoration, endPositionOfDecoration);
-			const classNames = [
-				'edit-context-format-decoration',
-				`underline-style-${f.underlineStyle.toLowerCase()}`,
-				`underline-thickness-${f.underlineThickness.toLowerCase()}`,
-			];
+			const thickness = f.underlineThickness.toLowerCase();
+			let decorationClassName: string = CompositionClassName.NONE;
+			switch (thickness) {
+				case 'thin':
+					decorationClassName = CompositionClassName.SECONDARY;
+					break;
+				case 'thick':
+					decorationClassName = CompositionClassName.PRIMARY;
+					break;
+			}
 			decorations.push({
 				range: decorationRange,
 				options: {
 					description: 'textFormatDecoration',
-					inlineClassName: classNames.join(' '),
+					inlineClassName: decorationClassName,
 				}
 			});
 		});
@@ -281,16 +292,19 @@ export class NativeEditContext extends AbstractEditContext {
 		const lineHeight = options.get(EditorOption.lineHeight);
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
 		const parentBounds = this._parent.getBoundingClientRect();
-		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(this._primarySelection.startLineNumber);
+		const modelStartPosition = this._primarySelection.getStartPosition();
+		const viewStartPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelStartPosition);
+		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewStartPosition.lineNumber);
 		const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+		const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 
 		const top = parentBounds.top + verticalOffsetStart - editorScrollTop;
 		const height = (this._primarySelection.endLineNumber - this._primarySelection.startLineNumber + 1) * lineHeight;
-		let left = parentBounds.left + contentLeft;
+		let left = parentBounds.left + contentLeft - editorScrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
-			const linesVisibleRanges = ctx.visibleRangeForPosition(this._primarySelection.getPosition());
+			const linesVisibleRanges = ctx.visibleRangeForPosition(viewStartPosition);
 			if (linesVisibleRanges) {
 				left += linesVisibleRanges.left;
 			}
@@ -321,10 +335,12 @@ export class NativeEditContext extends AbstractEditContext {
 			const textStartLineOffsetWithinEditor = this._textStartPositionWithinEditor.lineNumber - 1;
 			const characterStartPosition = new Position(textStartLineOffsetWithinEditor + editContextStartPosition.lineNumber, editContextStartPosition.column);
 			const characterEndPosition = characterStartPosition.delta(0, 1);
-			const characterRange = Range.fromPositions(characterStartPosition, characterEndPosition);
-			const characterLinesVisibleRanges = this._visibleRangeProvider.linesVisibleRangesForRange(characterRange, true) ?? [];
-			const characterVerticalOffset = this._context.viewLayout.getVerticalOffsetForLineNumber(characterRange.startLineNumber);
+			const characterModelRange = Range.fromPositions(characterStartPosition, characterEndPosition);
+			const characterViewRange = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(characterModelRange);
+			const characterLinesVisibleRanges = this._visibleRangeProvider.linesVisibleRangesForRange(characterViewRange, true) ?? [];
+			const characterVerticalOffset = this._context.viewLayout.getVerticalOffsetForLineNumber(characterViewRange.startLineNumber);
 			const editorScrollTop = this._context.viewLayout.getCurrentScrollTop();
+			const editorScrollLeft = this._context.viewLayout.getCurrentScrollLeft();
 			const top = parentBounds.top + characterVerticalOffset - editorScrollTop;
 
 			let left = 0;
@@ -336,7 +352,7 @@ export class NativeEditContext extends AbstractEditContext {
 					break;
 				}
 			}
-			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left, top, width, lineHeight));
+			characterBounds.push(new DOMRect(parentBounds.left + contentLeft + left - editorScrollLeft, top, width, lineHeight));
 		}
 		this._editContext.updateCharacterBounds(e.rangeStart, characterBounds);
 	}

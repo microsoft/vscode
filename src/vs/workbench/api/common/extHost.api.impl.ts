@@ -1454,7 +1454,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.registerChatParticipantDetectionProvider(provider);
+				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
 		};
 

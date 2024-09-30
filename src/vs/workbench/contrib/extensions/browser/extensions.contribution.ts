@@ -74,7 +74,6 @@ import { ExtensionStorageService } from '../../../../platform/extensionManagemen
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
-import { DeprecatedExtensionsChecker } from './deprecatedExtensionsChecker.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
@@ -1823,7 +1822,6 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(DeprecatedExtensionsChecker, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }

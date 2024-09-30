@@ -122,7 +122,7 @@ export class TextSearchManager {
 	}
 
 	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
-		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
+		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>(() => true);
 		folderQueries.forEach((fq, i) => {
 			const queryTester = new QueryGlobTester(this.query, fq);
 			folderMappings.set(fq.folder, { queryTester, folder: fq.folder, folderIdx: i });

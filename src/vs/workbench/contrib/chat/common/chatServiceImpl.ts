@@ -26,8 +26,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { CONTEXT_VOTE_UP_ENABLED } from './chatContextKeys.js';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, updateRanges } from './chatModel.js';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
@@ -160,10 +159,6 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
-
-		const voteUpEnabled = CONTEXT_VOTE_UP_ENABLED.bindTo(contextKeyService);
-		workbenchAssignmentService.getTreatment('chatVoteUpEnabled')
-			.then(value => voteUpEnabled.set(!!value));
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
@@ -633,6 +628,7 @@ export class ChatService extends Disposable implements IChatService {
 							locationData: request.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
+							userSelectedModelId: options?.userSelectedModelId
 						} satisfies IChatAgentRequest;
 					};
 
@@ -659,7 +655,6 @@ export class ChatService extends Disposable implements IChatService {
 					// Recompute history in case the agent or command changed
 					const history = this.getHistoryEntriesFromModel(requests, model.sessionId, location, agent.id);
 					const requestProps = await prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
-					requestProps.userSelectedModelId = options?.userSelectedModelId;
 					const pendingRequest = this._pendingRequests.get(sessionId);
 					if (pendingRequest && !pendingRequest.requestId) {
 						pendingRequest.requestId = requestProps.requestId;
@@ -801,7 +796,7 @@ export class ChatService extends Disposable implements IChatService {
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
 				location: ChatAgentLocation.Panel
 			};
-			history.push({ request: historyRequest, response: request.response.response.value, result: request.response.result ?? {} });
+			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
 		}
 
 		return history;

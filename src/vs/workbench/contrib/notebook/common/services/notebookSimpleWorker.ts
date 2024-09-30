@@ -100,6 +100,8 @@ class MirrorNotebookDocument {
 				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
+			} else if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+				this.metadata = e.metadata;
 			}
 		});
 	}

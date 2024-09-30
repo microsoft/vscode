@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// ESM-comment-begin
-// import * as http from 'http';
-// import * as https from 'https';
-// import * as tls from 'tls';
-// import * as net from 'net';
-// ESM-comment-end
-
 import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
 import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
 import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
@@ -21,18 +14,16 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
+
 const require = createRequire(import.meta.url);
 const http = require('http');
 const https = require('https');
 const tls = require('tls');
 const net = require('net');
-// ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
-const useElectronFetchDefault = true;
+const useElectronFetchDefault = false;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -180,7 +171,7 @@ function monitorResponseProperties(mainThreadTelemetry: MainThreadTelemetryShape
 	const originalType = response.type;
 	Object.defineProperty(response, 'type', {
 		get() {
-			recordFetchFeatureUse(mainThreadTelemetry, 'type');
+			recordFetchFeatureUse(mainThreadTelemetry, 'typeProperty');
 			return originalType !== 'default' ? originalType : 'basic';
 		}
 	});
@@ -190,7 +181,7 @@ type FetchFeatureUseClassification = {
 	owner: 'chrmarti';
 	comment: 'Data about fetch API use';
 	url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the url property was used.' };
-	type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the type property was used.' };
+	typeProperty: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the type property was used.' };
 	data: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a data URL was used.' };
 	blob: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a blob URL was used.' };
 	integrity: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the integrity property was used.' };
@@ -199,7 +190,7 @@ type FetchFeatureUseClassification = {
 
 type FetchFeatureUseEvent = {
 	url: number;
-	type: number;
+	typeProperty: number;
 	data: number;
 	blob: number;
 	integrity: number;
@@ -208,7 +199,7 @@ type FetchFeatureUseEvent = {
 
 const fetchFeatureUse: FetchFeatureUseEvent = {
 	url: 0,
-	type: 0,
+	typeProperty: 0,
 	data: 0,
 	blob: 0,
 	integrity: 0,

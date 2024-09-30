@@ -103,7 +103,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 				TerminalStickyScrollOverlay,
 				this._instance,
 				this._xterm!,
-				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._instance),
+				this._instantiationService.createInstance(TerminalInstanceColorProvider, this._instance.targetRef),
 				this._instance.capabilities.get(TerminalCapability.CommandDetection)!,
 				xtermCtorEventually
 			);

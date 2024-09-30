@@ -21,6 +21,7 @@ import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatInputPart } from './chatInputPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -35,10 +36,15 @@ export interface IChatWidgetService {
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
+	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[];
 }
 
 export async function showChatView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
 	return (await viewsService.openView<ChatViewPane>(CHAT_VIEW_ID))?.widget;
+}
+
+export async function showEditsView(viewsService: IViewsService): Promise<IChatWidget | undefined> {
+	return (await viewsService.openView<ChatViewPane>(EDITS_VIEW_ID))?.widget;
 }
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -107,6 +113,7 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
+	supportsAdditionalParticipants?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
@@ -153,6 +160,7 @@ export interface IChatWidget {
 	readonly parsedInput: IParsedChatRequest;
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
+	readonly input: ChatInputPart;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
@@ -193,3 +201,5 @@ export interface IChatCodeBlockContextProviderService {
 export const GeneratingPhrase = localize('generating', "Generating");
 
 export const CHAT_VIEW_ID = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
+
+export const EDITS_VIEW_ID = 'workbench.panel.chat.view.edits';
