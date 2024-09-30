@@ -147,7 +147,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	) {
 		super(themeService);
 
-		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		this.renderDropdownAsChildElement = false;
+
+		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
+
+		const container = this.create(parent);
+
+		// Context Keys
+		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this.contextMenuContextKeyService],
 		)));
@@ -164,16 +171,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
-
-		this.renderDropdownAsChildElement = false;
-
-		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
-
-		this.create(parent);
 	}
 
-	protected create(parent: HTMLElement): void {
+	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		return parent;
 	}
 
 	private get editorActionsEnabled(): boolean {

@@ -264,7 +264,7 @@ export class UtilityProcess extends Disposable {
 		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
-		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}

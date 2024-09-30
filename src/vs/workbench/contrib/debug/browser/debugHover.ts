@@ -321,8 +321,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.valueContainer.hidden = true;
 
 		this.expressionToRender = expression;
-		this.complexValueTitle.textContent = expression.value;
-		this.complexValueTitle.title = expression.value;
+		store.add(this.expressionRenderer.renderValue(this.complexValueTitle, expression, { hover: false, session }));
 		this.editor.layoutContentWidget(this);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;

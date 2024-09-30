@@ -620,7 +620,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -661,7 +661,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: IS_COMPOSITE_NOTEBOOK
+			precondition: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED.negate())
 		});
 	}
 
@@ -756,10 +756,9 @@ registerAction2(class extends Action2 {
 			},
 			keybinding: {
 				when: ContextKeyExpr.and(IS_COMPOSITE_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED),
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 5,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
-			},
-			precondition: InteractiveWindowOpen
+			}
 		});
 	}
 
@@ -803,7 +802,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none')),
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 5,
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 			},
 			{

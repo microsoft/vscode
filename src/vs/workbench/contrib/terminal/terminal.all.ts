@@ -14,6 +14,7 @@ import './browser/terminalView.js';
 // Terminal contributions - Standalone extensions to the terminal, these cannot be imported from the
 // primary workbench contribution)
 import '../terminalContrib/accessibility/browser/terminal.accessibility.contribution.js';
+import '../terminalContrib/autoReplies/browser/terminal.autoReplies.contribution.js';
 import '../terminalContrib/developer/browser/terminal.developer.contribution.js';
 import '../terminalContrib/environmentChanges/browser/terminal.environmentChanges.contribution.js';
 import '../terminalContrib/find/browser/terminal.find.contribution.js';
@@ -22,8 +23,9 @@ import '../terminalContrib/commandGuide/browser/terminal.commandGuide.contributi
 import '../terminalContrib/links/browser/terminal.links.contribution.js';
 import '../terminalContrib/zoom/browser/terminal.zoom.contribution.js';
 import '../terminalContrib/stickyScroll/browser/terminal.stickyScroll.contribution.js';
+import '../terminalContrib/quickAccess/browser/terminal.quickAccess.contribution.js';
 import '../terminalContrib/quickFix/browser/terminal.quickFix.contribution.js';
 import '../terminalContrib/typeAhead/browser/terminal.typeAhead.contribution.js';
 import '../terminalContrib/suggest/browser/terminal.suggest.contribution.js';
 import '../terminalContrib/chat/browser/terminal.initialHint.contribution.js';
-
+import '../terminalContrib/wslRecommendation/browser/terminal.wslRecommendation.contribution.js';

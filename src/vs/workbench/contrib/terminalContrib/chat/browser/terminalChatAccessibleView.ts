@@ -8,10 +8,9 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { TerminalChatController } from './terminalChatController.js';
 import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { TerminalChatContextKeys } from '../../../terminal/terminalContribExports.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { MENU_TERMINAL_CHAT_WIDGET_STATUS } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from './terminalChat.js';
 import { IAction } from '../../../../../base/common/actions.js';
 
 export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {

@@ -48,6 +48,6 @@ function getAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeE
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => editor.focus(),
-		AccessibilityVerbositySettingId.Notebook,
+		AccessibilityVerbositySettingId.ReplEditor,
 	);
 }

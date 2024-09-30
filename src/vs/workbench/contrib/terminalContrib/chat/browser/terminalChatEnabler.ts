@@ -6,7 +6,7 @@
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IChatAgentService, ChatAgentLocation } from '../../../chat/common/chatAgents.js';
-import { TerminalChatContextKeys } from '../../../terminal/terminalContribExports.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
 
 
 export class TerminalChatEnabler {

@@ -18,12 +18,7 @@ import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IF
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
-
-// Import commands to skip shell from terminalContrib - this is an exception to the eslint rule
-// since they need to be included in the terminal module
-import { defaultTerminalAccessibilityCommandsToSkipShell } from '../../terminalContrib/accessibility/common/terminal.accessibility.js'; // eslint-disable-line local/code-import-patterns
-import { defaultTerminalFindCommandToSkipShell } from '../../terminalContrib/find/common/terminal.find.js'; // eslint-disable-line local/code-import-patterns
-import { defaultTerminalSuggestCommandsToSkipShell } from '../../terminalContrib/suggest/common/terminal.suggest.js'; // eslint-disable-line local/code-import-patterns
+import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -205,7 +200,6 @@ export interface ITerminalConfiguration {
 	customGlyphs: boolean;
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
-	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
 		decorationsEnabled: 'both' | 'gutter' | 'overviewRuler' | 'never';
@@ -464,7 +458,6 @@ export const enum TerminalCommandId {
 	Rename = 'workbench.action.terminal.rename',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
-	QuickOpenTerm = 'workbench.action.quickOpenTerm',
 	ScrollToPreviousCommand = 'workbench.action.terminal.scrollToPreviousCommand',
 	ScrollToNextCommand = 'workbench.action.terminal.scrollToNextCommand',
 	SelectToPreviousCommand = 'workbench.action.terminal.selectToPreviousCommand',
@@ -624,9 +617,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.runCommand',
 	'workbench.action.terminal.chat.insertCommand',
 	'workbench.action.terminal.chat.viewInChat',
-	...defaultTerminalAccessibilityCommandsToSkipShell,
-	...defaultTerminalFindCommandToSkipShell,
-	...defaultTerminalSuggestCommandsToSkipShell,
+	...defaultTerminalContribCommandsToSkipShell,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {

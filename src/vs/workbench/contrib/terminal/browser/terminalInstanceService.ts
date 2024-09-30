@@ -26,6 +26,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
+	private readonly _onDidRegisterBackend = this._register(new Emitter<ITerminalBackend>());
+	get onDidRegisterBackend(): Event<ITerminalBackend> { return this._onDidRegisterBackend.event; }
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -99,8 +102,9 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values();
 	}
 
-	didRegisterBackend(remoteAuthority?: string) {
-		this._backendRegistration.get(remoteAuthority)?.resolve();
+	didRegisterBackend(backend: ITerminalBackend) {
+		this._backendRegistration.get(backend.remoteAuthority)?.resolve();
+		this._onDidRegisterBackend.fire(backend);
 	}
 }
 

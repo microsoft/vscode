@@ -409,5 +409,6 @@ export const enum GitErrorCodes {
 	EmptyCommitMessage = 'EmptyCommitMessage',
 	BranchFastForwardRejected = 'BranchFastForwardRejected',
 	BranchNotYetBorn = 'BranchNotYetBorn',
-	TagConflict = 'TagConflict'
+	TagConflict = 'TagConflict',
+	CherryPickEmpty = 'CherryPickEmpty'
 }

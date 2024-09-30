@@ -9,7 +9,6 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { localize } from '../../../../nls.js';
-import { hash } from '../../../../base/common/hash.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class ChatImageDropAndPaste extends Disposable {
@@ -33,7 +32,7 @@ export class ChatImageDropAndPaste extends Disposable {
 		if (!currClipboard || !isImage(currClipboard)) {
 			return;
 		}
-		const context = getImageAttachContext(currClipboard);
+		const context = await getImageAttachContext(currClipboard);
 		if (!context) {
 			return;
 		}
@@ -50,15 +49,21 @@ export class ChatImageDropAndPaste extends Disposable {
 	}
 }
 
-function getImageAttachContext(data: Uint8Array): IChatRequestVariableEntry {
+async function getImageAttachContext(data: Uint8Array): Promise<IChatRequestVariableEntry> {
 	return {
 		value: data,
-		id: hash(data).toString(),
+		id: await imageToHash(data),
 		name: localize('pastedImage', 'Pasted Image'),
 		isImage: true,
 		icon: Codicon.fileMedia,
 		isDynamic: true,
 	};
+}
+
+export async function imageToHash(data: Uint8Array): Promise<string> {
+	const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+	const hashArray = Array.from(new Uint8Array(hashBuffer));
+	return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export function isImage(array: Uint8Array): boolean {

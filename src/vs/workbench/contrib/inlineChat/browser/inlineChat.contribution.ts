@@ -92,7 +92,6 @@ registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
-registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.RerunAction);
 registerAction2(InlineChatActions.MoveToNextHunk);
 registerAction2(InlineChatActions.MoveToPreviousHunk);
