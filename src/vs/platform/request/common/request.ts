@@ -206,7 +206,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 			},
 			'http.electronFetch': {
 				type: 'boolean',
-				default: true,
+				default: false,
 				description: localize('electronFetch', "Controls whether use of Electron's fetch implementation instead of Node.js' should be enabled. All local extensions will get Electron's fetch implementation for the global fetch API."),
 				restricted: true
 			}

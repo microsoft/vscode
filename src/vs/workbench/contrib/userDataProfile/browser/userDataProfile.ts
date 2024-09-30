@@ -34,6 +34,7 @@ import { IURLService } from '../../../../platform/url/common/url.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 
 export const OpenProfileMenu = new MenuId('OpenProfile');
+const ProfilesMenu = new MenuId('Profiles');
 
 export class UserDataProfilesWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
@@ -121,6 +122,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private registerActions(): void {
+		this.registerProfileSubMenu();
 		this._register(this.registerManageProfilesAction());
 		this._register(this.registerSwitchProfileAction());
 
@@ -138,6 +140,30 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerHelpAction();
 	}
 
+	private registerProfileSubMenu(): void {
+		const getProfilesTitle = () => {
+			return localize('profiles', "Profile ({0})", this.userDataProfileService.currentProfile.name);
+		};
+		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
+			get title() {
+				return getProfilesTitle();
+			},
+			submenu: ProfilesMenu,
+			group: '2_configuration',
+			order: 1,
+			when: HAS_PROFILES_CONTEXT
+		});
+		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+			get title() {
+				return getProfilesTitle();
+			},
+			submenu: ProfilesMenu,
+			group: '2_configuration',
+			order: 1,
+			when: HAS_PROFILES_CONTEXT
+		});
+	}
+
 	private registerOpenProfileSubMenu(): void {
 		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 			title: localize('New Profile Window', "New Window with Profile"),
@@ -152,9 +178,35 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.profilesDisposable.value = new DisposableStore();
 		for (const profile of this.userDataProfilesService.profiles) {
 			if (!profile.isTransient) {
+				this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
 				this.profilesDisposable.value.add(this.registerNewWindowAction(profile));
 			}
 		}
+	}
+
+	private registerProfileEntryAction(profile: IUserDataProfile): IDisposable {
+		const that = this;
+		return registerAction2(class ProfileEntryAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.profileEntry.${profile.id}`,
+					title: profile.name,
+					toggled: ContextKeyExpr.equals(CURRENT_PROFILE_CONTEXT.key, profile.id),
+					menu: [
+						{
+							id: ProfilesMenu,
+							group: '0_profiles',
+							when: PROFILES_ENABLEMENT_CONTEXT,
+						}
+					]
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					return that.userDataProfileManagementService.switchProfile(profile);
+				}
+			}
+		});
 	}
 
 	private registerNewWindowWithProfileAction(): IDisposable {
@@ -276,10 +328,17 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 1,
+							when: HAS_PROFILES_CONTEXT.negate()
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
+							order: 1,
+							when: HAS_PROFILES_CONTEXT.negate()
+						},
+						{
+							id: ProfilesMenu,
+							group: '1_manage',
 							order: 1,
 						},
 					]

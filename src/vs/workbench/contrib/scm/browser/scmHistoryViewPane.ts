@@ -63,6 +63,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { groupBy as groupBy2 } from '../../../../base/common/collections.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -366,33 +367,72 @@ class HistoryItemRenderer implements ITreeRenderer<SCMHistoryItemViewModelTreeEl
 			const labelConfig = this._badgesConfig.read(reader);
 
 			templateData.labelContainer.textContent = '';
-			const firstColoredRef = historyItem.references?.find(ref => ref.color);
 
-			for (const ref of historyItem.references ?? []) {
-				if (!ref.color && labelConfig === 'filter') {
+			const references = historyItem.references ?
+				historyItem.references.slice(0) : [];
+
+			// If the first reference is colored, we render it
+			// separately since we have to show the description
+			// for the first colored reference.
+			if (references.length > 0 && references[0].color) {
+				this._renderBadge([references[0]], true, templateData);
+
+				// Remove the rendered reference from the collection
+				references.splice(0, 1);
+			}
+
+			// Group history item references by color
+			const historyItemRefsByColor = groupBy2(references, ref => ref.color ? ref.color : '');
+
+			for (const [key, historyItemRefs] of Object.entries(historyItemRefsByColor)) {
+				// If needed skip badges without a color
+				if (key === '' && labelConfig !== 'all') {
 					continue;
 				}
 
-				if (ref.icon && ThemeIcon.isThemeIcon(ref.icon)) {
-					const elements = h('div.label', {
-						style: {
-							color: ref.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
-							backgroundColor: ref.color ? asCssVariable(ref.color) : asCssVariable(historyItemHoverDefaultLabelBackground)
-						}
-					}, [
-						h('div.icon@icon'),
-						h('div.description@description')
-					]);
+				// Group history item references by icon
+				const historyItemRefByIconId = groupBy2(historyItemRefs, ref => ThemeIcon.isThemeIcon(ref.icon) ? ref.icon.id : '');
+				for (const [key, historyItemRefs] of Object.entries(historyItemRefByIconId)) {
+					// Skip badges without an icon
+					if (key === '') {
+						continue;
+					}
 
-					elements.icon.classList.add(...ThemeIcon.asClassNameArray(ref.icon));
-
-					elements.description.textContent = ref.name;
-					elements.description.style.display = ref === firstColoredRef ? '' : 'none';
-
-					append(templateData.labelContainer, elements.root);
+					this._renderBadge(historyItemRefs, false, templateData);
 				}
 			}
 		}));
+	}
+
+	private _renderBadge(historyItemRefs: ISCMHistoryItemRef[], showDescription: boolean, templateData: HistoryItemTemplate): void {
+		if (historyItemRefs.length === 0 || !ThemeIcon.isThemeIcon(historyItemRefs[0].icon)) {
+			return;
+		}
+
+		const elements = h('div.label', {
+			style: {
+				color: historyItemRefs[0].color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(foreground),
+				backgroundColor: historyItemRefs[0].color ? asCssVariable(historyItemRefs[0].color) : asCssVariable(historyItemHoverDefaultLabelBackground)
+			}
+		}, [
+			h('div.count@count', {
+				style: {
+					display: historyItemRefs.length > 1 ? '' : 'none'
+				}
+			}),
+			h('div.icon@icon'),
+			h('div.description@description', {
+				style: {
+					display: showDescription ? '' : 'none'
+				}
+			})
+		]);
+
+		elements.count.textContent = historyItemRefs.length > 1 ? historyItemRefs.length.toString() : '';
+		elements.icon.classList.add(...ThemeIcon.asClassNameArray(historyItemRefs[0].icon));
+		elements.description.textContent = showDescription ? historyItemRefs[0].name : '';
+
+		append(templateData.labelContainer, elements.root);
 	}
 
 	private _getHoverActions(historyItem: ISCMHistoryItem) {

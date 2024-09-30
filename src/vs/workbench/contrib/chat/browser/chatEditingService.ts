@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../base/common/map.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
@@ -23,13 +24,19 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../p
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry } from '../common/chatEditingService.js';
+import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatService } from '../common/chatService.js';
+import { IChatWidgetService } from './chat.js';
 
 const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
@@ -40,6 +47,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	_serviceBrand: undefined;
 
 	private readonly _currentSessionObs = observableValue<ChatEditingSession | null>(this, null);
+	private readonly _currentSessionDisposeListener = this._register(new MutableDisposable());
 
 	get currentEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
@@ -50,18 +58,15 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._onDidCreateEditingSession.event;
 	}
 
-	private readonly _onDidDisposeEditingSession = new Emitter<IChatEditingSession>();
-	get onDidDisposeEditingSession() {
-		return this._onDidDisposeEditingSession.event;
-	}
-
 	constructor(
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextModelService textModelService: ITextModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private editorService: IEditorService,
+		@IChatService private readonly _chatService: IChatService,
+		@IProgressService private readonly _progressService: IProgressService,
+		@ICodeMapperService private readonly _codeMapperService: ICodeMapperService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
@@ -75,45 +80,102 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== ModifiedFileEntryState.Undecided);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
-		this._register(this.editorService.onDidCloseEditor((e) => {
-			if (e.editor.resource?.scheme === ChatEditingMultiDiffSourceResolver.scheme) {
-				this.killCurrentEditingSession();
+		this._register(this._chatService.onDidDisposeSession((e) => {
+			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
+				void this._currentSessionObs.get()?.stop();
 			}
 		}));
-		this._findGroupedEditors().forEach(([group, editor]) => group.closeEditor(editor));
 	}
 
-	async startOrContinueEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
+	override dispose(): void {
+		this._currentSessionObs.get()?.dispose();
+		super.dispose();
+	}
+
+	async startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
 		const session = this._currentSessionObs.get();
 		if (session) {
 			if (session.chatSessionId !== chatSessionId) {
 				throw new BugIndicatingError('Cannot start new session while another session is active');
 			}
-			return this.continueEditingSession(builder);
 		}
-		return this.createEditingSession(chatSessionId, builder);
+		return this._createEditingSession(chatSessionId, options);
 	}
 
-	async createEditingSession(chatSessionId: string, builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
+	private async _createEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession> {
 		if (this._currentSessionObs.get()) {
 			throw new BugIndicatingError('Cannot have more than one active editing session');
 		}
+
+		// listen for completed responses, run the code mapper and apply the edits to this edit session
+		this._register(this.installAutoApplyObserver(chatSessionId));
 
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 			multiDiffSource: ChatEditingMultiDiffSourceResolver.getMultiDiffSourceUri(),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
-		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		const editorPane = options?.silent ? undefined : await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, { killCurrentEditingSession: () => this.killCurrentEditingSession() }, editorPane);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatSessionId, editorPane);
+		this._currentSessionDisposeListener.value = session.onDidDispose(() => {
+			this._currentSessionDisposeListener.clear();
+			this._currentSessionObs.set(null, undefined);
+		});
+
 		this._currentSessionObs.set(session, undefined);
 		this._onDidCreateEditingSession.fire(session);
-
-		return this.continueEditingSession(builder);
+		return session;
 	}
 
-	async continueEditingSession(builder: (stream: IChatEditingSessionStream) => Promise<void>): Promise<void> {
+	public triggerEditComputation(responseModel: IChatResponseModel): Promise<void> {
+		return this._continueEditingSession(async (builder, token) => {
+			const codeMapperResponse: ICodeMapperResponse = {
+				textEdit: (resource, edits) => builder.textEdits(resource, edits),
+			};
+			await this._codeMapperService.mapCodeFromResponse(responseModel, codeMapperResponse, token);
+		}, { silent: true });
+	}
+
+	private installAutoApplyObserver(sessionId: string): IDisposable {
+
+		const chatModel = this._chatService.getSession(sessionId);
+		if (!chatModel) {
+			throw new Error(`Edit session was created for a non-existing chat session: ${sessionId}`);
+		}
+
+		const observerDisposables = new DisposableStore();
+
+		const onResponseComplete = (responseModel: IChatResponseModel) => {
+			if (responseModel.result?.metadata?.autoApplyEdits) {
+				this.triggerEditComputation(responseModel);
+			}
+		};
+
+		observerDisposables.add(chatModel.onDidChange(e => {
+			if (e.kind === 'addRequest') {
+				const responseModel = e.request.response;
+				if (responseModel) {
+					if (responseModel.isComplete) {
+						onResponseComplete(responseModel);
+					} else {
+						const disposable = responseModel.onDidChange(() => {
+							if (responseModel.isComplete) {
+								onResponseComplete(responseModel);
+								disposable.dispose();
+							} else if (responseModel.isCanceled || responseModel.isStale) {
+								disposable.dispose();
+							}
+						});
+					}
+				}
+			}
+		}));
+		observerDisposables.add(chatModel.onDidDispose(() => observerDisposables.dispose()));
+		return observerDisposables;
+	}
+
+	private async _continueEditingSession(builder: (stream: IChatEditingSessionStream, token: CancellationToken) => Promise<void>, options?: { silent?: boolean }): Promise<void> {
 		const session = this._currentSessionObs.get();
 		if (!session) {
 			throw new BugIndicatingError('Cannot continue missing session');
@@ -123,13 +185,16 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			throw new BugIndicatingError('Cannot continue session that is still streaming');
 		}
 
-		const groupedEditors = this._findGroupedEditors();
-		if (groupedEditors.length !== 1) {
-			throw new Error(`Unexpected number of editors: ${groupedEditors.length}`);
-		}
-		const [group, editor] = groupedEditors[0];
+		let editorPane: MultiDiffEditor | undefined;
+		if (!options?.silent && session.isVisible) {
+			const groupedEditors = this._findGroupedEditors();
+			if (groupedEditors.length !== 1) {
+				throw new Error(`Unexpected number of editors: ${groupedEditors.length}`);
+			}
+			const [group, editor] = groupedEditors[0];
 
-		const editorPane = await group.openEditor(editor, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+			editorPane = await group.openEditor(editor, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		}
 
 		const stream: IChatEditingSessionStream = {
 			textEdits: (resource: URI, textEdits: TextEdit[]) => {
@@ -137,21 +202,23 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		};
 		session.acceptStreamingEditsStart();
+		const cancellationTokenSource = new CancellationTokenSource();
 		try {
-			await editorPane?.showWhile(builder(stream));
+			if (editorPane) {
+				await editorPane?.showWhile(builder(stream, cancellationTokenSource.token));
+			} else {
+				await this._progressService.withProgress({
+					location: ProgressLocation.Window,
+					title: localize2('chatEditing.startingSession', 'Generating edits...').value,
+				}, async () => {
+					await builder(stream, cancellationTokenSource.token);
+				},
+					() => cancellationTokenSource.cancel()
+				);
+			}
 		} finally {
+			cancellationTokenSource.dispose();
 			session.resolve();
-		}
-	}
-
-	killCurrentEditingSession() {
-		// close all editors
-		this._findGroupedEditors().forEach(([group, editor]) => group.closeEditor(editor));
-		const currentSession = this._currentSessionObs.get();
-		if (currentSession) {
-			this._onDidDisposeEditingSession.fire(currentSession);
-			currentSession.dispose();
-			this._currentSessionObs.set(null, undefined);
 		}
 	}
 
@@ -222,18 +289,59 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 	) { }
 }
 
+registerAction2(class OpenFileAction extends Action2 {
+	constructor() {
+		super({
+			id: 'chatEditing.openFile',
+			title: localize2('open.file', 'Open File'),
+			icon: Codicon.goToFile,
+			menu: [{
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				order: 0,
+				group: 'navigation'
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const editorService = accessor.get(IEditorService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const uris: URI[] = [];
+		if (URI.isUri(args[0])) {
+			uris.push(args[0]);
+		} else if (chatWidget) {
+			uris.push(...chatWidget.input.selectedElements);
+		}
+		if (!uris.length) {
+			return;
+		}
+
+		await Promise.all(uris.map((uri) => editorService.openEditor({ resource: uri, options: { pinned: true, activation: EditorActivation.ACTIVATE } })));
+	}
+});
+
 registerAction2(class AcceptAction extends Action2 {
 	constructor() {
 		super({
 			id: 'chatEditing.acceptFile',
 			title: localize2('accept.file', 'Accept'),
-			// icon: Codicon.goToFile,
-			menu: {
+			icon: Codicon.check,
+			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
-			},
+			}, {
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				order: 2,
+				group: 'navigation'
+			}],
 		});
 	}
 
@@ -243,9 +351,19 @@ registerAction2(class AcceptAction extends Action2 {
 		if (!currentEditingSession) {
 			return;
 		}
-		const uri = args[0] as URI;
-		const entries = currentEditingSession.entries.get();
-		await entries.find(e => String(e.modifiedURI) === String(uri))?.accept(undefined);
+
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const uris: URI[] = [];
+		if (URI.isUri(args[0])) {
+			uris.push(args[0]);
+		} else if (chatWidget) {
+			uris.push(...chatWidget.input.selectedElements);
+		}
+		if (!uris.length) {
+			return;
+		}
+
+		await currentEditingSession.accept(...uris);
 	}
 });
 
@@ -254,13 +372,17 @@ registerAction2(class DiscardAction extends Action2 {
 		super({
 			id: 'chatEditing.discardFile',
 			title: localize2('discard.file', 'Discard'),
-			// icon: Codicon.goToFile,
-			menu: {
+			icon: Codicon.discard,
+			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
-			},
+			}, {
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				order: 1,
+				group: 'navigation'
+			}],
 		});
 	}
 
@@ -270,9 +392,19 @@ registerAction2(class DiscardAction extends Action2 {
 		if (!currentEditingSession) {
 			return;
 		}
-		const uri = args[0] as URI;
-		const entries = currentEditingSession.entries.get();
-		await entries.find(e => String(e.modifiedURI) === String(uri))?.reject(undefined);
+
+		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		const uris: URI[] = [];
+		if (URI.isUri(args[0])) {
+			uris.push(args[0]);
+		} else if (chatWidget) {
+			uris.push(...chatWidget.input.selectedElements);
+		}
+		if (!uris.length) {
+			return;
+		}
+
+		await currentEditingSession.reject(...uris);
 	}
 });
 
@@ -296,26 +428,11 @@ export class ChatEditingAcceptAllAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const currentEditingSession = chatEditingService.currentEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
-		const entries = currentEditingSession.entries.get();
-		await Promise.all(
-			// TODO: figure out how to run this in a transaction
-			entries.map(entry => entry.accept(undefined))
-		);
-
-		const uri = args[0];
-
-		for (const group of editorGroupsService.groups) {
-			for (const editor of group.editors) {
-				if (String(editor.resource) === String(uri)) {
-					group.closeEditor(editor);
-				}
-			}
-		}
+		await currentEditingSession.accept();
 	}
 }
 registerAction2(ChatEditingAcceptAllAction);
@@ -340,28 +457,37 @@ export class ChatEditingDiscardAllAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const chatEditingService = accessor.get(IChatEditingService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const currentEditingSession = chatEditingService.currentEditingSession;
 		if (!currentEditingSession) {
 			return;
 		}
-		const entries = currentEditingSession.entries.get();
-		await Promise.all(
-			// TODO: figure out how to run this in a transaction
-			entries.map(entry => entry.reject(undefined))
-		);
-
-		const uri = args[0];
-
-		for (const group of editorGroupsService.groups) {
-			for (const editor of group.editors) {
-				if (String(editor.resource) === String(uri)) {
-					group.closeEditor(editor);
-				}
-			}
-		}
+		await currentEditingSession.reject();
 	}
 }
+registerAction2(ChatEditingDiscardAllAction);
+
+export class ChatEditingShowChangesAction extends Action2 {
+	static readonly ID = 'chatEditing.openDiffs';
+	static readonly LABEL = localize('chatEditing.openDiffs', 'Open Diffs');
+
+	constructor() {
+		super({
+			id: ChatEditingShowChangesAction.ID,
+			title: ChatEditingShowChangesAction.LABEL,
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const chatEditingService = accessor.get(IChatEditingService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (!currentEditingSession) {
+			return;
+		}
+		await currentEditingSession.show();
+	}
+}
+registerAction2(ChatEditingShowChangesAction);
 
 type ChatEditingTextModelContentQueryData = { kind: 'empty' } | { kind: 'doc'; documentId: string };
 
@@ -412,79 +538,184 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
 	private readonly _entriesObs = observableValue<readonly ModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly ModifiedFileEntry[]> {
+		this._assertNotDisposed();
 		return this._entriesObs;
 	}
 	private readonly _sequencer = new Sequencer();
 
-	private _entries: readonly ModifiedFileEntry[] = [];
+	private _entries: ModifiedFileEntry[] = [];
 
 	get state(): IObservable<ChatEditingSessionState> {
+		this._assertNotDisposed();
 		return this._state;
 	}
 
-	private readonly _editedResources = new ResourceSet();
-	private readonly _onDidEditNewResource = new Emitter<URI>();
-	get onDidEditNewResource() {
-		return this._onDidEditNewResource.event;
+	private readonly _onDidChange = new Emitter<void>();
+	get onDidChange() {
+		this._assertNotDisposed();
+		return this._onDidChange.event;
+	}
+
+	private readonly _onDidDispose = new Emitter<void>();
+	get onDidDispose() {
+		this._assertNotDisposed();
+		return this._onDidDispose.event;
+	}
+
+	get isVisible(): boolean {
+		this._assertNotDisposed();
+		return Boolean(this.editorPane && this.editorPane.isVisible());
 	}
 
 	constructor(
 		public readonly chatSessionId: string,
-		parent: { killCurrentEditingSession(): void },
-		private readonly editorPane: MultiDiffEditor | undefined,
+		private editorPane: MultiDiffEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
+	}
 
-		// auto-dispose
-		autorun((reader) => {
-			if (this.state.read(reader) !== ChatEditingSessionState.Idle) {
-				return;
-			}
-			const entries = this.entries.read(reader);
-			const pendingEntries = entries.filter(entry => entry.state.read(reader) === ModifiedFileEntryState.Undecided);
-			if (pendingEntries.length > 0) {
-				return;
-			}
+	private _assertNotDisposed(): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			throw new BugIndicatingError(`Cannot access a disposed editing session`);
+		}
+	}
 
-			// all entries were accepted
-			parent.killCurrentEditingSession();
-		});
+	async accept(...uris: URI[]): Promise<void> {
+		this._assertNotDisposed();
+
+		if (uris.length === 0) {
+			await Promise.all(this._entries.map(entry => entry.accept(undefined)));
+		}
+
+		for (const uri of uris) {
+			const entry = this._entries.find(e => e.modifiedURI.toString() === uri.toString());
+			if (entry) {
+				await entry.accept(undefined);
+			}
+		}
+
+		this._onDidChange.fire();
+	}
+
+	async reject(...uris: URI[]): Promise<void> {
+		this._assertNotDisposed();
+
+		if (uris.length === 0) {
+			await Promise.all(this._entries.map(entry => entry.reject(undefined)));
+		}
+
+		for (const uri of uris) {
+			const entry = this._entries.find(e => e.modifiedURI.toString() === uri.toString());
+			if (entry) {
+				await entry.reject(undefined);
+			}
+		}
+
+		this._onDidChange.fire();
+	}
+
+	async show(): Promise<void> {
+		this._assertNotDisposed();
+
+		if (this.editorPane?.isVisible()) {
+			return;
+		} else if (this.editorPane?.input) {
+			await this._editorGroupsService.activeGroup.openEditor(this.editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
+			return;
+		}
+
+		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
+			multiDiffSource: ChatEditingMultiDiffSourceResolver.getMultiDiffSourceUri(),
+			label: localize('multiDiffEditorInput.name', "Suggested Edits")
+		}, this._instantiationService);
+
+		const editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		this.editorPane = editorPane;
+	}
+
+	async stop(): Promise<void> {
+		this._assertNotDisposed();
+
+		// Close out all open files
+		await Promise.allSettled(this._editorGroupsService.groups.map(async (g) => {
+			return Promise.allSettled(g.editors.map(async (e) => {
+				if (e instanceof MultiDiffEditorInput || e instanceof DiffEditorInput && (e.original.resource?.scheme === ModifiedFileEntry.scheme || e.original.resource?.scheme === ChatEditingTextModelContentProvider.scheme)) {
+					await g.closeEditor(e);
+				}
+			}));
+		}));
+
+		if (this._state.get() !== ChatEditingSessionState.Disposed) {
+			// session got disposed while we were closing editors
+			this.dispose();
+		}
+
+	}
+
+	override dispose() {
+		this._assertNotDisposed();
+
+		super.dispose();
+		this._state.set(ChatEditingSessionState.Disposed, undefined);
+		this._onDidDispose.fire();
 	}
 
 	getVirtualModel(documentId: string): ITextModel | null {
+		this._assertNotDisposed();
+
 		const entry = this._entries.find(e => e.entryId === documentId);
 		return entry?.docSnapshot ?? null;
 	}
 
 	acceptStreamingEditsStart(): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
+			return;
+		}
+
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptStreamingEditsStart());
 	}
 
 	acceptTextEdits(resource: URI, textEdits: TextEdit[]): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
+			return;
+		}
+
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._acceptTextEdits(resource, textEdits));
 	}
 
 	resolve(): void {
+		if (this._state.get() === ChatEditingSessionState.Disposed) {
+			// we don't throw in this case because there could be a builder still connected to a disposed session
+			return;
+		}
+
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._resolve());
 	}
 
 	private async _acceptStreamingEditsStart(): Promise<void> {
 		this._state.set(ChatEditingSessionState.StreamingEdits, undefined);
+		this._onDidChange.fire();
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[]): Promise<void> {
 		const entry = await this._getOrCreateModifiedFileEntry(resource);
-		entry.doc.applyEdits(textEdits);
+		entry.applyEdits(textEdits);
+		await this.editorService.openEditor({ original: { resource: entry.originalURI }, modified: { resource: entry.modifiedURI }, options: { inactive: true } });
 	}
 
 	private async _resolve(): Promise<void> {
 		this._state.set(ChatEditingSessionState.Idle, undefined);
+		this._onDidChange.fire();
 	}
 
 	private async _getOrCreateModifiedFileEntry(resource: URI): Promise<ModifiedFileEntry> {
@@ -497,8 +728,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this._register(entry);
 		this._entries = [...this._entries, entry];
 		this._entriesObs.set(this._entries, undefined);
-		this._editedResources.add(resource);
-		this._onDidEditNewResource.fire(resource);
+		this._onDidChange.fire();
 
 		return entry;
 	}
@@ -525,19 +755,14 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 }
 
-const enum ModifiedFileEntryState {
-	Undecided,
-	Accepted,
-	Rejected
-}
-
 class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
+	public static readonly scheme = 'modified-file-entry';
 	static lastEntryId = 0;
-	public readonly entryId = `modified-file-entry::${++ModifiedFileEntry.lastEntryId}`;
+	public readonly entryId = `${ModifiedFileEntry.scheme}::${++ModifiedFileEntry.lastEntryId}`;
 
 	public readonly docSnapshot: ITextModel;
-	public readonly doc: ITextModel;
+	private readonly doc: ITextModel;
 
 	get originalURI(): URI {
 		return this.docSnapshot.uri;
@@ -571,6 +796,11 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			)
 		);
 		this._register(resourceRef);
+	}
+
+	applyEdits(textEdits: TextEdit[]): void {
+		this.doc.applyEdits(textEdits);
+		this._stateObs.set(ModifiedFileEntryState.Undecided, undefined);
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {

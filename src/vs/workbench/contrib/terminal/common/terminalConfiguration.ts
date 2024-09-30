@@ -3,25 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../nls.js';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from './terminal.js';
-import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
-import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from '../../../common/configuration.js';
-
-// Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
-// they need to be declared at part of the rest of the terminal configuration
-import { terminalAccessibilityConfiguration } from '../../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalCommandGuideConfiguration } from '../../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalInitialHintConfiguration } from '../../terminalContrib/chat/common/terminalInitialHintConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalStickyScrollConfiguration } from '../../terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalSuggestConfiguration } from '../../terminalContrib/suggest/common/terminalSuggestConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalTypeAheadConfiguration } from '../../terminalContrib/typeAhead/common/terminalTypeAheadConfiguration.js'; // eslint-disable-line local/code-import-patterns
-import { terminalZoomConfiguration } from '../../terminalContrib/zoom/common/terminal.zoom.js'; // eslint-disable-line local/code-import-patterns
+import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
+import { terminalContribConfiguration } from '../terminalContribExports.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -565,18 +556,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that, when encountered in the terminal, will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
-			type: 'object',
-			additionalProperties: {
-				oneOf: [{
-					type: 'string',
-					description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
-				},
-				{ type: 'null' }]
-			},
-			default: {}
-		},
 		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
 			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Determines whether or not shell integration is auto-injected to support features like enhanced command tracking and current working directory detection. \n\nShell integration works by injecting the shell with a startup script. The script gives VS Code insight into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, fish, pwsh, zsh\n - Windows: pwsh, git bash\n\nThis setting applies only when terminals are created, so you will need to restart your terminals for it to take effect.\n\n Note that the script injection may not work if you have custom arguments defined in the terminal profile, have enabled {1}, have a [complex bash `PROMPT_COMMAND`](https://code.visualstudio.com/docs/editor/integrated-terminal#_complex-bash-promptcommand), or other unsupported setup. To disable decorations, see {0}", '`#terminal.integrated.shellIntegrations.decorationsEnabled#`', '`#editor.accessibilitySupport#`'),
@@ -629,13 +608,7 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		...terminalAccessibilityConfiguration,
-		...terminalCommandGuideConfiguration,
-		...terminalInitialHintConfiguration,
-		...terminalStickyScrollConfiguration,
-		...terminalSuggestConfiguration,
-		...terminalTypeAheadConfiguration,
-		...terminalZoomConfiguration,
+		...terminalContribConfiguration,
 	}
 };
 

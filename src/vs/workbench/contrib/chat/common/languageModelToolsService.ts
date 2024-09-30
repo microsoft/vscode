@@ -5,15 +5,21 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { ChatModel } from './chatModel.js';
+import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
+import { IChatService } from './chatService.js';
 
 export interface IToolData {
 	id: string;
@@ -26,6 +32,7 @@ export interface IToolData {
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
 	supportedContentTypes: string[];
+	requiresConfirmation?: boolean;
 }
 
 interface IToolEntry {
@@ -50,8 +57,15 @@ export interface IToolResult {
 	[contentType: string]: any;
 }
 
+export interface IToolConfirmationMessages {
+	title: string;
+	message: string | IMarkdownString;
+}
+
 export interface IToolImpl {
-	invoke(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	provideToolConfirmationMessages(participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined>;
+	provideToolInvocationMessage(parameters: any, token: CancellationToken): Promise<string | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -62,11 +76,11 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
@@ -84,6 +98,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 
@@ -124,14 +139,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
-		const entry = this._tools.get(name);
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
+		const entry = this._tools.get(id);
 		if (!entry) {
-			throw new Error(`Tool "${name}" was not contributed.`);
+			throw new Error(`Tool "${id}" was not contributed.`);
 		}
 
 		if (entry.impl) {
-			throw new Error(`Tool "${name}" already has an implementation.`);
+			throw new Error(`Tool "${id}" already has an implementation.`);
 		}
 
 		entry.impl = tool;
@@ -184,6 +199,47 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return tool.impl.invoke(dto, countTokens, token);
+		// Shortcut to write to the model directly here, but could call all the way back to use the real stream.
+		let toolInvocation: ChatToolInvocation | undefined;
+		if (dto.context) {
+			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
+			const request = model.getRequests().at(-1)!;
+
+			// TODO if a tool requiresConfirmation but is not being invoked inside a chat session, we can show some other UI, like a modal notification
+			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
+
+			const getConfirmationMessages = async (): Promise<IToolConfirmationMessages | undefined> => {
+				if (!tool.data.requiresConfirmation) {
+					return undefined;
+				}
+
+				return (await tool.impl!.provideToolConfirmationMessages(participantName, dto.parameters, token)) ?? {
+					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
+					message: localize('toolConfirmMessage', "{0} will use {1}.", participantName, `"${tool.data.displayName ?? tool.data.id}"`),
+				};
+			};
+			const [invocationMessage, confirmationMessages] = await Promise.all([
+				tool.impl.provideToolInvocationMessage(dto.parameters, token),
+				getConfirmationMessages()
+			]);
+			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
+			toolInvocation = new ChatToolInvocation(invocationMessage ?? defaultMessage, confirmationMessages);
+			token.onCancellationRequested(() => {
+				toolInvocation!.confirmed.complete(false);
+			});
+			model.acceptResponseProgress(request, toolInvocation);
+			if (tool.data.requiresConfirmation) {
+				const userConfirmed = await toolInvocation.confirmed.p;
+				if (!userConfirmed) {
+					throw new CancellationError();
+				}
+			}
+		}
+
+		try {
+			return tool.impl.invoke(dto, countTokens, token);
+		} finally {
+			toolInvocation?.complete();
+		}
 	}
 }

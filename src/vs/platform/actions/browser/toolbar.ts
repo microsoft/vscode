@@ -357,7 +357,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (viewItem) {
 					return viewItem;
 				}
-				return createActionViewItem(instaService, action, options);
+				return createActionViewItem(instaService, action, opts);
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 

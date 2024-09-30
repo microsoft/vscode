@@ -17,7 +17,7 @@ import { ErrorNoTelemetry, onUnexpectedError } from '../../../../base/common/err
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { OS, OperatingSystem, isMacintosh, isWindows } from '../../../../base/common/platform.js';
@@ -90,13 +90,10 @@ import { shouldPasteTerminalText } from '../common/terminalClipboard.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { TerminalResizeDebouncer } from './terminalResizeDebouncer.js';
-
-// HACK: This file should not depend on terminalContrib
-// eslint-disable-next-line local/code-import-patterns
-import { TerminalAccessibilityCommandId } from '../../terminalContrib/accessibility/common/terminal.accessibility.js';
 import { openContextMenu } from './terminalContextMenu.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { TerminalContribCommandId } from '../terminalContribExports.js';
 
 const enum Constants {
 	/**
@@ -191,7 +188,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _labelComputer?: TerminalLabelComputer;
 	private _userHome?: string;
 	private _hasScrollBar?: boolean;
-	private _target?: TerminalLocation | undefined;
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
@@ -219,9 +215,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.waitOnExit = value;
 	}
 
-	get target(): TerminalLocation | undefined { return this._target; }
+	private _targetRef: ImmortalReference<TerminalLocation | undefined> = new ImmortalReference(undefined);
+	get targetRef(): IReference<TerminalLocation | undefined> { return this._targetRef; }
+
+	get target(): TerminalLocation | undefined { return this._targetRef.object; }
 	set target(value: TerminalLocation | undefined) {
-		this._target = value;
+		this._targetRef.object = value;
 		this._onDidChangeTarget.fire(value);
 	}
 
@@ -320,10 +319,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onData = this._onData.event;
 	private readonly _onBinary = this._register(new Emitter<string>());
 	readonly onBinary = this._onBinary.event;
-	private readonly _onLineData = this._register(new Emitter<string>({
-		onDidAddFirstListener: () => this._onLineDataSetup()
-	}));
-	readonly onLineData = this._onLineData.event;
 	private readonly _onRequestExtHostProcess = this._register(new Emitter<ITerminalInstance>());
 	readonly onRequestExtHostProcess = this._onRequestExtHostProcess.event;
 	private readonly _onDimensionsChanged = this._register(new Emitter<void>());
@@ -359,6 +354,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onWillPaste = this._onWillPaste.event;
 	private readonly _onDidPaste = this._register(new Emitter<string>());
 	readonly onDidPaste = this._onDidPaste.event;
+
+	private readonly _onLineData = this._register(new Emitter<string>({
+		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise).raw.loadAddon(this._lineDataEventAddon!)
+	}));
+	readonly onLineData = this._onLineData.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -727,7 +727,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue('task.reconnection') === true); }
 
 	public static getXtermConstructor(keybindingService: IKeybindingService, contextKeyService: IContextKeyService) {
-		const keybinding = keybindingService.lookupKeybinding(TerminalAccessibilityCommandId.FocusAccessibleBuffer, contextKeyService);
+		const keybinding = keybindingService.lookupKeybinding(TerminalContribCommandId.A11yFocusAccessibleBuffer, contextKeyService);
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}
@@ -751,16 +751,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
-		const xterm = this._scopedInstantiationService.createInstance(
-			XtermTerminal,
-			Terminal,
-			this._cols,
-			this._rows,
-			this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this),
-			this.capabilities,
-			this._processManager.shellIntegrationNonce,
-			disableShellIntegrationReporting
-		);
+		const xterm = this._scopedInstantiationService.createInstance(XtermTerminal, Terminal, {
+			cols: this._cols,
+			rows: this._rows,
+			xtermColorProvider: this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this._targetRef),
+			capabilities: this.capabilities,
+			shellIntegrationNonce: this._processManager.shellIntegrationNonce,
+			disableShellIntegrationReporting,
+		});
 		this.xterm = xterm;
 		this._resizeDebouncer = this._register(new TerminalResizeDebouncer(
 			() => this._isVisible,
@@ -778,6 +776,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				await this._updatePtyDimensions(xterm.raw);
 			}
 		));
+		this._register(toDisposable(() => this._resizeDebouncer = undefined));
 		this.updateAccessibilitySupport();
 		this._register(this.xterm.onDidRequestRunCommand(e => {
 			if (e.copyAsHtml) {
@@ -864,11 +863,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		return xterm;
-	}
-
-	private async _onLineDataSetup(): Promise<void> {
-		const xterm = this.xterm || await this._xtermReadyPromise;
-		xterm.raw.loadAddon(this._lineDataEventAddon!);
 	}
 
 	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
@@ -2679,7 +2673,7 @@ export function parseExitResult(
 
 export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		private readonly _target: IReference<TerminalLocation | undefined>,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 	}
@@ -2689,7 +2683,7 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		if (terminalBackground) {
 			return terminalBackground;
 		}
-		if (this._instance.target === TerminalLocation.Editor) {
+		if (this._target.object === TerminalLocation.Editor) {
 			return theme.getColor(editorBackground);
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;

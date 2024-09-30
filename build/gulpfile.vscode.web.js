@@ -21,7 +21,6 @@ const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const { compileBuildTask } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
-const { isAMD } = require('./lib/amd');
 const VinylFile = require('vinyl');
 
 const REPO_ROOT = path.dirname(__dirname);
@@ -32,7 +31,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = product.quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-const vscodeWebResourceIncludes = !isAMD() ? [
+const vscodeWebResourceIncludes = [
 
 	// NLS
 	'out-build/nls.messages.js',
@@ -54,30 +53,7 @@ const vscodeWebResourceIncludes = !isAMD() ? [
 	'out-build/vs/editor/common/languages/highlights/*.scm',
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.esm.html',
-] : [
-
-	// Workbench
-	'out-build/vs/{base,platform,editor,workbench}/**/*.{svg,png,jpg,mp3}',
-	'out-build/vs/code/browser/workbench/*.html',
-	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
-	'out-build/vs/**/markdown.css',
-
-	// NLS
-	'out-build/nls.messages.js',
-
-	// Webview
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
-	'out-build/vs/workbench/contrib/webview/browser/pre/*.html',
-
-	// Extension Worker
 	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
-
-	// Tree Sitter highlights
-	'out-build/vs/editor/common/languages/highlights/*.scm',
-
-	// Web node paths (needed for integration tests)
-	'out-build/vs/webPackagePaths.js',
 ];
 exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 
@@ -91,14 +67,13 @@ const vscodeWebResources = [
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
 	'!**/test/**'
 ];
 
 const buildfile = require('./buildfile');
 
-const vscodeWebEntryPoints = !isAMD() ? [
-	buildfile.base,
+const vscodeWebEntryPoints = [
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
@@ -106,17 +81,8 @@ const vscodeWebEntryPoints = !isAMD() ? [
 	buildfile.workerOutputLinks,
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
-	buildfile.workbenchWeb(),
+	buildfile.workbenchWeb,
 	buildfile.entrypoint('vs/workbench/workbench.web.main.internal') // TODO@esm remove line when we stop supporting web-amd-esm-bridge
-].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
-	buildfile.base,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.keyboardMaps,
-	buildfile.workbenchWeb()
 ].flat();
 
 /**
@@ -198,15 +164,10 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 	optimize.optimizeTask(
 		{
 			out: 'out-vscode-web',
-			amd: {
+			esm: {
 				src: 'out-build',
-				entryPoints: vscodeWebEntryPoints.flat(),
-				otherSources: [],
+				entryPoints: vscodeWebEntryPoints,
 				resources: vscodeWebResources,
-				loaderConfig: optimize.loaderConfig(),
-				externalLoaderInfo: util.createExternalLoaderConfig(product.webEndpointUrl, commit, quality),
-				inlineAmdImages: true,
-				bundleInfo: undefined,
 				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
 			}
 		}
@@ -233,7 +194,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 
-		const sources = es.merge(...(!isAMD() ? [src, extensions, loader] : [src, extensions]))
+		const sources = es.merge(src, extensions, loader)
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }))
 			// TODO@esm remove me once we stop supporting our web-esm-bridge
 			.pipe(es.through(function (file) {

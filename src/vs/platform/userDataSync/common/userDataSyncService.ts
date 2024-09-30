@@ -254,29 +254,34 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private async applyManualSync(manifest: IUserDataManifest | null, executionId: string, token: CancellationToken): Promise<void> {
-		const profileSynchronizers = this.getActiveProfileSynchronizers();
-		for (const profileSynchronizer of profileSynchronizers) {
-			if (token.isCancellationRequested) {
+		try {
+			this.setStatus(SyncStatus.Syncing);
+			const profileSynchronizers = this.getActiveProfileSynchronizers();
+			for (const profileSynchronizer of profileSynchronizers) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				await profileSynchronizer.apply(executionId, token);
+			}
+
+			const defaultProfileSynchronizer = profileSynchronizers.find(s => s.profile.isDefault);
+			if (!defaultProfileSynchronizer) {
 				return;
 			}
-			await profileSynchronizer.apply(executionId, token);
-		}
 
-		const defaultProfileSynchronizer = profileSynchronizers.find(s => s.profile.isDefault);
-		if (!defaultProfileSynchronizer) {
-			return;
-		}
+			const userDataProfileManifestSynchronizer = defaultProfileSynchronizer.enabled.find(s => s.resource === SyncResource.Profiles);
+			if (!userDataProfileManifestSynchronizer) {
+				return;
+			}
 
-		const userDataProfileManifestSynchronizer = defaultProfileSynchronizer.enabled.find(s => s.resource === SyncResource.Profiles);
-		if (!userDataProfileManifestSynchronizer) {
-			return;
-		}
-
-		// Sync remote profiles which are not synced locally
-		const remoteProfiles = (await (userDataProfileManifestSynchronizer as UserDataProfilesManifestSynchroniser).getRemoteSyncedProfiles(manifest?.latest ?? null)) || [];
-		const remoteProfilesToSync = remoteProfiles.filter(remoteProfile => profileSynchronizers.every(s => s.profile.id !== remoteProfile.id));
-		if (remoteProfilesToSync.length) {
-			await this.syncRemoteProfiles(remoteProfilesToSync, manifest, false, executionId, token);
+			// Sync remote profiles which are not synced locally
+			const remoteProfiles = (await (userDataProfileManifestSynchronizer as UserDataProfilesManifestSynchroniser).getRemoteSyncedProfiles(manifest?.latest ?? null)) || [];
+			const remoteProfilesToSync = remoteProfiles.filter(remoteProfile => profileSynchronizers.every(s => s.profile.id !== remoteProfile.id));
+			if (remoteProfilesToSync.length) {
+				await this.syncRemoteProfiles(remoteProfilesToSync, manifest, false, executionId, token);
+			}
+		} finally {
+			this.setStatus(SyncStatus.Idle);
 		}
 	}
 

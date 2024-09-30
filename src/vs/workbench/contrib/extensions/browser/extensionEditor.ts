@@ -88,7 +88,6 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 class NavBar extends Disposable {
 
@@ -255,7 +254,6 @@ export class ExtensionEditor extends EditorPane {
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
@@ -298,7 +296,6 @@ export class ExtensionEditor extends EditorPane {
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
 		publisher.setAttribute('role', 'button');
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
@@ -559,6 +556,7 @@ export class ExtensionEditor extends EditorPane {
 		template.publisher.classList.toggle('clickable', !!extension.url);
 		template.publisherDisplayName.textContent = extension.publisherDisplayName;
 		template.publisher.parentElement?.classList.toggle('hide', !!extension.resourceExtension || extension.local?.source === 'resource');
+		this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.publisher, localize('publisher', "Publisher ({0})", extension.publisher)));
 
 		const location = extension.resourceExtension?.location ?? (extension.local?.source === 'resource' ? extension.local?.location : undefined);
 		template.resource.parentElement?.classList.toggle('hide', !location);
@@ -964,9 +962,6 @@ export class ExtensionEditor extends EditorPane {
 			try {
 				resources.push([localize('license', "License"), URI.parse(extension.licenseUrl)]);
 			} catch (error) {/* Ignore */ }
-			if (extension.contentsUrl) {
-				resources.push([localize('contents', "Contents"), extension.contentsUrl]);
-			}
 		}
 		if (extension.publisherUrl) {
 			resources.push([extension.publisherDisplayName, extension.publisherUrl]);
@@ -978,28 +973,7 @@ export class ExtensionEditor extends EditorPane {
 			for (const [label, uri] of resources) {
 				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
 				this.transientDisposables.add(onClick(resource, () => {
-					if (this.uriIdentityService.extUri.isEqual(uri, extension.contentsUrl)) {
-						this.dialogService.prompt({
-							type: 'info',
-							title: localize('Browse Extension Contents', "Browse Extension Contents"),
-							message: localize('browseExtensionContents', "Are you sure you want to browse the contents of the extension '{0}'?\nMake sure the extension license allows this.", extension.displayName),
-							buttons: [{
-								label: localize('View license', "View License"),
-								run: () => {
-									if (extension.licenseUrl) {
-										this.openerService.open(extension.licenseUrl);
-									}
-									return false;
-								}
-							}, {
-								label: localize('browse contents', "Browse Contents"),
-								run: () => this.openerService.open(uri)
-							}],
-							cancelButton: true
-						});
-					} else {
-						this.openerService.open(uri);
-					}
+					this.openerService.open(uri);
 				}));
 				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
 			}

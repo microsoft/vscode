@@ -10,6 +10,7 @@ import { IRange } from '../../../../editor/common/core/range.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatSlashData } from './chatSlashCommands.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolData } from './languageModelToolsService.js';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -73,7 +74,7 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 export class ChatRequestToolPart implements IParsedChatRequestPart {
 	static readonly Kind = 'tool';
 	readonly kind = ChatRequestToolPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly toolName: string, readonly toolId: string, readonly displayName?: string, readonly icon?: IToolData['icon']) { }
 
 	get text(): string {
 		return `${chatVariableLeader}${this.toolName}`;
@@ -175,7 +176,9 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
 					(part as ChatRequestToolPart).toolName,
-					(part as ChatRequestToolPart).toolId
+					(part as ChatRequestToolPart).toolId,
+					(part as ChatRequestToolPart).displayName,
+					(part as ChatRequestToolPart).icon,
 				);
 			} else if (part.kind === ChatRequestAgentPart.Kind) {
 				let agent = (part as ChatRequestAgentPart).agent;

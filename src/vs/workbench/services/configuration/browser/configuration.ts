@@ -133,7 +133,7 @@ export class ApplicationConfiguration extends UserSettings {
 		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 	) {
-		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: [ConfigurationScope.APPLICATION] }, uriIdentityService.extUri, fileService, logService);
+		super(userDataProfilesService.defaultProfile.settingsResource, { scopes: [ConfigurationScope.APPLICATION], skipUnregistered: true }, uriIdentityService.extUri, fileService, logService);
 		this._register(this.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}

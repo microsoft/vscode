@@ -31,7 +31,6 @@ const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('
 const { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } = require('./gulpfile.vscode.web');
 const cp = require('child_process');
 const log = require('fancy-log');
-const { isAMD } = require('./lib/amd');
 const buildfile = require('./buildfile');
 
 const REPO_ROOT = path.dirname(__dirname);
@@ -89,19 +88,15 @@ const serverResources = [
 	...serverResourceExcludes
 ];
 
-const serverWithWebResourceIncludes = !isAMD() ? [
+const serverWithWebResourceIncludes = [
 	...serverResourceIncludes,
 	'out-build/vs/code/browser/workbench/*.html',
-	...vscodeWebResourceIncludes
-] : [
-	...serverResourceIncludes,
 	...vscodeWebResourceIncludes
 ];
 
 const serverWithWebResourceExcludes = [
 	...serverResourceExcludes,
-	'!out-build/vs/code/**/*-dev.html',
-	'!out-build/vs/code/**/*-dev.esm.html',
+	'!out-build/vs/code/**/*-dev.html'
 ];
 
 const serverWithWebResources = [
@@ -132,8 +127,8 @@ const serverEntryPoints = [
 	}
 ];
 
-const webEntryPoints = !isAMD() ? [
-	buildfile.base,
+const webEntryPoints = [
+	buildfile.workerEditor,
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
@@ -142,15 +137,6 @@ const webEntryPoints = !isAMD() ? [
 	buildfile.workerBackgroundTokenization,
 	buildfile.keyboardMaps,
 	buildfile.codeWeb
-].flat() : [
-	buildfile.entrypoint('vs/workbench/workbench.web.main.internal'),
-	buildfile.base,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.keyboardMaps,
-	buildfile.workbenchWeb()
 ].flat();
 
 const serverWithWebEntryPoints = [
@@ -162,10 +148,10 @@ const serverWithWebEntryPoints = [
 	...webEntryPoints,
 ].flat();
 
-const commonJSEntryPoints = [
+const bootstrapEntryPoints = [
 	'out-build/server-main.js',
 	'out-build/server-cli.js',
-	'out-build/bootstrap-fork.js',
+	'out-build/bootstrap-fork.js'
 ];
 
 function getNodeVersion() {
@@ -344,7 +330,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...(!isAMD() ? { type: 'module' } : {}) })) // TODO@esm this should be configured in the top level package.json
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...{ type: 'module' } })) // TODO@esm this should be configured in the top level package.json
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -450,7 +436,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		}
 
 		result = inlineMeta(result, {
-			targetPaths: commonJSEntryPoints,
+			targetPaths: bootstrapEntryPoints,
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
@@ -474,29 +460,14 @@ function tweakProductForServerWeb(product) {
 		optimize.optimizeTask(
 			{
 				out: `out-vscode-${type}`,
-				amd: {
+				esm: {
 					src: 'out-build',
-					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
-					otherSources: [],
+					entryPoints: [
+						...(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+						...bootstrapEntryPoints
+					],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
-					loaderConfig: optimize.loaderConfig(),
-					inlineAmdImages: true,
-					bundleInfo: undefined,
 					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-				},
-				commonJS: {
-					src: 'out-build',
-					entryPoints: commonJSEntryPoints,
-					platform: 'node',
-					external: [
-						'minimist',
-						// We cannot inline `product.json` from here because
-						// it is being changed during build time at a later
-						// point in time (such as `checksums`)
-						// We have a manual step to inline these later.
-						'../product.json',
-						'../package.json'
-					]
 				}
 			}
 		)

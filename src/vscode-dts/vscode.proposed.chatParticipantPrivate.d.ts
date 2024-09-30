@@ -26,7 +26,11 @@ declare module 'vscode' {
 		/**
 		 * Code editor inline chat
 		 */
-		Editor = 4
+		Editor = 4,
+		/**
+		 * Chat is happening in an editing session
+		 */
+		EditingSession = 5,
 	}
 
 	export class ChatRequestEditorData {

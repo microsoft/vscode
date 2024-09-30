@@ -246,7 +246,7 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 			return;
 		}
 
-		store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data));
+		store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
 	}
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {

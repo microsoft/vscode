@@ -19,7 +19,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { autorun, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isUriComponents, URI } from '../../../../base/common/uri.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, isCodeEditor, MouseTargetType, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -767,7 +767,7 @@ registerAction2(class FilterCoverageToTestInEditor extends Action2 {
 	run(accessor: ServicesAccessor, coverageOrUri?: FileCoverage | URI, editor?: ICodeEditor): void {
 		const testCoverageService = accessor.get(ITestCoverageService);
 		const quickInputService = accessor.get(IQuickInputService);
-		const activeEditor = editor ?? accessor.get(ICodeEditorService).getActiveCodeEditor();
+		const activeEditor = isCodeEditor(editor) ? editor : accessor.get(ICodeEditorService).getActiveCodeEditor();
 		let coverage: FileCoverage | undefined;
 		if (coverageOrUri instanceof FileCoverage) {
 			coverage = coverageOrUri;
