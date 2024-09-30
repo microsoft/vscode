@@ -735,15 +735,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 4px;
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
-	cursor: pointer;
+	overflow: hidden;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
 	display: flex;
 	align-items: center;
+	margin-top: -2px;
+	margin-right: -4px;
+	padding-right: 4px;
+	padding-left: 2px;
+	height: calc(100% + 4px);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
+	cursor: pointer;
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
