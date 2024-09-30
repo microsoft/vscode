@@ -21,7 +21,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
-import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { isQuickChat } from '../chatWidget.js';
@@ -444,7 +444,50 @@ class AttachContextAction extends Action2 {
 	}
 
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], clipboardService: IClipboardService, query: string = '') {
+		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+			handleAccept: (item: IChatContextQuickPickItem) => {
+				if ('prefix' in item) {
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, item.prefix);
+				} else {
+					if (!clipboardService) {
+						return;
+					}
+					this._attachContext(widget, commandService, clipboardService, item);
+					if (isQuickChat(widget)) {
+						quickChatService.open();
+					}
+				}
+			},
+			additionPicks: quickPickItems,
+			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
+				// Avoid attaching the same context twice
+				const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
 
+				if ('kind' in item && item.kind === 'image') {
+					return !attachedContext.has(item.id);
+				}
+
+				if ('symbol' in item && item.symbol) {
+					return !attachedContext.has(this._getFileContextId(item.symbol.location));
+				}
+
+				if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
+					return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
+						&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
+				}
+
+				if (item && typeof item === 'object' && 'uri' in item && item.uri && item.range) {
+					return !attachedContext.has(this._getFileContextId({ uri: item.uri, range: item.range.decoration }));
+				}
+
+				if (!('command' in item) && item.id) {
+					return !attachedContext.has(item.id);
+				}
+
+				// Don't filter out dynamic variables which show secondary data (temporary)
+				return true;
+			}
+		};
 		quickInputService.quickAccess.show(query, {
 			enabledProviderPrefixes: [
 				AnythingQuickAccessProvider.PREFIX,
@@ -452,51 +495,7 @@ class AttachContextAction extends Action2 {
 				AbstractGotoSymbolQuickAccessProvider.PREFIX
 			],
 			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
-			providerOptions: <AnythingQuickAccessProviderRunOptions>{
-				handleAccept: (item: IChatContextQuickPickItem) => {
-					if ('prefix' in item) {
-						this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, item.prefix);
-					} else {
-						if (!clipboardService) {
-							return;
-						}
-						this._attachContext(widget, commandService, clipboardService, item);
-						if (isQuickChat(widget)) {
-							quickChatService.open();
-						}
-					}
-				},
-				additionPicks: quickPickItems,
-				filter: (item: IChatContextQuickPickItem) => {
-					// Avoid attaching the same context twice
-					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
-
-					if ('kind' in item && item.kind === 'image') {
-						return !attachedContext.has(item.id);
-					}
-
-					if ('symbol' in item && item.symbol) {
-						return !attachedContext.has(this._getFileContextId(item.symbol.location));
-					}
-
-					if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
-						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
-							&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
-					}
-
-					if (item && typeof item === 'object' && 'uri' in item && item.uri && item.range) {
-						return !attachedContext.has(this._getFileContextId({ uri: item.uri, range: item.range.decoration }));
-					}
-
-					if (!('command' in item) && item.id) {
-						return !attachedContext.has(item.id);
-					}
-
-					// Don't filter out dynamic variables which show secondary data (temporary)
-					return true;
-				}
-			}
+			providerOptions,
 		});
-
 	}
 }

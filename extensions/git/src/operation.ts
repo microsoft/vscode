@@ -131,7 +131,7 @@ export type SyncOperation = BaseOperation & { kind: OperationKind.Sync };
 export type TagOperation = BaseOperation & { kind: OperationKind.Tag };
 
 export const Operation = {
-	Add: (showProgress: boolean) => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as AddOperation),
+	Add: (showProgress: boolean): AddOperation => ({ kind: OperationKind.Add, blocking: false, readOnly: false, remote: false, retry: false, showProgress }),
 	Apply: { kind: OperationKind.Apply, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ApplyOperation,
 	Blame: { kind: OperationKind.Blame, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as BlameOperation,
 	Branch: { kind: OperationKind.Branch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as BranchOperation,
