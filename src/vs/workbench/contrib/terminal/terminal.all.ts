@@ -27,4 +27,4 @@ import '../terminalContrib/quickFix/browser/terminal.quickFix.contribution.js';
 import '../terminalContrib/typeAhead/browser/terminal.typeAhead.contribution.js';
 import '../terminalContrib/suggest/browser/terminal.suggest.contribution.js';
 import '../terminalContrib/chat/browser/terminal.initialHint.contribution.js';
-
+import '../terminalContrib/wslRecommendation/browser/terminal.wslRecommendation.contribution.js';
