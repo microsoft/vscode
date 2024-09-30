@@ -19046,7 +19046,22 @@ declare module 'vscode' {
 		/**
 		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
 		 */
-		readonly value: string | Uri | Location | Buffer | unknown;
+		readonly value: string | Uri | Location | ChatReferenceBinaryData | unknown;
+	}
+
+	/**
+	 * Represents binary data associated with a chat reference.
+	 */
+	export class ChatReferenceBinaryData {
+		/**
+		 * The MIME type of the binary data.
+		 */
+		readonly mimeType: string;
+
+		/*
+		* The binary data of the reference.
+		*/
+		readonly data: Uint8Array;
 	}
 
 	/**

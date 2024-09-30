@@ -2796,7 +2796,7 @@ export namespace ChatPromptReference {
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 			value: isUriComponents(value) ? URI.revive(value) :
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
-					Location.to(revive(value)) : variable.isImage ? Buffer.from(Object.values(value)) : value,
+					Location.to(revive(value)) : variable.isImage ? { mimeType: 'image/png', data: new Uint8Array(Object.values(value)) } : value,
 			modelDescription: variable.modelDescription
 		};
 	}
