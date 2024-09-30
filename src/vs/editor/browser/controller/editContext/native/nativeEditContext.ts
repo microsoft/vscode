@@ -18,7 +18,7 @@ import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
-import { AbstractEditContext } from '../editContextUtils.js';
+import { AbstractEditContext } from '../editContext.js';
 import { editContextAddDisposableListener, FocusTracker, ITypeData } from './nativeEditContextUtils.js';
 import { ScreenReaderSupport } from './screenReaderSupport.js';
 import { Range } from '../../../../common/core/range.js';
@@ -51,6 +51,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	constructor(
 		context: ViewContext,
+		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -61,6 +62,9 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
 		this._updateDomAttributes();
+
+		overflowGuardContainer.appendChild(this.domNode);
+		this._parent = overflowGuardContainer.domNode;
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
 
@@ -121,11 +125,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		super.dispose();
-	}
-
-	public appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this.domNode);
-		this._parent = overflowGuardContainer.domNode;
 	}
 
 	public setAriaOptions(): void {
