@@ -190,7 +190,6 @@ export class TextAreaInput extends Disposable {
 			console.log('on key down of TextAreaInput : ', _e);
 			const e = new StandardKeyboardEvent(_e);
 			console.log('e.keyCode === KeyCode.KEY_IN_COMPOSITION : ', e.keyCode === KeyCode.KEY_IN_COMPOSITION);
-
 			if (e.keyCode === KeyCode.KEY_IN_COMPOSITION
 				|| (this._currentComposition && e.keyCode === KeyCode.Backspace)) {
 				// Stop propagation for keyDown events if the IME is processing key input

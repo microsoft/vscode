@@ -53,7 +53,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
-		this.domNode.domNode.contentEditable = 'true';
 		this._updateDomAttributes();
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
@@ -71,8 +70,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
 		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
-
-			console.log('keydown of NativeEditContext', e);
+			console.log('keydown of NativeEditContext : ', e);
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 
@@ -93,6 +91,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			console.log('textupdate : ', e);
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
