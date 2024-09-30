@@ -32,7 +32,6 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
 import { CLOSE_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
-import { TerminalQuickAccessProvider } from './terminalQuickAccess.js';
 import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { createProfileSchemaEnums } from '../../../../platform/terminal/common/terminalProfiles.js';
@@ -967,13 +966,6 @@ export function registerTerminalActions() {
 				await focusActiveTerminal(instance, c);
 			}
 		}
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.QuickOpenTerm,
-		title: localize2('quickAccessTerminal', 'Switch Active Terminal'),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, accessor) => accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX)
 	});
 
 	registerActiveInstanceAction({
