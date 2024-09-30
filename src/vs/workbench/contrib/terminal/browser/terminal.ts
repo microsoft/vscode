@@ -64,6 +64,11 @@ export interface ITerminalInstanceService {
 	onDidCreateInstance: Event<ITerminalInstance>;
 
 	/**
+	 * An event that's fired when a new backend is registered.
+	 */
+	onDidRegisterBackend: Event<ITerminalBackend>;
+
+	/**
 	 * Helper function to convert a shell launch config, a profile or undefined into its equivalent
 	 * shell launch config.
 	 * @param shellLaunchConfigOrProfile A shell launch config, a profile or undefined
@@ -86,7 +91,7 @@ export interface ITerminalInstanceService {
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
-	didRegisterBackend(remoteAuthority?: string): void;
+	didRegisterBackend(backend: ITerminalBackend): void;
 }
 
 export const enum Direction {
