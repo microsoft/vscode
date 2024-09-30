@@ -174,7 +174,7 @@ export class WorkerDescriptor implements IWorkerDescriptor {
 		public readonly moduleId: string,
 		readonly label: string | undefined,
 	) {
-		this.esmModuleLocation = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath);
+		this.esmModuleLocation = FileAccess.asBrowserUri(`${moduleId}Main.js` as AppResourcePath);
 	}
 }
 

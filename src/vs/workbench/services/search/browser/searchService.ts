@@ -188,7 +188,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 		if (!this._worker) {
 			try {
 				this._worker = this._register(createWebWorker<ILocalFileSearchSimpleWorker>(
-					'vs/workbench/services/search/worker/localFileSearchMain',
+					'vs/workbench/services/search/worker/localFileSearch',
 					'LocalFileSearchWorker'
 				));
 				LocalFileSearchSimpleWorkerHost.setChannel(this._worker, {

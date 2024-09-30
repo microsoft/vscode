@@ -48,7 +48,7 @@ class ProfileAnalysisWorkerService implements IProfileAnalysisWorkerService {
 	private async _withWorker<R>(callback: (worker: Proxied<IProfileAnalysisWorker>) => Promise<R>): Promise<R> {
 
 		const worker = createWebWorker<IProfileAnalysisWorker>(
-			'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerMain',
+			'vs/platform/profiling/electron-sandbox/profileAnalysisWorker',
 			'CpuProfileAnalysisWorker'
 		);
 
