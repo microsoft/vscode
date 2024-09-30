@@ -2,7 +2,9 @@ trigger: none
 
 pr:
   branches:
-    include: ["rebornix/*"]
+    include: ["main"]
+  paths:
+    include: ["package.json", "package-lock.json"]
 
 variables:
   - name: Codeql.SkipTaskAutoInjection
