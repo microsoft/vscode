@@ -237,11 +237,10 @@
 					removeDeveloperKeybindingsAfterLoad: true
 				};
 			},
-			canModifyDOM: function (windowConfig) {
-				showSplash(windowConfig);
-			},
 			beforeImport: function (windowConfig) {
-				performance.mark('code/willLoadWorkbenchMain');
+
+				// Show our splash as early as possible
+				showSplash(windowConfig);
 
 				// Code windows have a `vscodeWindowId` property to identify them
 				Object.defineProperty(window, 'vscodeWindowId', {
@@ -260,6 +259,9 @@
 					context?.clearRect(0, 0, canvas.width, canvas.height);
 					canvas.remove();
 				}, { timeout: 50 });
+
+				// Track import() perf
+				performance.mark('code/willLoadWorkbenchMain');
 			}
 		}
 	);

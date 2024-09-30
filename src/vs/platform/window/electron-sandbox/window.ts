@@ -73,7 +73,6 @@ export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfigur
 		disallowReloadKeybinding?: boolean;
 		removeDeveloperKeybindingsAfterLoad?: boolean;
 	};
-	canModifyDOM?: (config: T) => void;
 	beforeImport?: (config: T) => void;
 }
 

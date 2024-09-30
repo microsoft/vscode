@@ -20,17 +20,14 @@
 		// Window Configuration from Preload Script
 		const configuration = await resolveWindowConfiguration<T>();
 
-		// Signal can modify DOM
-		options?.canModifyDOM?.(configuration);
+		// Signal before import()
+		options?.beforeImport?.(configuration);
 
 		// Developer settings
 		const { enableDeveloperKeybindings, removeDeveloperKeybindingsAfterLoad, developerDeveloperKeybindingsDisposable, forceDisableShowDevtoolsOnError } = setupDeveloperKeybindings(configuration, options);
 
 		// NLS
 		setupNLS<T>(configuration);
-
-		// Signal before import()
-		options?.beforeImport?.(configuration);
 
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
