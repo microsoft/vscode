@@ -742,14 +742,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.appendChild(textLabel);
 
 				try {
+					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 					if (attachment.value instanceof URI) {
-						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 						const readFile = await this.fileService.readFile(attachment.value);
 						buffer = readFile.value.buffer;
-
 					} else {
 						buffer = attachment.value as Uint8Array;
-						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 					}
 					this.createImageElements(buffer, widget, hoverElement);
 				} catch (error) {
@@ -821,9 +819,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextDisposables.add(disp);
 	}
 
-
 	// Helper function to create and replace image
-	private async createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
+	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
 		const blob = new Blob([buffer], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
