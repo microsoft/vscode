@@ -69,6 +69,7 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
+import { ACTION_ID_NEW_EDIT_SESSION } from './actions/chatClearActions.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
@@ -915,7 +916,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const clearButton = this._chatEditsActionsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
 			clearButton.icon = Codicon.close;
 			this._chatEditsActionsDisposables.add(clearButton.onDidClick((e) => {
-				void chatEditingSession.stop();
+				this.commandService.executeCommand(ACTION_ID_NEW_EDIT_SESSION);
 			}));
 			dom.append(actionsContainer, clearButton.element);
 		}
