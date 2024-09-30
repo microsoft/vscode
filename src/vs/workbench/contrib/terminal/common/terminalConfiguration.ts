@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../nls.js';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from './terminal.js';
-import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
-import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { TerminalLocationString, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { terminalColorSchema, terminalIconSchema } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
-import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from '../../../common/configuration.js';
-import { terminalAccessibilityConfiguration, terminalAutoRepliesConfiguration, terminalCommandGuideConfiguration, terminalInitialHintConfiguration, terminalStickyScrollConfiguration, terminalSuggestConfiguration, terminalTypeAheadConfiguration, terminalZoomConfiguration } from '../terminalContribExports.js';
+import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
+import { terminalContribConfiguration } from '../terminalContribExports.js';
+import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -608,14 +608,14 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		...terminalAccessibilityConfiguration,
-		...terminalAutoRepliesConfiguration,
-		...terminalCommandGuideConfiguration,
-		...terminalInitialHintConfiguration,
-		...terminalStickyScrollConfiguration,
-		...terminalSuggestConfiguration,
-		...terminalTypeAheadConfiguration,
-		...terminalZoomConfiguration,
+		...terminalContribConfiguration.accessibility,
+		...terminalContribConfiguration.autoReplies,
+		...terminalContribConfiguration.commandGuide,
+		...terminalContribConfiguration.initialHint,
+		...terminalContribConfiguration.stickyScroll,
+		...terminalContribConfiguration.suggest,
+		...terminalContribConfiguration.typeAhead,
+		...terminalContribConfiguration.zoom,
 	}
 };
 

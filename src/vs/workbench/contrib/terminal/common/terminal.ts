@@ -18,7 +18,7 @@ import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IF
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IEnvironmentVariableInfo } from './environmentVariable.js';
 import { IExtensionPointDescriptor } from '../../../services/extensions/common/extensionsRegistry.js';
-import { defaultTerminalAccessibilityCommandsToSkipShell, defaultTerminalFindCommandToSkipShell, defaultTerminalSuggestCommandsToSkipShell } from '../terminalContribExports.js';
+import { defaultTerminalContribCommandsToSkipShell } from '../terminalContribExports.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -618,9 +618,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.chat.runCommand',
 	'workbench.action.terminal.chat.insertCommand',
 	'workbench.action.terminal.chat.viewInChat',
-	...defaultTerminalAccessibilityCommandsToSkipShell,
-	...defaultTerminalFindCommandToSkipShell,
-	...defaultTerminalSuggestCommandsToSkipShell,
+	...defaultTerminalContribCommandsToSkipShell.accessibility,
+	...defaultTerminalContribCommandsToSkipShell.find,
+	...defaultTerminalContribCommandsToSkipShell.suggest,
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
