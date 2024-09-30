@@ -10,7 +10,6 @@ import { ViewPart } from '../../view/viewPart.js';
 
 export abstract class AbstractEditContext extends ViewPart {
 	abstract domNode: FastDomNode<HTMLElement>;
-	abstract appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void;
 	abstract focus(): void;
 	abstract isFocused(): boolean;
 	abstract refreshFocusState(): void;

@@ -34,7 +34,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AbstractEditContext } from '../editContextUtils.js';
+import { AbstractEditContext } from '../editContext.js';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
@@ -148,6 +148,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	constructor(
 		context: ViewContext,
+		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
 		visibleRangeProvider: IVisibleRangeProvider,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -200,6 +201,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
+
+		overflowGuardContainer.appendChild(this.textArea);
+		overflowGuardContainer.appendChild(this.textAreaCover);
 
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
@@ -464,11 +468,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	public get domNode() {
 		return this.textArea;
-	}
-
-	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this.textArea);
-		overflowGuardContainer.appendChild(this.textAreaCover);
 	}
 
 	public writeScreenReaderContent(reason: string): void {
