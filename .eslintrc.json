@@ -756,7 +756,6 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
-							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -1133,7 +1132,7 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
+						"target": "src/vs/{loader.d.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{

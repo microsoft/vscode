@@ -9,7 +9,7 @@ import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
-import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED } from '../../../inlineChat/common/inlineChat.js';
+import { CTX_INLINE_CHAT_EMPTY } from '../../../inlineChat/common/inlineChat.js';
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
@@ -80,52 +80,6 @@ registerActiveXtermAction({
 		contr?.clear();
 	}
 });
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.FocusResponse,
-	title: localize2('focusTerminalResponse', 'Focus Terminal Response'),
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-		when: TerminalChatContextKeys.focused,
-		weight: KeybindingWeight.WorkbenchContrib,
-	},
-	f1: true,
-	category: AbstractInlineChatAction.category,
-	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.focused
-	),
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.chatWidget?.focusLastMessage();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.FocusInput,
-	title: localize2('focusTerminalInput', 'Focus Terminal Input'),
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-		secondary: [KeyMod.CtrlCmd | KeyCode.KeyI],
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, CTX_INLINE_CHAT_FOCUSED.toNegated()),
-		weight: KeybindingWeight.WorkbenchContrib,
-	},
-	f1: true,
-	category: AbstractInlineChatAction.category,
-	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.focused
-	),
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.focus();
-	}
-});
-
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Discard,
@@ -221,6 +175,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.InsertCommand,
 	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
+	icon: Codicon.insert,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
