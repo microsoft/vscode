@@ -26,7 +26,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -50,7 +50,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private readonly _focusTracker: FocusTracker;
 
-	private _selectionChangeListener: IDisposable | undefined;
+	private readonly _selectionChangeListener: MutableDisposable<IDisposable>;
 
 	constructor(
 		context: ViewContext,
@@ -69,9 +69,9 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this.domNode);
 		this._parent = overflowGuardContainer.domNode;
 
+		this._selectionChangeListener = this._register(new MutableDisposable());
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			this._selectionChangeListener?.dispose();
-			this._selectionChangeListener = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
+			this._selectionChangeListener.value = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -131,8 +131,6 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
-		this._selectionChangeListener?.dispose();
-		this._selectionChangeListener = undefined;
 		super.dispose();
 	}
 
