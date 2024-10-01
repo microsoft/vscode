@@ -16,9 +16,7 @@ import { TerminalLocation } from '../../../../../platform/terminal/common/termin
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import type { ITerminalContribution, ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
-import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
-import type { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
-import { type ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { TerminalHistoryCommandId } from '../common/terminal.history.js';
@@ -36,9 +34,7 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		processManager: ITerminalProcessManager,
-		widgetManager: TerminalWidgetManager,
+		private readonly _ctx: ITerminalContributionContext,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -46,18 +42,18 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
 
-		this._register(this._instance.capabilities.onDidAddCapabilityType(e => {
+		this._register(_ctx.instance.capabilities.onDidAddCapabilityType(e => {
 			switch (e) {
 				case TerminalCapability.CwdDetection: {
-					this._instance.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
-						this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this._instance.remoteAuthority });
+					_ctx.instance.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
+						this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: _ctx.instance.remoteAuthority });
 					});
 					break;
 				}
 				case TerminalCapability.CommandDetection: {
-					this._instance.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
+					_ctx.instance.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
 						if (e.command.trim().length > 0) {
-							this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._instance.shellType });
+							this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: _ctx.instance.shellType });
 						}
 					});
 					break;
@@ -72,7 +68,7 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 	 */
 	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
 		return this._instantiationService.invokeFunction(showRunRecentQuickPick,
-			this._instance,
+			this._ctx.instance,
 			this._terminalInRunCommandPicker,
 			type,
 			filterMode,
