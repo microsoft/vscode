@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -263,6 +264,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 					progress.report({ content: new MarkdownString(defaultAgent.metadata.helpTextPostfix), kind: 'markdownContent' });
 				}
 			}
+
+			// Without this, the response will be done before it renders and so it will not stream. This ensures that if the response starts
+			// rendering during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
+			// it has received all response data has been received.
+			await timeout(200);
 		}));
 	}
 }

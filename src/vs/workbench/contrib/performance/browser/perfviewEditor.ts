@@ -30,6 +30,7 @@ import { ITextResourceConfigurationService } from '../../../../editor/common/ser
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, getWorkbenchContribution } from '../../../common/contributions.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 export class PerfviewContrib {
 
@@ -111,6 +112,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 		@ITimerService private readonly _timerService: ITimerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) { }
 
@@ -138,7 +140,8 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._timerService.whenReady(),
 			this._lifecycleService.when(LifecyclePhase.Eventually),
 			this._extensionService.whenInstalledExtensionsRegistered(),
-			this._terminalService.whenConnected
+			// The terminal service never connects to the pty host on the web
+			isWeb && !this._remoteAgentService.getConnection()?.remoteAuthority ? Promise.resolve() : this._terminalService.whenConnected
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 

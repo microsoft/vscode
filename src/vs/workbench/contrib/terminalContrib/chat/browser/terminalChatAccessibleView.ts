@@ -8,8 +8,8 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { TerminalChatController } from './terminalChatController.js';
 import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { TerminalChatContextKeys } from '../../../terminal/terminalContribExports.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
 
 export class TerminalInlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 105;

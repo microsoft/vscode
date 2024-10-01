@@ -230,6 +230,7 @@ export class MenuId {
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
 	static readonly ChatCommandCenter = new MenuId('ChatCommandCenter');
+	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');

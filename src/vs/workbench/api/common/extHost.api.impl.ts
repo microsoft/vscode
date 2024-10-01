@@ -1454,7 +1454,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.registerChatParticipantDetectionProvider(provider);
+				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
 		};
 
@@ -1513,6 +1513,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces

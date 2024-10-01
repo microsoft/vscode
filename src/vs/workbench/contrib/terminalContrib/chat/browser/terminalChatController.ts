@@ -17,7 +17,6 @@ import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetM
 import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
 
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -244,8 +243,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					if (response.isComplete) {
 						this._requestActiveContextKey.set(false);
 						this._requestActiveContextKey.set(false);
-						const containsCode = responseContent.includes('```');
-						this._terminalChatWidget!.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: response!.requestId }, false, containsCode);
 						const firstCodeBlock = await this.terminalChatWidget?.inlineChatWidget.getCodeBlockInfo(0);
 						const secondCodeBlock = await this.terminalChatWidget?.inlineChatWidget.getCodeBlockInfo(1);
 						this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);

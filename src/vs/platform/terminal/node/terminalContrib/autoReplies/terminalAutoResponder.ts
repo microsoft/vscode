@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../base/common/async.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
-import { isWindows } from '../../../base/common/platform.js';
-import { ILogService } from '../../log/common/log.js';
-import { ITerminalChildProcess } from './terminal.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { ILogService } from '../../../../log/common/log.js';
+import { ITerminalChildProcess } from '../../../common/terminal.js';
 
 /**
  * Tracks a terminal process's data stream and responds immediately when a matching string is

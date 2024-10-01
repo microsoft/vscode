@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-import-patterns */
-
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
 import { configurePortable } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -162,7 +160,7 @@ async function onReady() {
 			resolveNlsConfiguration()
 		]);
 
-		startup(codeCachePath, nlsConfig);
+		await startup(codeCachePath, nlsConfig);
 	} catch (error) {
 		console.error(error);
 	}
@@ -171,14 +169,17 @@ async function onReady() {
 /**
  * Main startup routine
  */
-function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): void {
+async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfiguration): Promise<void> {
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
+	// Bootstrap ESM
+	await bootstrapESM();
+
+	// Load Main
 	perf.mark('code/willLoadMainBundle');
-	load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
-	});
+	await import('./vs/code/electron-main/main.js');
+	perf.mark('code/didLoadMainBundle');
 }
 
 function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {

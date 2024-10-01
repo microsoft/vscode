@@ -373,13 +373,21 @@ class MultiDocumentHighlightAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.MultiDocumentHighlightProvider
+		private readonly _provider: vscode.MultiDocumentHighlightProvider,
+		private readonly _logService: ILogService,
 	) { }
 
 	async provideMultiDocumentHighlights(resource: URI, position: IPosition, otherResources: URI[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
-
 		const doc = this._documents.getDocument(resource);
-		const otherDocuments = otherResources.map(r => this._documents.getDocument(r));
+		const otherDocuments = otherResources.map(r => {
+			try {
+				return this._documents.getDocument(r);
+			} catch (err) {
+				this._logService.error('Error: Unable to retrieve document from URI: ' + r + '. Error message: ' + err);
+				return undefined;
+			}
+		}).filter(doc => doc !== undefined);
+
 		const pos = typeConvert.Position.to(position);
 
 		const value = await this._provider.provideMultiDocumentHighlights(doc, pos, otherDocuments, token);
@@ -2436,7 +2444,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	registerMultiDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MultiDocumentHighlightProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new MultiDocumentHighlightAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new MultiDocumentHighlightAdapter(this._documents, provider, this._logService), extension);
 		this._proxy.$registerMultiDocumentHighlightProvider(handle, this._transformDocumentSelector(selector, extension));
 		return this._createDisposable(handle);
 	}

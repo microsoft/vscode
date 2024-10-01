@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, type IDisposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
-import { localize } from '../../../../nls.js';
-import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import type { IWorkbenchContribution } from '../../../common/contributions.js';
-import { InstallRecommendedExtensionAction } from '../../extensions/browser/extensionsActions.js';
-import { ITerminalService } from './terminal.js';
+import { Disposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/path.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { localize } from '../../../../../nls.js';
+import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
+import { InstallRecommendedExtensionAction } from '../../../extensions/browser/extensionsActions.js';
+import { ITerminalService } from '../../../terminal/browser/terminal.js';
 
 export class TerminalWslRecommendationContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalWslRecommendation';
@@ -74,3 +74,5 @@ export class TerminalWslRecommendationContribution extends Disposable implements
 		});
 	}
 }
+
+registerWorkbenchContribution2(TerminalWslRecommendationContribution.ID, TerminalWslRecommendationContribution, WorkbenchPhase.Eventually);

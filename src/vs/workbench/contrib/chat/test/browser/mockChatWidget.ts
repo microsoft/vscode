@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 
 export class MockChatWidgetService implements IChatWidgetService {
 	readonly _serviceBrand: undefined;
@@ -20,5 +21,9 @@ export class MockChatWidgetService implements IChatWidgetService {
 
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined {
 		return undefined;
+	}
+
+	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[] {
+		return [];
 	}
 }

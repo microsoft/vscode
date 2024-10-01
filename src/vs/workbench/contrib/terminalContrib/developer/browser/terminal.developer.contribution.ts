@@ -7,7 +7,7 @@ import type { Terminal } from '@xterm/xterm';
 import { Delayer } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import './media/developer.css';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -256,8 +256,11 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (devMode) {
 			if (commandDetection) {
-				const commandDecorations = new Map<ITerminalCommand, IDisposable[]>();
+				const commandDecorations = new DisposableMap<ITerminalCommand, IDisposable>();
+				const otherDisposables = new DisposableStore();
 				this._activeDevModeDisposables.value = combinedDisposable(
+					commandDecorations,
+					otherDisposables,
 					// Prompt input
 					this._instance.onDidBlur(() => this._updateDevMode()),
 					this._instance.onDidFocus(() => this._updateDevMode()),
@@ -266,17 +269,17 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 					commandDetection.onCommandFinished(command => {
 						const colorClass = `color-${this._currentColor}`;
 						const decorations: IDisposable[] = [];
-						commandDecorations.set(command, decorations);
+						commandDecorations.set(command, combinedDisposable(...decorations));
 						if (command.promptStartMarker) {
 							const d = this._instance.xterm!.raw?.registerDecoration({
 								marker: command.promptStartMarker
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'A';
 									e.classList.add('xterm-sequence-decoration', 'top', 'left', colorClass);
-								});
+								}));
 							}
 						}
 						if (command.marker) {
@@ -286,10 +289,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'B';
 									e.classList.add('xterm-sequence-decoration', 'top', 'right', colorClass);
-								});
+								}));
 							}
 						}
 						if (command.executedMarker) {
@@ -299,10 +302,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'C';
 									e.classList.add('xterm-sequence-decoration', 'bottom', 'left', colorClass);
-								});
+								}));
 							}
 						}
 						if (command.endMarker) {
@@ -311,10 +314,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							});
 							if (d) {
 								decorations.push(d);
-								d.onRender(e => {
+								otherDisposables.add(d.onRender(e => {
 									e.textContent = 'D';
 									e.classList.add('xterm-sequence-decoration', 'bottom', 'right', colorClass);
-								});
+								}));
 							}
 						}
 						this._currentColor = (this._currentColor + 1) % 2;
@@ -325,7 +328,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 							if (decorations) {
 								dispose(decorations);
 							}
-							commandDecorations.delete(c);
+							commandDecorations.deleteAndDispose(c);
 						}
 					})
 				);
