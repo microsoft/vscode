@@ -210,6 +210,11 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.copyOriginalLinesOfCurrentRange",
+        "title": "%command.copyOriginalLinesOfCurrentRange%",
+        "category": "Git"
+      },
+      {
         "command": "git.stageChange",
         "title": "%command.stageChange%",
         "category": "Git",
