@@ -314,10 +314,10 @@ class AttachContextAction extends Action2 {
 					toAttach.push({
 						range: undefined,
 						id: pick.id ?? '',
-						value: 'value' in pick ? pick.value : undefined,
+						value: undefined,
 						fullName: pick.label,
-						name: 'name' in pick && typeof pick.name === 'string' ? pick.name : pick.label,
-						icon: 'icon' in pick && ThemeIcon.isThemeIcon(pick.icon) ? pick.icon : undefined
+						name: attachmentPick.variable.name,
+						icon: attachmentPick.variable.icon
 					});
 				}
 			}
