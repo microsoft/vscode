@@ -12,19 +12,17 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatCodeBlockContextProviderService, IChatWidget, showChatView } from '../../../chat/browser/chat.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
-import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
-import { ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
 
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
-import { TerminalChatContextKeys } from './terminalChat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { assertType } from '../../../../../base/common/types.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
+import { assertType } from '../../../../../base/common/types.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
+import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
+import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalChatContextKeys } from './terminalChat.js';
 
 const enum Message {
 	NONE = 0,
@@ -101,9 +99,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _activeRequestCts?: CancellationTokenSource;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
-		processManager: ITerminalProcessManager,
-		widgetManager: TerminalWidgetManager,
+		private readonly _ctx: ITerminalContributionContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -147,18 +143,18 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._terminalChatWidget = new Lazy(() => {
-			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._instance.domElement!, this._instance, xterm));
+			const chatWidget = this._register(this._instantiationService.createInstance(TerminalChatWidget, this._ctx.instance.domElement!, this._ctx.instance, xterm));
 			this._register(chatWidget.focusTracker.onDidFocus(() => {
 				TerminalChatController.activeChatController = this;
-				if (!isDetachedTerminalInstance(this._instance)) {
-					this._terminalService.setActiveInstance(this._instance);
+				if (!isDetachedTerminalInstance(this._ctx.instance)) {
+					this._terminalService.setActiveInstance(this._ctx.instance);
 				}
 			}));
 			this._register(chatWidget.focusTracker.onDidBlur(() => {
 				TerminalChatController.activeChatController = undefined;
-				this._instance.resetScrollbarVisibility();
+				this._ctx.instance.resetScrollbarVisibility();
 			}));
-			if (!this._instance.domElement) {
+			if (!this._ctx.instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
 			return chatWidget;
@@ -244,8 +240,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					if (response.isComplete) {
 						this._requestActiveContextKey.set(false);
 						this._requestActiveContextKey.set(false);
-						const containsCode = responseContent.includes('```');
-						this._terminalChatWidget!.value.inlineChatWidget.updateChatMessage({ message: new MarkdownString(responseContent), requestId: response!.requestId }, false, containsCode);
 						const firstCodeBlock = await this.terminalChatWidget?.inlineChatWidget.getCodeBlockInfo(0);
 						const secondCodeBlock = await this.terminalChatWidget?.inlineChatWidget.getCodeBlockInfo(1);
 						this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
@@ -256,8 +250,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				}));
 			}
 			await responsePromise.p;
+			this._lastResponseContent = response?.response.toMarkdown();
 			return response;
 		} catch {
+			this._lastResponseContent = undefined;
 			return;
 		} finally {
 			store.dispose();

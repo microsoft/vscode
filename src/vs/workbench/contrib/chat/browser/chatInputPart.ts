@@ -9,15 +9,18 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IManagedHoverContentOrFactory } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -61,7 +64,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -71,7 +74,7 @@ import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, 
 import { IChatWidget } from './chat.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
-import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingService.js';
+import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 
@@ -198,7 +201,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
+	private readonly _chatEditsActionsDisposables = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables = this._register(new DisposableStore());
+	private _chatEditsProgress: ProgressBar | undefined;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
 	get selectedElements(): URI[] {
@@ -250,7 +255,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
-		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingSessionWidgetToolbar));
+		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingSessionWidgetToolbar, { enableFileDecorations: true }));
 	}
 
 	private setCurrentLanguageModelToDefault() {
@@ -535,7 +540,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
-		this.renderChatEditingSessionState(null);
+		this.renderChatEditingSessionState(null, undefined, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -710,37 +715,45 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
 		[...this.attachedContext.values()].forEach(async (attachment, index) => {
+			if (attachment.isFile && this.location === ChatAgentLocation.EditingSession) {
+				return;
+			}
+
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate });
+
+			let hoverElement: IManagedHoverContentOrFactory;
+			let ariaLabel: string | undefined;
+
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (file && attachment.isFile) {
 				const fileBasename = basename(file.path);
 				const fileDirname = dirname(file.path);
 				const friendlyName = `${fileBasename} ${fileDirname}`;
-				const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+
+				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+				hoverElement = file.fsPath;
 
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
 					range,
 				});
-				widget.ariaLabel = ariaLabel;
-				widget.tabIndex = 0;
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			} else if (attachment.isImage) {
-				let buffer: Uint8Array;
-				const ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
-				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
+				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
-				const hoverElement = dom.$('div.chat-attached-context-hover');
+				hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				// Custom label
+				const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 				const textLabel = dom.$('span.chat-attached-context-custom-text', {}, attachment.name);
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
+				let buffer: Uint8Array;
 				try {
 					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 					if (attachment.value instanceof URI) {
@@ -755,29 +768,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				widget.style.position = 'relative';
-				widget.ariaLabel = ariaLabel;
-				widget.tabIndex = 0;
-
-				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-
-					// No delay for keyboard
-					this.attachedContextDisposables.add(dom.addDisposableListener(widget, 'keydown', (event) => {
-						const keyboardEvent = new StandardKeyboardEvent(event);
-						if (keyboardEvent.keyCode === KeyCode.Enter || keyboardEvent.keyCode === KeyCode.Space) {
-							this.hoverService.showManagedHover(widget);
-						}
-					}));
-				}
-
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
 				label.setLabel(withIcon, undefined);
 
-				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-				widget.tabIndex = 0;
+				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+				hoverElement = attachmentLabel;
+
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+			}
+
+			widget.tabIndex = 0;
+			widget.ariaLabel = ariaLabel;
+			if (!this.attachedContextDisposables.isDisposed) {
+				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
 			}
 		});
 
@@ -788,7 +793,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate) {
 
-		const clearButton = new Button(widget, { supportIcons: true, hoverDelegate, title: localize('remove', 'Remove') });
+		const clearButton = new Button(widget, {
+			supportIcons: true,
+			hoverDelegate,
+			title: localize('chat.attachment.clearButton', "Remove from context"),
+		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
 		if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {
@@ -837,102 +846,174 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		hoverElement.appendChild(hoverImage);
 	}
 
-	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
-		dom.clearNode(this.chatEditingSessionWidgetContainer);
-		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
-		this._chatEditsDisposables.clear();
-		this._chatEditList = undefined;
+	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, initialState?: boolean, chatWidget?: IChatWidget) {
+		dom.setVisibility(Boolean(chatEditingSession) || Boolean(initialState), this.chatEditingSessionWidgetContainer);
+
+		if (!chatEditingSession && !initialState) {
+			dom.clearNode(this.chatEditingSessionWidgetContainer);
+			this._chatEditsDisposables.clear();
+			this._chatEditList = undefined;
+			this._chatEditsProgress?.dispose();
+			this._chatEditsProgress = undefined;
+			return;
+		}
+
+		if (this._chatEditList && chatEditingSession?.state.get() === ChatEditingSessionState.Idle) {
+			this._chatEditsProgress?.stop();
+			this._chatEditsProgress?.dispose();
+			this._chatEditsProgress = undefined;
+		}
+
+		// Summary of number of files changed
+		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
+		const modifiedFiles = new ResourceSet();
+		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
+			modifiedFiles.add(entry.modifiedURI);
+			return {
+				reference: entry.modifiedURI,
+				kind: 'reference',
+			};
+		}) ?? [];
+		for (const attachment of this._attachedContext) {
+			if (attachment.isFile && URI.isUri(attachment.value) && !modifiedFiles.has(attachment.value)) {
+				entries.unshift({
+					reference: attachment.value,
+					state: WorkingSetEntryState.Attached,
+					kind: 'reference',
+				});
+				modifiedFiles.add(attachment.value);
+			}
+		}
+		chatEditingSession?.workingSet.get().forEach((file) => {
+			if (!modifiedFiles.has(file)) {
+				entries.unshift({
+					reference: file,
+					state: WorkingSetEntryState.Attached,
+					kind: 'reference',
+				});
+			}
+		});
+		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
+		if (entries.length !== this._chatEditList?.object.length) {
+			const overviewText = overviewRegion.querySelector('span') ?? dom.append(overviewRegion, $('span'));
+			overviewText.textContent = localize('chatEditingSession.workingSet', 'Working Set');
+
+			if (entries.length === 1) {
+				overviewText.textContent += ' ' + localize('chatEditingSession.oneFile', '(1 file)');
+			} else if (entries.length > 1) {
+				overviewText.textContent += ' ' + localize('chatEditingSession.manyFiles', '({0} files)', entries.length);
+			}
+		}
+
+		// Add File and Clear buttons
+		// Clear out the previous actions (if any)
+		this._chatEditsActionsDisposables.clear();
+		const actionsContainer = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(overviewRegion, $('.chat-editing-session-toolbar-actions'));
+
+		const button = this._chatEditsActionsDisposables.add(new Button(actionsContainer, {
+			supportIcons: false,
+			secondary: true
+		}));
+		button.label = localize('chatAddFiles', 'Add Files...');
+		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget });
+		}));
+		dom.append(actionsContainer, button.element);
+
+		const clearButton = this._chatEditsActionsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
+		clearButton.icon = Codicon.close;
+		this._chatEditsActionsDisposables.add(clearButton.onDidClick((e) => {
+			this.commandService.executeCommand('workbench.action.chat.newEditSession');
+		}));
+		dom.append(actionsContainer, clearButton.element);
+
 		if (!chatEditingSession) {
 			return;
 		}
 
-		const innerContainer = dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
-
-		// Summary of number of files changed
-		const editedFiles = chatEditingSession.entries.get();
-		const numberOfEditedEntries = editedFiles.length;
-		const overviewRegion = dom.append(innerContainer, $('.chat-editing-session-overview'));
-		const overviewText = dom.append(overviewRegion, $('span'));
-		overviewText.textContent = numberOfEditedEntries === 1
-			? localize('chatEditingSessionOverview.oneFileChanged', "1 file changed")
-			: localize('chatEditingSessionOverview', "{0} files changed", numberOfEditedEntries);
-
-		// Chat editing session actions
-		const actionsContainer = dom.append(overviewRegion, $('.chat-editing-session-actions'));
-		const actions = [];
-		// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
-		if (editedFiles.find((e) => e.state.get() === ModifiedFileEntryState.Undecided)) {
-			actions.push(
-				{
-					command: ChatEditingShowChangesAction.ID,
-					label: ChatEditingShowChangesAction.LABEL,
-					isSecondary: true
-				},
-				{
-					command: ChatEditingDiscardAllAction.ID,
-					label: ChatEditingDiscardAllAction.LABEL,
-					isSecondary: true
-				},
-				{
-					command: ChatEditingAcceptAllAction.ID,
-					label: ChatEditingAcceptAllAction.LABEL,
-					isSecondary: false
-				}
-			);
+		if (!this._chatEditsProgress && chatEditingSession.state.get() === ChatEditingSessionState.StreamingEdits) {
+			this._chatEditsProgress = new ProgressBar(innerContainer);
+			this._chatEditsProgress.infinite().show(500);
 		}
 
-		for (const action of actions) {
-			const button = this._register(new Button(actionsContainer, {
-				supportIcons: false,
-				secondary: action.isSecondary
+		// Working set
+		if (!this._chatEditList) {
+			this._chatEditList = this._chatEditsListPool.get();
+			const list = this._chatEditList.object;
+			this._chatEditsDisposables.add(this._chatEditList);
+			this._chatEditsActionsDisposables.add(list.onDidFocus(() => {
+				this._onDidFocus.fire();
 			}));
-			button.label = action.label;
-			this._register(button.onDidClick(() => {
-				this.commandService.executeCommand(action.command);
-			}));
-			dom.append(actionsContainer, button.element);
-		}
-
-		const clearButton = new Button(actionsContainer, { supportIcons: true });
-		this._chatEditsDisposables.add(clearButton);
-		clearButton.icon = Codicon.close;
-		const disp = clearButton.onDidClick((e) => {
-			disp.dispose();
-			chatEditingSession.dispose();
-		});
-		dom.append(actionsContainer, clearButton.element);
-
-		// List of edited files
-		if (!editedFiles.length) {
-			return;
-		}
-		const entries: IChatCollapsibleListItem[] = editedFiles.map((entry) => ({
-			reference: entry.modifiedURI,
-			kind: 'reference',
-		}));
-		const editedFilesList = this._chatEditsListPool.get();
-		this._chatEditList = editedFilesList;
-		const list = editedFilesList.object;
-		this._chatEditsDisposables.add(editedFilesList);
-		this._chatEditsDisposables.add(list.onDidOpen((e) => {
-			if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
-				const modifiedFileUri = e.element.reference;
-				const editedFile = editedFiles.find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
-				if (editedFile) {
-					void this.editorService.openEditor({
-						original: { resource: URI.from(editedFile.originalURI, true) },
-						modified: { resource: URI.from(editedFile.modifiedURI, true) },
-					});
+			this._chatEditsDisposables.add(list.onDidOpen((e) => {
+				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
+					const modifiedFileUri = e.element.reference;
+					const editedFile = chatEditingSession.entries.get().find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
+					if (editedFile?.state.get() === WorkingSetEntryState.Edited) {
+						void this.editorService.openEditor({
+							original: { resource: URI.from(editedFile.originalURI, true) },
+							modified: { resource: URI.from(editedFile.modifiedURI, true) },
+						});
+					} else {
+						void this.editorService.openEditor({ resource: modifiedFileUri });
+					}
 				}
-			}
-		}));
+			}));
+			dom.append(innerContainer, list.getHTMLElement());
+		}
+
 		const maxItemsShown = 6;
-		const itemsShown = Math.min(numberOfEditedEntries, maxItemsShown);
+		const itemsShown = Math.min(entries.length, maxItemsShown);
 		const height = itemsShown * 22;
+		const list = this._chatEditList.object;
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
-		dom.append(innerContainer, editedFilesList.object.getHTMLElement());
+
+		//#region Chat editing session actions
+		{
+			const actionsContainer = innerContainer.querySelector('.chat-editing-session-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-actions'));
+			dom.clearNode(actionsContainer);
+			const actionsContainerRight = actionsContainer.querySelector('.chat-editing-session-actions-group') as HTMLElement ?? $('.chat-editing-session-actions-group');
+
+			if (chatEditingSession.entries.get().find((e) => e.state.get() === WorkingSetEntryState.Edited)) {
+				// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+				const actions = [];
+				actions.push(
+					{
+						command: ChatEditingShowChangesAction.ID,
+						label: ChatEditingShowChangesAction.LABEL,
+						isSecondary: true
+					},
+					{
+						command: ChatEditingDiscardAllAction.ID,
+						label: ChatEditingDiscardAllAction.LABEL,
+						isSecondary: true,
+						container: actionsContainerRight
+					},
+					{
+						command: ChatEditingAcceptAllAction.ID,
+						label: ChatEditingAcceptAllAction.LABEL,
+						isSecondary: false,
+						container: actionsContainerRight
+					}
+				);
+
+				for (const action of actions) {
+					const button = this._chatEditsActionsDisposables.add(new Button(action.container ?? actionsContainer, {
+						supportIcons: false,
+						secondary: action.isSecondary
+					}));
+					button.label = action.label;
+					this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+						this.commandService.executeCommand(action.command);
+					}));
+					dom.append(action.container ?? actionsContainer, button.element);
+				}
+
+				dom.append(actionsContainer, actionsContainerRight);
+			}
+		}
+		//#endregion
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
@@ -992,12 +1073,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
 		const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
 		const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
-		const inputToolbarPadding = (this.inputActionsToolbar.getItemsLength() - 1) * 4;
+		const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * 4 : 0;
 		return {
 			inputEditorBorder: 2,
 			followupsHeight: this.followupsContainer.offsetHeight,
 			inputPartEditorHeight: Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight),
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 12 : 32,
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
 			inputPartVerticalPadding: this.options.renderStyle === 'compact' ? 12 : 28,
 			attachmentsHeight: this.attachedContextContainer.offsetHeight,
 			editorBorder: 2,

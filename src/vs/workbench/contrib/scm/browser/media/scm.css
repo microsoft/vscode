@@ -168,6 +168,12 @@
 	line-height: 18px;
 }
 
+.scm-view .monaco-list-row .history-item > .label-container > .label > .count {
+	font-size: 12px;
+	margin-left: 0;
+	padding-left: 4px;
+}
+
 .scm-view .monaco-list-row .history-item > .label-container > .label > .codicon {
 	font-size: 14px;
 	color: inherit !important;
@@ -180,7 +186,7 @@
 }
 
 .scm-view .monaco-list-row .history-item > .label-container > .label > .description {
-	font-size: 0.9em;
+	font-size: 12px;
 	padding-right: 4px;
 	overflow: hidden;
 	text-overflow: ellipsis;

@@ -113,7 +113,7 @@ registerAction2(class RemoveAction extends Action2 {
 		let nextFocusElement;
 		const shouldRefocusMatch = shouldRefocus(elementsToRemove, focusElement);
 		if (focusElement && shouldRefocusMatch) {
-			nextFocusElement = getElementToFocusAfterRemoved(viewer, focusElement, elementsToRemove);
+			nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToRemove);
 		}
 
 		const searchResult = searchView.searchResult;
@@ -126,7 +126,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
-				nextFocusElement = getLastNodeFromSameType(viewer, focusElement);
+				nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
 			}
 
 			if (nextFocusElement && !arrayContainsElementOrParent(nextFocusElement, elementsToRemove)) {
@@ -281,7 +281,7 @@ async function performReplace(accessor: ServicesAccessor,
 	}
 	let nextFocusElement;
 	if (focusElement) {
-		nextFocusElement = getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
+		nextFocusElement = await getElementToFocusAfterRemoved(viewer, focusElement, elementsToReplace);
 	}
 
 	const searchResult = viewlet?.searchResult;
@@ -294,7 +294,7 @@ async function performReplace(accessor: ServicesAccessor,
 
 	if (focusElement) {
 		if (!nextFocusElement) {
-			nextFocusElement = getLastNodeFromSameType(viewer, focusElement);
+			nextFocusElement = await getLastNodeFromSameType(viewer, focusElement);
 		}
 
 		if (nextFocusElement) {
@@ -370,17 +370,17 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 /**
  * Returns element to focus after removing the given element
  */
-export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): RenderableMatch | undefined {
+export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
 	if (element instanceof FolderMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
 	} else if (element instanceof FileMatch) {
 		while (!!navigator.next() && (!(navigator.current() instanceof FileMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
-			viewer.expand(navigator.current());
+			await viewer.expand(navigator.current());
 		}
 	} else {
 		while (navigator.next() && (!(navigator.current() instanceof Match) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
-			viewer.expand(navigator.current());
+			await viewer.expand(navigator.current());
 		}
 	}
 	return navigator.current();
@@ -389,13 +389,16 @@ export function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsync
 /***
  * Finds the last element in the tree with the same type as `element`
  */
-export function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): RenderableMatch | undefined {
+export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): Promise<RenderableMatch | undefined> {
 	let lastElem: RenderableMatch | null = viewer.lastVisibleElement ?? null;
 
 	while (lastElem) {
 		const compareVal = compareLevels(element, lastElem);
 		if (compareVal === -1) {
-			viewer.expand(lastElem);
+			const expanded = await viewer.expand(lastElem);
+			if (!expanded) {
+				return lastElem;
+			}
 			lastElem = viewer.lastVisibleElement;
 		} else if (compareVal === 1) {
 			const potentialLastElem = viewer.getParentElement(lastElem);

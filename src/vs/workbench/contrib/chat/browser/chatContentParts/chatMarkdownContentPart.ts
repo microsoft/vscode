@@ -8,24 +8,27 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { IChatRendererDelegate } from '../chatListRenderer.js';
-import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
-import { ChatEditorOptions } from '../chatOptions.js';
-import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
+import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
+import { IChatRendererDelegate } from '../chatListRenderer.js';
+import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
+import { ChatEditorOptions } from '../chatOptions.js';
+import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 const $ = dom.$;
 
@@ -52,7 +55,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
@@ -132,6 +137,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
 				// Update the existing object's codemapperUri
 				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
+				this._onDidChangeHeight.fire();
 			});
 		}
 
@@ -145,7 +151,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	layout(width: number): void {
-		this.allRefs.forEach(ref => ref.object.layout(width));
+		this.allRefs.forEach((ref, index) => {
+			const codeblockModel = this.codeblocks[index];
+			if (codeblockModel.codemapperUri) {
+				const fileWidgetAnchor = $('.chat-codeblock');
+				const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codeblockModel.codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
+				this._register(this.chatMarkdownAnchorService.register(inlineAnchor));
+				const existingCodeblock = ref.object.element.parentElement?.querySelector('.chat-codeblock');
+				if (!existingCodeblock) {
+					ref.object.element.parentElement?.appendChild(fileWidgetAnchor);
+					ref.object.element.style.display = 'none';
+				}
+			} else {
+				ref.object.layout(width);
+			}
+		});
 	}
 
 	addDisposable(disposable: IDisposable): void {

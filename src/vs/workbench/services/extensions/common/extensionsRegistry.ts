@@ -225,7 +225,7 @@ export const schema: IJSONSchema = {
 			type: 'object',
 			properties: {
 				// extensions will fill in
-			} as { [key: string]: any },
+			} as any as { [key: string]: any },
 			default: {}
 		},
 		preview: {

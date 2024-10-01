@@ -8,6 +8,9 @@ import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.j
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, transaction } from '../../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
@@ -21,9 +24,13 @@ import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineComp
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export class InlineCompletionsSource extends Disposable {
+	private static _requestId = 0;
+
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	public readonly inlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined);
 	public readonly suggestWidgetInlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('suggestWidgetInlineCompletions', undefined);
+
+	private readonly _loggingEnabled = observableConfigValue('editor.inlineSuggest.logFetch', false, this._configurationService).recomputeInitiallyAndOnChange(this._store);
 
 	constructor(
 		private readonly _textModel: ITextModel,
@@ -31,12 +38,18 @@ export class InlineCompletionsSource extends Disposable {
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
 		this._register(this._textModel.onDidChangeContent(() => {
 			this._updateOperation.clear();
 		}));
+	}
+
+	private _log(entry: { kind: 'start'; uri: string; modelVersion: number; requestId: number; context: unknown } | { kind: 'end'; error: any; durationMs: number; result: unknown; requestId: number }) {
+		this._logService.info('InlineCompletionsSource.fetch ' + JSON.stringify(entry));
 	}
 
 	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined): Promise<boolean> {
@@ -66,15 +79,40 @@ export class InlineCompletionsSource extends Disposable {
 				return false;
 			}
 
+			const requestId = InlineCompletionsSource._requestId++;
+			if (this._loggingEnabled.get()) {
+				this._log({ kind: 'start', requestId, uri: this._textModel.uri.toString(), modelVersion: this._textModel.getVersionId(), context: { triggerKind: context.triggerKind } });
+			}
+
 			const startTime = new Date();
-			const updatedCompletions = await provideInlineCompletions(
-				this._languageFeaturesService.inlineCompletionsProvider,
-				position,
-				this._textModel,
-				context,
-				source.token,
-				this._languageConfigurationService
-			);
+			let updatedCompletions: InlineCompletionProviderResult | undefined = undefined;
+			let error: any = undefined;
+			try {
+				updatedCompletions = await provideInlineCompletions(
+					this._languageFeaturesService.inlineCompletionsProvider,
+					position,
+					this._textModel,
+					context,
+					source.token,
+					this._languageConfigurationService
+				);
+			} catch (e) {
+				error = e;
+				throw e;
+			} finally {
+				if (this._loggingEnabled.get()) {
+					if (source.token.isCancellationRequested) {
+						error = 'canceled';
+					}
+					const result = updatedCompletions?.completions.map(c => ({
+						range: c.range.toString(),
+						text: c.insertText,
+						isInlineEdit: !!c.sourceInlineCompletion.isInlineEdit,
+						source: c.source.provider.groupId,
+					}));
+					this._log({ kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result });
+				}
+			}
 
 			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 				return false;
@@ -273,6 +311,7 @@ export class InlineCompletionWithUpdatedRange {
 			!updatedRange
 			|| !this.inlineCompletion.range.getStartPosition().equals(updatedRange.getStartPosition())
 			|| cursorPosition.lineNumber !== minimizedReplacement.range.startLineNumber
+			|| minimizedReplacement.isEmpty // if the completion is empty after removing the common prefix of the completion and the model, the completion item would not be visible
 		) {
 			return false;
 		}

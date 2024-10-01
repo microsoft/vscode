@@ -24,9 +24,8 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { StorageScope, IStorageService, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ThemeConfiguration } from './themeConfiguration.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
-import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
+import { ColorId, FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
 import { toStandardTokenType } from '../../../../editor/common/languages/supports/tokenization.js';
-import { findMatchingThemeRule } from '../../textMate/common/TMHelper.js';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -817,34 +816,25 @@ const defaultThemeColors: { [baseTheme: string]: ITextMateThemingRule[] } = {
 
 const noMatch = (_scope: ProbeScope) => -1;
 
-function nameMatcher(identifers: string[], scope: ProbeScope): number {
-	function findInIdents(s: string, lastIndent: number): number {
-		for (let i = lastIndent - 1; i >= 0; i--) {
-			if (scopesAreMatching(s, identifers[i])) {
-				return i;
-			}
-		}
+function nameMatcher(identifiers: string[], scopes: ProbeScope): number {
+	if (scopes.length < identifiers.length) {
 		return -1;
 	}
-	if (scope.length < identifers.length) {
-		return -1;
-	}
-	let lastScopeIndex = scope.length - 1;
-	let lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], identifers.length);
-	if (lastIdentifierIndex >= 0) {
-		const score = (lastIdentifierIndex + 1) * 0x10000 + identifers[lastIdentifierIndex].length;
-		while (lastScopeIndex >= 0) {
-			lastIdentifierIndex = findInIdents(scope[lastScopeIndex--], lastIdentifierIndex);
-			if (lastIdentifierIndex === -1) {
-				return -1;
+
+	let lastIndex = 0;
+	let score: number | undefined = undefined;
+	const every = identifiers.every((identifier, identifierIndex) => {
+		for (let i = lastIndex; i < scopes.length; i++) {
+			if (scopesAreMatching(scopes[i], identifier)) {
+				score = (identifierIndex + 1) * 0x10000 + identifier.length;
+				lastIndex = i + 1;
+				return true;
 			}
 		}
-		return score;
-	}
-	return -1;
+		return false;
+	});
+	return every && score !== undefined ? score : -1;
 }
-
-
 function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
 	if (!thisScopeName) {
 		return false;
@@ -906,50 +896,31 @@ export function findMetadata(colorThemeData: ColorThemeData, captureNames: strin
 
 	metadata |= (languageId << MetadataConsts.LANGUAGEID_OFFSET);
 
-	const themeRule = findMatchingThemeRule(colorThemeData, captureNames);
-	let tokenStyle: TokenStyle | undefined;
-	if (!themeRule) {
-		tokenStyle = colorThemeData.resolveScopes(captureNames.map(name => [name]).reverse());
-	}
-	if (!themeRule && !tokenStyle) {
-		return metadata;
+	const definitions: TextMateThemingRuleDefinitions = {};
+	const tokenStyle = colorThemeData.resolveScopes([captureNames], definitions);
+
+	if (captureNames.length > 0) {
+		const standardToken = toStandardTokenType(captureNames[captureNames.length - 1]);
+		metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
 	}
 
-	const standardToken = toStandardTokenType(captureNames[captureNames.length - 1]);
-	metadata |= (standardToken << MetadataConsts.TOKEN_TYPE_OFFSET);
-
-	if (themeRule?.settings.fontStyle === 'italic') {
-		metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
-	} else if (themeRule?.settings.fontStyle !== 'bold') {
-		metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
-	} else if (typeof tokenStyle?.underline !== 'undefined') {
-		metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
-	} else if (typeof tokenStyle?.strikethrough !== 'undefined') {
-		metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
-	} else {
-		if (typeof tokenStyle?.italic !== 'undefined') {
-			const italicbit = (tokenStyle?.italic ? FontStyle.Italic : 0);
-			metadata |= italicbit | MetadataConsts.ITALIC_MASK;
-		}
-		if (typeof tokenStyle?.bold !== 'undefined') {
-			const boldBit = (tokenStyle?.bold ? FontStyle.Bold : 0);
-			metadata |= boldBit | MetadataConsts.BOLD_MASK;
-		}
-		if (typeof tokenStyle?.underline !== 'undefined') {
-			const underlineBit = (tokenStyle?.underline ? FontStyle.Underline : 0);
-			metadata |= underlineBit | MetadataConsts.UNDERLINE_MASK;
-		}
-		if (typeof tokenStyle?.strikethrough !== 'undefined') {
-			const strikethroughBit = (tokenStyle?.strikethrough ? FontStyle.Strikethrough : 0);
-			metadata |= strikethroughBit | MetadataConsts.STRIKETHROUGH_MASK;
-		}
+	switch (definitions.foreground?.settings.fontStyle) {
+		case 'italic':
+			metadata |= FontStyle.Italic | MetadataConsts.ITALIC_MASK;
+			break;
+		case 'bold':
+			metadata |= FontStyle.Bold | MetadataConsts.BOLD_MASK;
+			break;
+		case 'underline':
+			metadata |= FontStyle.Underline | MetadataConsts.UNDERLINE_MASK;
+			break;
+		case 'strikethrough':
+			metadata |= FontStyle.Strikethrough | MetadataConsts.STRIKETHROUGH_MASK;
+			break;
 	}
-	const foreground = themeRule ? themeRule.settings.foreground : tokenStyle?.foreground;
-	if (foreground) {
-		const tokenStyleForeground = colorThemeData.getTokenColorIndex().get(foreground);
-		const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
-		metadata |= foregroundBits;
-	}
+	const foreground = tokenStyle?.foreground;
+	const tokenStyleForeground = (foreground !== undefined) ? colorThemeData.getTokenColorIndex().get(foreground) : ColorId.DefaultForeground;
+	metadata |= tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
 
 	return metadata;
 }
