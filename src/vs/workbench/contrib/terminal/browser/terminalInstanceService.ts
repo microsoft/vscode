@@ -20,7 +20,6 @@ import { promiseWithResolvers } from '../../../../base/common/async.js';
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
-	private _terminalInRunCommandPicker: IContextKey<boolean>;
 	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
 	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
@@ -36,7 +35,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	) {
 		super();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
-		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
 
 		for (const remoteAuthority of [undefined, environmentService.remoteAuthority]) {
 			const { promise, resolve } = promiseWithResolvers<void>();
@@ -48,11 +46,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation): ITerminalInstance;
 	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
-		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._terminalShellTypeContextKey,
-			this._terminalInRunCommandPicker,
-			shellLaunchConfig
-		);
+		const instance = this._instantiationService.createInstance(TerminalInstance, this._terminalShellTypeContextKey, shellLaunchConfig);
 		instance.target = target;
 		this._onDidCreateInstance.fire(instance);
 		return instance;
