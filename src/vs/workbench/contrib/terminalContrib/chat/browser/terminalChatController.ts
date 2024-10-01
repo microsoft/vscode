@@ -250,8 +250,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				}));
 			}
 			await responsePromise.p;
+			this._lastResponseContent = response?.response.toMarkdown();
 			return response;
 		} catch {
+			this._lastResponseContent = undefined;
 			return;
 		} finally {
 			store.dispose();
