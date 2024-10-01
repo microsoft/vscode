@@ -57,6 +57,7 @@ import { ITerminalCapabilityImplMap, TerminalCapability } from '../../../../plat
 import { createInstanceCapabilityEventMultiplexer } from './terminalEvents.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { GroupIdentifier } from '../../../common/editor.js';
+import { ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -159,7 +160,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	@memoize get onAnyInstancePrimaryStatusChange() { return this._register(this.createOnInstanceEvent(e => Event.map(e.statusList.onDidChangePrimaryStatus, () => e, e.store))).event; }
 	@memoize get onAnyInstanceProcessIdReady() { return this._register(this.createOnInstanceEvent(e => e.onProcessIdReady)).event; }
 	@memoize get onAnyInstanceSelectionChange() { return this._register(this.createOnInstanceEvent(e => e.onDidChangeSelection)).event; }
-	@memoize get onAnyInstanceTitleChange() { return this._register(this.createOnInstanceEvent(e => e.onTitleChanged)).event; }
+	@memoize get onAnyInstanceTitleChange() { return this._register(this.createOnInstanceEvent(e => Event.map(new ValueWithChangeEventFromObservable(e.title).onDidChange, () => e, e.store))).event; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -729,7 +730,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (instance.staticTitle) {
 			this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.staticTitle, TitleEventSource.Api);
 		} else {
-			this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
+			this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.title.get(), instance.titleSource);
 		}
 	}
 

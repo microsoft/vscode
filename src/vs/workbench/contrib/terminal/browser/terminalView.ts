@@ -571,7 +571,7 @@ function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: s
 	if (!instance) {
 		return '';
 	}
-	return !instance.description ? instance.title : `${instance.title} ${separator} ${instance.description}`;
+	return !instance.description ? instance.title.get() : `${instance.title.get()} ${separator} ${instance.description}`;
 }
 
 class TerminalThemeIconStyle extends Themable {

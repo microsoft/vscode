@@ -31,6 +31,7 @@ import type { ICurrentPartialCommand } from '../../../../platform/terminal/commo
 import type { IXtermCore } from './xterm-private.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import type { Barrier } from '../../../../base/common/async.js';
+import type { IObservable } from '../../../../base/common/observable.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -674,9 +675,10 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	waitOnExit: WaitOnExitValue | undefined;
 
 	/**
-	 * An event that fires when the terminal instance's title changes.
+	 * The title of the terminal. This is either title or the process currently running or an
+	 * explicit name given to the terminal instance through the extension API.
 	 */
-	onTitleChanged: Event<ITerminalInstance>;
+	title: IObservable<string>;
 
 	/**
 	 * An event that fires when the terminal instance's icon changes.
@@ -776,12 +778,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	/** Whether the terminal's process has child processes (ie. is dirty/busy). */
 	readonly hasChildProcesses: boolean;
-
-	/**
-	 * The title of the terminal. This is either title or the process currently running or an
-	 * explicit name given to the terminal instance through the extension API.
-	 */
-	readonly title: string;
 
 	/**
 	 * How the current title was set.

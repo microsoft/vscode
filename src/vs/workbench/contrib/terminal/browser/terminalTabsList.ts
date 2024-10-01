@@ -412,7 +412,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
 
-		const value = instance.title || '';
+		const value = instance.title.get() || '';
 
 		const inputBox = new InputBox(container, this._contextViewService, {
 			validationOptions: {
@@ -565,7 +565,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 					`The terminal's split number`,
 					`The terminal group's total split number`
 				]
-			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title, terminalIndex + 1, tab.terminalInstances.length);
+			}, "Terminal {0} {1}, split {2} of {3}", instance.instanceId, instance.title.get(), terminalIndex + 1, tab.terminalInstances.length);
 		} else {
 			ariaLabel = localize({
 				key: 'terminalAriaLabel',
@@ -573,7 +573,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 					`The terminal's ID`,
 					`The terminal's title`
 				]
-			}, "Terminal {0} {1}", instance.instanceId, instance.title);
+			}, "Terminal {0} {1}", instance.instanceId, instance.title.get());
 		}
 		return ariaLabel;
 	}
@@ -603,7 +603,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	}
 
 	getDragLabel?(elements: ITerminalInstance[], originalEvent: DragEvent): string | undefined {
-		return elements.length === 1 ? elements[0].title : undefined;
+		return elements.length === 1 ? elements[0].title.get() : undefined;
 	}
 
 	onDragLeave() {

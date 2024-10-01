@@ -92,6 +92,7 @@ import { openContextMenu } from './terminalContextMenu.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
+import { observableValue, type IObservable } from '../../../../base/common/observable.js';
 
 const enum Constants {
 	/**
@@ -147,7 +148,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
 	private _shellType: TerminalShellType | undefined;
-	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal });
@@ -272,7 +272,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
 	get hasFocus(): boolean { return dom.isAncestorOfActiveElement(this._wrapperElement); }
-	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
 	get color(): string | undefined { return this._getColor(); }
@@ -297,6 +296,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shellIntegrationNonce(): string { return this._processManager.shellIntegrationNonce; }
 	get injectedArgs(): string[] | undefined { return this._injectedArgs; }
 
+	// #region Observables
+
+	private readonly _title = observableValue<string>(this, '');
+	readonly title: IObservable<string> = this._title;
+
+	// #endregion
+
+	// #region Events
+
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
 	private readonly _onExit = new Emitter<number | ITerminalLaunchError | undefined>();
@@ -307,8 +315,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onProcessIdReady = this._onProcessIdReady.event;
 	private readonly _onProcessReplayComplete = this._register(new Emitter<void>());
 	readonly onProcessReplayComplete = this._onProcessReplayComplete.event;
-	private readonly _onTitleChanged = this._register(new Emitter<ITerminalInstance>());
-	readonly onTitleChanged = this._onTitleChanged.event;
 	private readonly _onIconChanged = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
 	readonly onIconChanged = this._onIconChanged.event;
 	private readonly _onWillData = this._register(new Emitter<string>());
@@ -358,6 +364,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}));
 	readonly onLineData = this._onLineData.event;
 
+	// #endregion
+
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private _shellLaunchConfig: IShellLaunchConfig,
@@ -406,7 +414,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
 
-		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this.title);
+		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this._title.get());
 
 		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
 			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
@@ -453,7 +461,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
-					this._setTitle(this.title, TitleEventSource.Config);
+					this._setTitle(this._title.get(), TitleEventSource.Config);
 				});
 			}
 		}));
@@ -526,7 +534,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Terminal)) {
-				this._setAriaLabel(this.xterm?.raw, this._instanceId, this.title);
+				this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title.get());
 			}
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
@@ -967,7 +975,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		this._setAriaLabel(xterm.raw, this._instanceId, this._title);
+		this._setAriaLabel(xterm.raw, this._instanceId, this._title.get());
 
 		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
@@ -1293,7 +1301,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async preparePathForShell(originalPath: string | URI): Promise<string> {
 		// Wait for shell type to be ready
 		await this.processReady;
-		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
+		return preparePathForShell(originalPath, this.shellLaunchConfig.executable, this._title.get(), this.shellType, this._processManager.backend, this._processManager.os);
 	}
 
 	setVisible(visible: boolean): void {
@@ -1374,11 +1382,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (!this._labelComputer) {
 				this._labelComputer = this._register(this._scopedInstantiationService.createInstance(TerminalLabelComputer));
 				this._register(this._labelComputer.onDidChangeLabel(e => {
-					const wasChanged = this._title !== e.title || this._description !== e.description;
+					this._title.set(e.title, undefined);
+					const wasChanged = this._description !== e.description;
 					if (wasChanged) {
-						this._title = e.title;
 						this._description = e.description;
-						this._onTitleChanged.fire(this);
 					}
 				}));
 			}
@@ -1405,7 +1412,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				case ProcessPropertyType.InitialCwd:
 					this._initialCwd = value;
 					this._cwd = this._initialCwd;
-					this._setTitle(this.title, TitleEventSource.Config);
+					this._setTitle(this._title.get(), TitleEventSource.Config);
 					this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 					this._onIconChanged.fire({ instance: this, userInitiated: false });
 					break;
@@ -2204,14 +2211,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _setTitle(title: string | undefined, eventSource: TitleEventSource): void {
 		const reset = !title;
 		title = this._updateTitleProperties(title, eventSource);
-		const titleChanged = title !== this._title;
-		this._title = title;
+		this._title.set(title, undefined);
 		this._labelComputer?.refreshLabel(this, reset);
-		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title);
-
-		if (titleChanged) {
-			this._onTitleChanged.fire(this);
-		}
+		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title.get());
 	}
 
 	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
@@ -2522,7 +2524,7 @@ export class TerminalLabelComputer extends Disposable {
 	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
 		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
-		if (this._title !== instance.title || this._description !== instance.description || reset) {
+		if (this._title !== instance.title.get() || this._description !== instance.description || reset) {
 			this._onDidChangeLabel.fire({ title: this._title, description: this._description });
 		}
 	}

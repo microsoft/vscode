@@ -23,6 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { runOnChange } from '../../../../base/common/observable.js';
 
 export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 
@@ -167,7 +168,8 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 				}
 			}),
 			instance.onDisposed(() => this.dispose()),
-			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
+			runOnChange(instance.title, () => this._onDidChangeLabel.fire()),
+			//instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
 			instanceOnDidFocusListener,
 			instanceOnDidBlurListener,
@@ -191,7 +193,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	override getName() {
-		return this._terminalInstance?.title || this.resource.fragment;
+		return this._terminalInstance?.title.get() || this.resource.fragment;
 	}
 
 	override getIcon(): ThemeIcon | undefined {

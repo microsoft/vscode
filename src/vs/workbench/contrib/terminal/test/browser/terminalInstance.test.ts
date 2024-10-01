@@ -27,6 +27,7 @@ import { ITerminalProfileResolverService, ProcessState } from '../../common/term
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 
 const root1 = '/foo/root1';
 const ROOT_1 = fixPath(root1);
@@ -274,7 +275,7 @@ suite('Workbench - TerminalInstance', () => {
 				workspaceFolder: undefined,
 				staticTitle: undefined,
 				capabilities,
-				title: '',
+				title: observableValue<string>('title', ''),
 				description: '',
 				userHome: undefined,
 				...partial

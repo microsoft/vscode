@@ -61,7 +61,7 @@ export class UrlFinder extends Disposable {
 	}
 
 	private registerTerminalInstance(instance: ITerminalInstance) {
-		if (!UrlFinder.excludeTerminals.includes(instance.title)) {
+		if (!UrlFinder.excludeTerminals.includes(instance.title.get())) {
 			this.listeners.set(instance, instance.onData(data => {
 				this.processData(data);
 			}));
