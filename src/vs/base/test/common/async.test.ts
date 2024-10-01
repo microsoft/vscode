@@ -1519,6 +1519,38 @@ suite('Async', () => {
 			assert.strictEqual(worker.pending, 0);
 			assert.strictEqual(worked, false);
 		});
+
+		test('waitThrottleDelayBetweenWorkUnits option', async () => {
+			const handled: number[] = [];
+			const handler = (units: readonly number[]) => handled.push(...units);
+
+			const worker = store.add(new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: undefined,
+				throttleDelay: 20, // 100ms delay
+				waitThrottleDelayBetweenWorkUnits: true
+			}, handler));
+
+			let worked = worker.work([1, 2, 3]);
+			assert.strictEqual(worked, true);
+			assertArrayEquals(handled, [1, 2, 3]);
+
+			// Add more work immediately, should not be processed due to throttle delay
+			worked = worker.work([4, 5, 6]);
+			assert.strictEqual(worked, true);
+			assertArrayEquals(handled, [1, 2, 3]);
+
+			// Wait for throttle delay to pass
+			await new Promise(resolve => setTimeout(resolve, 150));
+
+			// Verify that the second batch of work has been processed
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6]);
+
+			// Add more work after throttle delay
+			worked = worker.work([7, 8, 9]);
+			assert.strictEqual(worked, true);
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+		});
 	});
 
 	suite('LimitedQueue', () => {
