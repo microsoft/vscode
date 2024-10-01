@@ -285,9 +285,19 @@ export interface FileSearchProviderOptions {
 }
 
 /**
- * The main match information for a {@link TextSearchResultNew}.
+ * A query match instance in a file for a {@link TextSearchResultInternal}.
+ *
+ * For example, consider this excerpt:
+ *
+ * ```ts
+ * const bar = 1;
+ * console.log(bar);
+ * const foo = bar;
+ * ```
+ *
+ * If the query is `log`, then the line `console.log(bar);` should be represented using a {@link TextSearchMatchInternal}.
  */
-export class TextSearchMatchNew {
+export class TextSearchMatchInternal {
 	/**
 	 * @param uri The uri for the matching document.
 	 * @param ranges The ranges associated with this match.
@@ -295,15 +305,29 @@ export class TextSearchMatchNew {
 	 */
 	constructor(
 		public uri: URI,
-		public ranges: { sourceRange: Range; previewRange: Range },
+		public ranges: { sourceRange: Range; previewRange: Range }[],
 		public previewText: string) { }
-
 }
 
 /**
- * The potential context information for a {@link TextSearchResultNew}.
+ * The potential context information for a {@link TextSearchResultInternal}.
+ *
+ * The context lines of text that are not a part of a match,
+ * but that surround a match line of type {@link TextSearchMatchInternal}.
+ *
+ * For example, consider this excerpt:
+ *
+ * ```ts
+ * const bar = 1;
+ * console.log(bar);
+ * const foo = bar;
+ * ```
+ *
+ * If the query is `log`, then the lines `const bar = 1;` and `const foo = bar;`
+ * should be represented using two separate {@link TextSearchContextInternal} for the search instance.
+ * This example assumes that the finder requests one line of surrounding context.
  */
-export class TextSearchContextNew {
+export class TextSearchContextInternal {
 	/**
 	 * @param uri The uri for the matching document.
 	 * @param text The line of context text.
@@ -315,10 +339,17 @@ export class TextSearchContextNew {
 		public lineNumber: number) { }
 }
 
+export interface TextSearchResultNew {
+	uri: URI;
+	range: Range; // target range
+	preview: { text: string; location: { start: number; end: number } };
+	contextLines: { text: string; lineNumber: number }[];
+}
+
 /**
  * A result payload for a text search, pertaining to matches within a single file.
  */
-export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
+export type TextSearchResultInternal = TextSearchMatchInternal | TextSearchContextInternal;
 
 
 /**

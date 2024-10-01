@@ -14,7 +14,7 @@ import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/st
 import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
-import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from '../common/searchExtTypes.js';
+import { Range, TextSearchCompleteNew, TextSearchContextInternal, TextSearchMatchInternal, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultInternal, TextSearchResultNew } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
@@ -775,7 +775,7 @@ export class SimpleRipgrepTextSearchProvider extends RipgrepTextSearchEngine imp
 
 			const splitRipgrepResultAndReport = (e: RipgrepTextSearchMatch) => {
 				e.ranges.forEach(r => {
-					const textSearchMatchNew = new TextSearchMatchNew(e.uri, { sourceRange: r.sourceRange, previewRange: r.previewRange }, e.previewText);
+					const textSearchMatchNew = new TextSearchMatchInternal(e.uri, [{ sourceRange: r.sourceRange, previewRange: r.previewRange }], e.previewText);
 					dedupMatcher.adopterProgress.report(textSearchMatchNew);
 				});
 			};
@@ -798,10 +798,10 @@ export class SimpleRipgrepTextSearchProvider extends RipgrepTextSearchEngine imp
 
 class DeDuplicationMatcher {
 	private matchers = new ResourceMap<DeDuplicationMatcherForFile>();
-	public adopterProgress: Progress<TextSearchResultNew>;
-	constructor(private readonly progress: Progress<TextSearchResultNew>) {
-		this.adopterProgress = new Progress<TextSearchResultNew>(result => {
-			if (result instanceof TextSearchMatchNew) {
+	public adopterProgress: Progress<TextSearchResultInternal>;
+	constructor(private readonly progress: Progress<TextSearchResultInternal>) {
+		this.adopterProgress = new Progress<TextSearchResultInternal>(result => {
+			if (result instanceof TextSearchMatchInternal) {
 				const startLine = result.ranges.sourceRange.start.line;
 				const endLine = result.ranges.sourceRange.end.line;
 				this.sendPreview(result.uri, startLine === endLine ? startLine : [startLine, endLine], result.previewText, result.ranges);
@@ -844,12 +844,12 @@ class DeDuplicationMatcherForFile {
 	private sentPreviewTextSingleLines: Set<number> = new Set();
 	private sentPreviewTextMultiLines: Map<number, Set<number>> = new Map();
 
-	constructor(private readonly uri: URI, private readonly progress: Progress<TextSearchResultNew>) { }
+	constructor(private readonly uri: URI, private readonly progress: Progress<TextSearchResultInternal>) { }
 
 	sendContext(lineNumber: number, text: string) {
 		if (!this.sentContextLines.has(lineNumber)) {
 			this.progress.report(
-				new TextSearchContextNew(
+				new TextSearchContextInternal(
 					this.uri,
 					text,
 					lineNumber,
@@ -863,7 +863,7 @@ class DeDuplicationMatcherForFile {
 		const isIncluded = firstNumArray?.has(lineNumber[1]);
 		if (!isIncluded) {
 			this.progress.report(
-				new TextSearchMatchNew(
+				new TextSearchMatchInternal(
 					this.uri,
 					ranges,
 					text
@@ -879,7 +879,7 @@ class DeDuplicationMatcherForFile {
 	sendOneLinePreview(lineNumber: number, text: string, ranges: { sourceRange: Range; previewRange: Range }) {
 		if (!this.sentPreviewTextSingleLines.has(lineNumber)) {
 			this.progress.report(
-				new TextSearchMatchNew(
+				new TextSearchMatchInternal(
 					this.uri,
 					ranges,
 					text

@@ -154,94 +154,15 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A query match instance in a file.
-	 *
-	 * For example, consider this excerpt:
-	 *
-	 * ```ts
-	 * const bar = 1;
-	 * console.log(bar);
-	 * const foo = bar;
-	 * ```
-	 *
-	 * If the query is `log`, then the line `console.log(bar);` should be represented using a {@link TextSearchMatchNew}.
+	 * A result payload for a text search, pertaining to matches
+	 * and its associated context within a single file.
 	 */
-	export class TextSearchMatchNew {
-		/**
-		 * @param uri The uri for the matching document.
-		 * @param ranges The ranges associated with this match.
-		 * @param previewText The text that is used to preview the match. The highlighted range in `previewText` is specified in `ranges`.
-		 */
-		constructor(uri: Uri, ranges: { sourceRange: Range; previewRange: Range }[], previewText: string);
-
-		/**
-		 * The uri for the matching document.
-		 */
+	export interface TextSearchResultNew {
 		uri: Uri;
-
-		/**
-		 * The ranges associated with this match.
-		 */
-		ranges: {
-			/**
-			 * The range of the match within the document, or multiple ranges for multiple matches.
-			 */
-			sourceRange: Range;
-			/**
-			 * The Range within `previewText` corresponding to the text of the match.
-			 */
-			previewRange: Range;
-		}[];
-
-		previewText: string;
+		range: Range; // target range
+		preview: { text: string; location: { start: number; end: number } };
+		contextLines: { text: string; lineNumber: number }[];
 	}
-
-	/**
-	 * The context lines of text that are not a part of a match,
-	 * but that surround a match line of type {@link TextSearchMatchNew}.
-	 *
-	 * For example, consider this excerpt:
-	 *
-	 * ```ts
-	 * const bar = 1;
-	 * console.log(bar);
-	 * const foo = bar;
-	 * ```
-	 *
-	 * If the query is `log`, then the lines `const bar = 1;` and `const foo = bar;`
-	 * should be represented using two separate {@link TextSearchContextNew} for the search instance.
-	 * This example assumes that the finder requests one line of surrounding context.
-	 */
-	export class TextSearchContextNew {
-		/**
-		 * @param uri The uri for the matching document.
-		 * @param text The line of context text.
-		 * @param lineNumber The line number of this line of context.
-		 */
-		constructor(uri: Uri, text: string, lineNumber: number);
-
-		/**
-		 * The uri for the matching document.
-		 */
-		uri: Uri;
-
-		/**
-		 * One line of text.
-		 * previewOptions.charsPerLine applies to this
-		 */
-		text: string;
-
-		/**
-		 * The line number of this line of context.
-		 */
-		lineNumber: number;
-	}
-
-	/**
-	 * A result payload for a text search, pertaining to {@link TextSearchMatchNew matches}
-	 * and its associated {@link TextSearchContextNew context} within a single file.
-	 */
-	export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.

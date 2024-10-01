@@ -106,7 +106,7 @@ import { ExtensionDescriptionRegistry } from '../../services/extensions/common/e
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextInternal, TextSearchMatchInternal } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
 import { ExtHostCodeMapper } from './extHostCodeMapper.js';
 
@@ -1783,8 +1783,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
-			TextSearchContextNew: TextSearchContextNew,
-			TextSearchMatchNew: TextSearchMatchNew,
+			TextSearchContextNew: TextSearchContextInternal,
+			TextSearchMatchNew: TextSearchMatchInternal,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};
