@@ -24,8 +24,8 @@ variables:
 
 jobs:
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
-    - job: Valiate NPM package against Terrapin
-      displayName: Compile
+    - job: ValidateNpmPackage
+      displayName: Valiate NPM package against Terrapin
       pool:
         name: 1es-ubuntu-22.04-x64
         os: linux
