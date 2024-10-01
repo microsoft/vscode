@@ -2096,7 +2096,7 @@ export interface IWorkspaceEditEntryMetadataDto {
 
 
 export type ICellEditOperationDto =
-	notebookCommon.ICellPartialMetadataEdit
+	notebookCommon.ICellMetadataEdit
 	| notebookCommon.IDocumentMetadataEdit
 	| {
 		editType: notebookCommon.CellEditType.Replace;
@@ -2248,10 +2248,10 @@ export interface ExtHostLanguageFeaturesShape {
 	$providePasteEdits(handle: number, requestId: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, context: IDocumentPasteContextDto, token: CancellationToken): Promise<IPasteEditDto[] | undefined>;
 	$resolvePasteEdit(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: IWorkspaceEditDto }>;
 	$releasePasteEdits(handle: number, cacheId: number): void;
-	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
-	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
-	$provideDocumentRangesFormattingEdits(handle: number, resource: UriComponents, range: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
-	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
+	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<languages.TextEdit[] | undefined>;
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<languages.TextEdit[] | undefined>;
+	$provideDocumentRangesFormattingEdits(handle: number, resource: UriComponents, range: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<languages.TextEdit[] | undefined>;
+	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<languages.TextEdit[] | undefined>;
 	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Promise<IWorkspaceSymbolsDto>;
 	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbolDto, token: CancellationToken): Promise<IWorkspaceSymbolDto | undefined>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
