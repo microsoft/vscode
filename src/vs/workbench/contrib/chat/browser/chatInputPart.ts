@@ -70,8 +70,6 @@ import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
-import { ACTION_ID_NEW_EDIT_SESSION } from './actions/chatClearActions.js';
-import { AttachContextAction } from './actions/chatContextActions.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
@@ -877,6 +875,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'reference',
 			};
 		}) ?? [];
+		for (const attachment of this._attachedContext) {
+			if (attachment.isFile && URI.isUri(attachment.value) && !modifiedFiles.has(attachment.value)) {
+				entries.unshift({
+					reference: attachment.value,
+					kind: 'reference',
+				});
+				modifiedFiles.add(attachment.value);
+			}
+		}
 		chatEditingSession?.workingSet.get().forEach((file) => {
 			if (!modifiedFiles.has(file)) {
 				entries.unshift({
@@ -908,14 +915,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		button.label = localize('chatAddFiles', 'Add Files...');
 		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-			this.commandService.executeCommand(AttachContextAction.ID, { widget: chatWidget });
+			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget });
 		}));
 		dom.append(actionsContainer, button.element);
 
 		const clearButton = this._chatEditsActionsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
 		clearButton.icon = Codicon.close;
 		this._chatEditsActionsDisposables.add(clearButton.onDidClick((e) => {
-			this.commandService.executeCommand(ACTION_ID_NEW_EDIT_SESSION);
+			this.commandService.executeCommand('workbench.action.chat.newEditSession');
 		}));
 		dom.append(actionsContainer, clearButton.element);
 
