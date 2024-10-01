@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env } from '../../../../base/common/process.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { LRUCache } from '../../../../base/common/map.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../platform/files/common/files.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { GeneralShellType, PosixShellType, TerminalSettingId, TerminalShellType } from '../../../../platform/terminal/common/terminal.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { isWindows, OperatingSystem } from '../../../../base/common/platform.js';
-import { join } from '../../../../base/common/path.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { join } from '../../../../../base/common/path.js';
+import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
+import { env } from '../../../../../base/common/process.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { GeneralShellType, PosixShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { TerminalHistorySettingId } from './terminal.history.js';
 
 /**
  * Tracks a list of generic entries.
@@ -52,14 +53,6 @@ const enum StorageKeys {
 	Timestamp = 'terminal.history.timestamp'
 }
 
-let commandHistory: ITerminalPersistedHistory<{ shellType: TerminalShellType }> | undefined = undefined;
-export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType | undefined }> {
-	if (!commandHistory) {
-		commandHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'commands') as TerminalPersistedHistory<{ shellType: TerminalShellType }>;
-	}
-	return commandHistory;
-}
-
 let directoryHistory: ITerminalPersistedHistory<{ remoteAuthority?: string }> | undefined = undefined;
 export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ remoteAuthority?: string }> {
 	if (!directoryHistory) {
@@ -68,45 +61,12 @@ export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersis
 	return directoryHistory;
 }
 
-// Shell file history loads once per shell per window
-const shellFileHistory: Map<TerminalShellType | undefined, string[] | null> = new Map();
-export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType | undefined): Promise<string[]> {
-	const cached = shellFileHistory.get(shellType);
-	if (cached === null) {
-		return [];
+let commandHistory: ITerminalPersistedHistory<{ shellType: TerminalShellType }> | undefined = undefined;
+export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType | undefined }> {
+	if (!commandHistory) {
+		commandHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'commands') as TerminalPersistedHistory<{ shellType: TerminalShellType }>;
 	}
-	if (cached !== undefined) {
-		return cached;
-	}
-	let result: IterableIterator<string> | undefined;
-	switch (shellType) {
-		case PosixShellType.Bash:
-			result = await fetchBashHistory(accessor);
-			break;
-		case GeneralShellType.PowerShell:
-			result = await fetchPwshHistory(accessor);
-			break;
-		case PosixShellType.Zsh:
-			result = await fetchZshHistory(accessor);
-			break;
-		case PosixShellType.Fish:
-			result = await fetchFishHistory(accessor);
-			break;
-		case GeneralShellType.Python:
-			result = await fetchPythonHistory(accessor);
-			break;
-		default: return [];
-	}
-	if (result === undefined) {
-		shellFileHistory.set(shellType, null);
-		return [];
-	}
-	const array = Array.from(result);
-	shellFileHistory.set(shellType, array);
-	return array;
-}
-export function clearShellFileHistory() {
-	shellFileHistory.clear();
+	return commandHistory;
 }
 
 export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
@@ -132,7 +92,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 		// Listen for config changes to set history limit
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandHistory)) {
+			if (e.affectsConfiguration(TerminalHistorySettingId.ShellIntegrationCommandHistory)) {
 				this._entries.limit = this._getHistoryLimit();
 			}
 		}));
@@ -216,7 +176,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	}
 
 	private _getHistoryLimit() {
-		const historyLimit = this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandHistory);
+		const historyLimit = this._configurationService.getValue(TerminalHistorySettingId.ShellIntegrationCommandHistory);
 		return typeof historyLimit === 'number' ? historyLimit : Constants.DefaultHistoryLimit;
 	}
 
@@ -227,6 +187,47 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	private _getEntriesStorageKey() {
 		return `${StorageKeys.Entries}.${this._storageDataKey}`;
 	}
+}
+
+// Shell file history loads once per shell per window
+const shellFileHistory: Map<TerminalShellType | undefined, string[] | null> = new Map();
+export async function getShellFileHistory(accessor: ServicesAccessor, shellType: TerminalShellType | undefined): Promise<string[]> {
+	const cached = shellFileHistory.get(shellType);
+	if (cached === null) {
+		return [];
+	}
+	if (cached !== undefined) {
+		return cached;
+	}
+	let result: IterableIterator<string> | undefined;
+	switch (shellType) {
+		case PosixShellType.Bash:
+			result = await fetchBashHistory(accessor);
+			break;
+		case GeneralShellType.PowerShell:
+			result = await fetchPwshHistory(accessor);
+			break;
+		case PosixShellType.Zsh:
+			result = await fetchZshHistory(accessor);
+			break;
+		case PosixShellType.Fish:
+			result = await fetchFishHistory(accessor);
+			break;
+		case GeneralShellType.Python:
+			result = await fetchPythonHistory(accessor);
+			break;
+		default: return [];
+	}
+	if (result === undefined) {
+		shellFileHistory.set(shellType, null);
+		return [];
+	}
+	const array = Array.from(result);
+	shellFileHistory.set(shellType, array);
+	return array;
+}
+export function clearShellFileHistory() {
+	shellFileHistory.clear();
 }
 
 export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {

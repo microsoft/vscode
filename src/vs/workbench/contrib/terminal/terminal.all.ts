@@ -20,6 +20,7 @@ import '../terminalContrib/environmentChanges/browser/terminal.environmentChange
 import '../terminalContrib/find/browser/terminal.find.contribution.js';
 import '../terminalContrib/chat/browser/terminal.chat.contribution.js';
 import '../terminalContrib/commandGuide/browser/terminal.commandGuide.contribution.js';
+import '../terminalContrib/history/browser/terminal.history.contribution.js';
 import '../terminalContrib/links/browser/terminal.links.contribution.js';
 import '../terminalContrib/zoom/browser/terminal.zoom.contribution.js';
 import '../terminalContrib/stickyScroll/browser/terminal.stickyScroll.contribution.js';

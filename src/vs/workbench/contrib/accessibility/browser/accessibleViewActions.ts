@@ -139,7 +139,7 @@ class AccessibleViewGoToSymbolAction extends Action2 {
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period],
 				weight: KeybindingWeight.WorkbenchContrib + 10
 			},
-			icon: Codicon.symbolField,
+			icon: Codicon.symbolMisc,
 			menu: [
 				commandPalette,
 				{

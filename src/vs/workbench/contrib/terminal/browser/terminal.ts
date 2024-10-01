@@ -1036,12 +1036,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined>;
 
 	/**
-	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
-	 * rerun it in the active terminal.
-	 */
-	runRecent(type: 'command' | 'cwd'): Promise<void>;
-
-	/**
 	 * Attempts to detect and kill the process listening on specified port.
 	 * If successful, places commandToRun on the command line
 	 */
