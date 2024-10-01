@@ -1160,8 +1160,9 @@ export interface IThrottledWorkerOptions {
 	throttleDelay: number;
 
 	/**
-	 * When enabled will guarantee that two distinct calls to work() are not executed without throttle delay between them
-	 * Otherwise if the worker isn't currently throttling it will execute work immediately
+	 * When enabled will guarantee that two distinct calls to `work()` are not executed
+	 * without throttle delay between them.
+	 * Otherwise if the worker isn't currently throttling it will execute work immediately.
 	 */
 	waitThrottleDelayBetweenWorkUnits?: boolean;
 }
@@ -1179,7 +1180,7 @@ export class ThrottledWorker<T> extends Disposable {
 
 	private readonly throttler = this._register(new MutableDisposable<RunOnceScheduler>());
 	private disposed = false;
-	private lastExecutionTime: number = 0;
+	private lastExecutionTime = 0;
 
 	constructor(
 		private options: IThrottledWorkerOptions,
@@ -1234,37 +1235,39 @@ export class ThrottledWorker<T> extends Disposable {
 
 		const timeSinceLastExecution = Date.now() - this.lastExecutionTime;
 
-		// If not throttled, start working directly
-		// Otherwise, when the throttle delay has
-		// past, pending work will be worked again.
 		if (!this.throttler.value && (!this.options.waitThrottleDelayBetweenWorkUnits || timeSinceLastExecution >= this.options.throttleDelay)) {
+			// Work directly if we are not throttling and we are not
+			// enforced to throttle between `work()` calls.
 			this.doWork();
 		} else if (!this.throttler.value && this.options.waitThrottleDelayBetweenWorkUnits) {
-			this.throttler.value = new RunOnceScheduler(() => {
-				this.throttler.clear();
-				this.doWork();
-			}, Math.max(this.options.throttleDelay - timeSinceLastExecution, 0));
-			this.throttler.value.schedule();
+			// Otherwise, schedule the throttler to work.
+			this.scheduleThrottler(Math.max(this.options.throttleDelay - timeSinceLastExecution, 0));
+		} else {
+			// Otherwise, our work will be picked up by the running throttler
 		}
 
 		return true; // work accepted
 	}
 
 	private doWork(): void {
+		this.lastExecutionTime = Date.now();
 
 		// Extract chunk to handle and handle it
 		this.handler(this.pendingWork.splice(0, this.options.maxWorkChunkSize));
-		this.lastExecutionTime = Date.now();
 
 		// If we have remaining work, schedule it after a delay
 		if (this.pendingWork.length > 0) {
-			this.throttler.value = new RunOnceScheduler(() => {
-				this.throttler.clear();
-
-				this.doWork();
-			}, this.options.throttleDelay);
-			this.throttler.value.schedule();
+			this.scheduleThrottler();
 		}
+	}
+
+	private scheduleThrottler(delay = this.options.throttleDelay): void {
+		this.throttler.value = new RunOnceScheduler(() => {
+			this.throttler.clear();
+
+			this.doWork();
+		}, delay);
+		this.throttler.value.schedule();
 	}
 
 	override dispose(): void {
