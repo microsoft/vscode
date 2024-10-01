@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from './dom.js';
-import * as dompurify from './dompurify/dompurify.js';
-import { DomEmitter } from './event.js';
-import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
-import { StandardKeyboardEvent } from './keyboardEvent.js';
-import { StandardMouseEvent } from './mouseEvent.js';
-import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { Event } from '../common/event.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
@@ -25,6 +18,13 @@ import { cloneAndChange } from '../common/objects.js';
 import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI } from '../common/uri.js';
+import * as DOM from './dom.js';
+import dompurify from './dompurify/dompurify.js';
+import { DomEmitter } from './event.js';
+import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
+import { StandardKeyboardEvent } from './keyboardEvent.js';
+import { StandardMouseEvent } from './mouseEvent.js';
+import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
