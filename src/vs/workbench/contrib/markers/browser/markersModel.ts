@@ -7,6 +7,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMatch } from '../../../../base/common/filters.js';
 import { hash } from '../../../../base/common/hash.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { basename, extUri } from '../../../../base/common/resources.js';
 import { splitLines } from '../../../../base/common/strings.js';
