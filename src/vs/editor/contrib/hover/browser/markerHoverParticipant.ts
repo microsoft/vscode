@@ -28,6 +28,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { MarkdownHover, renderMarkdownInContainer } from './markdownHoverParticipant.js';
+import { ILanguageService } from '../../../common/languages/language.js';
 
 
 const $ = dom.$;
@@ -44,16 +45,6 @@ export class MarkerHover extends MarkdownHover implements IHoverPart {
 		super(owner, range, contents, false, 1, undefined);
 		this.marker = marker;
 	}
-
-	owner: IEditorHoverParticipant<IHoverPart>;
-	range: Range;
-	forceShowAtRange?: boolean | undefined;
-	isBeforeContent?: boolean | undefined;
-	isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		throw new Error('Method not implemented.');
-	}
-
-
 }
 
 const markerCodeActionTrigger: CodeActionTrigger = {
