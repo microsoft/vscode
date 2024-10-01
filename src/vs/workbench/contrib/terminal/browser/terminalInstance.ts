@@ -92,7 +92,7 @@ import { openContextMenu } from './terminalContextMenu.js';
 import type { IMenu } from '../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { TerminalContribCommandId } from '../terminalContribExports.js';
-import { observableValue, type IObservable } from '../../../../base/common/observable.js';
+import { autorun, observableValue, type IObservable, type IReader } from '../../../../base/common/observable.js';
 
 const enum Constants {
 	/**
@@ -531,9 +531,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Terminal)) {
-				this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title.get());
-			}
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 				this.setVisible(this._isVisible);
@@ -973,7 +970,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('xterm elements not set after open');
 		}
 
-		this._setAriaLabel(xterm.raw, this._instanceId, this._title.get());
+		// Set up aria label
+		this._register(autorun(reader => this._refreshAriaLabel(reader)));
+		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Terminal)) {
+				this._refreshAriaLabel(undefined);
+			}
+		}));
 
 		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting
@@ -1934,24 +1937,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private _setAriaLabel(xterm: XTermTerminal | undefined, terminalId: number, title: string | undefined): void {
-		const labelParts: string[] = [];
-		if (xterm && xterm.textarea) {
-			if (title && title.length > 0) {
-				labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", terminalId, title));
-			} else {
-				labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", terminalId));
-			}
-			const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-			if (!screenReaderOptimized) {
-				labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
-			}
-			const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
-			if (this._configurationService.getValue(AccessibilityVerbositySettingId.Terminal) && accessibilityHelpKeybinding) {
-				labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
-			}
-			xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
+	private _refreshAriaLabel(reader: IReader | undefined): void {
+		const xterm = this.xterm?.raw;
+		if (!xterm?.textarea) {
+			return;
 		}
+		const title = this._title.read(reader);
+		const labelParts: string[] = [];
+		if (title && title.length > 0) {
+			labelParts.push(nls.localize('terminalTextBoxAriaLabelNumberAndTitle', "Terminal {0}, {1}", this._instanceId, title));
+		} else {
+			labelParts.push(nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._instanceId));
+		}
+		const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		if (!screenReaderOptimized) {
+			labelParts.push(nls.localize('terminalScreenReaderMode', "Run the command: Toggle Screen Reader Accessibility Mode for an optimized screen reader experience"));
+		}
+		const accessibilityHelpKeybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+		if (this._configurationService.getValue(AccessibilityVerbositySettingId.Terminal) && accessibilityHelpKeybinding) {
+			labelParts.push(nls.localize('terminalHelpAriaLabel', "Use {0} for terminal accessibility help", accessibilityHelpKeybinding));
+		}
+		xterm.textarea.setAttribute('aria-label', labelParts.join('\n'));
 	}
 
 	private _updateTitleProperties(title: string | undefined, eventSource: TitleEventSource): string {
@@ -2211,7 +2217,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		title = this._updateTitleProperties(title, eventSource);
 		this._title.set(title, undefined);
 		this._labelComputer?.refreshLabel(this, reset);
-		this._setAriaLabel(this.xterm?.raw, this._instanceId, this._title.get());
 	}
 
 	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
