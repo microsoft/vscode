@@ -30,7 +30,4 @@ declare module 'vscode' {
 		 */
 		constructor(mimeType: string, data: () => Thenable<Uint8Array>);
 	}
-
-
 }
-
