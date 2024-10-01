@@ -7,25 +7,17 @@ pr:
     include: ["package.json"]
 
 variables:
-  - name: Codeql.SkipTaskAutoInjection
-    value: true
-  - name: skipComponentGovernanceDetection
-    value: true
   - name: NPM_REGISTRY
     value: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
-  - name: CARGO_REGISTRY
-    value: "none"
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_QUALITY
     value: oss
-  - name: VSCODE_STEP_ON_IT
-    value: false
 
 jobs:
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
-    - job: Valiate NPM package against Terrapin
-      displayName: Compile
+    - job: ValidateNpmPackage
+      displayName: Valiate NPM package against Terrapin
       pool:
         name: 1es-ubuntu-22.04-x64
         os: linux
