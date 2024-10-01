@@ -14,8 +14,9 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { GeneralShellType, PosixShellType, TerminalSettingId, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, PosixShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { TerminalHistorySettingId } from './terminal.history.js';
 
 /**
  * Tracks a list of generic entries.
@@ -91,7 +92,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 		// Listen for config changes to set history limit
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandHistory)) {
+			if (e.affectsConfiguration(TerminalHistorySettingId.ShellIntegrationCommandHistory)) {
 				this._entries.limit = this._getHistoryLimit();
 			}
 		}));
@@ -175,7 +176,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	}
 
 	private _getHistoryLimit() {
-		const historyLimit = this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandHistory);
+		const historyLimit = this._configurationService.getValue(TerminalHistorySettingId.ShellIntegrationCommandHistory);
 		return typeof historyLimit === 'number' ? historyLimit : Constants.DefaultHistoryLimit;
 	}
 
