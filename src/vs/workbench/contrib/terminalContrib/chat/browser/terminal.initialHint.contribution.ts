@@ -2,36 +2,34 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
-import type { Terminal as RawXtermTerminal, IDecoration, ITerminalAddon } from '@xterm/xterm';
-import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
-import { ITerminalProcessManager, ITerminalProcessInfo } from '../../../terminal/common/terminal.js';
-import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { localize } from '../../../../../nls.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { OS } from '../../../../../base/common/platform.js';
-import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
-import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import type { IDecoration, ITerminalAddon, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TerminalChatCommandId } from './terminalChat.js';
-import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
-import './media/terminalInitialHint.css';
-import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
-import { ChatAgentLocation, IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContentActionHandler, renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { ChatAgentLocation, IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
+import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
+import './media/terminalInitialHint.css';
+import { TerminalChatCommandId } from './terminalChat.js';
 
 const $ = dom.$;
 
@@ -89,9 +87,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'shellLaunchConfig'> | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo | undefined,
-		widgetManager: TerminalWidgetManager | undefined,
+		private readonly _ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
@@ -111,7 +107,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		// Don't show is the terminal was launched by an extension or a feature like debug
-		if ('shellLaunchConfig' in this._instance && (this._instance.shellLaunchConfig.isExtensionOwnedTerminal || this._instance.shellLaunchConfig.isFeatureTerminal)) {
+		if ('shellLaunchConfig' in this._ctx.instance && (this._ctx.instance.shellLaunchConfig.isExtensionOwnedTerminal || this._ctx.instance.shellLaunchConfig.isFeatureTerminal)) {
 			return;
 		}
 		// Don't show if disabled
@@ -123,13 +119,13 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			return;
 		}
 		this._xterm = xterm;
-		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._instance.capabilities, this._chatAgentService.onDidChangeAgents));
+		this._addon = this._register(this._instantiationService.createInstance(InitialHintAddon, this._ctx.instance.capabilities, this._chatAgentService.onDidChangeAgents));
 		this._xterm.raw.loadAddon(this._addon);
 		this._register(this._addon.onDidRequestCreateHint(() => this._createHint()));
 	}
 
 	private _createHint(): void {
-		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
+		const instance = this._ctx.instance instanceof TerminalInstance ? this._ctx.instance : undefined;
 		const commandDetectionCapability = instance?.capabilities.get(TerminalCapability.CommandDetection);
 		if (!instance || !this._xterm || this._hintWidget || !commandDetectionCapability || commandDetectionCapability.promptInputModel.value || !!instance.shellLaunchConfig.attachPersistentProcess) {
 			return;

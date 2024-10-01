@@ -632,7 +632,7 @@ export namespace WorkspaceEdit {
 					}
 
 					// file operation
-					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+					result.edits.push({
 						oldResource: entry.from,
 						newResource: entry.to,
 						options: { ...entry.options, contents },
@@ -641,14 +641,14 @@ export namespace WorkspaceEdit {
 
 				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
-					result.edits.push(<languages.IWorkspaceTextEdit>{
+					result.edits.push({
 						resource: entry.uri,
 						textEdit: TextEdit.from(entry.edit),
 						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Snippet) {
-					result.edits.push(<languages.IWorkspaceTextEdit>{
+					result.edits.push({
 						resource: entry.uri,
 						textEdit: {
 							range: Range.from(entry.range),
@@ -661,17 +661,16 @@ export namespace WorkspaceEdit {
 
 				} else if (entry._type === types.FileEditType.Cell) {
 					// cell edit
-					result.edits.push(<notebooks.IWorkspaceNotebookCellEdit>{
+					result.edits.push({
 						metadata: entry.metadata,
 						resource: entry.uri,
 						cellEdit: entry.edit,
-						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri)
 					});
 
 				} else if (entry._type === types.FileEditType.CellReplace) {
 					// cell replace
-					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+					result.edits.push({
 						metadata: entry.metadata,
 						resource: entry.uri,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri),
@@ -1605,10 +1604,10 @@ export namespace LanguageSelector {
 			return selector;
 		} else {
 			const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
-			return <languageSelector.LanguageFilter>{
+			return {
 				language: filter.language,
 				scheme: filter.scheme,
-				pattern: GlobPattern.from(filter.pattern),
+				pattern: GlobPattern.from(filter.pattern) ?? undefined,
 				exclusive: filter.exclusive,
 				notebookType: filter.notebookType
 			};

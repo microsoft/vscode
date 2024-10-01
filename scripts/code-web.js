@@ -74,7 +74,6 @@ async function main() {
 		openSystemBrowser = true;
 	}
 
-	serverArgs.push('--esm'); // TODO@esm this should be the default
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
 	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground') && v !== '--no-playground'));
