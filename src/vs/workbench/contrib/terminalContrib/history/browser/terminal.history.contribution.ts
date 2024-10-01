@@ -20,7 +20,7 @@ import { registerTerminalContribution } from '../../../terminal/browser/terminal
 import type { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
 import { TerminalCommandId, type ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { clearShellFileHistory, getCommandHistory } from '../common/history.js';
+import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
 
 // #region Terminal Contributions
@@ -46,13 +46,21 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
 
 		this._register(this._instance.capabilities.onDidAddCapabilityType(e => {
-			if (e === TerminalCapability.CommandDetection) {
-				const commandCapability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-				commandCapability?.onCommandFinished(e => {
-					if (e.command.trim().length > 0) {
-						this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._instance.shellType });
-					}
-				});
+			switch (e) {
+				case TerminalCapability.CwdDetection: {
+					this._instance.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
+						this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this._instance.remoteAuthority });
+					});
+					break;
+				}
+				case TerminalCapability.CommandDetection: {
+					this._instance.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
+						if (e.command.trim().length > 0) {
+							this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._instance.shellType });
+						}
+					});
+					break;
+				}
 			}
 		}));
 	}

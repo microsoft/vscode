@@ -17,10 +17,9 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { ITerminalPersistedHistory, TerminalPersistedHistory } from '../../../../terminal/common/history.js';
 import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, sanitizeFishHistoryCmd } from '../../common/history.js';
+import { fetchBashHistory, fetchFishHistory, fetchPwshHistory, fetchZshHistory, sanitizeFishHistoryCmd, TerminalPersistedHistory, type ITerminalPersistedHistory } from '../../common/history.js';
 
 function getConfig(limit: number) {
 	return {

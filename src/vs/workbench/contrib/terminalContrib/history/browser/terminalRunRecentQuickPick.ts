@@ -17,7 +17,6 @@ import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, in
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from '../../../terminal/browser/terminalIcons.js';
-import { getDirectoryHistory } from '../../../terminal/common/history.js';
 import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
 import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -28,7 +27,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { getCommandHistory, getShellFileHistory } from '../common/history.js';
+import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../common/history.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
