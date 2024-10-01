@@ -393,7 +393,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
+function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}

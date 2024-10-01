@@ -255,6 +255,7 @@ export class ReleaseNotesManager {
 			markedExtensions: [{
 				renderer: {
 					html: this._simpleSettingRenderer.getHtmlRenderer(),
+					codespan: this._simpleSettingRenderer.getCodeSpanRenderer(),
 				}
 			}]
 		});
@@ -274,7 +275,7 @@ export class ReleaseNotesManager {
 
 					/* codesetting */
 
-					code:has(.codesetting)+code {
+					code:has(.codesetting)+code:not(:has(.codesetting)) {
 						display: none;
 					}
 

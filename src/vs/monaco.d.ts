@@ -3686,6 +3686,11 @@ declare namespace monaco.editor {
 		 */
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
+		 * Enable experimental rendering using WebGPU.
+		 * Defaults to 'off'.
+		 */
+		experimentalGpuAcceleration?: 'on' | 'off';
+		/**
 		 * Enable experimental whitespace rendering.
 		 * Defaults to 'svg'.
 		 */
@@ -5072,6 +5077,7 @@ declare namespace monaco.editor {
 		dropIntoEditor: IEditorOption<EditorOption.dropIntoEditor, Readonly<Required<IDropIntoEditorOptions>>>;
 		experimentalEditContextEnabled: IEditorOption<EditorOption.experimentalEditContextEnabled, boolean>;
 		stickyScroll: IEditorOption<EditorOption.stickyScroll, Readonly<Required<IEditorStickyScrollOptions>>>;
+		experimentalGpuAcceleration: IEditorOption<EditorOption.experimentalGpuAcceleration, 'on' | 'off'>;
 		experimentalWhitespaceRendering: IEditorOption<EditorOption.experimentalWhitespaceRendering, 'off' | 'svg' | 'font'>;
 		extraEditorClassName: IEditorOption<EditorOption.extraEditorClassName, string>;
 		fastScrollSensitivity: IEditorOption<EditorOption.fastScrollSensitivity, number>;
@@ -7234,6 +7240,7 @@ declare namespace monaco.languages {
 		 * Defaults to `false`.
 		*/
 		readonly completeBracketPairs?: boolean;
+		readonly isInlineEdit?: boolean;
 	}
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {

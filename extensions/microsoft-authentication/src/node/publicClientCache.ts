@@ -27,9 +27,10 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 	constructor(
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
-		private readonly _logger: LogOutputChannel
+		private readonly _logger: LogOutputChannel,
+		cloudName: string
 	) {
-		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage);
+		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, cloudName);
 		this._disposable = Disposable.from(
 			this._pcasSecretStorage,
 			this._registerSecretStorageHandler(),
@@ -67,10 +68,23 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		}
 
 		const results = await Promise.allSettled(promises);
+		let pcasChanged = false;
 		for (const result of results) {
 			if (result.status === 'rejected') {
 				this._logger.error('[initialize] Error getting PCA:', result.reason);
+			} else {
+				if (!result.value.accounts.length) {
+					pcasChanged = true;
+					const pcaKey = JSON.stringify({ clientId: result.value.clientId, authority: result.value.authority });
+					this._pcaDisposables.get(pcaKey)?.dispose();
+					this._pcaDisposables.delete(pcaKey);
+					this._pcas.delete(pcaKey);
+					this._logger.debug(`[initialize] [${result.value.clientId}] [${result.value.authority}] PCA disposed because it's empty.`);
+				}
 			}
+		}
+		if (pcasChanged) {
+			await this._storePublicClientApplications();
 		}
 		this._logger.debug('[initialize] PublicClientApplicationManager initialized');
 	}
@@ -106,6 +120,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 				// The PCA has no more accounts, so we can dispose it so we're not keeping it
 				// around forever.
 				disposable.dispose();
+				this._pcaDisposables.delete(pcasKey);
 				this._pcas.delete(pcasKey);
 				this._logger.debug(`[_doCreatePublicClientApplication] [${clientId}] [${authority}] PCA disposed. Firing off storing of PCAs...`);
 				void this._storePublicClientApplications();
@@ -176,18 +191,18 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 }
 
 class PublicClientApplicationsSecretStorage {
-	private static key = 'publicClientApplications';
-
 	private _disposable: Disposable;
 
 	private readonly _onDidChangeEmitter = new EventEmitter<void>;
 	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
 
-	constructor(private readonly _secretStorage: SecretStorage) {
+	private readonly _key = `publicClientApplications-${this._cloudName}`;
+
+	constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
 		this._disposable = Disposable.from(
 			this._onDidChangeEmitter,
 			this._secretStorage.onDidChange(e => {
-				if (e.key === PublicClientApplicationsSecretStorage.key) {
+				if (e.key === this._key) {
 					this._onDidChangeEmitter.fire();
 				}
 			})
@@ -195,7 +210,7 @@ class PublicClientApplicationsSecretStorage {
 	}
 
 	async get(): Promise<string[] | undefined> {
-		const value = await this._secretStorage.get(PublicClientApplicationsSecretStorage.key);
+		const value = await this._secretStorage.get(this._key);
 		if (!value) {
 			return undefined;
 		}
@@ -203,11 +218,11 @@ class PublicClientApplicationsSecretStorage {
 	}
 
 	store(value: string[]): Thenable<void> {
-		return this._secretStorage.store(PublicClientApplicationsSecretStorage.key, JSON.stringify(value));
+		return this._secretStorage.store(this._key, JSON.stringify(value));
 	}
 
 	delete(): Thenable<void> {
-		return this._secretStorage.delete(PublicClientApplicationsSecretStorage.key);
+		return this._secretStorage.delete(this._key);
 	}
 
 	dispose() {

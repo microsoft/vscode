@@ -12,7 +12,7 @@ import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../.
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
 import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from '../../../base/browser/dom.js';
-import { IStorageService, StorageScope, StorageTarget, IProfileStorageValueChangeEvent } from '../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from './compositeBarActions.js';
@@ -192,8 +192,11 @@ export class PaneCompositeBar extends Disposable {
 				return;
 			}
 			this.onDidRegisterExtensions();
-			this._register(this.compositeBar.onDidChange(() => this.saveCachedViewContainers()));
-			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(e => this.onDidPinnedViewContainersStorageValueChange(e)));
+			this._register(this.compositeBar.onDidChange(() => {
+				this.updateCompositeBarItemsFromStorage(true);
+				this.saveCachedViewContainers();
+			}));
+			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(() => this.updateCompositeBarItemsFromStorage(false)));
 		});
 	}
 
@@ -471,52 +474,63 @@ export class PaneCompositeBar extends Disposable {
 		return this.viewDescriptorService.getViewContainersByLocation(this.location);
 	}
 
-	private onDidPinnedViewContainersStorageValueChange(e: IProfileStorageValueChangeEvent): void {
-		if (this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
-			this._placeholderViewContainersValue = undefined;
-			this._pinnedViewContainersValue = undefined;
-			this._cachedViewContainers = undefined;
+	private updateCompositeBarItemsFromStorage(retainExisting: boolean): void {
+		if (this.pinnedViewContainersValue === this.getStoredPinnedViewContainersValue()) {
+			return;
+		}
 
-			const newCompositeItems: ICompositeBarItem[] = [];
-			const compositeItems = this.compositeBar.getCompositeBarItems();
+		this._placeholderViewContainersValue = undefined;
+		this._pinnedViewContainersValue = undefined;
+		this._cachedViewContainers = undefined;
 
-			for (const cachedViewContainer of this.cachedViewContainers) {
-				newCompositeItems.push({
-					id: cachedViewContainer.id,
-					name: cachedViewContainer.name,
-					order: cachedViewContainer.order,
-					pinned: cachedViewContainer.pinned,
-					visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
-				});
-			}
+		const newCompositeItems: ICompositeBarItem[] = [];
+		const compositeItems = this.compositeBar.getCompositeBarItems();
 
-			for (const viewContainer of this.getViewContainers()) {
-				// Add missing view containers
-				if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
-					const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
-					if (index !== -1) {
-						const compositeItem = compositeItems[index];
-						newCompositeItems.splice(index, 0, {
-							id: viewContainer.id,
-							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-							order: compositeItem.order,
-							pinned: compositeItem.pinned,
-							visible: compositeItem.visible,
-						});
-					} else {
-						newCompositeItems.push({
-							id: viewContainer.id,
-							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-							order: viewContainer.order,
-							pinned: true,
-							visible: !this.shouldBeHidden(viewContainer),
-						});
-					}
+		for (const cachedViewContainer of this.cachedViewContainers) {
+			newCompositeItems.push({
+				id: cachedViewContainer.id,
+				name: cachedViewContainer.name,
+				order: cachedViewContainer.order,
+				pinned: cachedViewContainer.pinned,
+				visible: cachedViewContainer.visible && !!this.getViewContainer(cachedViewContainer.id),
+			});
+		}
+
+		for (const viewContainer of this.getViewContainers()) {
+			// Add missing view containers
+			if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
+				const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
+				if (index !== -1) {
+					const compositeItem = compositeItems[index];
+					newCompositeItems.splice(index, 0, {
+						id: viewContainer.id,
+						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+						order: compositeItem.order,
+						pinned: compositeItem.pinned,
+						visible: compositeItem.visible,
+					});
+				} else {
+					newCompositeItems.push({
+						id: viewContainer.id,
+						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+						order: viewContainer.order,
+						pinned: true,
+						visible: !this.shouldBeHidden(viewContainer),
+					});
 				}
 			}
-
-			this.compositeBar.setCompositeBarItems(newCompositeItems);
 		}
+
+		if (retainExisting) {
+			for (const compositeItem of compositeItems) {
+				const newCompositeItem = newCompositeItems.find(({ id }) => id === compositeItem.id);
+				if (!newCompositeItem) {
+					newCompositeItems.push(compositeItem);
+				}
+			}
+		}
+
+		this.compositeBar.setCompositeBarItems(newCompositeItems);
 	}
 
 	private saveCachedViewContainers(): void {

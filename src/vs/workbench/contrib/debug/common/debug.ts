@@ -164,6 +164,7 @@ export interface IExpressionValue {
 
 export interface IExpressionContainer extends ITreeElement, IExpressionValue {
 	readonly hasChildren: boolean;
+	getSession(): IDebugSession | undefined;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
@@ -411,8 +412,10 @@ export interface IDebugSession extends ITreeElement {
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeReplElements: Event<IReplElement | undefined>;
 
-	// DA capabilities
+	/** DA capabilities. Set only when there is a running session available. */
 	readonly capabilities: DebugProtocol.Capabilities;
+	/** DA capabilities. These are retained on the session even after is implementation ends. */
+	readonly rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	// DAP events
 

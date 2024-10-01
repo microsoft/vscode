@@ -7,8 +7,7 @@ import type { Parser } from '@vscode/tree-sitter-wasm';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { AppResourcePath, FileAccess } from '../../../../base/common/network.js';
-import { FontStyle, MetadataConsts } from '../../../../editor/common/encodedTokenAttributes.js';
-import { ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
+import { ILanguageIdCodec, ITreeSitterTokenizationSupport, LazyTokenizationSupport, TreeSitterTokenizationRegistry } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { EDITOR_EXPERIMENTAL_PREFER_TREESITTER, ITreeSitterParserService, ITreeSitterParseResult } from '../../../../editor/common/services/treeSitterParserService.js';
 import { IModelTokensChangedEvent } from '../../../../editor/common/textModelEvents.js';
@@ -18,8 +17,8 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { TokenStyle } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
-import { ColorThemeData } from '../../themes/common/colorThemeData.js';
+import { ColorThemeData, findMetadata } from '../../themes/common/colorThemeData.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
 
 const ALLOWED_SUPPORT = ['typescript'];
 type TreeSitterQueries = string;
@@ -35,6 +34,7 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 	private readonly _tokenizersRegistrations: DisposableMap<string, DisposableStore> = new DisposableMap();
 
 	constructor(
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService
@@ -81,25 +81,36 @@ class TreeSitterTokenizationFeature extends Disposable implements ITreeSitterTok
 
 	private async _createTokenizationSupport(languageId: string): Promise<ITreeSitterTokenizationSupport & IDisposable | null> {
 		const queries = await this._fetchQueries(languageId);
-		return this._instantiationService.createInstance(TreeSitterTokenizationSupport, queries, languageId);
+		return this._instantiationService.createInstance(TreeSitterTokenizationSupport, queries, languageId, this._languageService.languageIdCodec);
 	}
 }
 
 class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTokenizationSupport {
 	private _query: Parser.Query | undefined;
-	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = new Emitter();
-	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
+	private readonly _onDidChangeTokens: Emitter<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = new Emitter();
+	public readonly onDidChangeTokens: Event<{ textModel: ITextModel; changes: IModelTokensChangedEvent }> = this._onDidChangeTokens.event;
 	private _colorThemeData!: ColorThemeData;
 	private _languageAddedListener: IDisposable | undefined;
 
 	constructor(
 		private readonly _queries: TreeSitterQueries,
 		private readonly _languageId: string,
+		private readonly _languageIdCodec: ILanguageIdCodec,
 		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => this.reset()));
+		this._register(this._treeSitterService.onDidUpdateTree((e) => {
+			const maxLine = e.textModel.getLineCount();
+			this._onDidChangeTokens.fire({
+				textModel: e.textModel,
+				changes: {
+					semanticTokensApplied: false,
+					ranges: e.ranges.map(range => ({ fromLineNumber: range.startLineNumber, toLineNumber: range.endLineNumber < maxLine ? range.endLineNumber : maxLine })),
+				}
+			});
+		}));
 	}
 
 	private _getTree(textModel: ITextModel): ITreeSitterParseResult | undefined {
@@ -126,19 +137,25 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 		this._colorThemeData = this._themeService.getColorTheme() as ColorThemeData;
 	}
 
-	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): any {
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), textModel);
+	captureAtPosition(lineNumber: number, column: number, textModel: ITextModel): Parser.QueryCapture[] {
+		const tree = this._getTree(textModel);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree?.tree);
 		return captures;
 	}
 
-	private _captureAtRange(lineNumber: number, columnRange: ColumnRange, textModel: ITextModel): Parser.QueryCapture[] {
-		const tree = this._getTree(textModel);
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[] {
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(column, column), tree);
+		return captures;
+	}
+
+
+	private _captureAtRange(lineNumber: number, columnRange: ColumnRange, tree: Parser.Tree | undefined): Parser.QueryCapture[] {
 		const query = this._ensureQuery();
-		if (!tree?.tree || !query) {
+		if (!tree || !query) {
 			return [];
 		}
 		// Tree sitter row is 0 based, column is 0 based
-		return query.captures(tree.tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive } });
+		return query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: columnRange.startColumn - 1 }, endPosition: { row: lineNumber - 1, column: columnRange.endColumnExclusive } });
 	}
 
 	/**
@@ -150,19 +167,26 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 	 */
 	public tokenizeEncoded(lineNumber: number, textModel: ITextModel): Uint32Array | undefined {
 		const lineLength = textModel.getLineMaxColumn(lineNumber);
-		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), textModel);
+		const tree = this._getTree(textModel);
+		const captures = this._captureAtRange(lineNumber, new ColumnRange(1, lineLength), tree?.tree);
 
 		if (captures.length === 0) {
 			return undefined;
 		}
 
-		let tokens: Uint32Array = new Uint32Array(captures.length * 2);
+		const endOffsetsAndScopes: { endOffset: number; scopes: string[] }[] = Array(captures.length);
+		endOffsetsAndScopes.fill({ endOffset: 0, scopes: [] });
 		let tokenIndex = 0;
 		const lineStartOffset = textModel.getOffsetAt({ lineNumber: lineNumber, column: 1 });
 
+		const increaseSizeOfTokensByOneToken = () => {
+			endOffsetsAndScopes.push({ endOffset: 0, scopes: [] });
+		};
+
+		const encodedLanguageId = this._languageIdCodec.encodeLanguageId(this._languageId);
+
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
-			const metadata = this.findMetadata(capture.name);
 			const tokenEndIndex = capture.node.endIndex < lineStartOffset + lineLength ? capture.node.endIndex : lineStartOffset + lineLength;
 			const tokenStartIndex = capture.node.startIndex < lineStartOffset ? lineStartOffset : capture.node.startIndex;
 
@@ -172,65 +196,67 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 			let previousTokenEnd: number;
 			const currentTokenLength = tokenEndIndex - tokenStartIndex;
 			if (captureIndex > 0) {
-				previousTokenEnd = tokens[(tokenIndex - 1) * 2];
+				previousTokenEnd = endOffsetsAndScopes[(tokenIndex - 1)].endOffset;
 			} else {
 				previousTokenEnd = tokenStartIndex - lineStartOffset - 1;
 			}
 			const intermediateTokenOffset = lineRelativeOffset - currentTokenLength;
-			if (previousTokenEnd < intermediateTokenOffset) {
-				tokens[tokenIndex * 2] = intermediateTokenOffset;
-				tokens[tokenIndex * 2 + 1] = 0;
+			if ((previousTokenEnd >= 0) && (previousTokenEnd < intermediateTokenOffset)) {
+				// Add en empty token to cover the space where there were no captures
+				endOffsetsAndScopes[tokenIndex] = { endOffset: intermediateTokenOffset, scopes: [] };
 				tokenIndex++;
-				const newTokens = new Uint32Array(tokens.length + 2);
-				newTokens.set(tokens);
-				tokens = newTokens;
+
+				increaseSizeOfTokensByOneToken();
 			}
 
-			tokens[tokenIndex * 2] = lineRelativeOffset;
-			tokens[tokenIndex * 2 + 1] = metadata;
+			const addCurrentTokenToArray = () => {
+				endOffsetsAndScopes[tokenIndex] = { endOffset: lineRelativeOffset, scopes: [capture.name] };
+				tokenIndex++;
+			};
+
+			if (previousTokenEnd >= lineRelativeOffset) {
+				const previousTokenStartOffset = ((tokenIndex >= 2) ? endOffsetsAndScopes[tokenIndex - 2].endOffset : 0);
+				const originalPreviousTokenEndOffset = endOffsetsAndScopes[tokenIndex - 1].endOffset;
+
+				// Check that the current token doesn't just replace the last token
+				if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
+					// Current token and previous token span the exact same characters, replace the last scope
+					endOffsetsAndScopes[tokenIndex - 1].scopes[endOffsetsAndScopes[tokenIndex - 1].scopes.length - 1] = capture.name;
+				} else {
+					// The current token is within the previous token. Adjust the end of the previous token.
+					endOffsetsAndScopes[tokenIndex - 1].endOffset = intermediateTokenOffset;
+
+					addCurrentTokenToArray();
+					// Add the rest of the previous token after the current token
+					increaseSizeOfTokensByOneToken();
+					endOffsetsAndScopes[tokenIndex].endOffset = originalPreviousTokenEndOffset;
+					endOffsetsAndScopes[tokenIndex].scopes = endOffsetsAndScopes[tokenIndex - 2].scopes;
+					tokenIndex++;
+				}
+			} else {
+				// Just add the token to the array
+				addCurrentTokenToArray();
+			}
+		}
+
+		// Account for uncaptured characters at the end of the line
+		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
+			increaseSizeOfTokensByOneToken();
+			endOffsetsAndScopes[tokenIndex].endOffset = lineLength - 1;
 			tokenIndex++;
 		}
 
-		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
-			const newTokens = new Uint32Array(tokens.length + 2);
-			newTokens.set(tokens);
-			tokens = newTokens;
-			tokens[tokenIndex * 2] = lineLength;
-			tokens[tokenIndex * 2 + 1] = 0;
+		const tokens: Uint32Array = new Uint32Array((tokenIndex) * 2);
+		for (let i = 0; i < tokenIndex; i++) {
+			const token = endOffsetsAndScopes[i];
+			if (token.endOffset === 0 && token.scopes.length === 0) {
+				break;
+			}
+			tokens[i * 2] = token.endOffset;
+			tokens[i * 2 + 1] = findMetadata(this._colorThemeData, token.scopes, encodedLanguageId);
 		}
+
 		return tokens;
-	}
-
-	private findMetadata(captureName: string): number {
-		const tokenStyle: TokenStyle | undefined = this._colorThemeData.resolveScopes([[captureName]]);
-		if (!tokenStyle) {
-			return 0;
-		}
-
-		let metadata = 0;
-		if (typeof tokenStyle.italic !== 'undefined') {
-			const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0);
-			metadata |= italicBit | MetadataConsts.ITALIC_MASK;
-		}
-		if (typeof tokenStyle.bold !== 'undefined') {
-			const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0);
-			metadata |= boldBit | MetadataConsts.BOLD_MASK;
-		}
-		if (typeof tokenStyle.underline !== 'undefined') {
-			const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0);
-			metadata |= underlineBit | MetadataConsts.UNDERLINE_MASK;
-		}
-		if (typeof tokenStyle.strikethrough !== 'undefined') {
-			const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0);
-			metadata |= strikethroughBit | MetadataConsts.STRIKETHROUGH_MASK;
-		}
-		if (tokenStyle.foreground) {
-			const tokenStyleForeground = this._colorThemeData.getTokenColorIndex().get(tokenStyle?.foreground);
-			const foregroundBits = tokenStyleForeground << MetadataConsts.FOREGROUND_OFFSET;
-			metadata |= foregroundBits;
-		}
-
-		return metadata;
 	}
 
 	override dispose() {

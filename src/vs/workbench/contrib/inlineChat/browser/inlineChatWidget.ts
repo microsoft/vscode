@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from '../../../../base/browser/dom.js';
+import { $, Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from '../../../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { isNonEmptyArray, tail } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, derived, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import './media/inlineChat.css';
@@ -45,14 +45,15 @@ import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActio
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
 import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { ChatAgentLocation } from '../../chat/common/chatAgents.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../chat/common/chatContextKeys.js';
-import { ChatModel, IChatModel } from '../../chat/common/chatModel.js';
+import { IChatModel } from '../../chat/common/chatModel.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
-import { isResponseVM, isWelcomeVM } from '../../chat/common/chatViewModel.js';
+import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { HunkInformation, Session } from './inlineChatSession.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 
 
 export interface InlineChatWidgetViewState {
@@ -105,7 +106,6 @@ export class InlineChatWidget {
 
 	protected readonly _store = new DisposableStore();
 
-	private readonly _defaultChatModel: ChatModel;
 	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 	private readonly _ctxResponseFocused: IContextKey<boolean>;
 
@@ -154,10 +154,6 @@ export class InlineChatWidget {
 				renderFollowups: true,
 				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
 				filter: item => {
-					if (isWelcomeVM(item)) {
-						// filter welcome messages
-						return false;
-					}
 					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
 						// filter responses that
 						// - are just text edits(prevents the "Made Edits")
@@ -177,6 +173,7 @@ export class InlineChatWidget {
 			{
 				listForeground: inlineChatForeground,
 				listBackground: inlineChatBackground,
+				overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 				inputEditorBackground: inputBackground,
 				resultEditorBackground: editorBackground
 			}
@@ -288,13 +285,6 @@ export class InlineChatWidget {
 				this.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 			}
 		}));
-
-		// LEGACY - default chat model
-		// this is only here for as long as we offer updateChatMessage
-		this._defaultChatModel = this._store.add(this._instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
-		this._defaultChatModel.startInitialize();
-		this._defaultChatModel.initialize(undefined);
-		this.setChatModel(this._defaultChatModel);
 	}
 
 	private _updateAriaLabel(): void {
@@ -453,55 +443,12 @@ export class InlineChatWidget {
 	}
 
 
-	getChatModel(): IChatModel {
-		return this._chatWidget.viewModel?.model ?? this._defaultChatModel;
+	getChatModel(): IChatModel | undefined {
+		return this._chatWidget.viewModel?.model;
 	}
 
 	setChatModel(chatModel: IChatModel) {
 		this._chatWidget.setModel(chatModel, { inputValue: undefined });
-	}
-
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	updateChatMessage(message: IInlineChatMessage, isIncomplete: true): IInlineChatMessageAppender;
-	updateChatMessage(message: IInlineChatMessage | undefined): void;
-	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined;
-	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean, isCodeBlockEditable?: boolean): IInlineChatMessageAppender | undefined {
-
-		if (!this._chatWidget.viewModel || this._chatWidget.viewModel.model !== this._defaultChatModel) {
-			// this can only be used with the default chat model
-			return;
-		}
-
-		const model = this._defaultChatModel;
-		if (!message?.message.value) {
-			for (const request of model.getRequests()) {
-				model.removeRequest(request.id);
-			}
-			return;
-		}
-
-		const chatRequest = model.addRequest({ parts: [], text: '' }, { variables: [] }, 0);
-		model.acceptResponseProgress(chatRequest, {
-			kind: 'markdownContent',
-			content: message.message
-		});
-
-		if (!isIncomplete) {
-			model.completeResponse(chatRequest);
-			return;
-		}
-		return {
-			cancel: () => model.cancelRequest(chatRequest),
-			complete: () => model.completeResponse(chatRequest),
-			appendContent: (fragment: string) => {
-				model.acceptResponseProgress(chatRequest, {
-					kind: 'markdownContent',
-					content: new MarkdownString(fragment)
-				});
-			}
-		};
 	}
 
 	updateInfo(message: string): void {
@@ -542,15 +489,12 @@ export class InlineChatWidget {
 	reset() {
 		this._chatWidget.setContext(true);
 		this._chatWidget.saveState();
-		this.updateChatMessage(undefined);
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.toolbar1.classList.add('hidden');
 		this._elements.toolbar2.classList.add('hidden');
 		this.updateInfo('');
-
-		this.chatWidget.setModel(this._defaultChatModel, {});
 
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 		this._onDidChangeHeight.fire();
@@ -572,6 +516,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
 
+
 	constructor(
 		location: IChatWidgetLocationOptions,
 		private readonly _parentEditor: ICodeEditor,
@@ -585,8 +530,15 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
+		@ILayoutService layoutService: ILayoutService
 	) {
-		super(location, { ...options, chatWidgetViewOptions: { ...options.chatWidgetViewOptions, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() } }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		super(location, {
+			...options,
+			chatWidgetViewOptions: {
+				...options.chatWidgetViewOptions,
+				editorOverflowWidgetsDomNode: layoutService.mainContainer.appendChild($('.inline-chat-overflow.monaco-editor'))
+			}
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
 
 	// --- layout

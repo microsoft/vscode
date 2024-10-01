@@ -302,7 +302,7 @@ suite('ObjectTree', function () {
 		tree.setModel(newModel);
 
 		assert.strictEqual(didChangeModel, true);
-		assert.strictEqual(didChangeRenderNodeCount, false);
+		assert.strictEqual(didChangeRenderNodeCount, true);
 		assert.strictEqual(didChangeCollapseState, false);
 	});
 

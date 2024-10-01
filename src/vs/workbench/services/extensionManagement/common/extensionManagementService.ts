@@ -63,6 +63,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 
 	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+
+	private readonly _onDidProfileAwareInstallExtensions = this._register(new Emitter<readonly InstallExtensionResult[]>());
+	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+
+	private readonly _onDidProfileAwareUninstallExtension = this._register(new Emitter<DidUninstallExtensionOnServerEvent>());
+	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+
+	readonly onProfileAwareDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+
 	readonly onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	readonly onDidEnableExtensions: Event<ILocalExtension[]>;
@@ -111,6 +120,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this._register(onDidInstallExtensionsEventMultiplexer.add(this._onDidInstallExtensions.event));
 		this.onDidInstallExtensions = onDidInstallExtensionsEventMultiplexer.event;
 
+		const onDidProfileAwareInstallExtensionsEventMultiplexer = this._register(new EventMultiplexer<readonly InstallExtensionResult[]>());
+		this._register(onDidProfileAwareInstallExtensionsEventMultiplexer.add(this._onDidProfileAwareInstallExtensions.event));
+		this.onProfileAwareDidInstallExtensions = onDidProfileAwareInstallExtensionsEventMultiplexer.event;
+
 		const onUninstallExtensionEventMultiplexer = this._register(new EventMultiplexer<UninstallExtensionOnServerEvent>());
 		this._register(onUninstallExtensionEventMultiplexer.add(this._onUninstallExtension.event));
 		this.onUninstallExtension = onUninstallExtensionEventMultiplexer.event;
@@ -119,8 +132,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this._register(onDidUninstallExtensionEventMultiplexer.add(this._onDidUninstallExtension.event));
 		this.onDidUninstallExtension = onDidUninstallExtensionEventMultiplexer.event;
 
+		const onDidProfileAwareUninstallExtensionEventMultiplexer = this._register(new EventMultiplexer<DidUninstallExtensionOnServerEvent>());
+		this._register(onDidProfileAwareUninstallExtensionEventMultiplexer.add(this._onDidProfileAwareUninstallExtension.event));
+		this.onProfileAwareDidUninstallExtension = onDidProfileAwareUninstallExtensionEventMultiplexer.event;
+
 		const onDidUpdateExtensionMetadaEventMultiplexer = this._register(new EventMultiplexer<DidUpdateExtensionMetadata>());
 		this.onDidUpdateExtensionMetadata = onDidUpdateExtensionMetadaEventMultiplexer.event;
+
+		const onDidProfileAwareUpdateExtensionMetadaEventMultiplexer = this._register(new EventMultiplexer<DidUpdateExtensionMetadata>());
+		this.onProfileAwareDidUpdateExtensionMetadata = onDidProfileAwareUpdateExtensionMetadaEventMultiplexer.event;
 
 		const onDidChangeProfileEventMultiplexer = this._register(new EventMultiplexer<DidChangeProfileForServerEvent>());
 		this.onDidChangeProfile = onDidChangeProfileEventMultiplexer.event;
@@ -128,9 +148,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		for (const server of this.servers) {
 			this._register(onInstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onInstallExtension, e => ({ ...e, server }))));
 			this._register(onDidInstallExtensionsEventMultiplexer.add(server.extensionManagementService.onDidInstallExtensions));
+			this._register(onDidProfileAwareInstallExtensionsEventMultiplexer.add(server.extensionManagementService.onProfileAwareDidInstallExtensions));
 			this._register(onUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))));
 			this._register(onDidUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))));
+			this._register(onDidProfileAwareUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onProfileAwareDidUninstallExtension, e => ({ ...e, server }))));
 			this._register(onDidUpdateExtensionMetadaEventMultiplexer.add(server.extensionManagementService.onDidUpdateExtensionMetadata));
+			this._register(onDidProfileAwareUpdateExtensionMetadaEventMultiplexer.add(server.extensionManagementService.onProfileAwareDidUpdateExtensionMetadata));
 			this._register(onDidChangeProfileEventMultiplexer.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))));
 		}
 	}

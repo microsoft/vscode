@@ -899,7 +899,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					],
 				});
 			}
-			run(accessor: ServicesAccessor): any {
+			run(accessor: ServicesAccessor): unknown {
 				return new Promise<void>((c, e) => {
 					const quickInputService = accessor.get(IQuickInputService);
 					const commandService = accessor.get(ICommandService);
@@ -1027,7 +1027,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			run(): any { return that.configureSyncOptions(); }
+			run(): unknown { return that.configureSyncOptions(); }
 		}));
 	}
 
@@ -1051,7 +1051,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}],
 				});
 			}
-			run(): any { return that.showSyncActivity(); }
+			run(): unknown { return that.showSyncActivity(); }
 		}));
 	}
 
@@ -1068,7 +1068,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					},
 				});
 			}
-			run(accessor: ServicesAccessor): any {
+			run(accessor: ServicesAccessor): void {
 				accessor.get(IPreferencesService).openUserSettings({ jsonEditor: false, query: '@tag:sync' });
 			}
 		}));
@@ -1088,7 +1088,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}],
 				});
 			}
-			run(): any { return that.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); }
+			run(): unknown { return that.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); }
 		}));
 		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 			command: {
@@ -1181,7 +1181,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}],
 				});
 			}
-			run(): any { return that.userDataSyncWorkbenchService.resetSyncedData(); }
+			run(): unknown { return that.userDataSyncWorkbenchService.resetSyncedData(); }
 		}));
 	}
 

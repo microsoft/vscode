@@ -43,7 +43,6 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
 	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
-	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
 	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
 	// If extensions are not yet registered, we wait for a little moment to give them
@@ -199,7 +198,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const additionalPicks = new Array<ICommandQuickPick | IQuickPickSeparator>();
 
 		for (const info of relatedInformation) {
-			if (info.weight < CommandsQuickAccessProvider.AI_RELATED_INFORMATION_THRESHOLD || additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+			if (additionalPicks.length === CommandsQuickAccessProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = allPicks.find(p => p.commandId === info.command && !setOfPicksSoFar.has(p.commandId));

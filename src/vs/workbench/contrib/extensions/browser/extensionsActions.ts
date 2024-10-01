@@ -71,11 +71,13 @@ import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IUpdateService } from '../../../../platform/update/common/update.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
+		private readonly options: InstallOptions | undefined,
 		private readonly version: string,
 		private readonly installOperation: InstallOperation,
 		private readonly error: Error,
@@ -137,19 +139,41 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		if (ExtensionManagementErrorCode.Signature === (<ExtensionManagementErrorCode>this.error.name)) {
+		if (ExtensionManagementErrorCode.PackageNotSigned === (<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.prompt({
 				type: 'error',
-				message: localize('signature verification failed', "{0} cannot verify the '{1}' extension. Are you sure you want to install it?", this.productService.nameLong, this.extension.displayName || this.extension.identifier.id),
+				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
+				detail: getErrorMessage(this.error),
 				buttons: [{
 					label: localize('install anyway', "Install Anyway"),
 					run: () => {
-						const installAction = this.instantiationService.createInstance(InstallAction, { donotVerifySignature: true });
+						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
 						installAction.extension = this.extension;
 						return installAction.run();
 					}
 				}],
-				cancelButton: localize('cancel', "Cancel")
+				cancelButton: true
+			});
+			return;
+		}
+
+		if (ExtensionManagementErrorCode.SignatureVerificationFailed === (<ExtensionManagementErrorCode>this.error.name) || ExtensionManagementErrorCode.SignatureVerificationInternal === (<ExtensionManagementErrorCode>this.error.name)) {
+			await this.dialogService.prompt({
+				type: 'error',
+				message: localize('verification failed', "Cannot install '{0}' extension because {1} cannot verify the extension signature", this.extension.displayName, this.productService.nameLong),
+				detail: getErrorMessage(this.error),
+				buttons: [{
+					label: localize('learn more', "Learn More"),
+					run: () => this.openerService.open('https://code.visualstudio.com/docs/editor/extension-marketplace#_the-extension-signature-cannot-be-verified-by-vs-code')
+				}, {
+					label: localize('install donot verify', "Install Anyway (Don't Verify Signature)"),
+					run: () => {
+						const installAction = this.instantiationService.createInstance(InstallAction, { ...this.options, donotVerifySignature: true, });
+						installAction.extension = this.extension;
+						return installAction.run();
+					}
+				}],
+				cancelButton: true
 			});
 			return;
 		}
@@ -434,6 +458,29 @@ export class InstallAction extends ExtensionAction {
 			return;
 		}
 
+		if (this.extension.gallery && !this.extension.gallery.isSigned) {
+			const { result } = await this.dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('not signed', "'{0}' is an extension from an unknown source. Are you sure you want to install?", this.extension.displayName),
+				detail: localize('not signed detail', "Extension is not signed."),
+				buttons: [
+					{
+						label: localize('install anyway', "Install Anyway"),
+						run: () => {
+							this.options.donotVerifySignature = true;
+							return true;
+						}
+					}
+				],
+				cancelButton: {
+					run: () => false
+				}
+			});
+			if (!result) {
+				return;
+			}
+		}
+
 		if (this.extension.deprecationInfo) {
 			let detail: string | MarkdownString = localize('deprecated message', "This extension is deprecated as it is no longer being maintained.");
 			enum DeprecationChoice {
@@ -552,7 +599,7 @@ export class InstallAction extends ExtensionAction {
 		try {
 			return await this.extensionsWorkbenchService.install(extension, this.options);
 		} catch (error) {
-			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, error).run();
+			await this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, this.options, extension.latestVersion, InstallOperation.Install, error).run();
 			return undefined;
 		}
 	}
@@ -945,11 +992,12 @@ export class UpdateAction extends ExtensionAction {
 	}
 
 	private async install(extension: IExtension): Promise<void> {
+		const options = extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined;
 		try {
-			await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
+			await this.extensionsWorkbenchService.install(extension, options);
 			alert(localize('updateExtensionComplete', "Updating extension {0} to version {1} completed.", extension.displayName, extension.latestVersion));
 		} catch (err) {
-			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err).run();
+			this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, options, extension.latestVersion, InstallOperation.Update, err).run();
 		}
 	}
 }
@@ -1151,6 +1199,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 		const extensionRecommendationsService = accessor.get(IExtensionRecommendationsService);
 		const extensionIgnoredRecommendationsService = accessor.get(IExtensionIgnoredRecommendationsService);
 		const workbenchThemeService = accessor.get(IWorkbenchThemeService);
+		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const cksOverlay: [string, any][] = [];
 
 		if (extension) {
@@ -1192,11 +1241,13 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
 			cksOverlay.push(['extensionDisallowInstall', !!extension.deprecationInfo?.disallowInstall]);
+			cksOverlay.push(['extensionIsUnsigned', extension.gallery && !extension.gallery.isSigned]);
 
-			const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes()]);
+			const [colorThemes, fileIconThemes, productIconThemes, extensionUsesAuth] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes(), authenticationUsageService.extensionUsesAuth(extension.identifier.id.toLowerCase())]);
 			cksOverlay.push(['extensionHasColorThemes', colorThemes.some(theme => isThemeFromExtension(theme, extension))]);
 			cksOverlay.push(['extensionHasFileIconThemes', fileIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
 			cksOverlay.push(['extensionHasProductIconThemes', productIconThemes.some(theme => isThemeFromExtension(theme, extension))]);
+			cksOverlay.push(['extensionHasAccountPreferences', extensionUsesAuth]);
 
 			cksOverlay.push(['canSetLanguage', extensionsWorkbenchService.canSetLanguage(extension)]);
 			cksOverlay.push(['isActiveLanguagePackExtension', extension.gallery && language === getLocale(extension.gallery)]);
@@ -1501,10 +1552,11 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			if (this.extension.local?.manifest.version === pick.id) {
 				return;
 			}
+			const options = { installPreReleaseVersion: pick.isPreReleaseVersion, version: pick.id };
 			try {
-				await this.extensionsWorkbenchService.install(this.extension, { installPreReleaseVersion: pick.isPreReleaseVersion, version: pick.id });
+				await this.extensionsWorkbenchService.install(this.extension, options);
 			} catch (error) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, pick.id, InstallOperation.Install, error).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, this.extension, options, pick.id, InstallOperation.Install, error).run();
 			}
 		}
 		return null;
@@ -2053,7 +2105,7 @@ export class InstallRecommendedExtensionAction extends Action {
 			try {
 				await this.extensionWorkbenchService.install(extension);
 			} catch (err) {
-				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Install, err).run();
+				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, undefined, extension.latestVersion, InstallOperation.Install, err).run();
 			}
 		}
 	}
@@ -2332,7 +2384,13 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 
 		if (currentStatus !== null) {
 			if (currentStatus === ExtensionState.Installing && this.status === ExtensionState.Installed) {
-				return canAddExtension() ? this.initialStatus === ExtensionState.Installed && this.version !== currentVersion ? localize('updated', "Updated") : localize('installed', "Installed") : null;
+				if (this.initialStatus === ExtensionState.Uninstalled && canAddExtension()) {
+					return localize('installed', "Installed");
+				}
+				if (this.initialStatus === ExtensionState.Installed && this.version !== currentVersion && canAddExtension()) {
+					return localize('updated', "Updated");
+				}
+				return null;
 			}
 			if (currentStatus === ExtensionState.Uninstalling && this.status === ExtensionState.Uninstalled) {
 				this.initialStatus = this.status;
@@ -2452,6 +2510,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		if (this.extension.isMalicious) {
 			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('malicious tooltip', "This extension was reported to be problematic.")) }, true);
+			return;
+		}
+
+		if (this.extension.state === ExtensionState.Uninstalled && this.extension.gallery && !this.extension.gallery.isSigned) {
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('not signed tooltip', "This extension is not signed by the Extension Marketplace.")) }, true);
 			return;
 		}
 
@@ -2653,13 +2716,17 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		// Extension is disabled by its dependency
 		if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency) {
-			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('extension disabled because of dependency', "This extension has been disabled because it depends on an extension that is disabled.")) }, true);
+			this.updateStatus({
+				icon: warningIcon,
+				message: new MarkdownString(localize('extension disabled because of dependency', "This extension depends on an extension that is disabled."))
+					.appendMarkdown(`&nbsp;[${localize('dependencies', "Show Dependencies")}](${URI.parse(`command:extension.open?${encodeURIComponent(JSON.stringify([this.extension.identifier.id, ExtensionEditorTab.Dependencies]))}`)})`)
+			}, true);
 			return;
 		}
 
 		if (!this.extension.local.isValid) {
 			const errors = this.extension.local.validations.filter(([severity]) => severity === Severity.Error).map(([, message]) => message);
-			this.updateStatus({ icon: errorIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(errors.join(' ').trim()) }, true);
 			return;
 		}
 

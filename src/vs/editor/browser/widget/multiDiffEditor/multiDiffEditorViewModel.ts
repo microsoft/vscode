@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction, derived, observableValue, transaction } from '../../../../base/common/observable.js';
-import { constObservable, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent } from '../../../../base/common/observableInternal/utils.js';
+import { IObservable, ITransaction, constObservable, derived, derivedObservableWithWritableCache, mapObservableArrayCached, observableFromValueWithChangeEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
-import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
-import { RefCounted } from '../diffEditor/utils.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { Selection } from '../../../common/core/selection.js';
 import { IDiffEditorViewModel } from '../../../common/editorCommon.js';
 import { IModelService } from '../../../common/services/model.js';
-import { ContextKeyValue } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { DiffEditorOptions } from '../diffEditor/diffEditorOptions.js';
+import { DiffEditorViewModel } from '../diffEditor/diffEditorViewModel.js';
+import { RefCounted } from '../diffEditor/utils.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
 
 export class MultiDiffEditorViewModel extends Disposable {
 	private readonly _documents: IObservable<readonly RefCounted<IDocumentDiffItem>[] | 'loading'> = observableFromValueWithChangeEvent(this.model, this.model.documents);
