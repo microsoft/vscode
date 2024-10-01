@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps } from 'vs/workbench/services/search/common/search';
+import { UriComponents } from '../../../../base/common/uri.js';
+import { IWorkerClient, IWorkerServer } from '../../../../base/common/worker/simpleWorker.js';
+import { IFileMatch, IFileQueryProps, IFolderQuery, ITextQueryProps } from './search.js';
 
 export interface IWorkerTextSearchComplete {
 	results: IFileMatch<UriComponents>[];
@@ -41,12 +42,20 @@ export interface IWorkerFileSystemFileHandle extends IWorkerFileSystemHandle {
 export interface ILocalFileSearchSimpleWorker {
 	_requestHandlerBrand: any;
 
-	cancelQuery(queryId: number): void;
+	$cancelQuery(queryId: number): void;
 
-	listDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
-	searchDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
+	$listDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
+	$searchDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
 }
 
-export interface ILocalFileSearchSimpleWorkerHost {
-	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void;
+export abstract class LocalFileSearchSimpleWorkerHost {
+	public static CHANNEL_NAME = 'localFileSearchWorkerHost';
+	public static getChannel(workerServer: IWorkerServer): LocalFileSearchSimpleWorkerHost {
+		return workerServer.getChannel<LocalFileSearchSimpleWorkerHost>(LocalFileSearchSimpleWorkerHost.CHANNEL_NAME);
+	}
+	public static setChannel(workerClient: IWorkerClient<any>, obj: LocalFileSearchSimpleWorkerHost): void {
+		workerClient.setChannel<LocalFileSearchSimpleWorkerHost>(LocalFileSearchSimpleWorkerHost.CHANNEL_NAME, obj);
+	}
+
+	abstract $sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void;
 }

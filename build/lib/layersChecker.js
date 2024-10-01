@@ -68,7 +68,14 @@ const CORE_TYPES = [
     'fetch',
     'RequestInit',
     'Headers',
-    'Response'
+    'Response',
+    '__global',
+    'PerformanceMark',
+    'PerformanceObserver',
+    'ImportMeta',
+    // webcrypto has been available since Node.js 19, but still live in dom.d.ts
+    'Crypto',
+    'SubtleCrypto'
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -109,6 +116,22 @@ const RULES = [
             // Safe access to requestIdleCallback & cancelIdleCallback
             'requestIdleCallback',
             'cancelIdleCallback'
+        ],
+        disallowedTypes: NATIVE_TYPES,
+        disallowedDefinitions: [
+            'lib.dom.d.ts', // no DOM
+            '@types/node' // no node.js
+        ]
+    },
+    // Common: vs/base/common/performance.ts
+    {
+        target: '**/vs/base/common/performance.ts',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // Safe access to Performance
+            'Performance',
+            'PerformanceEntry',
+            'PerformanceTiming'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
@@ -170,59 +193,17 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/workbench/api/common/extHostTypes.ts
+    // Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
     {
-        target: '**/vs/workbench/api/common/extHostTypes.ts',
+        target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
         allowedTypes: [
             ...CORE_TYPES,
-            // Safe access to global
-            '__global'
+            // Safe access to a very small subset of node.js
+            'process',
+            'NodeJS'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
-            'lib.dom.d.ts', // no DOM
-            '@types/node' // no node.js
-        ]
-    },
-    // Common: vs/workbench/api/common/extHostChatAgents2.ts
-    {
-        target: '**/vs/workbench/api/common/extHostChatAgents2.ts',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // Safe access to global
-            '__global'
-        ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts', // no DOM
-            '@types/node' // no node.js
-        ]
-    },
-    // Common: vs/workbench/api/common/extHostChatVariables.ts
-    {
-        target: '**/vs/workbench/api/common/extHostChatVariables.ts',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // Safe access to global
-            '__global'
-        ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts', // no DOM
-            '@types/node' // no node.js
-        ]
-    },
-    // Common: vs/workbench/api/common/extensionHostMain.ts
-    {
-        target: '**/vs/workbench/api/common/extensionHostMain.ts',
-        allowedTypes: [
-            ...CORE_TYPES,
-            // Safe access to global
-            '__global'
-        ],
-        disallowedTypes: NATIVE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts', // no DOM
             '@types/node' // no node.js
         ]
     },
@@ -271,6 +252,22 @@ const RULES = [
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
             '@types/node' // no node.js
+        ]
+    },
+    // Electron (utility)
+    {
+        target: '**/vs/**/electron-utility/**',
+        allowedTypes: [
+            ...CORE_TYPES,
+            // --> types from electron.d.ts that duplicate from lib.dom.d.ts
+            'Event',
+            'Request'
+        ],
+        disallowedTypes: [
+            'ipcMain' // not allowed, use validatedIpcMain instead
+        ],
+        disallowedDefinitions: [
+            'lib.dom.d.ts' // no DOM
         ]
     },
     // Electron (main)

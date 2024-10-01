@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import { basename } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { IProcessEnvironment, isWindows, OS } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
-import { getSystemShell } from 'vs/base/node/shell';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { ILogService } from 'vs/platform/log/common/log';
-import { Promises } from 'vs/base/common/async';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { clamp } from 'vs/base/common/numbers';
+import { basename } from '../../../base/common/path.js';
+import { localize } from '../../../nls.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { IProcessEnvironment, isWindows, OS } from '../../../base/common/platform.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { getSystemShell } from '../../../base/node/shell.js';
+import { NativeParsedArgs } from '../../environment/common/argv.js';
+import { isLaunchedFromCli } from '../../environment/node/argvHelper.js';
+import { ILogService } from '../../log/common/log.js';
+import { Promises } from '../../../base/common/async.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { clamp } from '../../../base/common/numbers.js';
 
 let unixShellEnvPromise: Promise<typeof process.env> | undefined = undefined;
 

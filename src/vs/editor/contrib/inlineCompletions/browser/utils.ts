@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorunOpts } from 'vs/base/common/observable';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { Permutation, compareBy } from '../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue, ISettableObservable, autorun, transaction } from '../../../../base/common/observable.js';
+import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
 
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
@@ -36,25 +37,51 @@ export class ColumnRange {
 	}
 }
 
-export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
-	const d = new DisposableStore();
-	const decorationsCollection = editor.createDecorationsCollection();
-	d.add(autorunOpts({ debugName: () => `Apply decorations from ${decorations.debugName}` }, reader => {
-		const d = decorations.read(reader);
-		decorationsCollection.set(d);
-	}));
-	d.add({
-		dispose: () => {
-			decorationsCollection.clear();
-		}
-	});
-	return d;
-}
-
 export function addPositions(pos1: Position, pos2: Position): Position {
 	return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
 }
 
 export function subtractPositions(pos1: Position, pos2: Position): Position {
 	return new Position(pos1.lineNumber - pos2.lineNumber + 1, pos1.lineNumber - pos2.lineNumber === 0 ? pos1.column - pos2.column + 1 : pos1.column);
+}
+
+export function substringPos(text: string, pos: Position): string {
+	let subtext = '';
+	const lines = splitLinesIncludeSeparators(text);
+	for (let i = pos.lineNumber - 1; i < lines.length; i++) {
+		subtext += lines[i].substring(i === pos.lineNumber - 1 ? pos.column - 1 : 0);
+	}
+	return subtext;
+}
+
+export function getEndPositionsAfterApplying(edits: readonly SingleTextEdit[]): Position[] {
+	const sortPerm = Permutation.createSortPermutation(edits, compareBy(e => e.range, Range.compareRangesUsingStarts));
+	const edit = new TextEdit(sortPerm.apply(edits));
+	const sortedNewRanges = edit.getNewRanges();
+	const newRanges = sortPerm.inverse().apply(sortedNewRanges);
+	return newRanges.map(range => range.getEndPosition());
+}
+
+export function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {
+	const result = observableValue<IObservable<T>[]>('result', []);
+	const innerObservables: ISettableObservable<T>[] = [];
+
+	store.add(autorun(reader => {
+		const itemsValue = items.read(reader);
+
+		transaction(tx => {
+			if (itemsValue.length !== innerObservables.length) {
+				innerObservables.length = itemsValue.length;
+				for (let i = 0; i < innerObservables.length; i++) {
+					if (!innerObservables[i]) {
+						innerObservables[i] = observableValue<T>('item', itemsValue[i]);
+					}
+				}
+				result.set([...innerObservables], tx);
+			}
+			innerObservables.forEach((o, i) => o.set(itemsValue[i], tx));
+		});
+	}));
+
+	return result;
 }

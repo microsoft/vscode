@@ -3,68 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Schemas } from 'vs/base/common/network';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { isObject, isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EndOfLinePreference } from 'vs/editor/common/model';
-import { localize, localize2 } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { isAbsolute } from 'vs/base/common/path';
-import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { clearShellFileHistory, getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { dirname } from 'vs/base/common/resources';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Iterable } from 'vs/base/common/iterator';
-import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
-import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { AccessibleViewProviderId } from 'vs/platform/accessibility/browser/accessibleView';
+import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
+import { Action } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { isObject, isString } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EndOfLinePreference } from '../../../../editor/common/model.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
+import { Action2, registerAction2, IAction2Options, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from '../../../browser/actions/workspaceCommands.js';
+import { CLOSE_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from './terminal.js';
+import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { createProfileSchemaEnums } from '../../../../platform/terminal/common/terminalProfiles.js';
+import { terminalStrings } from '../common/terminalStrings.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { isAbsolute } from '../../../../base/common/path.js';
+import { AbstractVariableResolverService } from '../../../services/configurationResolver/common/variableResolver.js';
+import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { getIconId, getColorClass, getUriClasses } from './terminalIcon.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { dirname } from '../../../../base/common/resources.js';
+import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { isKeyboardEvent, isMouseEvent, isPointerEvent } from '../../../../base/browser/dom.js';
+import { editorGroupToColumn } from '../../../services/editor/common/editorGroupColumn.js';
+import { InstanceContext } from './terminalContextMenu.js';
+import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -435,33 +433,6 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
-		id: TerminalCommandId.RunRecentCommand,
-		title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
-		precondition: sharedWhenClause.terminalAvailable,
-		keybinding: [
-			{
-				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)))),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			{
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
-				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		],
-		run: async (activeInstance, c) => {
-			await activeInstance.runRecent('command');
-			if (activeInstance?.target === TerminalLocation.Editor) {
-				await c.editorService.revealActiveEditor();
-			} else {
-				await c.groupService.showPanel(false);
-			}
-		}
-	});
-
-	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommand,
 		title: localize2('workbench.action.terminal.copyLastCommand', "Copy Last Command"),
 		precondition: sharedWhenClause.terminalAvailable,
@@ -517,29 +488,6 @@ export function registerTerminalActions() {
 			const output = command.getOutput();
 			if (isString(output)) {
 				await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
-			}
-		}
-	});
-
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.GoToRecentDirectory,
-		title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
-		metadata: {
-			description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
-		},
-		precondition: sharedWhenClause.terminalAvailable,
-		keybinding: {
-			primary: KeyMod.CtrlCmd | KeyCode.KeyG,
-			when: TerminalContextKeys.focus,
-			weight: KeybindingWeight.WorkbenchContrib
-		},
-		run: async (activeInstance, c) => {
-			await activeInstance.runRecent('cwd');
-			if (activeInstance?.target === TerminalLocation.Editor) {
-				await c.editorService.revealActiveEditor();
-			} else {
-				await c.groupService.showPanel(false);
 			}
 		}
 	});
@@ -967,13 +915,6 @@ export function registerTerminalActions() {
 				await focusActiveTerminal(instance, c);
 			}
 		}
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.QuickOpenTerm,
-		title: localize2('quickAccessTerminal', 'Switch Active Terminal'),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: (c, accessor) => accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX)
 	});
 
 	registerActiveInstanceAction({
@@ -1510,17 +1451,6 @@ export function registerTerminalActions() {
 		},
 		run: (instance) => instance.toggleSizeToContentWidth()
 	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.ClearPreviousSessionHistory,
-		title: localize2('workbench.action.terminal.clearPreviousSessionHistory', 'Clear Previous Session History'),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: async (c, accessor) => {
-			getCommandHistory(accessor).clear();
-			clearShellFileHistory();
-		}
-	});
-
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerActiveXtermAction({
@@ -1851,7 +1781,7 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 		return;
 	}
 
-	const folderCwdPairs = await Promise.all(folders.map(x => resolveWorkspaceFolderCwd(x, configurationService, configurationResolverService)));
+	const folderCwdPairs = await Promise.all(folders.map(e => resolveWorkspaceFolderCwd(e, configurationService, configurationResolverService)));
 	const shrinkedPairs = shrinkWorkspaceFolderCwdPairs(folderCwdPairs);
 
 	if (shrinkedPairs.length === 1) {
@@ -1891,7 +1821,7 @@ async function resolveWorkspaceFolderCwd(folder: IWorkspaceFolder, configuration
 
 	const resolvedCwdConfig = await configurationResolverService.resolveAsync(folder, cwdConfig);
 	return isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)
-		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ scheme: folder.uri.scheme, path: resolvedCwdConfig }) }
+		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ ...folder.uri, path: resolvedCwdConfig }) }
 		: { folder, isAbsolute: false, isOverridden: true, cwd: URI.joinPath(folder.uri, resolvedCwdConfig) };
 }
 

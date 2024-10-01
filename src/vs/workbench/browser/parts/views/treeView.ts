@@ -3,78 +3,79 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import * as DOM from 'vs/base/browser/dom';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
-import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
-import { ActionRunner, IAction, Separator } from 'vs/base/common/actions';
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { isCancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString, isMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { basename, dirname } from 'vs/base/common/resources';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/views';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { localize } from 'vs/nls';
-import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { FileThemeIcon, FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
-import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { getLocationBasedViewColors, IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { CodeDataTransfers, LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
-import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
-import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
-import { setTimeout0 } from 'vs/base/common/platform';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
-import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
+import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from '../../../../base/browser/ui/tree/tree.js';
+import { CollapseAllAction } from '../../../../base/browser/ui/tree/treeDefaults.js';
+import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
+import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
+import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { isString } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import './media/views.css';
+import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { localize } from '../../../../nls.js';
+import { createActionViewItem, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyChangeEvent, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { FileThemeIcon, FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { fillEditorsDragData } from '../../dnd.js';
+import { IResourceLabel, ResourceLabels } from '../../labels.js';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../editor/editorCommands.js';
+import { getLocationBasedViewColors, IViewPaneOptions, ViewPane } from './viewPane.js';
+import { IViewletViewOptions } from './viewsViewlet.js';
+import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { CodeDataTransfers, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { toExternalVSDataTransfer } from '../../../../editor/browser/dnd.js';
+import { CheckboxStateHandler, TreeItemCheckbox } from './checkbox.js';
+import { setTimeout0 } from '../../../../base/common/platform.js';
+import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITreeViewsDnDService } from '../../../../editor/common/services/treeViewsDndService.js';
+import { DraggedTreeItemsIdentifier } from '../../../../editor/common/services/treeViewsDnd.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import type { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
+import { Command } from '../../../../editor/common/languages.js';
 
 export class TreeViewPane extends ViewPane {
 
@@ -175,15 +176,22 @@ class Root implements ITreeItem {
 	children: ITreeItem[] | undefined = undefined;
 }
 
-function isTreeCommandEnabled(treeCommand: TreeCommand, contextKeyService: IContextKeyService): boolean {
-	const command = CommandsRegistry.getCommand(treeCommand.originalId ? treeCommand.originalId : treeCommand.id);
+function commandPreconditions(commandId: string): ContextKeyExpression | undefined {
+	const command = CommandsRegistry.getCommand(commandId);
 	if (command) {
 		const commandAction = MenuRegistry.getCommand(command.id);
-		const precondition = commandAction && commandAction.precondition;
-		if (precondition) {
-			return contextKeyService.contextMatchesRules(precondition);
-		}
+		return commandAction && commandAction.precondition;
 	}
+	return undefined;
+}
+
+function isTreeCommandEnabled(treeCommand: TreeCommand | Command, contextKeyService: IContextKeyService): boolean {
+	const commandId: string = (treeCommand as TreeCommand).originalId ? (treeCommand as TreeCommand).originalId! : treeCommand.id;
+	const precondition = commandPreconditions(commandId);
+	if (precondition) {
+		return contextKeyService.contextMatchesRules(precondition);
+	}
+
 	return true;
 }
 
@@ -709,6 +717,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+
+		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
+
 		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
@@ -863,6 +874,20 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				button.onDidClick(_ => {
 					this.openerService.open(node.href, { allowCommands: true });
 				}, null, disposables);
+
+				const href = URI.parse(node.href);
+				if (href.scheme === Schemas.command) {
+					const preConditions = commandPreconditions(href.path);
+					if (preConditions) {
+						button.enabled = this.contextKeyService.contextMatchesRules(preConditions);
+						disposables.add(this.contextKeyService.onDidChangeContext(e => {
+							if (e.affectsSome(new Set(preConditions.keys()))) {
+								button.enabled = this.contextKeyService.contextMatchesRules(preConditions);
+							}
+						}));
+					}
+				}
+
 				disposables.add(button);
 				hasFoundButton = true;
 				result.push(buttonContainer);
@@ -877,7 +902,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const container = document.createElement('div');
 		container.classList.add('rendered-message');
 		for (const child of result) {
-			if (child instanceof HTMLElement) {
+			if (DOM.isHTMLElement(child)) {
 				container.appendChild(child);
 			} else {
 				container.appendChild(child.element);
@@ -1135,7 +1160,6 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 }
 
 interface ITreeExplorerTemplateData {
-	readonly elementDisposable: DisposableStore;
 	readonly container: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
 	readonly icon: HTMLElement;
@@ -1150,6 +1174,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]> = this._onDidChangeCheckboxState.event;
+
+	private _onDidChangeMenuContext: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
+	readonly onDidChangeMenuContext: Event<readonly ITreeItem[]> = this._onDidChangeMenuContext.event;
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
@@ -1178,6 +1205,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
 			this.updateCheckboxes(items);
 		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => this.onDidChangeContext(e)));
 	}
 
 	get templateId(): string {
@@ -1199,10 +1227,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			actionViewItemProvider: this.actionViewItemProvider
 		});
 
-		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
+		return { resourceLabel, icon, checkboxContainer, actionBar, container };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IUpdatableHoverTooltipMarkdownString | undefined {
+	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;
@@ -1317,8 +1345,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		templateData.actionBar.context = { $treeViewId: this.treeViewId, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg;
 
-		const menuActions = this.menus.getResourceActions([node], templateData.elementDisposable);
-		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
+		const menuActions = this.menus.getResourceActions([node]);
+		templateData.actionBar.push(menuActions, { icon: true, label: false });
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;
@@ -1406,6 +1434,20 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
 	}
 
+	private onDidChangeContext(e: IContextKeyChangeEvent) {
+		const items: ITreeItem[] = [];
+		for (const [_, elements] of this._renderedElements) {
+			for (const element of elements) {
+				if (e.affectsSome(this.menus.getElementOverlayContexts(element.original.element)) || e.affectsSome(this.menus.getEntireMenuContexts())) {
+					items.push(element.original.element);
+				}
+			}
+		}
+		if (items.length) {
+			this._onDidChangeMenuContext.fire(items);
+		}
+	}
+
 	private updateCheckboxes(items: ITreeItem[]) {
 		const additionalItems: ITreeItem[] = [];
 
@@ -1473,8 +1515,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
-		templateData.elementDisposable.clear();
-
 		const itemRenders = this._renderedElements.get(resource.element.handle) ?? [];
 		const renderedIndex = itemRenders.findIndex(renderedItem => templateData === renderedItem.rendered);
 
@@ -1491,7 +1531,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
-		templateData.elementDisposable.dispose();
 	}
 }
 
@@ -1584,13 +1623,19 @@ class TreeMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(elements: ITreeItem[], disposableStore: DisposableStore): { actions: IAction[] } {
-		const actions = this.getActions(MenuId.ViewItemContext, elements, disposableStore);
-		return { actions: actions.primary };
+	/**
+	 * Gets only the actions that apply to all of the given elements.
+	 */
+	getResourceActions(elements: ITreeItem[]): IAction[] {
+		const actions = this.getActions(this.getMenuId(), elements);
+		return actions.primary;
 	}
 
+	/**
+	 * Gets only the actions that apply to all of the given elements.
+	 */
 	getResourceContextActions(elements: ITreeItem[]): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, elements).secondary;
+		return this.getActions(this.getMenuId(), elements).secondary;
 	}
 
 	public setContextKeyService(service: IContextKeyService) {
@@ -1637,7 +1682,22 @@ class TreeMenus implements IDisposable {
 		return groups;
 	}
 
-	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
+	public getElementOverlayContexts(element: ITreeItem): Map<string, any> {
+		return new Map([
+			['view', this.id],
+			['viewItem', element.contextValue]
+		]);
+	}
+
+	public getEntireMenuContexts(): ReadonlySet<string> {
+		return this.menuService.getMenuContexts(this.getMenuId());
+	}
+
+	public getMenuId(): MenuId {
+		return MenuId.ViewItemContext;
+	}
+
+	private getActions(menuId: MenuId, elements: ITreeItem[]): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -1646,28 +1706,20 @@ class TreeMenus implements IDisposable {
 		let secondaryGroups: Map<string, IAction>[] = [];
 		for (let i = 0; i < elements.length; i++) {
 			const element = elements[i];
-			const contextKeyService = this.contextKeyService.createOverlay([
-				['view', this.id],
-				['viewItem', element.contextValue]
-			]);
+			const contextKeyService = this.contextKeyService.createOverlay(this.getElementOverlayContexts(element));
 
-			const menu = this.menuService.createMenu(menuId, contextKeyService);
+			const menuData = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
+
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
-			const result = { primary, secondary, menu };
-			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+			const result = { primary, secondary };
+			createAndFillInContextMenuActions(menuData, result, 'inline');
 			if (i === 0) {
 				primaryGroups = this.createGroups(result.primary);
 				secondaryGroups = this.createGroups(result.secondary);
 			} else {
 				this.filterNonUniversalActions(primaryGroups, result.primary);
 				this.filterNonUniversalActions(secondaryGroups, result.secondary);
-			}
-			if (listen && elements.length === 1) {
-				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
-				listen.add(menu);
-			} else {
-				menu.dispose();
 			}
 		}
 

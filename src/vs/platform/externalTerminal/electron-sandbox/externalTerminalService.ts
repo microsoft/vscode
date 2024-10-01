@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExternalTerminalService as ICommonExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IExternalTerminalService as ICommonExternalTerminalService } from '../common/externalTerminal.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { registerMainProcessRemoteService } from '../../ipc/electron-sandbox/services.js';
 
 export const IExternalTerminalService = createDecorator<IExternalTerminalService>('externalTerminal');
 

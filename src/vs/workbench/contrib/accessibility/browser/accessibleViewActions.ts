@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Command, MultiCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewProviderId, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Command, MultiCommand, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { localize } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
+import { accessibilityHelpIsShown, accessibleViewContainsCodeBlocks, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewHasAssignedKeybindings, accessibleViewHasUnassignedKeybindings, accessibleViewIsShown, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from './accessibilityConfiguration.js';
+import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 
 const accessibleViewMenu = {
 	id: MenuId.AccessibleView,
@@ -232,19 +232,55 @@ class AccessibilityHelpConfigureKeybindingsAction extends Action2 {
 	constructor() {
 		super({
 			id: AccessibilityCommandId.AccessibilityHelpConfigureKeybindings,
-			precondition: ContextKeyExpr.and(accessibilityHelpIsShown),
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasUnassignedKeybindings),
+			icon: Codicon.key,
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.KeyK,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			title: localize('editor.action.accessibilityHelpConfigureKeybindings', "Accessibility Help Configure Keybindings")
+			menu: [
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 3,
+					when: accessibleViewHasUnassignedKeybindings,
+				}
+			],
+			title: localize('editor.action.accessibilityHelpConfigureUnassignedKeybindings', "Accessibility Help Configure Unassigned Keybindings")
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IAccessibleViewService).configureKeybindings();
+		await accessor.get(IAccessibleViewService).configureKeybindings(true);
 	}
 }
 registerAction2(AccessibilityHelpConfigureKeybindingsAction);
+
+class AccessibilityHelpConfigureAssignedKeybindingsAction extends Action2 {
+	constructor() {
+		super({
+			id: AccessibilityCommandId.AccessibilityHelpConfigureAssignedKeybindings,
+			precondition: ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewHasAssignedKeybindings),
+			icon: Codicon.key,
+			keybinding: {
+				primary: KeyMod.Alt | KeyCode.KeyA,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			menu: [
+				{
+					id: MenuId.AccessibleView,
+					group: 'navigation',
+					order: 4,
+					when: accessibleViewHasAssignedKeybindings,
+				}
+			],
+			title: localize('editor.action.accessibilityHelpConfigureAssignedKeybindings', "Accessibility Help Configure Assigned Keybindings")
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IAccessibleViewService).configureKeybindings(false);
+	}
+}
+registerAction2(AccessibilityHelpConfigureAssignedKeybindingsAction);
 
 
 class AccessibilityHelpOpenHelpLinkAction extends Action2 {

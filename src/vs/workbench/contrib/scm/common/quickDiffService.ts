@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IQuickDiffService, QuickDiff, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { isEqualOrParent } from 'vs/base/common/resources';
-import { score } from 'vs/editor/common/languageSelector';
-import { Emitter } from 'vs/base/common/event';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IQuickDiffService, QuickDiff, QuickDiffProvider } from './quickDiff.js';
+import { isEqualOrParent } from '../../../../base/common/resources.js';
+import { score } from '../../../../editor/common/languageSelector.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffProvider) => number {
 	return (a, b) => {
