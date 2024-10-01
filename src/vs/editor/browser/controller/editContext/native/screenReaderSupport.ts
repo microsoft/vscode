@@ -121,6 +121,10 @@ export class ScreenReaderSupport {
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 	}
 
+	public startPositionWithinEditor(): Position | undefined {
+		return this._screenReaderContentState?.startPositionWithinEditor;
+	}
+
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
 		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 			return;

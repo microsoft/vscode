@@ -417,7 +417,6 @@ export class NativeEditContext extends AbstractEditContext {
 		// `selectionchange` events often come multiple times for a single logical change
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 
-		let previousSelectionChangeEventTime = 0;
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', (e) => {
 			console.log('selectionchange');
 			console.log('e : ', e);
@@ -443,32 +442,24 @@ export class NativeEditContext extends AbstractEditContext {
 			if (rangeCount === 0) {
 				return;
 			}
-			for (let i = 0; i < rangeCount; i++) {
-				const range = activeDocumentSelection.getRangeAt(i);
-				console.log('range : ', range);
-				console.log('range.startContainer : ', range.startContainer);
-				console.log('range.startOffset : ', range.startOffset);
-				console.log('range.endContainer : ', range.endContainer);
-				console.log('range.endOffset : ', range.endOffset);
-			}
-
-			const now = Date.now();
-
-			const delta1 = now - previousSelectionChangeEventTime;
-			previousSelectionChangeEventTime = now;
-			if (delta1 < 5) {
-				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
-				// => ignore it
-				return;
-			}
 
 			const range = activeDocumentSelection.getRangeAt(0);
-			const offsetOfBeginningOfEditContext = this._context.viewModel.model.getOffsetAt(this._textStartPositionWithinEditor);
+			const startPositionWithinEditor = this._screenReaderSupport.startPositionWithinEditor();
+			if (!startPositionWithinEditor) {
+				return;
+			}
+			const offsetOfBeginningOfEditContext = this._context.viewModel.model.getOffsetAt(startPositionWithinEditor);
+			console.log(' offsetOfBeginningOfEditContext: ', offsetOfBeginningOfEditContext);
 			const offsetOfSelectionStart = range.startOffset + offsetOfBeginningOfEditContext;
 			const offsetOfSelectionEnd = range.endOffset + offsetOfBeginningOfEditContext;
+			console.log('offsetOfSelectionStart : ', offsetOfSelectionStart);
+			console.log('offsetOfSelectionEnd : ', offsetOfSelectionEnd);
 			const positionOfSelectionStart = this._context.viewModel.model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = this._context.viewModel.model.getPositionAt(offsetOfSelectionEnd);
+			console.log('positionOfSelectionStart : ', positionOfSelectionStart);
+			console.log('positionOfSelectionEnd : ', positionOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+			console.log('newSelection : ', newSelection);
 			viewController.setSelection(newSelection);
 		});
 	}
