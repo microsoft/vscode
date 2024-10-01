@@ -72,7 +72,10 @@ const CORE_TYPES = [
     '__global',
     'PerformanceMark',
     'PerformanceObserver',
-    'ImportMeta'
+    'ImportMeta',
+    // webcrypto has been available since Node.js 19, but still live in dom.d.ts
+    'Crypto',
+    'SubtleCrypto'
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
