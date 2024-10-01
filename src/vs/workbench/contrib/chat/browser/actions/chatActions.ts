@@ -38,6 +38,8 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
+import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { accessibleViewIsShown, accessibleViewCurrentProviderId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 export interface IChatViewTitleActionContext {
 	chatView: ChatViewPane;
@@ -399,10 +401,10 @@ export function registerChatActions() {
 					{
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT.negate()), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.or(ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.PanelChat)), ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineChat))),
 					},
 					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT),
+						when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.QuickChat))),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}
