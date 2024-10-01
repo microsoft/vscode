@@ -87,6 +87,13 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 	}
 
+	async addFileToWorkingSet(resource: URI): Promise<void> {
+		const session = this._currentSessionObs.get();
+		if (session) {
+			session.addFileToWorkingSet(resource);
+		}
+	}
+
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();
@@ -545,6 +552,13 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private _entries: ModifiedFileEntry[] = [];
 
+	private _workingSetObs = observableValue<readonly URI[]>(this, []);
+	private _workingSet: URI[] = [];
+	get workingSet() {
+		this._assertNotDisposed();
+		return this._workingSetObs;
+	}
+
 	get state(): IObservable<ChatEditingSessionState> {
 		this._assertNotDisposed();
 		return this._state;
@@ -700,6 +714,12 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		// ensure that the edits are processed sequentially
 		this._sequencer.queue(() => this._resolve());
+	}
+
+	addFileToWorkingSet(resource: URI) {
+		this._workingSet = [...this._workingSet, resource];
+		this._workingSetObs.set(this._workingSet, undefined);
+		this._onDidChange.fire();
 	}
 
 	private async _acceptStreamingEditsStart(): Promise<void> {

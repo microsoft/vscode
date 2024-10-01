@@ -17,7 +17,9 @@ import { Command } from '../../../../../editor/common/languages.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -28,18 +30,17 @@ import { isQuickChat } from '../chatWidget.js';
 import { ChatContextAttachments } from '../contrib/chatContextAttachments.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { imageToHash, isImage } from '../chatImagePaste.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { imageToHash, isImage } from '../chatImagePaste.js';
+import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -179,7 +180,7 @@ class AttachSelectionAction extends Action2 {
 	}
 }
 
-class AttachContextAction extends Action2 {
+export class AttachContextAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachContext';
 
@@ -230,7 +231,7 @@ class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, chatEditingService: IChatEditingService | undefined, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -262,6 +263,7 @@ class AttachContextAction extends Action2 {
 						isFile: true,
 						isDynamic: true,
 					});
+					chatEditingService?.addFileToWorkingSet(pick.resource);
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
@@ -341,6 +343,7 @@ class AttachContextAction extends Action2 {
 		if (!widget) {
 			return;
 		}
+		const chatEditingService = widget.location === ChatAgentLocation.EditingSession ? accessor.get(IChatEditingService) : undefined;
 
 		const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
 		const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
@@ -452,19 +455,19 @@ class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, '');
+		}), clipboardService, chatEditingService, '');
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], clipboardService: IClipboardService, query: string = '') {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], clipboardService: IClipboardService, chatEditingService: IChatEditingService | undefined, query: string = '') {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			handleAccept: (item: IChatContextQuickPickItem) => {
 				if ('prefix' in item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, item.prefix);
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, chatEditingService, item.prefix);
 				} else {
 					if (!clipboardService) {
 						return;
 					}
-					this._attachContext(widget, commandService, clipboardService, item);
+					this._attachContext(widget, commandService, clipboardService, chatEditingService, item);
 					if (isQuickChat(widget)) {
 						quickChatService.open();
 					}
