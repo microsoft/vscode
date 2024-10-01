@@ -5,38 +5,9 @@
 
 import * as performance from './vs/base/common/performance.js';
 import { removeGlobalNodeJsModuleLookupPaths, devInjectNodeModuleLookupPath } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 
 performance.mark('code/fork/start');
-
-// Crash reporter
-configureCrashReporter();
-
-// Remove global paths from the node module lookup (node.js only)
-removeGlobalNodeJsModuleLookupPaths();
-
-if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
-}
-
-// Configure: pipe logging to parent process
-if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
-	pipeLoggingToParent();
-}
-
-// Handle Exceptions
-if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
-	handleExceptions();
-}
-
-// Terminate when parent terminates
-if (process.env['VSCODE_PARENT_PID']) {
-	terminateWhenParentTerminates();
-}
-
-// Load ESM entry point
-load(process.env['VSCODE_ESM_ENTRYPOINT']!);
-
 
 //#region Helpers
 
@@ -225,3 +196,34 @@ function configureCrashReporter(): void {
 }
 
 //#endregion
+
+// Crash reporter
+configureCrashReporter();
+
+// Remove global paths from the node module lookup (node.js only)
+removeGlobalNodeJsModuleLookupPaths();
+
+if (process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']) {
+	devInjectNodeModuleLookupPath(process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH']);
+}
+
+// Configure: pipe logging to parent process
+if (!!process.send && process.env['VSCODE_PIPE_LOGGING'] === 'true') {
+	pipeLoggingToParent();
+}
+
+// Handle Exceptions
+if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
+	handleExceptions();
+}
+
+// Terminate when parent terminates
+if (process.env['VSCODE_PARENT_PID']) {
+	terminateWhenParentTerminates();
+}
+
+// Bootstrap ESM
+await bootstrapESM();
+
+// Load ESM entry point
+await import([`./${process.env['VSCODE_ESM_ENTRYPOINT']}.js`].join('/') /* workaround: esbuild prints some strange warnings when trying to inline? */);

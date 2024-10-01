@@ -116,20 +116,8 @@ async function doSetupNLS(): Promise<INLSConfiguration | undefined> {
 
 //#endregion
 
-//#region ESM Loading
+export async function bootstrapESM(): Promise<void> {
 
-export async function load<T>(esModule: string): Promise<T> {
-	try {
-		// NLS comes first
-		await setupNLS();
-
-		// Then load the ES module
-		return await import([`./${esModule}.js`].join('/') /* workaround to prevent esbuild from inlining this */);
-	} catch (error) {
-		console.error(`Unable to load ${esModule}: ${error}`);
-		throw error;
-	}
+	// NLS
+	await setupNLS();
 }
-
-//#endregion
-

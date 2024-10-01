@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
 import { configurePortable } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -173,8 +173,12 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
+	// Bootstrap ESM
+	await bootstrapESM();
+
+	// Load Main
 	perf.mark('code/willLoadMainBundle');
-	await load('vs/code/electron-main/main');
+	await import('./vs/code/electron-main/main.js');
 	perf.mark('code/didLoadMainBundle');
 }
 

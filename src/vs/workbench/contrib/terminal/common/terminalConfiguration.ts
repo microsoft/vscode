@@ -575,12 +575,6 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'both'
 		},
-		[TerminalSettingId.ShellIntegrationCommandHistory]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
-			type: 'number',
-			default: 100
-		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',

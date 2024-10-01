@@ -105,14 +105,8 @@ const serverWithWebResources = [
 ];
 
 const serverEntryPoints = [
-	{
-		name: 'vs/server/node/server.main',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/server/node/server.cli',
-		exclude: ['vs/css']
-	},
+	// 'vs/server/node/server.main' is not included here because it gets inlined via ./src/server-main.js
+	// 'vs/server/node/server.cli' is not included here because it gets inlined via ./src/server-cli.js
 	{
 		name: 'vs/workbench/api/node/extensionHostProcess',
 		exclude: ['vs/css']

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.95.0",
-  "distro": "350f0404ef17accb38b1359e82886738870a7377",
+  "distro": "1f05cd9b265f2477905f0b7688a66cfb2c6061f5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -93,7 +93,7 @@
     "@xterm/xterm": "^5.6.0-beta.65",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
-    "jschardet": "3.1.3",
+    "jschardet": "3.1.4",
     "kerberos": "2.1.1",
     "minimist": "^1.2.6",
     "native-is-elevated": "0.7.0",

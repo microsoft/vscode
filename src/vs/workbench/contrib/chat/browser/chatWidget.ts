@@ -546,7 +546,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderChatEditingSessionState(session: IChatEditingSession | null) {
-		this.inputPart.renderChatEditingSessionState(session);
+		this.inputPart.renderChatEditingSessionState(session, undefined, this);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -936,6 +936,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
 		this.inputPart.attachContext(overwrite, ...contentReferences);
+
+		if (this.chatEditingService.currentEditingSession) {
+			this.renderChatEditingSessionState(this.chatEditingService.currentEditingSession);
+		}
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
