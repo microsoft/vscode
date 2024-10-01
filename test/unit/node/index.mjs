@@ -114,15 +114,6 @@ function main() {
 	 * @param onError
 	 */
 	const loader = function (modules, onLoad, onError) {
-
-		modules = modules.filter(mod => {
-			if (mod.endsWith('css.build.test')) {
-				// AMD ONLY, ignore for ESM
-				return false;
-			}
-			return true;
-		});
-
 		const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
 			console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
 			throw err;
