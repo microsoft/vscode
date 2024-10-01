@@ -440,6 +440,9 @@ export class NativeEditContext extends AbstractEditContext {
 
 			}
 			const rangeCount = activeDocumentSelection.rangeCount;
+			if (rangeCount === 0) {
+				return;
+			}
 			for (let i = 0; i < rangeCount; i++) {
 				const range = activeDocumentSelection.getRangeAt(i);
 				console.log('range : ', range);
@@ -459,17 +462,14 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 
-			// const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
-			// const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0]!, _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
-
-			// const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
-			// const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0]!, _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
-
-			// const newSelection = new Selection(
-			// 	newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
-			// 	newSelectionEndPosition.lineNumber, newSelectionEndPosition.column
-			// );
-			// viewController.setSelection(newSelection);
+			const range = activeDocumentSelection.getRangeAt(0);
+			const offsetOfBeginningOfEditContext = this._context.viewModel.model.getOffsetAt(this._textStartPositionWithinEditor);
+			const offsetOfSelectionStart = range.startOffset + offsetOfBeginningOfEditContext;
+			const offsetOfSelectionEnd = range.endOffset + offsetOfBeginningOfEditContext;
+			const positionOfSelectionStart = this._context.viewModel.model.getPositionAt(offsetOfSelectionStart);
+			const positionOfSelectionEnd = this._context.viewModel.model.getPositionAt(offsetOfSelectionEnd);
+			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+			viewController.setSelection(newSelection);
 		});
 	}
 }
