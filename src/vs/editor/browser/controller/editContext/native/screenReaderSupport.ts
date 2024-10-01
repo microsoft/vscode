@@ -121,7 +121,7 @@ export class ScreenReaderSupport {
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 	}
 
-	public startPositionWithinEditor(): Position | undefined {
+	public startPositionOfScreenReaderContentWithinEditor(): Position | undefined {
 		return this._screenReaderContentState?.startPositionWithinEditor;
 	}
 

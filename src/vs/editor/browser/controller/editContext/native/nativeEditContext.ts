@@ -50,7 +50,6 @@ export class NativeEditContext extends AbstractEditContext {
 
 	private readonly _focusTracker: FocusTracker;
 
-	private _isComposing: boolean = false;
 	private _selectionChangeListener: IDisposable | undefined;
 
 	constructor(
@@ -71,13 +70,8 @@ export class NativeEditContext extends AbstractEditContext {
 		this._parent = overflowGuardContainer.domNode;
 
 		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
-			if (this._selectionChangeListener) {
-				this._selectionChangeListener.dispose();
-				this._selectionChangeListener = undefined;
-			}
-			if (newFocusValue) {
-				this._selectionChangeListener = this._installSelectionChangeListener(viewController);
-			}
+			this._selectionChangeListener?.dispose();
+			this._selectionChangeListener = newFocusValue ? this._setSelectionChangeListener(viewController) : undefined;
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
@@ -116,7 +110,6 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
-			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
@@ -124,7 +117,6 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
-			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionEnd();
@@ -139,10 +131,8 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
-		if (this._selectionChangeListener) {
-			this._selectionChangeListener.dispose();
-			this._selectionChangeListener = undefined;
-		}
+		this._selectionChangeListener?.dispose();
+		this._selectionChangeListener = undefined;
 		super.dispose();
 	}
 
@@ -397,69 +387,36 @@ export class NativeEditContext extends AbstractEditContext {
 		clipboardService.writeText(dataToCopy.text);
 	}
 
-	private _installSelectionChangeListener(viewController: ViewController): IDisposable {
+	private _setSelectionChangeListener(viewController: ViewController): IDisposable {
 		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
-		// When using a Braille display, it is possible for users to reposition the
-		// system caret. This is reflected in Chrome as a `selectionchange` event.
-		//
-		// The `selectionchange` event appears to be emitted under numerous other circumstances,
-		// so it is quite a challenge to distinguish a `selectionchange` coming in from a user
-		// using a Braille display from all the other cases.
-		//
-		// The problems with the `selectionchange` event are:
-		//  * the event is emitted when the textarea is focused programmatically -- textarea.focus()
-		//  * the event is emitted when the selection is changed in the textarea programmatically -- textarea.setSelectionRange(...)
-		//  * the event is emitted when the value of the textarea is changed programmatically -- textarea.value = '...'
-		//  * the event is emitted when tabbing into the textarea
-		//  * the event is emitted asynchronously (sometimes with a delay as high as a few tens of ms)
-		//  * the event sometimes comes in bursts for a single logical textarea operation
+		// When using a Braille display or NVDA for example, it is possible for users to reposition the
+		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
-		// `selectionchange` events often come multiple times for a single logical change
-		// so throttle multiple `selectionchange` events that burst in a short period of time.
-
-		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', (e) => {
-			console.log('selectionchange');
-			console.log('e : ', e);
-
-			if (!this._focusTracker.isFocused) {
+		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
+			if (!this.isFocused()) {
 				return;
 			}
-			if (this._isComposing) {
-				return;
-			}
-			console.log('this.domNode.domNode : ', this.domNode.domNode);
-
 			const activeDocument = getActiveWindow().document;
 			const activeDocumentSelection = activeDocument.getSelection();
-
-			console.log('activeDocumentSelection : ', activeDocumentSelection);
-
 			if (!activeDocumentSelection) {
 				return;
-
 			}
 			const rangeCount = activeDocumentSelection.rangeCount;
 			if (rangeCount === 0) {
 				return;
 			}
-
 			const range = activeDocumentSelection.getRangeAt(0);
-			const startPositionWithinEditor = this._screenReaderSupport.startPositionWithinEditor();
-			if (!startPositionWithinEditor) {
+			const startPositionOfScreenReaderContentWithinEditor = this._screenReaderSupport.startPositionOfScreenReaderContentWithinEditor();
+			if (!startPositionOfScreenReaderContentWithinEditor) {
 				return;
 			}
-			const offsetOfBeginningOfEditContext = this._context.viewModel.model.getOffsetAt(startPositionWithinEditor);
-			console.log(' offsetOfBeginningOfEditContext: ', offsetOfBeginningOfEditContext);
-			const offsetOfSelectionStart = range.startOffset + offsetOfBeginningOfEditContext;
-			const offsetOfSelectionEnd = range.endOffset + offsetOfBeginningOfEditContext;
-			console.log('offsetOfSelectionStart : ', offsetOfSelectionStart);
-			console.log('offsetOfSelectionEnd : ', offsetOfSelectionEnd);
-			const positionOfSelectionStart = this._context.viewModel.model.getPositionAt(offsetOfSelectionStart);
-			const positionOfSelectionEnd = this._context.viewModel.model.getPositionAt(offsetOfSelectionEnd);
-			console.log('positionOfSelectionStart : ', positionOfSelectionStart);
-			console.log('positionOfSelectionEnd : ', positionOfSelectionEnd);
+			const model = this._context.viewModel.model;
+			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(startPositionOfScreenReaderContentWithinEditor);
+			const offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
+			const offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
+			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
+			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
-			console.log('newSelection : ', newSelection);
 			viewController.setSelection(newSelection);
 		});
 	}
