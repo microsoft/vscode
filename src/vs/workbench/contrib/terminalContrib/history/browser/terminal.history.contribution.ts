@@ -18,9 +18,10 @@ import type { ITerminalContribution, ITerminalInstance } from '../../../terminal
 import { registerActiveInstanceAction, registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
 import type { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
-import { TerminalCommandId, type ITerminalProcessManager } from '../../../terminal/common/terminal.js';
+import { type ITerminalProcessManager } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { clearShellFileHistory, getCommandHistory, getDirectoryHistory } from '../common/history.js';
+import { TerminalHistoryCommandId } from '../common/terminal.history.js';
 import { showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
 
 // #region Terminal Contributions
@@ -88,8 +89,44 @@ registerTerminalContribution(TerminalHistoryContribution.ID, TerminalHistoryCont
 
 const precondition = ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated);
 
+registerTerminalAction({
+	id: TerminalHistoryCommandId.ClearPreviousSessionHistory,
+	title: localize2('workbench.action.terminal.clearPreviousSessionHistory', 'Clear Previous Session History'),
+	precondition,
+	run: async (c, accessor) => {
+		getCommandHistory(accessor).clear();
+		clearShellFileHistory();
+	}
+});
+
 registerActiveInstanceAction({
-	id: TerminalCommandId.RunRecentCommand,
+	id: TerminalHistoryCommandId.GoToRecentDirectory,
+	title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
+	metadata: {
+		description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
+	},
+	precondition,
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+		when: TerminalContextKeys.focus,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: async (activeInstance, c) => {
+		const history = TerminalHistoryContribution.get(activeInstance);
+		if (!history) {
+			return;
+		}
+		await history.runRecent('cwd');
+		if (activeInstance?.target === TerminalLocation.Editor) {
+			await c.editorService.revealActiveEditor();
+		} else {
+			await c.groupService.showPanel(false);
+		}
+	}
+});
+
+registerActiveInstanceAction({
+	id: TerminalHistoryCommandId.RunRecentCommand,
 	title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
 	precondition,
 	keybinding: [
@@ -118,43 +155,5 @@ registerActiveInstanceAction({
 		}
 	}
 });
-
-// TODO: move command IDs into this file
-registerActiveInstanceAction({
-	id: TerminalCommandId.GoToRecentDirectory,
-	title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
-	metadata: {
-		description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
-	},
-	precondition,
-	keybinding: {
-		primary: KeyMod.CtrlCmd | KeyCode.KeyG,
-		when: TerminalContextKeys.focus,
-		weight: KeybindingWeight.WorkbenchContrib
-	},
-	run: async (activeInstance, c) => {
-		const history = TerminalHistoryContribution.get(activeInstance);
-		if (!history) {
-			return;
-		}
-		await history.runRecent('cwd');
-		if (activeInstance?.target === TerminalLocation.Editor) {
-			await c.editorService.revealActiveEditor();
-		} else {
-			await c.groupService.showPanel(false);
-		}
-	}
-});
-
-registerTerminalAction({
-	id: TerminalCommandId.ClearPreviousSessionHistory,
-	title: localize2('workbench.action.terminal.clearPreviousSessionHistory', 'Clear Previous Session History'),
-	precondition,
-	run: async (c, accessor) => {
-		getCommandHistory(accessor).clear();
-		clearShellFileHistory();
-	}
-});
-
 
 // #endregion
