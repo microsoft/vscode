@@ -30,12 +30,27 @@ export type ITerminalContributionDescription = { readonly id: string } & (
 	| { readonly canRunInDetachedTerminals: true; readonly ctor: DetachedCompatibleTerminalContributionCtor }
 );
 
+/**
+ * A terminal contribution is a method for extending _each_ terminal created, providing the terminal
+ * instance when it becomes ready and various convenient hooks for xterm.js like when it's opened in
+ * the DOM.
+ * @param id The unique ID of the terminal contribution.
+ * @param ctor The constructor of the terminal contribution.
+ * @param canRunInDetachedTerminals Whether the terminal contribution should be run in detecthed
+ * terminals. Defaults to false.
+ */
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(ctx: ITerminalContributionContext, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals?: false): void;
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(ctx: IDetachedCompatibleTerminalContributionContext, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals: true): void;
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(ctx: any, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals: boolean = false): void {
 	TerminalContributionRegistry.INSTANCE.registerTerminalContribution({ id, ctor, canRunInDetachedTerminals } as ITerminalContributionDescription);
 }
 
+/**
+ * The registry of terminal contributions.
+ *
+ * **WARNING**: This is internal and should only be used by core terminal code that activates the
+ * contributions.
+ */
 export namespace TerminalExtensionsRegistry {
 	export function getTerminalContributions(): ITerminalContributionDescription[] {
 		return TerminalContributionRegistry.INSTANCE.getTerminalContributions();
