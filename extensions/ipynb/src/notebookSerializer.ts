@@ -8,7 +8,7 @@ import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { getPreferredLanguage, jupyterNotebookModelToNotebookData } from './deserializers';
 import * as fnv from '@enonic/fnv-plus';
-import { serializeNotebookToString } from './serializers';
+import { serializeNotebookToBytes } from './serializers';
 
 export abstract class NotebookSerializerBase extends vscode.Disposable implements vscode.NotebookSerializer {
 	protected disposed: boolean = false;
@@ -81,8 +81,7 @@ export abstract class NotebookSerializerBase extends vscode.Disposable implement
 			return new Uint8Array(0);
 		}
 
-		const serialized = serializeNotebookToString(data);
-		return new TextEncoder().encode(serialized);
+		return serializeNotebookToBytes(data);
 	}
 
 }

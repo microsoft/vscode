@@ -462,6 +462,95 @@ export function serializeNotebookToString(data: NotebookData): string {
 
 	return serializeNotebookToJSON(notebookContent, indentAmount);
 }
+
+export function serializeNotebookToBytes(data: NotebookData): Uint8Array {
+	const notebookContent = getNotebookMetadata(data);
+	// use the preferred language from document metadata or the first cell language as the notebook preferred cell language
+	const preferredCellLanguage = notebookContent.metadata?.language_info?.name ?? data.cells.find(cell => cell.kind === 2)?.languageId;
+
+	notebookContent.cells = data.cells
+		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
+		.map(pruneCell);
+
+	const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+		data.metadata.indentAmount :
+		' ';
+
+	return serializeNotebookToJSONBytes(notebookContent, indentAmount);
+}
+
+
+function serializeNotebookToJSONBytes(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): Uint8Array {
+	// const sorted = sortObjectPropertiesRecursively(notebookContent);
+
+	// Using JSON.stringify can fail, if the entire size of the resulting JSON string exceeds the maximum size of a single string in JS.
+	// Hence build the JSON bytes in chunks.
+	return jsonToBytes(notebookContent, indentAmount);
+}
+
+function jsonToBytes(jsonObject: any, indentAmount: string = ' '): Uint8Array {
+	const encoder = new TextEncoder();
+	const arrays: Uint8Array[] = [];
+
+	function encodeValue(value: any, indent: string): void {
+		if (typeof value === 'object' && value !== null) {
+			if (Array.isArray(value)) {
+				arrays.push(encoder.encode('['));
+				if (value.length > 0) {
+					for (let i = 0; i < value.length; i++) {
+						if (i > 0) {
+							arrays.push(encoder.encode(','));
+						}
+						arrays.push(encoder.encode('\n' + indent + indentAmount));
+						encodeValue(value[i], indent + indentAmount);
+					}
+					arrays.push(encoder.encode('\n' + indent + ']'));
+				} else {
+					arrays.push(encoder.encode(']'));
+				}
+			} else {
+				arrays.push(encoder.encode('{'));
+				// // ipynb always sorts keys in alphabetical order.
+				const keys = Object.keys(value).sort();
+				if (keys.length > 0) {
+					for (let i = 0; i < keys.length; i++) {
+						if (i > 0) {
+							arrays.push(encoder.encode(','));
+						}
+						arrays.push(encoder.encode('\n' + indent + indentAmount + `"${keys[i]}": `));
+						encodeValue(value[keys[i]], indent + indentAmount);
+					}
+					arrays.push(encoder.encode('\n' + indent + '}'));
+				} else {
+					arrays.push(encoder.encode('}'));
+				}
+			}
+		} else if (typeof value === 'string') {
+			arrays.push(encoder.encode(`"${value}"`));
+		} else {
+			arrays.push(encoder.encode(String(value)));
+		}
+	}
+
+	encodeValue(jsonObject, '');
+	// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
+	arrays.push(encoder.encode('\n'));
+
+	return concatenateUint8Arrays(arrays);
+}
+
+function concatenateUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+	const totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+	const result = new Uint8Array(totalLength);
+	let offset = 0;
+	arrays.forEach(arr => {
+		result.set(arr, offset);
+		offset += arr.length;
+	});
+	return result;
+}
+
+
 function serializeNotebookToJSON(notebookContent: Partial<nbformat.INotebookContent>, indentAmount: string): string {
 	// ipynb always ends with a trailing new line (we add this so that SCMs do not show unnecessary changes, resulting from a missing trailing new line).
 	const sorted = sortObjectPropertiesRecursively(notebookContent);

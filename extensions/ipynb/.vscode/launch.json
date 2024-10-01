@@ -14,6 +14,47 @@
             ],
             "request": "launch",
             "type": "extensionHost"
-        }
+        },
+		{
+            // Run this first: https://github.com/microsoft/vscode-jupyter/blob/main/src/test/datascience/setupTestEnvs.cmd
+            // Then specify either a grep below or mark a test as 'test.only' to run the test that's failing.
+            "name": "Tests",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": [
+                "--extensionDevelopmentPath=${workspaceFolder}",
+                "--extensionTestsPath=${workspaceFolder}/out/test/index.node.js"
+            ],
+            "env": {
+                "VSC_JUPYTER_FORCE_LOGGING": "1",
+                "VSC_JUPYTER_CI_TEST_GREP": "", // Leave as `VSCode Notebook` to run only Notebook tests.
+                "VSC_JUPYTER_CI_TEST_INVERT_GREP": "", // Initialize this to invert the grep (exclude tests with value defined in grep).
+                "CI_PYTHON_PATH": "", // Update with path to real python interpereter used for testing.
+                "VSC_JUPYTER_CI_RUN_NON_PYTHON_NB_TEST": "", // Initialize this to run tests again Julia & other kernels.
+                // "TF_BUILD": "", // Set to anything to force full logging
+                "TEST_FILES_SUFFIX": "*.vscode.test,*.vscode.common.test",
+                "VSC_JUPYTER_REMOTE_NATIVE_TEST": "false", // Change to `true` to run the Native Notebook tests with remote jupyter connections.
+                "VSC_JUPYTER_NON_RAW_NATIVE_TEST": "false", // Change to `true` to run the Native Notebook tests with non-raw kernels (i.e. local jupyter server).
+                "XVSC_JUPYTER_INSTRUMENT_CODE_FOR_COVERAGE": "1",
+                "XVSC_JUPYTER_INSTRUMENT_CODE_FOR_COVERAGE_HTML": "1", //Enable to get full coverage repor (in coverage folder).
+                "VSC_JUPYTER_EXPOSE_SVC": "1"
+                // "VSC_JUPYTER_CI_IS_CONDA": "true" // Enable to run conda tests
+            },
+            "sourceMaps": true,
+            "outFiles": [
+                "${workspaceFolder}/out/**/*.js",
+                "!${workspaceFolder}/**/node_modules**/*"
+            ],
+            "preLaunchTask": "Compile",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "presentation": {
+                "group": "2_tests",
+                "order": 6
+            }
+        },
+
     ]
 }
