@@ -308,7 +308,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...{ type: 'module' } })) // TODO@esm this should be configured in the top level package.json
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
