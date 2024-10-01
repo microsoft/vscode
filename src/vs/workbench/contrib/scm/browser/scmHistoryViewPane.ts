@@ -1530,6 +1530,7 @@ export class SCMHistoryViewPane extends ViewPane {
 		}
 
 		this.contextMenuService.showContextMenu({
+			contextKeyService: this.scopedContextKeyService,
 			menuId: MenuId.SCMChangesContext,
 			menuActionOptions: {
 				arg: element.repository.provider,
