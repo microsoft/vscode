@@ -351,6 +351,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	updateOptions(newOptions: Partial<NotebookViewModelOptions>) {
 		this._options = { ...this._options, ...newOptions };
+		this._viewCells.forEach(cell => cell.updateOptions({ readonly: this._options.isReadOnly }));
 		this._onDidChangeOptions.fire();
 	}
 

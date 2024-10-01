@@ -18,7 +18,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { Position } from '../../../../editor/common/core/position.js';
+import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
@@ -46,6 +46,8 @@ import { AccessibilityCommandId } from '../common/accessibilityCommands.js';
 import { IChatCodeBlockContextProviderService } from '../../chat/browser/chat.js';
 import { ICodeBlockActionContext } from '../../chat/browser/codeBlockPart.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 
 const enum DIMENSIONS {
 	MAX_WIDTH = 600
@@ -60,7 +62,7 @@ interface ICodeBlock {
 	languageId?: string;
 }
 
-export class AccessibleView extends Disposable {
+export class AccessibleView extends Disposable implements ITextModelContentProvider {
 	private _editorWidget: CodeEditorWidget;
 
 	private _accessiblityHelpIsShown: IContextKey<boolean>;
@@ -105,6 +107,7 @@ export class AccessibleView extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatCodeBlockContextProviderService private readonly _codeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
@@ -158,6 +161,8 @@ export class AccessibleView extends Disposable {
 			readOnly: true,
 			fontFamily: 'var(--monaco-monospace-font)'
 		};
+		this.textModelResolverService.registerTextModelContentProvider(Schemas.accessibleView, this);
+
 		this._editorWidget = this._register(this._instantiationService.createInstance(CodeEditorWidget, this._container, editorOptions, codeEditorWidgetOptions));
 		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			if (this._currentProvider && this._accessiblityHelpIsShown.get()) {
@@ -187,6 +192,9 @@ export class AccessibleView extends Disposable {
 				this._accessibleViewInCodeBlock.set(inCodeBlock);
 			}
 		}));
+	}
+	provideTextContent(resource: URI): Promise<ITextModel | null> | null {
+		return this._getTextModel(resource);
 	}
 
 	private _resetContextKeys(): void {
@@ -258,7 +266,7 @@ export class AccessibleView extends Disposable {
 		this.show(this._lastProvider);
 	}
 
-	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: Position): void {
+	show(provider?: AccesibleViewContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: IPosition): void {
 		provider = provider ?? this._currentProvider;
 		if (!provider) {
 			return;
@@ -487,7 +495,7 @@ export class AccessibleView extends Disposable {
 		if (lineNumber === undefined) {
 			return;
 		}
-		this.show(provider, undefined, undefined, { lineNumber, column: 1 } as Position);
+		this.show(provider, undefined, undefined, { lineNumber, column: 1 });
 		this._updateContextKeys(provider, true);
 	}
 
@@ -555,7 +563,7 @@ export class AccessibleView extends Disposable {
 		this.calculateCodeBlocks(this._currentContent);
 		this._updateContextKeys(provider, true);
 		const widgetIsFocused = this._editorWidget.hasTextFocus() || this._editorWidget.hasWidgetFocus();
-		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: 'accessible-view', fragment: this._currentContent })).then((model) => {
+		this._getTextModel(URI.from({ path: `accessible-view-${provider.id}`, scheme: Schemas.accessibleView, fragment: this._currentContent })).then((model) => {
 			if (!model) {
 				return;
 			}
