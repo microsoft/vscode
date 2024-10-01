@@ -1,0 +1,26 @@
+[
+  {
+    content: {
+      value: "resolved",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  },
+  {
+    kind: "treeData",
+    treeData: {
+      label: "label",
+      uri: {
+        scheme: "https",
+        authority: "microsoft.com",
+        path: "/",
+        query: "",
+        fragment: "",
+        _formatted: null,
+        _fsPath: null
+      }
+    }
+  }
+]
