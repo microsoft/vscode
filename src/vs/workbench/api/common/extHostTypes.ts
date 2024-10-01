@@ -4560,6 +4560,15 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 	) { }
 }
 
+export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
+	mimeType: string;
+	data: () => Thenable<Uint8Array>;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+		this.mimeType = mimeType;
+		this.data = data;
+	}
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
