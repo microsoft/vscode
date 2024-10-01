@@ -9,16 +9,9 @@
  * @returns {import('./lib/bundle').IEntryPoint}
  */
 function createModuleDescription(name, exclude) {
-
-	let excludes = ['vs/css'];
-	if (Array.isArray(exclude) && exclude.length > 0) {
-		excludes = excludes.concat(exclude);
-	}
-
 	return {
 		name,
-		include: [],
-		exclude: excludes
+		exclude
 	};
 }
 
@@ -64,5 +57,13 @@ exports.code = [
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');
+
+exports.codeServer = [
+	// 'vs/server/node/server.main' is not included here because it gets inlined via ./src/server-main.js
+	// 'vs/server/node/server.cli' is not included here because it gets inlined via ./src/server-cli.js
+	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+	createModuleDescription('vs/platform/terminal/node/ptyHostMain')
+];
 
 exports.entrypoint = createModuleDescription;

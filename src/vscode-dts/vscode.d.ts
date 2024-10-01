@@ -898,6 +898,11 @@ declare module 'vscode' {
 	export class ThemeColor {
 
 		/**
+		 * The id of this color.
+		 */
+		readonly id: string;
+
+		/**
 		 * Creates a reference to a theme color.
 		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/api/references/theme-color.
 		 */
