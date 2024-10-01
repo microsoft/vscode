@@ -62,33 +62,33 @@ export class PagedScreenReaderStrategy {
 		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
 
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
-		if (trimLongText && model.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
+		if (trimLongText && model.getValueLengthInRange(pretextRange, EndOfLinePreference.TextDefined) > LIMIT_CHARS) {
 			const pretextStart = model.modifyPosition(pretextRange.getEndPosition(), -LIMIT_CHARS);
 			pretextRange = Range.fromPositions(pretextStart, pretextRange.getEndPosition());
 		}
-		const pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
+		const pretext = model.getValueInRange(pretextRange, EndOfLinePreference.TextDefined);
 
 		const lastLine = model.getLineCount();
 		const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
-		if (trimLongText && model.getValueLengthInRange(posttextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
+		if (trimLongText && model.getValueLengthInRange(posttextRange, EndOfLinePreference.TextDefined) > LIMIT_CHARS) {
 			const posttextEnd = model.modifyPosition(posttextRange.getStartPosition(), LIMIT_CHARS);
 			posttextRange = Range.fromPositions(posttextRange.getStartPosition(), posttextEnd);
 		}
-		const posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
+		const posttext = model.getValueInRange(posttextRange, EndOfLinePreference.TextDefined);
 
 
 		let text: string;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
-			text = model.getValueInRange(selection, EndOfLinePreference.LF);
+			text = model.getValueInRange(selection, EndOfLinePreference.TextDefined);
 		} else {
 			const selectionRange1 = selectionStartPageRange.intersectRanges(selection)!;
 			const selectionRange2 = selectionEndPageRange.intersectRanges(selection)!;
 			text = (
-				model.getValueInRange(selectionRange1, EndOfLinePreference.LF)
+				model.getValueInRange(selectionRange1, EndOfLinePreference.TextDefined)
 				+ String.fromCharCode(8230)
-				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
+				+ model.getValueInRange(selectionRange2, EndOfLinePreference.TextDefined)
 			);
 		}
 		if (trimLongText && text.length > 2 * LIMIT_CHARS) {
