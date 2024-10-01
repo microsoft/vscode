@@ -6,13 +6,14 @@
     "name": "Microsoft Corporation"
   },
   "license": "MIT",
-  "main": "./out/main",
+  "main": "./out/main.js",
+  "type": "module",
   "private": true,
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",
     "test-browser": "npx playwright install && node test/unit/browser/index.js",
     "test-browser-no-install": "node test/unit/browser/index.js",
-    "test-node": "mocha test/unit/node/index.mjs --delay --ui=tdd --timeout=5000 --exit",
+    "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
     "test-extension": "vscode-test",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",

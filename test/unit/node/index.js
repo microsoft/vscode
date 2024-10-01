@@ -14,9 +14,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import glob from 'glob';
 import minimatch from 'minimatch';
-// const coverage = require('../coverage');
 import minimist from 'minimist';
-// const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
 
