@@ -22,7 +22,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
 import { EndOfLinePreference } from '../../../../common/model.js';
-import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
+import { RenderingContext, RestrictedRenderingContext, HorizontalPosition, LineVisibleRanges } from '../../../view/renderingContext.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../../common/viewEvents.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -34,7 +34,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { AbstractEditContext } from '../editContextUtils.js';
+import { AbstractEditContext } from '../editContext.js';
 import { ICompositionData, IPasteData, ITextAreaInputHost, TextAreaInput, TextAreaWrapper } from './textAreaEditContextInput.js';
 import { ariaLabelForScreenReaderContent, ISimpleModel, newlinecount, PagedScreenReaderStrategy } from '../screenReaderUtils.js';
 import { ClipboardDataToCopy, getDataToCopy } from '../clipboardUtils.js';
@@ -43,6 +43,7 @@ import { getMapForWordSeparators, WordCharacterClass } from '../../../../common/
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
+	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
 }
 
 class VisibleTextAreaData {
@@ -147,6 +148,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	constructor(
 		context: ViewContext,
+		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
 		visibleRangeProvider: IVisibleRangeProvider,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -199,6 +201,9 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
+
+		overflowGuardContainer.appendChild(this.textArea);
+		overflowGuardContainer.appendChild(this.textAreaCover);
 
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
@@ -463,11 +468,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 
 	public get domNode() {
 		return this.textArea;
-	}
-
-	appendTo(overflowGuardContainer: FastDomNode<HTMLElement>): void {
-		overflowGuardContainer.appendChild(this.textArea);
-		overflowGuardContainer.appendChild(this.textAreaCover);
 	}
 
 	public writeScreenReaderContent(reason: string): void {

@@ -59,7 +59,11 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	// Add extra .d.ts files from `node_modules/@types/`
 	if (Array.isArray(options.compilerOptions?.types)) {
 		options.compilerOptions.types.forEach((type: string) => {
-			options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+			if (type === '@webgpu/types') {
+				options.typings.push(`../node_modules/${type}/dist/index.d.ts`);
+			} else {
+				options.typings.push(`../node_modules/@types/${type}/index.d.ts`);
+			}
 		});
 	}
 

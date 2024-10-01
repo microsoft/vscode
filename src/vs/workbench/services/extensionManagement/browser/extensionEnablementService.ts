@@ -174,11 +174,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					if (this.isEnabled(dependency)) {
 						continue;
 					}
-					try {
-						this.throwErrorIfCannotChangeEnablement(dependency, true);
-					} catch (error) {
-						throw new Error(localize('cannot change enablement dependency', "Cannot enable '{0}' extension because it depends on '{1}' extension that cannot be enabled", extension.manifest.displayName || extension.identifier.id, dependency.manifest.displayName || dependency.identifier.id));
-					}
+					throw new Error(localize('cannot change enablement dependency', "Cannot enable '{0}' extension because it depends on '{1}' extension that cannot be enabled", extension.manifest.displayName || extension.identifier.id, dependency.manifest.displayName || dependency.identifier.id));
 				}
 		}
 	}
@@ -467,14 +463,18 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByExtensionDependency(extension: IExtension, extensions: ReadonlyArray<IExtension>, workspaceType: WorkspaceType, computedEnablementStates: Map<IExtension, EnablementState>): boolean {
-		// Find dependencies from the same server as of the extension
-		const dependencyExtensions = extension.manifest.extensionDependencies
-			? extensions.filter(e =>
-				extension.manifest.extensionDependencies!.some(id => areSameExtensions(e.identifier, { id }) && this.extensionManagementServerService.getExtensionManagementServer(e) === this.extensionManagementServerService.getExtensionManagementServer(extension)))
-			: [];
+
+		if (!extension.manifest.extensionDependencies) {
+			return false;
+		}
+
+		// Find dependency that is from the same server or does not exports any API
+		const dependencyExtensions = extensions.filter(e =>
+			extension.manifest.extensionDependencies?.some(id => areSameExtensions(e.identifier, { id })
+				&& (this.extensionManagementServerService.getExtensionManagementServer(e) === this.extensionManagementServerService.getExtensionManagementServer(extension) || ((e.manifest.main || e.manifest.browser) && e.manifest.api === 'none'))));
 
 		if (!dependencyExtensions.length) {
-			return !!extensions.length && !!extension.manifest.extensionDependencies?.length;
+			return false;
 		}
 
 		const hasEnablementState = computedEnablementStates.has(extension);

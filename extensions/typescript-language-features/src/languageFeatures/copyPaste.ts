@@ -50,7 +50,24 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		private readonly _client: ITypeScriptServiceClient,
 	) { }
 
-	prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken) {
+	async prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken) {
+		if (!this.isEnabled(document)) {
+			return;
+		}
+
+		const file = this._client.toOpenTsFilePath(document);
+		if (!file) {
+			return;
+		}
+
+		const response = await this._client.execute('preparePasteEdits', {
+			file,
+			copiedTextSpan: ranges.map(typeConverters.Range.toTextSpan),
+		}, token);
+		if (token.isCancellationRequested || response.type !== 'response' || !response.body) {
+			return;
+		}
+
 		dataTransfer.set(DocumentPasteProvider.metadataMimeType,
 			new vscode.DataTransferItem(new CopyMetadata(document.uri, ranges).toJSON()));
 	}
@@ -62,8 +79,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
-		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		if (!config.get(settingId, false)) {
+		if (!this.isEnabled(document)) {
 			return;
 		}
 
@@ -127,18 +143,23 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 		return metadata ? CopyMetadata.fromJSON(metadata) : undefined;
 	}
+
+	private isEnabled(document: vscode.TextDocument) {
+		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
+		return config.get(settingId, false);
+	}
 }
 
 export function register(selector: DocumentSelector, language: LanguageDescription, client: ITypeScriptServiceClient) {
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
-		requireMinVersion(client, API.v560),
+		requireMinVersion(client, API.v570),
 		requireGlobalConfiguration(language.id, settingId),
 	], () => {
 		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],
 			copyMimeTypes: [DocumentPasteProvider.metadataMimeType],
-			pasteMimeTypes: ['text/plain'],
+			pasteMimeTypes: [DocumentPasteProvider.metadataMimeType],
 		});
 	});
 }

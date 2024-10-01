@@ -7,8 +7,8 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { DiffElementCellViewModelBase, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel } from './diffElementViewModel.js';
-import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE } from './notebookDiffEditorBrowser.js';
+import { DiffElementCellViewModelBase, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel, DiffElementPlaceholderViewModel, IDiffElementViewModelBase, NotebookDocumentMetadataViewModel } from './diffElementViewModel.js';
+import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED, CellDiffPlaceholderRenderTemplate, IDiffCellMarginOverlay, NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE, NotebookDocumentDiffElementRenderTemplate, NOTEBOOK_DIFF_METADATA } from './notebookDiffEditorBrowser.js';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -38,7 +38,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding, fixedEditorPaddingSingleLineCells } from './diffCellEditorOptions.js';
+import { fixedDiffEditorOptions, fixedEditorOptions, getEditorPadding } from './diffCellEditorOptions.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
@@ -48,6 +48,8 @@ import { localize } from '../../../../../nls.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { getFormattedMetadataJSON } from '../../common/model/notebookCellTextModel.js';
+import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { getUnchangedRegionSettings } from './unchangedEditorRegions.js';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -97,14 +99,14 @@ class PropertyHeader extends Disposable {
 	protected _propertyChanged?: IContextKey<boolean>;
 
 	constructor(
-		readonly cell: DiffElementCellViewModelBase,
+		readonly cell: IDiffElementViewModelBase,
 		readonly propertyHeaderContainer: HTMLElement,
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly accessor: {
 			updateInfoRendering: (renderOutput: boolean) => void;
-			checkIfModified: (cell: DiffElementCellViewModelBase) => false | { reason: string | undefined };
-			getFoldingState: (cell: DiffElementCellViewModelBase) => PropertyFoldingState;
-			updateFoldingState: (cell: DiffElementCellViewModelBase, newState: PropertyFoldingState) => void;
+			checkIfModified: () => false | { reason: string | undefined };
+			getFoldingState: () => PropertyFoldingState;
+			updateFoldingState: (newState: PropertyFoldingState) => void;
 			unChangedLabel: string;
 			changedLabel: string;
 			prefix: string;
@@ -141,9 +143,7 @@ class PropertyHeader extends Disposable {
 				return undefined;
 			}
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService));
-		this._toolbar.context = {
-			cell: this.cell
-		};
+		this._toolbar.context = this.cell;
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(cellToolbarContainer);
 		this._register(scopedContextKeyService);
@@ -165,8 +165,8 @@ class PropertyHeader extends Disposable {
 				target === this._foldingIndicator || this._foldingIndicator.contains(target) ||
 				target === metadataStatus || metadataStatus.contains(target)
 			) {
-				const oldFoldingState = this.accessor.getFoldingState(this.cell);
-				this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
+				const oldFoldingState = this.accessor.getFoldingState();
+				this.accessor.updateFoldingState(oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
 				this._updateFoldingIcon();
 				this.accessor.updateInfoRendering(this.cell.renderOutput);
 			}
@@ -179,7 +179,7 @@ class PropertyHeader extends Disposable {
 		this.updateMenu();
 		this._updateFoldingIcon();
 
-		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		const metadataChanged = this.accessor.checkIfModified();
 		if (this._propertyChanged) {
 			this._propertyChanged.set(!!metadataChanged);
 		}
@@ -199,7 +199,7 @@ class PropertyHeader extends Disposable {
 	}
 
 	private updateMenu() {
-		const metadataChanged = this.accessor.checkIfModified(this.cell);
+		const metadataChanged = this.accessor.checkIfModified();
 		if (metadataChanged) {
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
@@ -210,7 +210,7 @@ class PropertyHeader extends Disposable {
 	}
 
 	private _updateFoldingIcon() {
-		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
+		if (this.accessor.getFoldingState() === PropertyFoldingState.Collapsed) {
 			DOM.reset(this._foldingIndicator, renderIcon(collapsedIcon));
 			this._propertyExpanded?.set(false);
 		} else {
@@ -228,6 +228,274 @@ interface IDiffElementLayoutState {
 	metadataHeight?: boolean;
 	outputTotalHeight?: boolean;
 }
+
+
+export class NotebookDocumentMetadataElement extends Disposable {
+	private readonly _editor: DiffEditorWidget;
+	private _editorViewStateChanged: boolean;
+	private _toolbar!: ToolBar;
+	private readonly _cellHeaderContainer: HTMLElement;
+	private readonly _editorContainer: HTMLElement;
+	private _cellHeader!: PropertyHeader;
+	private _diffEditorContainer!: HTMLElement;
+
+	constructor(
+		readonly notebookEditor: INotebookTextDiffEditor,
+		readonly viewModel: NotebookDocumentMetadataViewModel,
+		readonly templateData: NotebookDocumentDiffElementRenderTemplate,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITextResourceConfigurationService private readonly textConfigurationService: ITextResourceConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+		this._editor = templateData.sourceEditor;
+		this._cellHeaderContainer = this.templateData.cellHeaderContainer;
+		this._editorContainer = this.templateData.editorContainer;
+		this._diffEditorContainer = this.templateData.diffEditorContainer;
+
+		this._editorViewStateChanged = false;
+		// init
+		this._register(viewModel.onDidLayoutChange(e => {
+			this.layout(e);
+			this.updateBorders();
+		}));
+		this.buildBody();
+		this.updateBorders();
+	}
+
+	buildBody(): void {
+		const body = this.templateData.body;
+		body.classList.remove('full');
+		body.classList.add('full');
+
+		this.updateSourceEditor();
+
+		if (this.viewModel instanceof NotebookDocumentMetadataViewModel) {
+			this._register(this.viewModel.modifiedMetadata.onDidChange(e => {
+				this._cellHeader.refresh();
+			}));
+		}
+	}
+	protected layoutNotebookCell() {
+		this.notebookEditor.layoutNotebookCell(
+			this.viewModel,
+			this.viewModel.layoutInfo.totalHeight
+		);
+	}
+
+	updateBorders() {
+		this.templateData.leftBorder.style.height = `${this.viewModel.layoutInfo.totalHeight - 32}px`;
+		this.templateData.rightBorder.style.height = `${this.viewModel.layoutInfo.totalHeight - 32}px`;
+		this.templateData.bottomBorder.style.top = `${this.viewModel.layoutInfo.totalHeight - 32}px`;
+	}
+	updateSourceEditor(): void {
+		this._cellHeaderContainer.style.display = 'flex';
+		this._cellHeaderContainer.innerText = '';
+		this._editorContainer.classList.add('diff');
+
+		const updateSourceEditor = () => {
+			if (this.viewModel.cellFoldingState === PropertyFoldingState.Collapsed) {
+				this._editorContainer.style.display = 'none';
+				this.viewModel.editorHeight = 0;
+				return;
+			}
+
+			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
+			const editorHeight = this.viewModel.layoutInfo.editorHeight !== 0 ? this.viewModel.layoutInfo.editorHeight : this.viewModel.computeInputEditorHeight(lineHeight);
+
+			this._editorContainer.style.height = `${editorHeight}px`;
+			this._editorContainer.style.display = 'block';
+
+			const contentHeight = this._editor.getContentHeight();
+			if (contentHeight >= 0) {
+				this.viewModel.editorHeight = contentHeight;
+			}
+			return editorHeight;
+		};
+		const renderSourceEditor = () => {
+			const editorHeight = updateSourceEditor();
+			if (!editorHeight) {
+				return;
+			}
+
+			// If there is only 1 line, then ensure we have the necessary padding to display the button for whitespaces.
+			// E.g. assume we have a cell with 1 line and we add some whitespace,
+			// Then diff editor displays the button `Show Whitespace Differences`, however with 12 paddings on the top, the
+			// button can get cut off.
+			const lineCount = this.viewModel.modifiedMetadata.textBuffer.getLineCount();
+			const options: IDiffEditorOptions = {
+				padding: getEditorPadding(lineCount)
+			};
+			const unchangedRegions = this._register(getUnchangedRegionSettings(this.configurationService));
+			if (unchangedRegions.options.enabled) {
+				options.hideUnchangedRegions = unchangedRegions.options;
+			}
+			this._editor.updateOptions(options);
+			this._register(unchangedRegions.onDidChangeEnablement(() => {
+				options.hideUnchangedRegions = unchangedRegions.options;
+				this._editor.updateOptions(options);
+			}));
+			this._editor.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				height: editorHeight
+			});
+			this._register(this._editor.onDidContentSizeChange((e) => {
+				if (this.viewModel.cellFoldingState === PropertyFoldingState.Expanded && e.contentHeightChanged && this.viewModel.layoutInfo.editorHeight !== e.contentHeight) {
+					this.viewModel.editorHeight = e.contentHeight;
+				}
+			}));
+			this._initializeSourceDiffEditor();
+		};
+
+		this._cellHeader = this._register(this.instantiationService.createInstance(
+			PropertyHeader,
+			this.viewModel,
+			this._cellHeaderContainer,
+			this.notebookEditor,
+			{
+				updateInfoRendering: () => renderSourceEditor(),
+				checkIfModified: () => {
+					return this.viewModel.originalMetadata.getHash() !== this.viewModel.modifiedMetadata.getHash() ? { reason: undefined } : false;
+				},
+				getFoldingState: () => this.viewModel.cellFoldingState,
+				updateFoldingState: (state) => this.viewModel.cellFoldingState = state,
+				unChangedLabel: 'Notebook Metadata',
+				changedLabel: 'Notebook Metadata changed',
+				prefix: 'metadata',
+				menuId: MenuId.NotebookDiffDocumentMetadata
+			}
+		));
+		this._cellHeader.buildHeader();
+		renderSourceEditor();
+
+		const scopedContextKeyService = this.contextKeyService.createScoped(this.templateData.inputToolbarContainer);
+		this._register(scopedContextKeyService);
+		const inputChanged = NOTEBOOK_DIFF_METADATA.bindTo(scopedContextKeyService);
+		inputChanged.set(this.viewModel.originalMetadata.getHash() !== this.viewModel.modifiedMetadata.getHash());
+
+		this._toolbar = this.templateData.toolbar;
+
+		this._toolbar.context = this.viewModel;
+
+		const refreshToolbar = () => {
+			const hasChanges = this.viewModel.originalMetadata.getHash() !== this.viewModel.modifiedMetadata.getHash();
+			inputChanged.set(hasChanges);
+
+			if (hasChanges) {
+				const actions: IAction[] = [];
+				const menu = this.menuService.getMenuActions(MenuId.NotebookDiffDocumentMetadata, scopedContextKeyService, { shouldForwardArgs: true });
+				createAndFillInActionBarActions(menu, actions);
+				this._toolbar.setActions(actions);
+			} else {
+				this._toolbar.setActions([]);
+			}
+		};
+
+		this._register(this.viewModel.modifiedMetadata.onDidChange(() => {
+			refreshToolbar();
+		}));
+		refreshToolbar();
+	}
+
+	private async _initializeSourceDiffEditor() {
+		const [originalRef, modifiedRef] = await Promise.all([
+			this.textModelService.createModelReference(this.viewModel.originalMetadata.uri),
+			this.textModelService.createModelReference(this.viewModel.modifiedMetadata.uri)]);
+
+		if (this._store.isDisposed) {
+			originalRef.dispose();
+			modifiedRef.dispose();
+			return;
+		}
+
+		this._register(originalRef);
+		this._register(modifiedRef);
+
+		const vm = this._register(this._editor.createViewModel({
+			original: originalRef.object.textEditorModel,
+			modified: modifiedRef.object.textEditorModel,
+		}));
+
+		// Reduces flicker (compute this before setting the model)
+		// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+		// & that results in flicker.
+		await vm.waitForDiff();
+		this._editor.setModel(vm);
+
+		const handleViewStateChange = () => {
+			this._editorViewStateChanged = true;
+		};
+
+		const handleScrollChange = (e: editorCommon.IScrollEvent) => {
+			if (e.scrollTopChanged || e.scrollLeftChanged) {
+				this._editorViewStateChanged = true;
+			}
+		};
+
+		this.updateEditorOptionsForWhitespace();
+		this._register(this._editor.getOriginalEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor.getOriginalEditor().onDidScrollChange(handleScrollChange));
+		this._register(this._editor.getModifiedEditor().onDidChangeCursorSelection(handleViewStateChange));
+		this._register(this._editor.getModifiedEditor().onDidScrollChange(handleScrollChange));
+
+		const editorViewState = this.viewModel.getSourceEditorViewState() as editorCommon.IDiffEditorViewState | null;
+		if (editorViewState) {
+			this._editor.restoreViewState(editorViewState);
+		}
+
+		const contentHeight = this._editor.getContentHeight();
+		this.viewModel.editorHeight = contentHeight;
+	}
+	private updateEditorOptionsForWhitespace() {
+		const editor = this._editor;
+		const uri = editor.getModel()?.modified.uri || editor.getModel()?.original.uri;
+		if (!uri) {
+			return;
+		}
+		const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
+		editor.updateOptions({ ignoreTrimWhitespace });
+
+		this._register(this.textConfigurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(uri, 'diffEditor') &&
+				e.affectedKeys.has('diffEditor.ignoreTrimWhitespace')) {
+				const ignoreTrimWhitespace = this.textConfigurationService.getValue<boolean>(uri, 'diffEditor.ignoreTrimWhitespace');
+				editor.updateOptions({ ignoreTrimWhitespace });
+			}
+		}));
+	}
+	layout(state: IDiffElementLayoutState) {
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._diffEditorContainer), () => {
+			if (state.editorHeight) {
+				this._editorContainer.style.height = `${this.viewModel.layoutInfo.editorHeight}px`;
+				this._editor.layout({
+					width: this._editor.getViewWidth(),
+					height: this.viewModel.layoutInfo.editorHeight
+				});
+			}
+
+			if (state.outerWidth) {
+				this._editorContainer.style.height = `${this.viewModel.layoutInfo.editorHeight}px`;
+				this._editor.layout();
+			}
+
+			this.layoutNotebookCell();
+		});
+	}
+
+	override dispose() {
+		this._editor.setModel(null);
+
+		if (this._editorViewStateChanged) {
+			this.viewModel.saveSpirceEditorViewState(this._editor.saveViewState());
+		}
+
+		super.dispose();
+	}
+}
+
 
 abstract class AbstractElementRenderer extends Disposable {
 	protected readonly _metadataLocalDisposable = this._register(new DisposableStore());
@@ -516,20 +784,48 @@ abstract class AbstractElementRenderer extends Disposable {
 				modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
 			});
 
+			const unchangedRegions = this._register(getUnchangedRegionSettings(this.configurationService));
+			if (unchangedRegions.options.enabled) {
+				this._metadataEditor.updateOptions({ hideUnchangedRegions: unchangedRegions.options });
+			}
+			this._metadataEditorDisposeStore.add(unchangedRegions.onDidChangeEnablement(() => {
+				if (this._metadataEditor) {
+					this._metadataEditor.updateOptions({ hideUnchangedRegions: unchangedRegions.options });
+				}
+			}));
+
+
 			this.layout({ metadataHeight: true });
 			this._metadataEditorDisposeStore.add(this._metadataEditor);
 
 			this._metadataEditorContainer?.classList.add('diff');
 
-			const originalMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original.handle, Schemas.vscodeNotebookCellMetadata));
-			const modifiedMetadataModel = await this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified.handle, Schemas.vscodeNotebookCellMetadata));
-			this._metadataEditor.setModel({
-				original: originalMetadataModel.object.textEditorModel,
-				modified: modifiedMetadataModel.object.textEditorModel
-			});
+			const [originalMetadataModel, modifiedMetadataModel] = await Promise.all([
+				this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original.handle, Schemas.vscodeNotebookCellMetadata)),
+				this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified.handle, Schemas.vscodeNotebookCellMetadata))
+			]);
+
+			if (this._isDisposed) {
+				originalMetadataModel.dispose();
+				modifiedMetadataModel.dispose();
+				return;
+			}
 
 			this._metadataEditorDisposeStore.add(originalMetadataModel);
 			this._metadataEditorDisposeStore.add(modifiedMetadataModel);
+			const vm = this._metadataEditor.createViewModel({
+				original: originalMetadataModel.object.textEditorModel,
+				modified: modifiedMetadataModel.object.textEditorModel
+			});
+			this._metadataEditor.setModel(vm);
+			// Reduces flicker (compute this before setting the model)
+			// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+			// & that results in flicker.
+			await vm.waitForDiff();
+
+			if (this._isDisposed) {
+				return;
+			}
 
 			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
 
@@ -847,10 +1143,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				this.cell.editorHeight = 0;
 				return;
 			}
-
-			const lineCount = this.nestedCellViewModel.textModel.textBuffer.getLineCount();
 			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-			const editorHeight = lineCount * lineHeight + fixedEditorPadding.top + fixedEditorPadding.bottom;
+			const editorHeight = this.cell.computeInputEditorHeight(lineHeight);
 
 			this._editorContainer.style.height = `${editorHeight}px`;
 			this._editorContainer.style.display = 'block';
@@ -888,9 +1182,9 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: () => renderSourceEditor(),
-				checkIfModified: (_) => ({ reason: undefined }),
-				getFoldingState: (cell) => cell.cellFoldingState,
-				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
+				checkIfModified: () => ({ reason: undefined }),
+				getFoldingState: () => this.cell.cellFoldingState,
+				updateFoldingState: (state) => this.cell.cellFoldingState = state,
 				unChangedLabel: 'Input',
 				changedLabel: 'Input',
 				prefix: 'input',
@@ -955,14 +1249,14 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkMetadataIfModified();
+				checkIfModified: () => {
+					return this.cell.checkMetadataIfModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.metadataFoldingState;
+				getFoldingState: () => {
+					return this.cell.metadataFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.metadataFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.metadataFoldingState = state;
 				},
 				unChangedLabel: 'Metadata',
 				changedLabel: 'Metadata changed',
@@ -991,14 +1285,14 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkIfOutputsModified();
+				checkIfModified: () => {
+					return this.cell.checkIfOutputsModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.outputFoldingState;
+				getFoldingState: () => {
+					return this.cell.outputFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.outputFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.outputFoldingState = state;
 				},
 				unChangedLabel: 'Outputs',
 				changedLabel: 'Outputs changed',
@@ -1352,14 +1646,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkMetadataIfModified();
+				checkIfModified: () => {
+					return this.cell.checkMetadataIfModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.metadataFoldingState;
+				getFoldingState: () => {
+					return this.cell.metadataFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.metadataFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.metadataFoldingState = state;
 				},
 				unChangedLabel: 'Metadata',
 				changedLabel: 'Metadata changed',
@@ -1406,14 +1700,14 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
-				checkIfModified: (cell) => {
-					return cell.checkIfOutputsModified();
+				checkIfModified: () => {
+					return this.cell.checkIfOutputsModified();
 				},
-				getFoldingState: (cell) => {
-					return cell.outputFoldingState;
+				getFoldingState: () => {
+					return this.cell.outputFoldingState;
 				},
-				updateFoldingState: (cell, state) => {
-					cell.outputFoldingState = state;
+				updateFoldingState: (state) => {
+					this.cell.outputFoldingState = state;
 				},
 				unChangedLabel: 'Outputs',
 				changedLabel: 'Outputs changed',
@@ -1585,7 +1879,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			const lineCount = modifiedCell.textModel.textBuffer.getLineCount();
 			const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-			const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : (lineCount * lineHeight) + fixedEditorPadding.top + fixedEditorPadding.bottom;
+			const editorHeight = this.cell.layoutInfo.editorHeight !== 0 ? this.cell.layoutInfo.editorHeight : this.cell.computeInputEditorHeight(lineHeight);
 
 			this._editorContainer.style.height = `${editorHeight}px`;
 			this._editorContainer.style.display = 'block';
@@ -1603,11 +1897,18 @@ export class ModifiedElement extends AbstractElementRenderer {
 			// E.g. assume we have a cell with 1 line and we add some whitespace,
 			// Then diff editor displays the button `Show Whitespace Differences`, however with 12 paddings on the top, the
 			// button can get cut off.
-			if (lineCount === 1) {
-				this._editor.updateOptions({
-					padding: fixedEditorPaddingSingleLineCells
-				});
+			const options: IDiffEditorOptions = {
+				padding: getEditorPadding(lineCount)
+			};
+			const unchangedRegions = this._register(getUnchangedRegionSettings(this.configurationService));
+			if (unchangedRegions.options.enabled) {
+				options.hideUnchangedRegions = unchangedRegions.options;
 			}
+			this._editor.updateOptions(options);
+			this._register(unchangedRegions.onDidChangeEnablement(() => {
+				options.hideUnchangedRegions = unchangedRegions.options;
+				this._editor?.updateOptions(options);
+			}));
 			this._editor.layout({
 				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: editorHeight
@@ -1627,11 +1928,11 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this.notebookEditor,
 			{
 				updateInfoRendering: () => renderSourceEditor(),
-				checkIfModified: (cell) => {
-					return cell.modified?.textModel.getTextBufferHash() !== cell.original?.textModel.getTextBufferHash() ? { reason: undefined } : false;
+				checkIfModified: () => {
+					return this.cell.modified?.textModel.getTextBufferHash() !== this.cell.original?.textModel.getTextBufferHash() ? { reason: undefined } : false;
 				},
-				getFoldingState: (cell) => cell.cellFoldingState,
-				updateFoldingState: (cell, state) => cell.cellFoldingState = state,
+				getFoldingState: () => this.cell.cellFoldingState,
+				updateFoldingState: (state) => this.cell.cellFoldingState = state,
 				unChangedLabel: 'Input',
 				changedLabel: 'Input changed',
 				prefix: 'input',
@@ -1652,9 +1953,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 		this._toolbar = this.templateData.toolbar;
 
-		this._toolbar.context = {
-			cell: this.cell
-		};
+		this._toolbar.context = this.cell;
 
 		const refreshToolbar = () => {
 			const ignore = this.textConfigurationService.getValue<boolean>(this.cell.modified.uri, 'diffEditor.ignoreTrimWhitespace');
@@ -1683,25 +1982,28 @@ export class ModifiedElement extends AbstractElementRenderer {
 	}
 
 	private async _initializeSourceDiffEditor() {
-		const originalCell = this.cell.original;
-		const modifiedCell = this.cell.modified;
-
-		const originalRef = await this.textModelService.createModelReference(originalCell.uri);
-		const modifiedRef = await this.textModelService.createModelReference(modifiedCell.uri);
-
-		if (this._isDisposed) {
-			return;
-		}
-
-		const textModel = originalRef.object.textEditorModel;
-		const modifiedTextModel = modifiedRef.object.textEditorModel;
+		const [originalRef, modifiedRef] = await Promise.all([
+			this.textModelService.createModelReference(this.cell.original.uri),
+			this.textModelService.createModelReference(this.cell.modified.uri)]);
 		this._register(originalRef);
 		this._register(modifiedRef);
 
-		this._editor!.setModel({
-			original: textModel,
-			modified: modifiedTextModel,
-		});
+		if (this._isDisposed) {
+			originalRef.dispose();
+			modifiedRef.dispose();
+			return;
+		}
+
+		const vm = this._register(this._editor!.createViewModel({
+			original: originalRef.object.textEditorModel,
+			modified: modifiedRef.object.textEditorModel,
+		}));
+
+		// Reduces flicker (compute this before setting the model)
+		// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
+		// & that results in flicker.
+		await vm.waitForDiff();
+		this._editor!.setModel(vm);
 
 		const handleViewStateChange = () => {
 			this._editorViewStateChanged = true;

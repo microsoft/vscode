@@ -3,6 +3,7 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"types": [
+			"@webgpu/types",
 			"trusted-types",
 			"wicg-file-system-access"
 		],

@@ -41,6 +41,11 @@ declare module 'vscode' {
 	 */
 	export interface AITextSearchProvider {
 		/**
+		 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
+		 */
+		readonly name?: string;
+
+		/**
 		 * Provide results that match the given text pattern.
 		 * @param query The parameter for this query.
 		 * @param options A set of options to consider while searching.
@@ -48,6 +53,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+
 	}
 
 	export namespace workspace {

@@ -5,25 +5,24 @@
 import { addDisposableListener, Dimension } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { StableEditorBottomScrollState } from '../../../../editor/browser/stableEditorScroll.js';
 import { EditorLayoutInfo, EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
-import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { StableEditorBottomScrollState } from '../../../../editor/browser/stableEditorScroll.js';
-import { ScrollType } from '../../../../editor/common/editorCommon.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
+import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -66,7 +65,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 			chatWidgetViewOptions: {
 				menus: {
-					executeToolbar: MenuId.ChatExecute,
 					telemetrySource: 'interactiveEditorWidget-toolbar',
 				},
 				rendererOptions: {
@@ -169,6 +167,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._scrollUp.enable();
 	}
 
+	reveal(position: Position) {
+		const stickyScroll = this.editor.getOption(EditorOption.stickyScroll);
+		const magicValue = stickyScroll.enabled ? stickyScroll.maxLineCount : 0;
+		this.editor.revealLines(position.lineNumber + magicValue, position.lineNumber + magicValue, ScrollType.Immediate);
+		this._scrollUp.reset();
+		this.updatePositionAndHeight(position);
+	}
+
 	override updatePositionAndHeight(position: Position): void {
 		const revealZone = this._createZoneAndScrollRestoreFn(position);
 		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
@@ -253,6 +259,10 @@ class ScrollUpState {
 
 	dispose(): void {
 		this._listener.dispose();
+	}
+
+	reset(): void {
+		this._didScrollUpOrDown = undefined;
 	}
 
 	enable(): void {

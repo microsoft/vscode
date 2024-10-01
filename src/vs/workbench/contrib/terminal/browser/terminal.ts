@@ -7,7 +7,7 @@ import { IDimension } from '../../../../base/browser/dom.js';
 import { Orientation } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
 import { Event, IDynamicListEventMultiplexer, type DynamicListEventMultiplexer } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -64,6 +64,11 @@ export interface ITerminalInstanceService {
 	onDidCreateInstance: Event<ITerminalInstance>;
 
 	/**
+	 * An event that's fired when a new backend is registered.
+	 */
+	onDidRegisterBackend: Event<ITerminalBackend>;
+
+	/**
 	 * Helper function to convert a shell launch config, a profile or undefined into its equivalent
 	 * shell launch config.
 	 * @param shellLaunchConfigOrProfile A shell launch config, a profile or undefined
@@ -86,7 +91,7 @@ export interface ITerminalInstanceService {
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
-	didRegisterBackend(remoteAuthority?: string): void;
+	didRegisterBackend(backend: ITerminalBackend): void;
 }
 
 export const enum Direction {
@@ -628,7 +633,8 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * The position of the terminal.
 	 */
-	target?: TerminalLocation;
+	target: TerminalLocation | undefined;
+	targetRef: IReference<TerminalLocation | undefined>;
 
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
@@ -1028,12 +1034,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined>;
-
-	/**
-	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
-	 * rerun it in the active terminal.
-	 */
-	runRecent(type: 'command' | 'cwd'): Promise<void>;
 
 	/**
 	 * Attempts to detect and kill the process listening on specified port.

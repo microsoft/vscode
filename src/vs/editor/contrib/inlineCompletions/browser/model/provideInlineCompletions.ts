@@ -75,7 +75,7 @@ export async function provideInlineCompletions(
 		return undefined;
 	}
 
-	function processProvider(provider: InlineCompletionsProvider<any>): Result {
+	function processProvider(provider: InlineCompletionsProvider<InlineCompletions>): Result {
 		const state = states.get(provider);
 		if (state) {
 			return state;
@@ -106,7 +106,7 @@ export async function provideInlineCompletions(
 					const completions = await provider.provideInlineCompletions(model, positionOrRange, context, token);
 					return completions;
 				} else {
-					const completions = await provider.provideInlineEdits?.(model, positionOrRange, context, token);
+					const completions = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
 					return completions;
 				}
 			} catch (e) {

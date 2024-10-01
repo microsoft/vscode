@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, Configuration, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel } from '@azure/msal-node';
 import { Disposable, Memento, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
-import { raceCancellationAndTimeoutError } from '../common/async';
+import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
 import { ICachedPublicClientApplication } from '../common/publicClientCache';
 
 export class CachedPublicClientApplication implements ICachedPublicClientApplication {
 	private _pca: PublicClientApplication;
+	private _sequencer = new Sequencer();
+	private readonly _refreshDelayer = new DelayerByKey<AuthenticationResult>();
 
 	private _accounts: AccountInfo[] = [];
 	private readonly _disposable: Disposable;
@@ -28,6 +30,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			loggerOptions: {
 				correlationId: `${this._clientId}] [${this._authority}`,
 				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
+				logLevel: LogLevel.Trace
 			}
 		},
 		cache: {
@@ -82,9 +85,12 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	}
 
 	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
-		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}]`);
-		const result = await this._pca.acquireTokenSilent(request);
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] starting...`);
+		const result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(request));
+		this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] got result`);
 		if (result.account && !result.fromCache) {
+			this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${this._authority}] [${request.scopes.join(' ')}] [${request.account.username}] firing event due to change`);
+			this._setupRefresh(result);
 			this._onDidAccountsChangeEmitter.fire({ added: [], changed: [result.account], deleted: [] });
 		}
 		return result;
@@ -92,7 +98,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
 		this._logger.debug(`[acquireTokenInteractive] [${this._clientId}] [${this._authority}] [${request.scopes?.join(' ')}] loopbackClientOverride: ${request.loopbackClient ? 'true' : 'false'}`);
-		return await window.withProgress(
+		const result = await window.withProgress(
 			{
 				location: ProgressLocation.Notification,
 				cancellable: true,
@@ -104,6 +110,8 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				1000 * 60 * 5
 			)
 		);
+		this._setupRefresh(result);
+		return result;
 	}
 
 	removeAccount(account: AccountInfo): Promise<void> {
@@ -144,5 +152,47 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			}
 		}
 		this._logger.debug(`[update] [${this._clientId}] [${this._authority}] CachedPublicClientApplication update complete`);
+	}
+
+	private _setupRefresh(result: AuthenticationResult) {
+		const on = result.refreshOn || result.expiresOn;
+		if (!result.account || !on) {
+			return;
+		}
+
+		const account = result.account;
+		const scopes = result.scopes;
+		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
+		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
+		this._logger.debug(`[_setupRefresh] [${this._clientId}] [${this._authority}] [${scopes.join(' ')}] [${account.username}] timeToRefresh: ${timeToRefresh}`);
+		this._refreshDelayer.trigger(
+			key,
+			// This may need the redirectUri when we switch to the broker
+			() => this.acquireTokenSilent({ account, scopes, redirectUri: undefined, forceRefresh: true }),
+			timeToRefresh > 0 ? timeToRefresh : 0
+		);
+	}
+}
+
+export class Sequencer {
+
+	private current: Promise<unknown> = Promise.resolve(null);
+
+	queue<T>(promiseTask: () => Promise<T>): Promise<T> {
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
+	}
+}
+
+class DelayerByKey<T> {
+	private _delayers = new Map<string, Delayer<T>>();
+
+	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
+		let delayer = this._delayers.get(key);
+		if (!delayer) {
+			delayer = new Delayer<T>(delay);
+			this._delayers.set(key, delayer);
+		}
+
+		return delayer.trigger(fn, delay);
 	}
 }

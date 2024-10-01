@@ -97,7 +97,8 @@ suite('NotebookCell#Document', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test'
 			}]
 		}));
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({ newActiveEditor: '_notebook_editor_0' }));
@@ -369,7 +370,8 @@ suite('NotebookCell#Document', function () {
 				documentUri: notebookUri,
 				id: '_notebook_editor_2',
 				selections: [{ start: 0, end: 1 }],
-				visibleRanges: []
+				visibleRanges: [],
+				viewType: 'test'
 			}]
 		}));
 
