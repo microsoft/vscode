@@ -582,7 +582,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			let contribution: ITerminalContribution;
 			try {
-				contribution = this._register(this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager));
+				contribution = this._register(this._scopedInstantiationService.createInstance(desc.ctor, {
+					instance: this,
+					processManager: this._processManager,
+					widgetManager: this._widgetManager
+				}));
 				this._contributions.set(desc.id, contribution);
 			} catch (err) {
 				onUnexpectedError(err);
