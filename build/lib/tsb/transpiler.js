@@ -4,8 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SwcTranspiler = exports.TscTranspiler = void 0;
+exports.SwcTranspiler = exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
 const swc = require("@swc/core");
+const esbuild = require("esbuild");
 const ts = require("typescript");
 const threads = require("node:worker_threads");
 const Vinyl = require("vinyl");
@@ -224,6 +225,52 @@ class TscTranspiler {
     }
 }
 exports.TscTranspiler = TscTranspiler;
+class ESBuildTranspiler {
+    _logFn;
+    _onError;
+    _cmdLine;
+    _outputFileNames;
+    _jobs = [];
+    onOutfile;
+    constructor(_logFn, _onError, configFilePath, _cmdLine) {
+        this._logFn = _logFn;
+        this._onError = _onError;
+        this._cmdLine = _cmdLine;
+        _logFn('Transpile', `will use ESBuild to transpile source files`);
+        this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+    }
+    async join() {
+        const jobs = this._jobs.slice();
+        this._jobs.length = 0;
+        await Promise.allSettled(jobs);
+    }
+    transpile(file) {
+        if (!(file.contents instanceof Buffer)) {
+            throw Error('file.contents must be a Buffer');
+        }
+        const t1 = Date.now();
+        this._jobs.push(esbuild.transform(file.contents, {
+            target: ['es2022'],
+            loader: 'ts',
+            tsconfigRaw: JSON.stringify({ compilerOptions: this._cmdLine.options }),
+            supported: {
+                'class-static-blocks': false // SEE https://github.com/evanw/esbuild/issues/3823
+            }
+        }).then(result => {
+            const outBase = this._cmdLine.options.outDir ?? file.base;
+            const outPath = this._outputFileNames.getOutputFileName(file.path);
+            this.onOutfile(new Vinyl({
+                path: outPath,
+                base: outBase,
+                contents: Buffer.from(result.code),
+            }));
+            this._logFn('Transpile', `esbuild took ${Date.now() - t1}ms for ${file.path}`);
+        }).catch(err => {
+            this._onError(err);
+        }));
+    }
+}
+exports.ESBuildTranspiler = ESBuildTranspiler;
 function _isDefaultEmpty(src) {
     return src
         .replace('"use strict";', '')

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as swc from '@swc/core';
+import * as esbuild from 'esbuild';
 import * as ts from 'typescript';
 import * as threads from 'node:worker_threads';
 import * as Vinyl from 'vinyl';
@@ -288,6 +289,60 @@ export class TscTranspiler implements ITranspiler {
 
 			this._allJobs.push(job);
 		}
+	}
+}
+
+export class ESBuildTranspiler implements ITranspiler {
+
+	private readonly _outputFileNames: OutputFileNameOracle;
+	private _jobs: Promise<any>[] = [];
+
+	onOutfile?: ((file: Vinyl) => void) | undefined;
+
+	constructor(
+		private readonly _logFn: (topic: string, message: string) => void,
+		private readonly _onError: (err: any) => void,
+		configFilePath: string,
+		private readonly _cmdLine: ts.ParsedCommandLine
+	) {
+		_logFn('Transpile', `will use ESBuild to transpile source files`);
+		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+	}
+
+	async join(): Promise<void> {
+		const jobs = this._jobs.slice();
+		this._jobs.length = 0;
+		await Promise.allSettled(jobs);
+	}
+
+	transpile(file: Vinyl): void {
+		if (!(file.contents instanceof Buffer)) {
+			throw Error('file.contents must be a Buffer');
+		}
+		const t1 = Date.now();
+		this._jobs.push(esbuild.transform(file.contents, {
+			target: ['es2022'],
+			loader: 'ts',
+			tsconfigRaw: JSON.stringify({ compilerOptions: this._cmdLine.options }),
+			supported: {
+				'class-static-blocks': false // SEE https://github.com/evanw/esbuild/issues/3823
+			}
+		}).then(result => {
+
+			const outBase = this._cmdLine.options.outDir ?? file.base;
+			const outPath = this._outputFileNames.getOutputFileName(file.path);
+
+			this.onOutfile!(new Vinyl({
+				path: outPath,
+				base: outBase,
+				contents: Buffer.from(result.code),
+			}));
+
+			this._logFn('Transpile', `esbuild took ${Date.now() - t1}ms for ${file.path}`);
+
+		}).catch(err => {
+			this._onError(err);
+		}));
 	}
 }
 
