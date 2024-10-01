@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import * as async from '../../common/async.js';
+import * as MicrotaskDelay from "../../common/symbols.js";
 import { CancellationToken, CancellationTokenSource } from '../../common/cancellation.js';
 import { isCancellationError } from '../../common/errors.js';
 import { Event } from '../../common/event.js';
-import { DisposableStore } from '../../common/lifecycle.js';
-import * as MicrotaskDelay from "../../common/symbols.js";
 import { URI } from '../../common/uri.js';
 import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { DisposableStore } from '../../common/lifecycle.js';
 
 suite('Async', () => {
 
@@ -1353,7 +1353,7 @@ suite('Async', () => {
 			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: undefined,
-				throttleDelay: 0
+				throttleDelay: 1
 			}, handler));
 
 			// Work less than chunk size
@@ -1470,9 +1470,6 @@ suite('Async', () => {
 
 			let worked = worker.work([1, 2, 3]);
 			assert.strictEqual(worked, true);
-
-			// Wait 1ms for the throttle delay to reset, otherwise the next call will also be queued
-			await async.timeout(1);
 
 			worked = worker.work([1, 2, 3, 4, 5, 6]);
 			assert.strictEqual(worked, true);

@@ -6,12 +6,12 @@
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
 import { BugIndicatingError, CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
-import { Lazy } from './lazy.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from './lifecycle.js';
-import { setTimeout0 } from './platform.js';
 import { extUri as defaultExtUri, IExtUri } from './resources.js';
-import { MicrotaskDelay } from './symbols.js';
 import { URI } from './uri.js';
+import { setTimeout0 } from './platform.js';
+import { MicrotaskDelay } from './symbols.js';
+import { Lazy } from './lazy.js';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -1158,6 +1158,12 @@ export interface IThrottledWorkerOptions {
 	 * delay before processing the next round of chunks when chunk size exceeds limits
 	 */
 	throttleDelay: number;
+
+	/**
+	 * When enabled will guarantee that two distinct calls to work() are not executed without throttle delay between them
+	 * Otherwise if the worker isn't currently throttling it will execute work immediately
+	 */
+	waitThrottleDelayBetweenWorkUnits?: boolean;
 }
 
 /**
@@ -1231,9 +1237,9 @@ export class ThrottledWorker<T> extends Disposable {
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has
 		// past, pending work will be worked again.
-		if (!this.throttler.value && timeSinceLastExecution >= this.options.throttleDelay) {
+		if (!this.throttler.value && (!this.options.waitThrottleDelayBetweenWorkUnits || timeSinceLastExecution >= this.options.throttleDelay)) {
 			this.doWork();
-		} else {
+		} else if (!this.throttler.value && this.options.waitThrottleDelayBetweenWorkUnits) {
 			this.throttler.value = new RunOnceScheduler(() => {
 				this.throttler.clear();
 				this.doWork();
