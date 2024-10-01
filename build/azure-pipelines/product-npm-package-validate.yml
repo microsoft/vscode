@@ -56,7 +56,7 @@ jobs:
 
         - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
           displayName: Install build tools
-          condition: and(succeeded())
+          condition: succeeded()
 
         - script: |
             set -e
