@@ -30,15 +30,18 @@ parts:
       - libcurl3-gnutls
       - libcurl3-nss
       - libcurl4
+      - libegl1
       - libdrm2
       - libgbm1
       - libgl1
+      - libgles2
       - libglib2.0-0
       - libgtk-3-0
       - libibus-1.0-5
       - libnss3
       - libpango-1.0-0
       - libsecret-1-0
+      - libwayland-egl1
       - libxcomposite1
       - libxdamage1
       - libxfixes3
@@ -74,8 +77,8 @@ parts:
 
 apps:
   @@NAME@@:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
 
   url-handler:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox

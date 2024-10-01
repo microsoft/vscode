@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { CancellationError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { combinedDisposable, Disposable, DisposableMap, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { revive } from 'vs/base/common/marshalling';
-import { mixin } from 'vs/base/common/objects';
-import { URI } from 'vs/base/common/uri';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position as EditorPosition, IPosition } from 'vs/editor/common/core/position';
-import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as languages from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IndentationRule, LanguageConfiguration, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { DataTransferFileCache } from 'vs/workbench/api/common/shared/dataTransferCache';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import * as search from 'vs/workbench/contrib/search/common/search';
-import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { createStringDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../base/common/dataTransfer.js';
+import { CancellationError } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { HierarchicalKind } from '../../../base/common/hierarchicalKind.js';
+import { combinedDisposable, Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { mixin } from '../../../base/common/objects.js';
+import { URI } from '../../../base/common/uri.js';
+import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { Position as EditorPosition, IPosition } from '../../../editor/common/core/position.js';
+import { Range as EditorRange, IRange } from '../../../editor/common/core/range.js';
+import { Selection } from '../../../editor/common/core/selection.js';
+import * as languages from '../../../editor/common/languages.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { IndentationRule, LanguageConfiguration, OnEnterRule } from '../../../editor/common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../editor/common/languages/languageConfigurationRegistry.js';
+import { ITextModel } from '../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../editor/common/services/languageFeatures.js';
+import { decodeSemanticTokensDto } from '../../../editor/common/services/semanticTokensDto.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
+import { reviveWorkspaceEditDto } from './mainThreadBulkEdits.js';
+import * as typeConvert from '../common/extHostTypeConverters.js';
+import { DataTransferFileCache } from '../common/shared/dataTransferCache.js';
+import * as callh from '../../contrib/callHierarchy/common/callHierarchy.js';
+import * as search from '../../contrib/search/common/search.js';
+import * as typeh from '../../contrib/typeHierarchy/common/typeHierarchy.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IdentifiableInlineEdit, IDocumentDropEditDto, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -321,7 +320,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			selector: selector,
 			provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]> | undefined> => {
 				return this._proxy.$provideMultiDocumentHighlights(handle, model.uri, position, otherModels.map(model => model.uri), token).then(dto => {
-					if (isFalsyOrEmpty(dto)) {
+					// dto should be non-null + non-undefined
+					// dto length of 0 is valid, just no highlights, pass this through.
+					if (dto === undefined || dto === null) {
 						return undefined;
 					}
 					const result = new ResourceMap<languages.DocumentHighlight[]>();
@@ -611,6 +612,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+			},
+			provideInlineEditsForRange: async (model: ITextModel, range: EditorRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
+				return this._proxy.$provideInlineEditsForRange(handle, model.uri, range, context, token);
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
 				if (supportsHandleEvents) {
@@ -998,8 +1002,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	// --- mapped edits
 
-	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadMappedEditsProvider(handle, this._proxy, this._uriIdentService);
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[], displayName: string): void {
+		const provider = new MainThreadMappedEditsProvider(displayName, handle, this._proxy, this._uriIdentService);
 		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
 	}
 }
@@ -1124,7 +1128,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 		}
 	}
 
-	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEdit[] | undefined> {
+	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEditsSession | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
@@ -1137,14 +1141,19 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 				return;
 			}
 
-			return edits.map(edit => {
-				return {
-					...edit,
-					yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
-					kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
-					additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
-				};
-			});
+			return {
+				edits: edits.map(edit => {
+					return {
+						...edit,
+						yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
+						kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
+						additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
+					};
+				}),
+				dispose: () => {
+					this._proxy.$releaseDocumentOnDropEdits(this._handle, request.id);
+				},
+			};
 		} finally {
 			request.dispose();
 		}
@@ -1233,6 +1242,7 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
 
 	constructor(
+		public readonly displayName: string,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _uriService: IUriIdentityService,

@@ -5,7 +5,7 @@
 
 import { mainWindow } from 'vs/base/browser/window';
 import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema.js';
-import { isElectron, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isElectron, isMacintosh, isWindows } from '../common/platform.js';
 
 /**
  * The best font-family to be used in CSS based on the platform:

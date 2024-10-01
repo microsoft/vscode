@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractPolicyService, IPolicyService, PolicyDefinition } from 'vs/platform/policy/common/policy';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Throttler } from 'vs/base/common/async';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition } from '../common/policy.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { Throttler } from '../../../base/common/async.js';
 import type { PolicyUpdate, Watcher } from '@vscode/policy-watcher';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { MutableDisposable } from '../../../base/common/lifecycle.js';
+import { ILogService } from '../../log/common/log.js';
 
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 

@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { DocumentSelector } from '../configuration/documentSelector';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 import protocol from '../tsServer/protocol/protocol';
 import { API } from '../tsServer/api';
 import { LanguageDescription } from '../configuration/languageDescription';
@@ -38,6 +38,8 @@ class CopyMetadata {
 	}
 }
 
+const settingId = 'experimental.updateImportsOnPaste';
+
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 	static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'jsts', 'pasteWithImports');
@@ -48,7 +50,24 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		private readonly _client: ITypeScriptServiceClient,
 	) { }
 
-	prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, _token: vscode.CancellationToken) {
+	async prepareDocumentPaste(document: vscode.TextDocument, ranges: readonly vscode.Range[], dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken) {
+		if (!this.isEnabled(document)) {
+			return;
+		}
+
+		const file = this._client.toOpenTsFilePath(document);
+		if (!file) {
+			return;
+		}
+
+		const response = await this._client.execute('preparePasteEdits', {
+			file,
+			copiedTextSpan: ranges.map(typeConverters.Range.toTextSpan),
+		}, token);
+		if (token.isCancellationRequested || response.type !== 'response' || !response.body) {
+			return;
+		}
+
 		dataTransfer.set(DocumentPasteProvider.metadataMimeType,
 			new vscode.DataTransferItem(new CopyMetadata(document.uri, ranges).toJSON()));
 	}
@@ -60,8 +79,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		_context: vscode.DocumentPasteEditContext,
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
-		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		if (!config.get('experimental.updateImportsOnPaste')) {
+		if (!this.isEnabled(document)) {
 			return;
 		}
 
@@ -93,14 +111,18 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 			}
 		}
 
-		const response = await this._client.execute('getPasteEdits', {
+		if (copiedFrom?.file === file) {
+			return;
+		}
+
+		const response = await this._client.interruptGetErr(() => this._client.execute('getPasteEdits', {
 			file,
 			// TODO: only supports a single paste for now
 			pastedText: [text],
 			pasteLocations: ranges.map(typeConverters.Range.toTextSpan),
 			copiedFrom
-		}, token);
-		if (response.type !== 'response' || !response.body || token.isCancellationRequested) {
+		}, token));
+		if (response.type !== 'response' || !response.body?.edits.length || token.isCancellationRequested) {
 			return;
 		}
 
@@ -121,17 +143,23 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 		return metadata ? CopyMetadata.fromJSON(metadata) : undefined;
 	}
+
+	private isEnabled(document: vscode.TextDocument) {
+		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
+		return config.get(settingId, false);
+	}
 }
 
 export function register(selector: DocumentSelector, language: LanguageDescription, client: ITypeScriptServiceClient) {
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
-		requireMinVersion(client, API.v550),
+		requireMinVersion(client, API.v570),
+		requireGlobalConfiguration(language.id, settingId),
 	], () => {
 		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],
 			copyMimeTypes: [DocumentPasteProvider.metadataMimeType],
-			pasteMimeTypes: ['text/plain'],
+			pasteMimeTypes: [DocumentPasteProvider.metadataMimeType],
 		});
 	});
 }

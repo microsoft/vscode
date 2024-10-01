@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI } from '../../../../base/common/uri.js';
 
 // TODO: rewrite this to use URIs directly and validate each part individually
 // instead of relying on memoization of the stringified URI.

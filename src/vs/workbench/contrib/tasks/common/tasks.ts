@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as Types from 'vs/base/common/types';
-import * as resources from 'vs/base/common/resources';
-import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as Objects from 'vs/base/common/objects';
-import { UriComponents, URI } from 'vs/base/common/uri';
+import * as nls from '../../../../nls.js';
+import * as Types from '../../../../base/common/types.js';
+import * as resources from '../../../../base/common/resources.js';
+import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
+import * as Objects from '../../../../base/common/objects.js';
+import { UriComponents, URI } from '../../../../base/common/uri.js';
 
-import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
-import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
+import { ProblemMatcher } from './problemMatcher.js';
+import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
+import { RawContextKey, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 
 
 

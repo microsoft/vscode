@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { Event } from 'vs/base/common/event';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
-import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
-import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeyboardEvent } from '../../base/browser/keyboardEvent.js';
+import { IMouseEvent, IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
+import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
+import { Event } from '../../base/common/event.js';
+import { IEditorConstructionOptions } from './config/editorConfiguration.js';
+import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from '../common/config/editorOptions.js';
+import { IDimension } from '../common/core/dimension.js';
+import { IPosition, Position } from '../common/core/position.js';
+import { IRange, Range } from '../common/core/range.js';
+import { Selection } from '../common/core/selection.js';
+import { IWordAtPosition } from '../common/core/wordHelper.js';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
+import { IDiffComputationResult, ILineChange } from '../common/diff/legacyLinesDiffComputer.js';
+import * as editorCommon from '../common/editorCommon.js';
+import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../common/model.js';
+import { InjectedText } from '../common/modelLineProjectionData.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from '../common/textModelEvents.js';
+import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
+import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
+import { MenuId } from '../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -783,6 +783,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidChangeHiddenAreas: Event<void>;
+
+	/**
+	 * An event emitted before an editor
+	 * @internal
+	 */
+	readonly onWillTriggerEditorOperationEvent: Event<editorCommon.ITriggerEditorOperationEvent>;
 
 	/**
 	 * Some editor operations fire multiple events at once.

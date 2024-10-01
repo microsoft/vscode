@@ -4,11 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
+import { CompressibleObjectTreeModel, ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
+import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from '../../../../browser/ui/tree/objectTree.js';
+import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { ObjectTreeModel } from '../../../../browser/ui/tree/objectTreeModel.js';
+
+function getRowsTextContent(container: HTMLElement): string[] {
+	const rows = [...container.querySelectorAll('.monaco-list-row')];
+	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
+	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
+}
 
 suite('ObjectTree', function () {
 
@@ -184,32 +191,36 @@ suite('ObjectTree', function () {
 		});
 	});
 
+	class Delegate implements IListVirtualDelegate<number> {
+		getHeight() { return 20; }
+		getTemplateId(): string { return 'default'; }
+	}
+
+	class Renderer implements ITreeRenderer<number, void, HTMLElement> {
+		readonly templateId = 'default';
+		renderTemplate(container: HTMLElement): HTMLElement {
+			return container;
+		}
+		renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
+			templateData.textContent = `${element.element}`;
+		}
+		disposeTemplate(): void { }
+	}
+
+	class IdentityProvider implements IIdentityProvider<number> {
+		getId(element: number): { toString(): string } {
+			return `${element % 100}`;
+		}
+	}
+
 	test('traits are preserved according to string identity', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<number> {
-			getHeight() { return 20; }
-			getTemplateId(): string { return 'default'; }
-		};
-
-		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
-			readonly templateId = 'default';
-			renderTemplate(container: HTMLElement): HTMLElement {
-				return container;
-			}
-			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void {
-				templateData.textContent = `${element.element}`;
-			}
-			disposeTemplate(): void { }
-		};
-
-		const identityProvider = new class implements IIdentityProvider<number> {
-			getId(element: number): { toString(): string } {
-				return `${element % 100}`;
-			}
-		};
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = new IdentityProvider();
 
 		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
 		tree.layout(200);
@@ -221,13 +232,108 @@ suite('ObjectTree', function () {
 		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
-});
 
-function getRowsTextContent(container: HTMLElement): string[] {
-	const rows = [...container.querySelectorAll('.monaco-list-row')];
-	rows.sort((a, b) => parseInt(a.getAttribute('data-index')!) - parseInt(b.getAttribute('data-index')!));
-	return rows.map(row => row.querySelector('.monaco-tl-contents')!.textContent!);
-}
+	test('swap model', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = new IdentityProvider();
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
+		tree.layout(200);
+
+		tree.setChildren(null, [{ element: 1 }, { element: 2 }, { element: 3 }, { element: 4 }]);
+		assert.deepStrictEqual(getRowsTextContent(container), ['1', '2', '3', '4']);
+
+		const oldModel = tree.getModel();
+
+		const newModel = new ObjectTreeModel<number, void>('test', {});
+		tree.setModel(newModel);
+		assert.deepStrictEqual(getRowsTextContent(container), []);
+
+		newModel.setChildren(null, [
+			{ element: 1, children: [{ element: 11 }] },
+			{ element: 2 }
+		]);
+		assert.deepStrictEqual(getRowsTextContent(container), ['1', '11', '2']);
+
+		tree.setChildren(11, [
+			{ element: 111, children: [{ element: 1111 }] },
+			{ element: 112 },
+		]);
+		assert.deepStrictEqual(getRowsTextContent(container), ['1', '11', '111', '1111', '112', '2']);
+
+		tree.setModel(oldModel);
+		assert.deepStrictEqual(getRowsTextContent(container), ['1', '2', '3', '4']);
+	});
+
+	test('swap model events', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+		const identityProvider = new IdentityProvider();
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { identityProvider });
+		tree.layout(200);
+
+		tree.setChildren(null, [{ element: 1 }, { element: 2 }, { element: 3 }, { element: 4 }]);
+		assert.deepStrictEqual(getRowsTextContent(container), ['1', '2', '3', '4']);
+
+		const newModel = new ObjectTreeModel<number, void>('test', {});
+		newModel.setChildren(null, [
+			{ element: 1, children: [{ element: 11 }] },
+			{ element: 2 }
+		]);
+
+		let didChangeModel = false;
+		let didChangeRenderNodeCount = false;
+		let didChangeCollapseState = false;
+
+		tree.onDidChangeModel(() => { didChangeModel = true; });
+		tree.onDidChangeRenderNodeCount(() => { didChangeRenderNodeCount = true; });
+		tree.onDidChangeCollapseState(() => { didChangeCollapseState = true; });
+
+		tree.setModel(newModel);
+
+		assert.strictEqual(didChangeModel, true);
+		assert.strictEqual(didChangeRenderNodeCount, true);
+		assert.strictEqual(didChangeCollapseState, false);
+	});
+
+	// TODO@benibenj: Make sure user is updated in the tree when model is swapped
+	test.skip('swap model TreeError uses updated user', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new Delegate();
+		const renderer = new Renderer();
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer], {});
+		tree.layout(200);
+
+		tree.setChildren(null, [{ element: 1 }]);
+
+		const newModel = new ObjectTreeModel<number, void>('NEW_USER_NAME', {});
+		tree.setModel(newModel);
+
+		try {
+			// This should throw an error because no identity provider is provided
+			tree.getViewState();
+		} catch (e) {
+			assert.strictEqual(e.message.includes('NEW_USER_NAME'), true);
+			return;
+		}
+
+		assert.fail('Expected error');
+	});
+});
 
 suite('CompressibleObjectTree', function () {
 
@@ -367,5 +473,60 @@ suite('CompressibleObjectTree', function () {
 
 		tree.updateOptions({ compressionEnabled: true });
 		assert.deepStrictEqual(getRowsTextContent(container), ['1/11/111', '1111', '1112', '1113']);
+	});
+
+	test('swapModel', () => {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
+		tree.layout(200);
+
+		tree.setChildren(null, [
+			{
+				element: 1, children: [{
+					element: 11, children: [{
+						element: 111, children: [
+							{ element: 1111 },
+							{ element: 1112 },
+							{ element: 1113 },
+						]
+					}]
+				}]
+			}
+		]);
+
+		assert.deepStrictEqual(getRowsTextContent(container), ['1/11/111', '1111', '1112', '1113']);
+
+		const newModel = new CompressibleObjectTreeModel<number, void>('test', {});
+		newModel.setChildren(null, [
+			{
+				element: 1, children: [{
+					element: 11
+				}]
+			},
+			{
+				element: 2, children: [{
+					element: 21, children: [
+						{ element: 211 },
+						{ element: 212 },
+						{ element: 213 },
+					]
+				}]
+			}
+		]);
+
+		tree.setModel(newModel);
+		assert.deepStrictEqual(getRowsTextContent(container), ['1/11', '2/21', '211', '212', '213']);
+
+		tree.setChildren(11, [
+			{ element: 111 },
+			{ element: 112 },
+			{ element: 113 },
+		]);
+
+		assert.deepStrictEqual(getRowsTextContent(container), ['1/11', '111', '112', '113', '2/21', '211', '212', '213']);
+
 	});
 });

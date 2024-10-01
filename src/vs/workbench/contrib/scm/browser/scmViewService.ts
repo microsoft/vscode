@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from 'vs/workbench/contrib/scm/common/scm';
-import { Iterable } from 'vs/base/common/iterator';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { debounce } from 'vs/base/common/decorators';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
-import { basename } from 'vs/base/common/resources';
-import { binarySearch } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus, ISCMProvider, ISCMRepositorySortKey } from '../common/scm.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { SCMMenus } from './menus.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
+import { basename } from '../../../../base/common/resources.js';
+import { binarySearch } from '../../../../base/common/arrays.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { EditorResourceAccessor } from '../../../common/editor.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
@@ -154,12 +157,44 @@ export class SCMViewService implements ISCMViewService {
 	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
 	readonly onDidFocusRepository = this._onDidFocusRepository.event;
 
+	private readonly _focusedRepository = observableFromEventOpts<ISCMRepository | undefined>(
+		{ owner: this, equalsFn: () => false },
+		this.onDidFocusRepository,
+		() => this.focusedRepository);
+
+	private readonly _activeEditor = observableFromEventOpts(
+		{ owner: this, equalsFn: () => false },
+		this.editorService.onDidActiveEditorChange,
+		() => this.editorService.activeEditor);
+
+	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this,
+		(reader, lastValue) => {
+			const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
+			if (!activeResource) {
+				return lastValue;
+			}
+
+			const repository = this.scmService.getRepository(activeResource);
+			if (!repository) {
+				return lastValue;
+			}
+
+			return Object.create(repository);
+		});
+
+	/**
+	 * The focused repository takes precedence over the active editor repository when the observable
+	 * values are updated in the same transaction (or during the initial read of the observable value).
+	 */
+	readonly activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
+
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
 
 	constructor(
-		@ISCMService scmService: ISCMService,
+		@ISCMService private readonly scmService: ISCMService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,

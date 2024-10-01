@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from './quickFix.js';
 
 export const GitCommandLineRegex = /git/;
-export const GitPullOutputRegex = /and can be fast-forwarded/;
+export const GitFastForwardPullOutputRegex = /and can be fast-forwarded/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
 export const GitSimilarOutputRegex = /(?:(most similar commands? (is|are)))/;
@@ -61,13 +61,13 @@ export function gitSimilar(): ITerminalQuickFixInternalOptions {
 	};
 }
 
-export function gitPull(): ITerminalQuickFixInternalOptions {
+export function gitFastForwardPull(): ITerminalQuickFixInternalOptions {
 	return {
-		id: 'Git Pull',
+		id: 'Git Fast Forward Pull',
 		type: 'internal',
 		commandLineMatcher: GitCommandLineRegex,
 		outputMatcher: {
-			lineMatcher: GitPullOutputRegex,
+			lineMatcher: GitFastForwardPullOutputRegex,
 			anchor: 'bottom',
 			offset: 0,
 			length: 8
@@ -76,7 +76,7 @@ export function gitPull(): ITerminalQuickFixInternalOptions {
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
 			return {
 				type: TerminalQuickFixType.TerminalCommand,
-				id: 'Git Pull',
+				id: 'Git Fast Forward Pull',
 				terminalCommand: `git pull`,
 				shouldExecute: true,
 				source: QuickFixSource.Builtin

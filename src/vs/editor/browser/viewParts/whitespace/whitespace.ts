@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./whitespace';
-import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { Selection } from 'vs/editor/common/core/selection';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewLineData } from 'vs/editor/common/viewModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import * as strings from 'vs/base/common/strings';
-import { CharCode } from 'vs/base/common/charCode';
-import { LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { Position } from 'vs/editor/common/core/position';
-import { editorWhitespaces } from 'vs/editor/common/core/editorColorRegistry';
+import './whitespace.css';
+import { DynamicViewOverlay } from '../../view/dynamicViewOverlay.js';
+import { Selection } from '../../../common/core/selection.js';
+import { RenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { ViewLineData } from '../../../common/viewModel.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
+import * as strings from '../../../../base/common/strings.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { LineRange } from '../../../common/viewLayout/viewLineRenderer.js';
+import { Position } from '../../../common/core/position.js';
+import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
 
+/**
+ * The whitespace overlay will visual certain whitespace depending on the
+ * current editor configuration (boundary, selection, etc.).
+ */
 export class WhitespaceOverlay extends DynamicViewOverlay {
 
 	private readonly _context: ViewContext;

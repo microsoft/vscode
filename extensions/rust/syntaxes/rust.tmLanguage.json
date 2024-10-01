@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/cf3c686a50295380ce9994218138691f8767870c",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/e90d3dbdb61b96e4afdce6f7a3572426b1a86d9d",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -482,10 +482,13 @@
 							"name": "punctuation.brackets.angle.rust"
 						}
 					},
-					"end": "\\{|;",
+					"end": "(\\{)|(;)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "punctuation.brackets.curly.rust"
+						},
+						"2": {
+							"name": "punctuation.semi.rust"
 						}
 					},
 					"patterns": [
@@ -820,7 +823,7 @@
 				{
 					"comment": "dashrocket, skinny arrow",
 					"name": "keyword.operator.arrow.skinny.rust",
-					"match": "->"
+					"match": "->|<-"
 				},
 				{
 					"comment": "hashrocket, fat arrow",

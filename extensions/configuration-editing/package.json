@@ -11,7 +11,9 @@
   "icon": "images/icon.png",
   "activationEvents": [
     "onProfile",
-    "onProfile:github"
+    "onProfile:github",
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "enabledApiProposals": [
     "profileContentHandlers"

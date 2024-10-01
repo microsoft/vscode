@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
-import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
+import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
+import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './commonFacade/deps.js';
+import type { derivedOpts } from './derived.js';
+import { getLogger } from './logging.js';
+import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
 
 /**
  * Represents an observable value.
@@ -65,6 +64,8 @@ export interface IObservable<T, TChange = unknown> {
 	 */
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+
+	flatten<TNew>(this: IObservable<IObservable<TNew>>): IObservable<TNew>;
 
 	/**
 	 * Makes sure this value is computed eagerly.
@@ -201,9 +202,9 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(owner: Owner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: Owner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
-		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as Owner;
+	public map<TNew>(owner: DebugOwner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as DebugOwner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
 		return _derived(
@@ -229,6 +230,20 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 				debugReferenceFn: fn,
 			},
 			(reader) => fn(this.read(reader), reader),
+		);
+	}
+
+	/**
+	 * @sealed
+	 * Converts an observable of an observable value into a direct observable of the value.
+	*/
+	public flatten<TNew>(this: IObservable<IObservable<TNew, any>>): IObservable<TNew, unknown> {
+		return _derived(
+			{
+				owner: undefined,
+				debugName: () => `${this.debugName} (flattened)`,
+			},
+			(reader) => this.read(reader).read(reader),
 		);
 	}
 

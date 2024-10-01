@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
-import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
-import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import * as nls from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { diffEditorDefaultOptions } from './diffEditor.js';
+import { editorOptionsRegistry } from './editorOptions.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import * as nls from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
 
 export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	id: 'editor',
@@ -95,7 +95,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.experimental.asyncTokenization': {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
 			tags: ['experimental'],
 		},
@@ -109,6 +109,21 @@ const editorConfiguration: IConfigurationNode = {
 			default: false,
 			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
 			tags: ['experimental'],
+		},
+		'editor.experimental.treeSitterTelemetry': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
+			tags: ['experimental']
+		},
+		'editor.experimental.preferTreeSitter': {
+			type: 'array',
+			items: {
+				type: 'string',
+				enum: ['typescript']
+			},
+			default: [],
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter', "Controls whether tree sitter parsing should be turned on for specific languages. This will take precedence over `editor.experimental.treeSitterTelemetry` for the specified languages."),
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
@@ -248,7 +263,12 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.experimental.showEmptyDecorations,
 			description: nls.localize('showEmptyDecorations', "Controls whether the diff editor shows empty decorations to see where characters got inserted or deleted."),
-		}
+		},
+		'diffEditor.experimental.useTrueInlineView': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.experimental.useTrueInlineView,
+			description: nls.localize('useTrueInlineView', "If enabled and the editor uses the inline view, word changes are rendered inline."),
+		},
 	}
 };
 

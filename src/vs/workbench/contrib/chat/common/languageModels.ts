@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { localize } from 'vs/nls';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from './chatContextKeys.js';
 
 export const enum ChatMessageRole {
 	System,
@@ -28,19 +29,19 @@ export interface IChatMessageTextPart {
 	value: string;
 }
 
-export interface IChatMessageFunctionResultPart {
-	type: 'function_result';
-	name: string;
+export interface IChatMessageToolResultPart {
+	type: 'tool_result';
+	toolCallId: string;
 	value: any;
 	isError?: boolean;
 }
 
-export type IChatMessagePart = IChatMessageTextPart | IChatMessageFunctionResultPart;
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageToolResultPart | IChatResponseToolUsePart;
 
 export interface IChatMessage {
 	readonly name?: string | undefined;
 	readonly role: ChatMessageRole;
-	readonly content: IChatMessagePart;
+	readonly content: IChatMessagePart[];
 }
 
 export interface IChatResponseTextPart {
@@ -48,13 +49,14 @@ export interface IChatResponseTextPart {
 	value: string;
 }
 
-export interface IChatResponceFunctionUsePart {
-	type: 'function_use';
+export interface IChatResponseToolUsePart {
+	type: 'tool_use';
 	name: string;
+	toolCallId: string;
 	parameters: any;
 }
 
-export type IChatResponsePart = IChatResponseTextPart | IChatResponceFunctionUsePart;
+export type IChatResponsePart = IChatResponseTextPart | IChatResponseToolUsePart;
 
 export interface IChatResponseFragment {
 	index: number;
@@ -73,15 +75,22 @@ export interface ILanguageModelChatMetadata {
 	readonly maxOutputTokens: number;
 	readonly targetExtensions?: string[];
 
+	readonly isDefault?: boolean;
+	readonly isUserSelectable?: boolean;
 	readonly auth?: {
 		readonly providerLabel: string;
 		readonly accountLabel?: string;
 	};
 }
 
+export interface ILanguageModelChatResponse {
+	stream: AsyncIterable<IChatResponseFragment>;
+	result: Promise<any>;
+}
+
 export interface ILanguageModelChat {
 	metadata: ILanguageModelChatMetadata;
-	provideChatResponse(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	sendChatRequest(messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
@@ -119,7 +128,7 @@ export interface ILanguageModelsService {
 
 	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable;
 
-	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any>;
+	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
@@ -169,10 +178,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
 
+	private readonly _hasUserSelectableModels: IContextKey<boolean>;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
+		this._hasUserSelectableModels = CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE.bindTo(this._contextKeyService);
 
 		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
@@ -270,7 +283,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 		this._providers.set(identifier, provider);
 		this._onDidChangeProviders.fire({ added: [{ identifier, metadata: provider.metadata }] });
+		this.updateUserSelectableModelsContext();
 		return toDisposable(() => {
+			this.updateUserSelectableModelsContext();
 			if (this._providers.delete(identifier)) {
 				this._onDidChangeProviders.fire({ removed: [identifier] });
 				this._logService.trace('[LM] UNregistered language model chat', identifier, provider.metadata);
@@ -278,12 +293,19 @@ export class LanguageModelsService implements ILanguageModelsService {
 		});
 	}
 
-	makeLanguageModelChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, progress: IProgress<IChatResponseFragment>, token: CancellationToken): Promise<any> {
+	private updateUserSelectableModelsContext() {
+		// This context key to enable the picker is set when there is a default model, and there is at least one other model that is user selectable
+		const hasUserSelectableModels = Array.from(this._providers.values()).some(p => p.metadata.isUserSelectable && !p.metadata.isDefault);
+		const hasDefaultModel = Array.from(this._providers.values()).some(p => p.metadata.isDefault);
+		this._hasUserSelectableModels.set(hasUserSelectableModels && hasDefaultModel);
+	}
+
+	async sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		const provider = this._providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Chat response provider with identifier ${identifier} is not registered.`);
 		}
-		return provider.provideChatResponse(messages, from, options, progress, token);
+		return provider.sendChatRequest(messages, from, options, token);
 	}
 
 	computeTokenLength(identifier: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {

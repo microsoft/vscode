@@ -252,7 +252,8 @@
 
 .test-output-peek-message-container .preview-text {
 	padding: 8px 12px 8px 20px;
-	height: calc(100% - 16px);
+	line-height: normal;
+	white-space: normal;
 }
 
 .test-output-peek-message-container .preview-text p:first-child {
@@ -268,15 +269,9 @@
 }
 
 .testing-followup-action {
-	position: absolute;
-	top: 100%;
-	left: 22px;
-	right: 22px;
-	margin-top: -25px;
 	line-height: 25px;
 	overflow: hidden;
 	pointer-events: none;
-	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
 	display: flex;
 	align-items: center;
 	gap: 14px;
@@ -311,6 +306,10 @@
 			}
 		}
 	}
+}
+
+.test-output-call-stack {
+	height: 100%;
 }
 
 /** -- filter  */
@@ -400,11 +399,11 @@
 }
 
 .monaco-editor .testing-inline-message-severity-0 {
-	color: var(--vscode-testing-message-error-decorationForeground) !important;
+	background: var(--vscode-testing-message-error-lineBackground) !important;
 }
 
 .monaco-editor .testing-inline-message-severity-1 {
-	color: var(--vscode-testing-message-info-decorationForeground) !important;
+	background: var(--vscode-testing-message-info-lineBackground) !important;
 }
 
 /** -- coverage  */
