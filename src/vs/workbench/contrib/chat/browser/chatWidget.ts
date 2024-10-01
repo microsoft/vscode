@@ -937,7 +937,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
 		this.inputPart.attachContext(overwrite, ...contentReferences);
 
-		if (this.chatEditingService.currentEditingSession) {
+		if (this.chatEditingService.currentEditingSession && this.chatEditingService.currentEditingSession?.chatSessionId === this.viewModel?.sessionId) {
 			this.renderChatEditingSessionState(this.chatEditingService.currentEditingSession);
 		}
 	}
