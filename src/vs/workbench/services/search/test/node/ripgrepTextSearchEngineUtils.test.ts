@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
 import { Range, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
+import { RipgrepTextSearchMatch, RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from '../../common/search.js';
 
 suite('RipgrepTextSearchEngine', () => {
@@ -111,7 +111,11 @@ suite('RipgrepTextSearchEngine', () => {
 
 			const actualResults: TextSearchResultNew[] = [];
 			testParser.on('result', r => {
-				actualResults.push(r);
+				if (r instanceof RipgrepTextSearchMatch) {
+					r.ranges.forEach(range => {
+						actualResults.push(new TextSearchMatchNew(r.uri, range, r.previewText));
+					});
+				}
 			});
 
 			inputData.forEach(d => testParser.handleData(d));
@@ -150,10 +154,10 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 6),
 							sourceRange: new Range(3, 3, 3, 6),
-						}],
+						},
 						'foobar'
 					)
 				]);
@@ -169,26 +173,26 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 6),
 							sourceRange: new Range(3, 3, 3, 6),
-						}],
+						},
 						'foobar'
 					),
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'app/file2.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 6),
 							sourceRange: new Range(3, 3, 3, 6),
-						}],
+						},
 						'foobar'
 					),
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'app2/file3.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 6),
 							sourceRange: new Range(3, 3, 3, 6),
-						}],
+						},
 						'foobar'
 					)
 				]);
@@ -214,26 +218,26 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 7),
 							sourceRange: new Range(3, 3, 3, 7),
-						}],
+						},
 						'foo bar'
 					),
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'app/file2.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 6),
 							sourceRange: new Range(3, 3, 3, 6),
-						}],
+						},
 						'foobar'
 					),
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'app2/file3.js'),
-						[{
+						{
 							previewRange: new Range(0, 3, 0, 6),
 							sourceRange: new Range(3, 3, 3, 6),
-						}],
+						},
 						'foobar'
 					)
 				]);
@@ -249,22 +253,22 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[
-							{
-								previewRange: new Range(0, 0, 0, 1),
-								sourceRange: new Range(3, 0, 3, 1),
-							}
-						],
+
+						{
+							previewRange: new Range(0, 0, 0, 1),
+							sourceRange: new Range(3, 0, 3, 1),
+						}
+						,
 						'foobar'
 					),
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[
-							{
-								previewRange: new Range(0, 0, 0, 0),
-								sourceRange: new Range(4, 0, 4, 0),
-							}
-						],
+
+						{
+							previewRange: new Range(0, 0, 0, 0),
+							sourceRange: new Range(4, 0, 4, 0),
+						}
+						,
 						''
 					)
 				]);
@@ -278,16 +282,18 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[
-							{
-								previewRange: new Range(0, 0, 0, 4),
-								sourceRange: new Range(3, 0, 3, 4),
-							},
-							{
-								previewRange: new Range(0, 6, 0, 10),
-								sourceRange: new Range(3, 6, 3, 10),
-							}
-						],
+						{
+							previewRange: new Range(0, 0, 0, 4),
+							sourceRange: new Range(3, 0, 3, 4),
+						},
+						'foobarbazquux'
+					),
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						{
+							previewRange: new Range(0, 6, 0, 10),
+							sourceRange: new Range(3, 6, 3, 10),
+						},
 						'foobarbazquux'
 					)
 				]);
@@ -301,16 +307,19 @@ suite('RipgrepTextSearchEngine', () => {
 				[
 					new TextSearchMatchNew(
 						joinPath(TEST_FOLDER, 'file1.js'),
-						[
-							{
-								previewRange: new Range(0, 0, 1, 1),
-								sourceRange: new Range(3, 0, 4, 1),
-							},
-							{
-								previewRange: new Range(2, 0, 3, 1),
-								sourceRange: new Range(5, 0, 6, 1),
-							}
-						],
+						{
+							previewRange: new Range(0, 0, 1, 1),
+							sourceRange: new Range(3, 0, 4, 1),
+						},
+						'foo\nbar\nbaz\nquux'
+					),
+
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						{
+							previewRange: new Range(2, 0, 3, 1),
+							sourceRange: new Range(5, 0, 6, 1),
+						},
 						'foo\nbar\nbaz\nquux'
 					)
 				]);
