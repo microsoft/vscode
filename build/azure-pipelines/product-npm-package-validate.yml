@@ -21,12 +21,10 @@ variables:
     value: oss
   - name: VSCODE_STEP_ON_IT
     value: false
-  - name: VSCODE_BUILD_AMD
-    value: false
 
 jobs:
   - ${{ if ne(variables['VSCODE_CIBUILD'], true) }}:
-    - job: Compile
+    - job: Valiate NPM package against Terrapin
       displayName: Compile
       pool:
         name: 1es-ubuntu-22.04-x64
@@ -55,18 +53,18 @@ jobs:
             echo "NPM Registry: $(npm config get registry)"
             npm config set registry "$NPM_REGISTRY"
             echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-          condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
           displayName: Setup NPM
 
         - task: npmAuthenticate@0
           inputs:
             workingFile: $(NPMRC_PATH)
-          condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
           displayName: Setup NPM Authentication
 
         - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
           displayName: Install build tools
-          condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+          condition: and(succeeded())
 
         - script: |
             set -e
