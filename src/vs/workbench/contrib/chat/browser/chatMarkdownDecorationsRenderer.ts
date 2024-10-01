@@ -27,6 +27,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
+import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
 import './media/chatInlineAnchorWidget.css';
 
@@ -89,6 +90,7 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 	}
@@ -246,7 +248,8 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 			return;
 		}
 
-		store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
+		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
+		this.chatMarkdownAnchorService.register(inlineAnchor);
 	}
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {
