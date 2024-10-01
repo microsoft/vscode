@@ -21,7 +21,6 @@ import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PAR
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { ChatContextAttachments } from '../chatWidget.js';
-// import { ChatContextAttachments } from '../contrib/chatContextAttachments.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
