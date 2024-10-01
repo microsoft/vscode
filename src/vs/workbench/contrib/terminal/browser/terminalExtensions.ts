@@ -31,7 +31,7 @@ export type ITerminalContributionDescription = { readonly id: string } & (
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals?: false): void;
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessInfo, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals: true): void;
 export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }, canRunInDetachedTerminals = false): void {
-	// eslint-disable-next-line local/code-no-dangerous-type-assertions
+	// TODO: Pass in a context object containing instance, process manager, widgetmanager
 	TerminalContributionRegistry.INSTANCE.registerTerminalContribution({ id, ctor, canRunInDetachedTerminals } as ITerminalContributionDescription);
 }
 

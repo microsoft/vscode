@@ -47,7 +47,6 @@ import { AbstractVariableResolverService } from '../../../services/configuration
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getIconId, getColorClass, getUriClasses } from './terminalIcon.js';
-import { clearShellFileHistory, getCommandHistory } from '../common/history.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -434,33 +433,6 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
-		id: TerminalCommandId.RunRecentCommand,
-		title: localize2('workbench.action.terminal.runRecentCommand', 'Run Recent Command...'),
-		precondition: sharedWhenClause.terminalAvailable,
-		keybinding: [
-			{
-				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)))),
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			{
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
-				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-				weight: KeybindingWeight.WorkbenchContrib
-			}
-		],
-		run: async (activeInstance, c) => {
-			await activeInstance.runRecent('command');
-			if (activeInstance?.target === TerminalLocation.Editor) {
-				await c.editorService.revealActiveEditor();
-			} else {
-				await c.groupService.showPanel(false);
-			}
-		}
-	});
-
-	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommand,
 		title: localize2('workbench.action.terminal.copyLastCommand', "Copy Last Command"),
 		precondition: sharedWhenClause.terminalAvailable,
@@ -516,29 +488,6 @@ export function registerTerminalActions() {
 			const output = command.getOutput();
 			if (isString(output)) {
 				await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
-			}
-		}
-	});
-
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.GoToRecentDirectory,
-		title: localize2('workbench.action.terminal.goToRecentDirectory', 'Go to Recent Directory...'),
-		metadata: {
-			description: localize2('goToRecentDirectory.metadata', 'Goes to a recent folder'),
-		},
-		precondition: sharedWhenClause.terminalAvailable,
-		keybinding: {
-			primary: KeyMod.CtrlCmd | KeyCode.KeyG,
-			when: TerminalContextKeys.focus,
-			weight: KeybindingWeight.WorkbenchContrib
-		},
-		run: async (activeInstance, c) => {
-			await activeInstance.runRecent('cwd');
-			if (activeInstance?.target === TerminalLocation.Editor) {
-				await c.editorService.revealActiveEditor();
-			} else {
-				await c.groupService.showPanel(false);
 			}
 		}
 	});
@@ -1502,17 +1451,6 @@ export function registerTerminalActions() {
 		},
 		run: (instance) => instance.toggleSizeToContentWidth()
 	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.ClearPreviousSessionHistory,
-		title: localize2('workbench.action.terminal.clearPreviousSessionHistory', 'Clear Previous Session History'),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: async (c, accessor) => {
-			getCommandHistory(accessor).clear();
-			clearShellFileHistory();
-		}
-	});
-
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerActiveXtermAction({
