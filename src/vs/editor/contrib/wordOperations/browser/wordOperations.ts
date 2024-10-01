@@ -42,7 +42,6 @@ export abstract class MoveWordCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		// console.log('runEditorCommand of MoveWordCommand');
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -89,14 +88,12 @@ export abstract class MoveWordCommand extends EditorCommand {
 
 export class WordLeftCommand extends MoveWordCommand {
 	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		// console.log('_move of WordLeftCommand');
 		return WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType, hasMulticursor);
 	}
 }
 
 export class WordRightCommand extends MoveWordCommand {
 	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		// console.log('_move of WordRightCommand');
 		return WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
 	}
 }
@@ -191,7 +188,6 @@ export class CursorWordAccessibilityLeft extends WordLeftCommand {
 	}
 
 	protected override _move(wordCharacterClassifier: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
-		// console.log('_move of CursorWordAccessibilityLeft');
 		return super._move(getMapForWordSeparators(EditorOptions.wordSeparators.defaultValue, wordCharacterClassifier.intlSegmenterLocales), model, position, wordNavigationType, hasMulticursor);
 	}
 }

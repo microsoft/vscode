@@ -89,8 +89,6 @@ export class ViewController {
 	}
 
 	public setSelection(modelSelection: Selection): void {
-		// console.log('setSelection of ViewController');
-		// console.log('modelSelection:', modelSelection);
 		CoreNavigationCommands.SetSelection.runCoreEditorCommand(this.viewModel, {
 			source: 'keyboard',
 			selection: modelSelection

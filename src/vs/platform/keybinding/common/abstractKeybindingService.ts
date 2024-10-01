@@ -312,7 +312,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const keypressLabel = userKeypress.getLabel();
 
 		const resolveResult = this._getResolver().resolve(contextValue, currentChords, userPressedChord);
-		// console.log('resolveResult', resolveResult);
+
 		switch (resolveResult.kind) {
 
 			case ResultKind.NoMatchingKb: {

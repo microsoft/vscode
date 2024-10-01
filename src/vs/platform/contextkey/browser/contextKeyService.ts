@@ -315,13 +315,11 @@ export abstract class AbstractContextKeyService extends Disposable implements IC
 	}
 
 	public contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
-		// console.log('contextMatchesRules');
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
 		const context = this.getContextValuesContainer(this._myContextId);
 		const result = (rules ? rules.evaluate(context) : true);
-		// console.log('result : ', result);
 		// console.group(rules.serialize() + ' -> ' + result);
 		// rules.keys().forEach(key => { console.log(key, ctx[key]); });
 		// console.groupEnd();
@@ -560,10 +558,8 @@ class OverlayContextKeyService implements IContextKeyService {
 	}
 
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
-		// console.log('contextMatchesRules');
 		const context = this.getContextValuesContainer(this.contextId);
 		const result = (rules ? rules.evaluate(context) : true);
-		// console.log('result : ', result);
 		return result;
 	}
 
