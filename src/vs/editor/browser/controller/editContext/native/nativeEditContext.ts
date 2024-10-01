@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -49,6 +49,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
 	private readonly _focusTracker: FocusTracker;
+
+	private _isComposing: boolean = false;
 	private _selectionChangeListener: IDisposable | undefined;
 
 	constructor(
@@ -114,6 +116,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			this._isComposing = true;
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionStart();
@@ -121,6 +124,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._isComposing = false;
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			viewController.compositionEnd();
@@ -418,15 +422,31 @@ export class NativeEditContext extends AbstractEditContext {
 			console.log('selectionchange');
 			console.log('e : ', e);
 
-			if (!this._hasFocus) {
+			if (!this._focusTracker.isFocused) {
 				return;
 			}
-			if (this._currentComposition) {
+			if (this._isComposing) {
 				return;
 			}
-			if (!this._browser.isChrome) {
-				// Support only for Chrome until testing happens on other browsers
+			console.log('this.domNode.domNode : ', this.domNode.domNode);
+
+			const activeDocument = getActiveWindow().document;
+			const activeDocumentSelection = activeDocument.getSelection();
+
+			console.log('activeDocumentSelection : ', activeDocumentSelection);
+
+			if (!activeDocumentSelection) {
 				return;
+
+			}
+			const rangeCount = activeDocumentSelection.rangeCount;
+			for (let i = 0; i < rangeCount; i++) {
+				const range = activeDocumentSelection.getRangeAt(i);
+				console.log('range : ', range);
+				console.log('range.startContainer : ', range.startContainer);
+				console.log('range.startOffset : ', range.startOffset);
+				console.log('range.endContainer : ', range.endContainer);
+				console.log('range.endOffset : ', range.endOffset);
 			}
 
 			const now = Date.now();
@@ -439,43 +459,17 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 
-			const delta2 = now - this._textArea.getIgnoreSelectionChangeTime();
-			this._textArea.resetSelectionChangeTime();
-			if (delta2 < 100) {
-				// received a `selectionchange` event within 100ms since we touched the textarea
-				// => ignore it, since we caused it
-				return;
-			}
+			// const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
+			// const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0]!, _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
 
-			if (!this._textAreaState.selection) {
-				// Cannot correlate a position in the textarea with a position in the editor...
-				return;
-			}
+			// const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
+			// const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0]!, _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
 
-			const newValue = this._textArea.getValue();
-			if (this._textAreaState.value !== newValue) {
-				// Cannot correlate a position in the textarea with a position in the editor...
-				return;
-			}
-
-			const newSelectionStart = this._textArea.getSelectionStart();
-			const newSelectionEnd = this._textArea.getSelectionEnd();
-			if (this._textAreaState.selectionStart === newSelectionStart && this._textAreaState.selectionEnd === newSelectionEnd) {
-				// Nothing to do...
-				return;
-			}
-
-			const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
-			const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0]!, _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
-
-			const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
-			const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0]!, _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
-
-			const newSelection = new Selection(
-				newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
-				newSelectionEndPosition.lineNumber, newSelectionEndPosition.column
-			);
-			viewController.setSelection(newSelection);
+			// const newSelection = new Selection(
+			// 	newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
+			// 	newSelectionEndPosition.lineNumber, newSelectionEndPosition.column
+			// );
+			// viewController.setSelection(newSelection);
 		});
 	}
 }
