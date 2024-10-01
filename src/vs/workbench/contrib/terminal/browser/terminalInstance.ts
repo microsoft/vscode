@@ -135,7 +135,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private readonly _processManager: ITerminalProcessManager;
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
-	private readonly _resource: URI;
 	private _xtermReadyPromise: Promise<XtermTerminal>;
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;
@@ -223,7 +222,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	get instanceId(): number { return this._instanceId; }
-	get resource(): URI { return this._resource; }
+	get resource(): URI { return getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this._title.get()); }
 	get cols(): number {
 		if (this._fixedCols !== undefined) {
 			return this._fixedCols;
@@ -414,8 +413,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._fixedRows = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.rows;
 		this._fixedCols = _shellLaunchConfig.attachPersistentProcess?.fixedDimensions?.cols;
 
-		this._resource = getTerminalUri(this._workspaceContextService.getWorkspace().id, this.instanceId, this._title.get());
-
 		if (this._shellLaunchConfig.attachPersistentProcess?.hideFromUser) {
 			this._shellLaunchConfig.hideFromUser = this._shellLaunchConfig.attachPersistentProcess.hideFromUser;
 		}
@@ -461,6 +458,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
+					// TODO: The cwd may be included in the configured title, this isn't clear without a comment
 					this._setTitle(this._title.get(), TitleEventSource.Config);
 				});
 			}
