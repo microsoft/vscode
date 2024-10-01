@@ -235,7 +235,6 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
 		if (schemaErrorIndex !== -1) {
 			const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-			// @ts-ignore
 			fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
 			if (!schemaDownloadEnabled) {
 				diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
@@ -485,7 +484,6 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 				if (schemaErrorIndex !== -1) {
 					// Show schema resolution errors in status bar only; ref: #51032
 					const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-					// @ts-ignore
 					fileSchemaErrors.set(activeDocUri, schemaResolveDiagnostic.message);
 				} else {
 					schemaResolutionErrorStatusBarItem.hide();
