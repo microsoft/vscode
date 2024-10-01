@@ -461,6 +461,8 @@ export class TextAreaInput extends Disposable {
 		// so throttle multiple `selectionchange` events that burst in a short period of time.
 		let previousSelectionChangeEventTime = 0;
 		return dom.addDisposableListener(this._textArea.ownerDocument, 'selectionchange', (e) => {//todo
+			console.log('selectionchange');
+			console.log('e : ', e);
 			inputLatency.onSelectionChange();
 
 			if (!this._hasFocus) {

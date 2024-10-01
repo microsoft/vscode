@@ -215,6 +215,7 @@ export class MultiCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		// console.log('runCommand of MultiCommand');
 		const logService = accessor.get(ILogService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
@@ -222,6 +223,7 @@ export class MultiCommand extends Command {
 			if (impl.when) {
 				const context = contextKeyService.getContext(getActiveElement());
 				const value = impl.when.evaluate(context);
+				// console.log('value : ', value);
 				if (!value) {
 					continue;
 				}

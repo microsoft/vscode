@@ -1004,6 +1004,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._cursor.getCursorStates();
 	}
 	public setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
+		console.log('seCursorStates');
+		console.log('source : ', source);
 		return this._withViewEventsCollector(eventsCollector => this._cursor.setStates(eventsCollector, source, reason, states));
 	}
 	public getCursorColumnSelectData(): IColumnSelectData {

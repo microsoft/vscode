@@ -175,6 +175,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private onDidActiveEditorChange(): void {
+		// console.log('onDidActiveEditorChange');
 		const activeEditorGroup = this.editorGroupService.activeGroup;
 		const activeEditorPane = activeEditorGroup.activeEditorPane;
 

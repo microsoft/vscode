@@ -282,6 +282,7 @@ export class KeybindingResolver {
 	}
 
 	public lookupPrimaryKeybinding(commandId: string, context: IContextKeyService): ResolvedKeybindingItem | null {
+		// console.log('lookupPrimaryKeybinding ');
 		const items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
@@ -349,6 +350,7 @@ export class KeybindingResolver {
 
 		// check there's a keybinding with a matching when clause
 		const result = this._findCommand(context, lookupMap);
+		// console.log('_findCommand result : ', result);
 		if (!result) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
 			return NoMatchingKb;
@@ -367,9 +369,14 @@ export class KeybindingResolver {
 	}
 
 	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem | null {
+		// console.log('matches : ', matches);
 		for (let i = matches.length - 1; i >= 0; i--) {
 			const k = matches[i];
-
+			// console.log('k.command : ', k.command);
+			// console.log('k : ', k);
+			// if (k.command === 'cursorWordAccessibilityRight') {
+			// console.log('k : ', k);
+			// }
 			if (!KeybindingResolver._contextMatchesRules(context, k.when)) {
 				continue;
 			}
@@ -384,7 +391,11 @@ export class KeybindingResolver {
 		if (!rules) {
 			return true;
 		}
-		return rules.evaluate(context);
+		// console.log('context : ', context);
+		// console.log('rules : ', rules);
+		const evalResult = rules.evaluate(context);
+		// console.log('evalResult : ', evalResult);
+		return evalResult;
 	}
 }
 

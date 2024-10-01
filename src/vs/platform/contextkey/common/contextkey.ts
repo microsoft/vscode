@@ -1631,6 +1631,7 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 
 	public evaluate(context: IContext): boolean {
 		for (let i = 0, len = this.expr.length; i < len; i++) {
+			// console.log('this.expr[i] : ', this.expr[i]);
 			if (!this.expr[i].evaluate(context)) {
 				return false;
 			}

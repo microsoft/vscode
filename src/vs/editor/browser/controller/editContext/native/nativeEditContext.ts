@@ -26,6 +26,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -48,6 +49,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
 
 	private readonly _focusTracker: FocusTracker;
+	private _selectionChangeListener: IDisposable | undefined;
 
 	constructor(
 		context: ViewContext,
@@ -66,7 +68,16 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this.domNode);
 		this._parent = overflowGuardContainer.domNode;
 
-		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => this._context.viewModel.setHasFocus(newFocusValue)));
+		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+			if (this._selectionChangeListener) {
+				this._selectionChangeListener.dispose();
+				this._selectionChangeListener = undefined;
+			}
+			if (newFocusValue) {
+				this._selectionChangeListener = this._installSelectionChangeListener(viewController);
+			}
+			this._context.viewModel.setHasFocus(newFocusValue);
+		}));
 
 		this._editContext = new EditContext();
 		this.domNode.domNode.editContext = this._editContext;
@@ -124,6 +135,10 @@ export class NativeEditContext extends AbstractEditContext {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
+		if (this._selectionChangeListener) {
+			this._selectionChangeListener.dispose();
+			this._selectionChangeListener = undefined;
+		}
 		super.dispose();
 	}
 
@@ -376,5 +391,91 @@ export class NativeEditContext extends AbstractEditContext {
 			storedMetadata
 		);
 		clipboardService.writeText(dataToCopy.text);
+	}
+
+	private _installSelectionChangeListener(viewController: ViewController): IDisposable {
+		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
+		// When using a Braille display, it is possible for users to reposition the
+		// system caret. This is reflected in Chrome as a `selectionchange` event.
+		//
+		// The `selectionchange` event appears to be emitted under numerous other circumstances,
+		// so it is quite a challenge to distinguish a `selectionchange` coming in from a user
+		// using a Braille display from all the other cases.
+		//
+		// The problems with the `selectionchange` event are:
+		//  * the event is emitted when the textarea is focused programmatically -- textarea.focus()
+		//  * the event is emitted when the selection is changed in the textarea programmatically -- textarea.setSelectionRange(...)
+		//  * the event is emitted when the value of the textarea is changed programmatically -- textarea.value = '...'
+		//  * the event is emitted when tabbing into the textarea
+		//  * the event is emitted asynchronously (sometimes with a delay as high as a few tens of ms)
+		//  * the event sometimes comes in bursts for a single logical textarea operation
+
+		// `selectionchange` events often come multiple times for a single logical change
+		// so throttle multiple `selectionchange` events that burst in a short period of time.
+
+		let previousSelectionChangeEventTime = 0;
+		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', (e) => {
+			console.log('selectionchange');
+			console.log('e : ', e);
+
+			if (!this._hasFocus) {
+				return;
+			}
+			if (this._currentComposition) {
+				return;
+			}
+			if (!this._browser.isChrome) {
+				// Support only for Chrome until testing happens on other browsers
+				return;
+			}
+
+			const now = Date.now();
+
+			const delta1 = now - previousSelectionChangeEventTime;
+			previousSelectionChangeEventTime = now;
+			if (delta1 < 5) {
+				// received another `selectionchange` event within 5ms of the previous `selectionchange` event
+				// => ignore it
+				return;
+			}
+
+			const delta2 = now - this._textArea.getIgnoreSelectionChangeTime();
+			this._textArea.resetSelectionChangeTime();
+			if (delta2 < 100) {
+				// received a `selectionchange` event within 100ms since we touched the textarea
+				// => ignore it, since we caused it
+				return;
+			}
+
+			if (!this._textAreaState.selection) {
+				// Cannot correlate a position in the textarea with a position in the editor...
+				return;
+			}
+
+			const newValue = this._textArea.getValue();
+			if (this._textAreaState.value !== newValue) {
+				// Cannot correlate a position in the textarea with a position in the editor...
+				return;
+			}
+
+			const newSelectionStart = this._textArea.getSelectionStart();
+			const newSelectionEnd = this._textArea.getSelectionEnd();
+			if (this._textAreaState.selectionStart === newSelectionStart && this._textAreaState.selectionEnd === newSelectionEnd) {
+				// Nothing to do...
+				return;
+			}
+
+			const _newSelectionStartPosition = this._textAreaState.deduceEditorPosition(newSelectionStart);
+			const newSelectionStartPosition = this._host.deduceModelPosition(_newSelectionStartPosition[0]!, _newSelectionStartPosition[1], _newSelectionStartPosition[2]);
+
+			const _newSelectionEndPosition = this._textAreaState.deduceEditorPosition(newSelectionEnd);
+			const newSelectionEndPosition = this._host.deduceModelPosition(_newSelectionEndPosition[0]!, _newSelectionEndPosition[1], _newSelectionEndPosition[2]);
+
+			const newSelection = new Selection(
+				newSelectionStartPosition.lineNumber, newSelectionStartPosition.column,
+				newSelectionEndPosition.lineNumber, newSelectionEndPosition.column
+			);
+			viewController.setSelection(newSelection);
+		});
 	}
 }
