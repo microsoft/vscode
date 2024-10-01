@@ -26,6 +26,7 @@ import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js
 import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 
 
 const $ = dom.$;
@@ -43,6 +44,13 @@ export class MarkerHover extends MarkdownHover implements IHoverPart {
 		this.marker = marker;
 
 
+	}
+	owner: IEditorHoverParticipant<IHoverPart>;
+	range: Range;
+	forceShowAtRange?: boolean | undefined;
+	isBeforeContent?: boolean | undefined;
+	isValidForHoverAnchor(anchor: HoverAnchor): boolean {
+		throw new Error('Method not implemented.');
 	}
 
 

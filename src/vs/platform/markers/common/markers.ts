@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { type IMarkdownString, isMarkdownString } from '../../../base/common/htmlContent.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
