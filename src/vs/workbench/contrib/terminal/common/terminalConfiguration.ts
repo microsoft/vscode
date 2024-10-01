@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -13,7 +14,6 @@ import { terminalColorSchema, terminalIconSchema } from '../../../../platform/te
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchExtensions } from '../../../common/configuration.js';
 import { terminalContribConfiguration } from '../terminalContribExports.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, SUGGESTIONS_FONT_WEIGHT } from './terminal.js';
-import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
