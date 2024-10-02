@@ -2146,7 +2146,7 @@ class EditorHandlerCommand extends Command {
 }
 
 function registerOverwritableCommand(handlerId: string, metadata?: ICommandMetadata): void {
-	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
+	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId, { description: 'Extension provided command', contributedByExtension: true }));
 	registerCommand(new EditorHandlerCommand(handlerId, handlerId, metadata));
 }
 

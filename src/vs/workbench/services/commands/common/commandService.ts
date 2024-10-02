@@ -86,7 +86,9 @@ export class CommandService extends Disposable implements ICommandService {
 	}
 
 	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
+		console.log('id : ', id);
 		const command = CommandsRegistry.getCommand(id);
+		console.log('command : ', command);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
 		}
