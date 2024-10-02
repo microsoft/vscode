@@ -2,7 +2,7 @@
 	"root": true,
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
-		"ecmaVersion": 6,
+		"ecmaVersion": 2022,
 		"sourceType": "module"
 	},
 	"plugins": [
@@ -1132,7 +1132,13 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
+						"target": "src/vs/nls.ts",
+						"restrictions": [
+							"vs/*"
+						]
+					},
+					{
+						"target": "src/vs/{monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{
