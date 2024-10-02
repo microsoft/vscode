@@ -16,6 +16,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE, CONTEXT_REQUEST, CONTEXT_CHAT_LOCATION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
 import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 107;
@@ -39,7 +40,7 @@ export class QuickChatAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat'): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat', keybindingService: IKeybindingService): string {
 	const content = [];
 	if (type === 'panelChat') {
 		content.push(localize('chat.overview', 'The chat view is comprised of an input box and a request/response list. The input box is used to make requests and the list is used to display responses.'));
@@ -47,8 +48,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('chat.followUp', 'In the input box, navigate to the suggested follow up question (Shift+Tab) and press Enter to run it.'));
 		content.push(localize('chat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
-		content.push(localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', '<keybinding:chat.action.focus>'));
-		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', '<keybinding:workbench.action.chat.focusInput>'));
+		content.push(localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', getChatFocusKeybindingLabel(keybindingService, type, false)));
+		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, true)));
 		content.push(localize('workbench.action.chat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 		content.push(localize('workbench.action.chat.newChat', 'To create a new chat session, invoke the New Chat command{0}.', '<keybinding:workbench.action.chat.new>'));
 	} else if (type === 'quickChat') {
@@ -56,8 +57,8 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('quickChat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(localize('quickChat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
 		content.push(localize('quickChat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
-		content.push(localize('workbench.action.quickChat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', '<keybinding:chat.action.focus>'));
-		content.push(localize('workbench.action.quickChat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', '<keybinding:workbench.action.chat.focusInput>'));
+		content.push(localize('workbench.action.quickChat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', getChatFocusKeybindingLabel(keybindingService, type, false)));
+		content.push(localize('workbench.action.quickChat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, true)));
 		content.push(localize('workbench.action.quickChat.nextCodeBlock', 'To focus the next code block within a response, invoke the Chat: Next Code Block command{0}.', '<keybinding:workbench.action.chat.nextCodeBlock>'));
 	} else {
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account the current selection. It is useful for making changes to the current editor. For example, fixing diagnostics, documenting or refactoring code. Keep in mind that AI generated code may be incorrect."));
@@ -75,6 +76,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 
 export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat' | 'quickChat') {
 	const widgetService = accessor.get(IChatWidgetService);
+	const keybindingService = accessor.get(IKeybindingService);
 	const inputEditor: ICodeEditor | undefined = type === 'panelChat' || type === 'quickChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
 
 	if (!inputEditor) {
@@ -87,7 +89,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
-	const helpText = getAccessibilityHelpText(type);
+	const helpText = getAccessibilityHelpText(type, keybindingService);
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
@@ -106,4 +108,35 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 		},
 		type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
 	);
+}
+
+// The when clauses for actions may not be true when we invoke the accessible view, so we need to provide the keybinding label manually
+// to ensure it's correct
+function getChatFocusKeybindingLabel(keybindingService: IKeybindingService, type: 'panelChat' | 'inlineChat' | 'quickChat', focusInput?: boolean): string | undefined {
+	let kbs;
+	const fallback = ' (unassigned keybinding)';
+	if (focusInput) {
+		kbs = keybindingService.lookupKeybindings('workbench.action.chat.focusInput');
+	} else {
+		kbs = keybindingService.lookupKeybindings('chat.action.focus');
+	}
+	if (!kbs?.length) {
+		return fallback;
+	}
+	let kb;
+	if (type === 'panelChat') {
+		if (focusInput) {
+			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
+		} else {
+			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
+		}
+	} else {
+		// Quick chat
+		if (focusInput) {
+			kb = kbs.find(kb => kb.getAriaLabel()?.includes('UpArrow'))?.getAriaLabel();
+		} else {
+			kb = kbs.find(kb => kb.getAriaLabel()?.includes('DownArrow'))?.getAriaLabel();
+		}
+	}
+	return !!kb ? ` (${kb})` : fallback;
 }

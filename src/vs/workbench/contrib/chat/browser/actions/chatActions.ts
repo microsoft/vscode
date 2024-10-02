@@ -38,8 +38,6 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { accessibleViewIsShown, accessibleViewCurrentProviderId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 
 export interface IChatViewTitleActionContext {
 	chatView: ChatViewPane;
