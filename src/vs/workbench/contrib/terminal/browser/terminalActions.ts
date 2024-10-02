@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isLinux, isWindows } from '../../../../base/common/platform.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -53,7 +52,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -432,66 +430,6 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveInstanceAction({
-		id: TerminalCommandId.CopyLastCommand,
-		title: localize2('workbench.action.terminal.copyLastCommand', "Copy Last Command"),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: async (instance, c, accessor) => {
-			const clipboardService = accessor.get(IClipboardService);
-			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			if (!commands || commands.length === 0) {
-				return;
-			}
-			const command = commands[commands.length - 1];
-			if (!command.command) {
-				return;
-			}
-			await clipboardService.writeText(command.command);
-		}
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.CopyLastCommandOutput,
-		title: localize2('workbench.action.terminal.copyLastCommandOutput', "Copy Last Command Output"),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: async (instance, c, accessor) => {
-			const clipboardService = accessor.get(IClipboardService);
-			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			if (!commands || commands.length === 0) {
-				return;
-			}
-			const command = commands[commands.length - 1];
-			if (!command?.hasOutput()) {
-				return;
-			}
-			const output = command.getOutput();
-			if (isString(output)) {
-				await clipboardService.writeText(output);
-			}
-		}
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
-		title: localize2('workbench.action.terminal.copyLastCommandAndOutput', "Copy Last Command and Output"),
-		precondition: sharedWhenClause.terminalAvailable,
-		run: async (instance, c, accessor) => {
-			const clipboardService = accessor.get(IClipboardService);
-			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-			if (!commands || commands.length === 0) {
-				return;
-			}
-			const command = commands[commands.length - 1];
-			if (!command?.hasOutput()) {
-				return;
-			}
-			const output = command.getOutput();
-			if (isString(output)) {
-				await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
-			}
-		}
-	});
-
 	registerTerminalAction({
 		id: TerminalCommandId.ResizePaneLeft,
 		title: localize2('workbench.action.terminal.resizePaneLeft', 'Resize Terminal Left'),
@@ -716,7 +654,6 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ScrollUpPage,
 		title: localize2('workbench.action.terminal.scrollUpPage', 'Scroll Up (Page)'),
 		f1: true,
-		category,
 		keybinding: {
 			primary: KeyMod.Shift | KeyCode.PageUp,
 			mac: { primary: KeyCode.PageUp },
@@ -1451,82 +1388,6 @@ export function registerTerminalActions() {
 		},
 		run: (instance) => instance.toggleSizeToContentWidth()
 	});
-	// Some commands depend on platform features
-	if (BrowserFeatures.clipboard.writeText) {
-		registerActiveXtermAction({
-			id: TerminalCommandId.CopySelection,
-			title: localize2('workbench.action.terminal.copySelection', 'Copy Selection'),
-			// TODO: Why is copy still showing up when text isn't selected?
-			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.textSelected)),
-			keybinding: [{
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus),
-					TerminalContextKeys.textSelectedInFocused,
-				)
-			}],
-			run: (activeInstance) => activeInstance.copySelection()
-		});
-
-		registerActiveXtermAction({
-			id: TerminalCommandId.CopyAndClearSelection,
-			title: localize2('workbench.action.terminal.copyAndClearSelection', 'Copy and Clear Selection'),
-			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.textSelected)),
-			keybinding: [{
-				win: { primary: KeyMod.CtrlCmd | KeyCode.KeyC },
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(TerminalContextKeys.textSelected, TerminalContextKeys.focus),
-					TerminalContextKeys.textSelectedInFocused,
-				)
-			}],
-			run: async (xterm) => {
-				await xterm.copySelection();
-				xterm.clearSelection();
-			}
-		});
-
-		registerActiveXtermAction({
-			id: TerminalCommandId.CopySelectionAsHtml,
-			title: localize2('workbench.action.terminal.copySelectionAsHtml', 'Copy Selection as HTML'),
-			f1: true,
-			category,
-			precondition: ContextKeyExpr.or(TerminalContextKeys.textSelectedInFocused, ContextKeyExpr.and(sharedWhenClause.terminalAvailable, TerminalContextKeys.textSelected)),
-			run: (xterm) => xterm.copySelection(true)
-		});
-	}
-
-	if (BrowserFeatures.clipboard.readText) {
-		registerActiveInstanceAction({
-			id: TerminalCommandId.Paste,
-			title: localize2('workbench.action.terminal.paste', 'Paste into Active Terminal'),
-			precondition: sharedWhenClause.terminalAvailable,
-			keybinding: [{
-				primary: KeyMod.CtrlCmd | KeyCode.KeyV,
-				win: { primary: KeyMod.CtrlCmd | KeyCode.KeyV, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV },
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: TerminalContextKeys.focus
-			}],
-			run: (activeInstance) => activeInstance.paste()
-		});
-	}
-
-	if (BrowserFeatures.clipboard.readText && isLinux) {
-		registerActiveInstanceAction({
-			id: TerminalCommandId.PasteSelection,
-			title: localize2('workbench.action.terminal.pasteSelection', 'Paste Selection into Active Terminal'),
-			precondition: sharedWhenClause.terminalAvailable,
-			keybinding: [{
-				linux: { primary: KeyMod.Shift | KeyCode.Insert },
-				weight: KeybindingWeight.WorkbenchContrib,
-				when: TerminalContextKeys.focus
-			}],
-			run: (activeInstance) => activeInstance.pasteSelection()
-		});
-	}
 
 	registerTerminalAction({
 		id: TerminalCommandId.SwitchTerminal,
@@ -1660,7 +1521,6 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 				id: TerminalCommandId.NewWithProfile,
 				title: localize2('workbench.action.terminal.newWithProfile', 'Create New Terminal (With Profile)'),
 				f1: true,
-				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
 				metadata: {
 					description: TerminalCommandId.NewWithProfile,

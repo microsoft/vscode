@@ -1208,6 +1208,12 @@ module.exports = tseslint.config(
 					'restrictions': []
 				},
 				{
+					'target': 'src/vs/nls.ts',
+					'restrictions': [
+						'vs/*'
+					]
+				},
+				{
 					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}',
 					'restrictions': [
 						'vs/**/common/*',

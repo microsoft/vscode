@@ -29,6 +29,7 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../../../termina
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
 import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type CompressedPwshCompletion, type PwshCompletion } from './terminalSuggestAddon.js';
+import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 
 const enum Constants {
 	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
@@ -171,8 +172,9 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this._ctx.instance.focus();
 				this._ctx.instance.sendText(text, false);
 			}));
-			this.add(this._ctx.instance.onWillPaste(() => addon.isPasting = true));
-			this.add(this._ctx.instance.onDidPaste(() => {
+			const clipboardContrib = TerminalClipboardContribution.get(this._ctx.instance)!;
+			this.add(clipboardContrib.onWillPaste(() => addon.isPasting = true));
+			this.add(clipboardContrib.onDidPaste(() => {
 				// Delay this slightly as synchronizing the prompt input is debounced
 				setTimeout(() => addon.isPasting = false, 100);
 			}));

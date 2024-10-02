@@ -643,7 +643,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 }
 
 /**
- * Language tags are case insensitive however an amd loader is case sensitive
+ * Language tags are case insensitive however an ESM loader is case sensitive
  * To make this work on case preserving & insensitive FS we do the following:
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.

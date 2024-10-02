@@ -79,7 +79,6 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/cpuUsage.sh',
 	'!src/vs/editor/common/languages/highlights/*.scm',
 	'!test/unit/assert.js',
-	'!test/unit/assert-esm.js',
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',

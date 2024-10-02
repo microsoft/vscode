@@ -410,5 +410,6 @@ export const enum GitErrorCodes {
 	BranchFastForwardRejected = 'BranchFastForwardRejected',
 	BranchNotYetBorn = 'BranchNotYetBorn',
 	TagConflict = 'TagConflict',
-	CherryPickEmpty = 'CherryPickEmpty'
+	CherryPickEmpty = 'CherryPickEmpty',
+	CherryPickConflict = 'CherryPickConflict'
 }
