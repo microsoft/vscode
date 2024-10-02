@@ -71,11 +71,11 @@ export class NotebookVariablesView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
-		this._register(this.editorService.onDidActiveEditorChange(this.handleActiveEditorChange.bind(this)));
+		this._register(this.editorService.onDidActiveEditorChange(() => this.handleActiveEditorChange()));
 		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
 
-		this.activeNotebook = this.getActiveNotebook()?.notebookDocument;
+		this.handleActiveEditorChange(false);
 
 		this.dataSource = new NotebookVariableDataSource(this.notebookKernelService);
 		this.updateScheduler = new RunOnceScheduler(() => this.tree?.updateChildren(), 100);
@@ -143,14 +143,18 @@ export class NotebookVariablesView extends ViewPane {
 		this.tree?.layout(height, width);
 	}
 
-	private setActiveNotebook(notebookDocument: NotebookTextModel, editor: IEditorPane) {
+	private setActiveNotebook(notebookDocument: NotebookTextModel, editor: IEditorPane, doUpdate = true) {
 		this.activeNotebook = notebookDocument;
-		this.tree?.setInput({ kind: 'root', notebook: notebookDocument });
-		this.updateScheduler.schedule();
+
 		if (isCompositeNotebookEditorInput(editor.input)) {
 			this.updateTitle(NotebookVariablesView.REPL_TITLE.value);
 		} else {
 			this.updateTitle(NotebookVariablesView.NOTEBOOK_TITLE.value);
+		}
+
+		if (doUpdate) {
+			this.tree?.setInput({ kind: 'root', notebook: notebookDocument });
+			this.updateScheduler.schedule();
 		}
 	}
 
@@ -160,10 +164,10 @@ export class NotebookVariablesView extends ViewPane {
 		return notebookDocument && notebookEditor ? { notebookDocument, notebookEditor } : undefined;
 	}
 
-	private handleActiveEditorChange() {
+	private handleActiveEditorChange(doUpdate = true) {
 		const found = this.getActiveNotebook();
 		if (found && found.notebookDocument !== this.activeNotebook) {
-			this.setActiveNotebook(found.notebookDocument, found.notebookEditor);
+			this.setActiveNotebook(found.notebookDocument, found.notebookEditor, doUpdate);
 		}
 	}
 
