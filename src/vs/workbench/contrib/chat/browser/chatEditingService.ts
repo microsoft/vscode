@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
@@ -384,6 +385,29 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
+	}
+
+	remove(...uris: URI[]): void {
+		this._assertNotDisposed();
+
+		const workingSetSize = this._workingSet.length;
+
+		const urisToRemove = new ResourceSet(uris);
+		const newWorkingSet = [];
+		for (const resource of this._workingSet) {
+			if (urisToRemove.has(resource)) {
+				continue;
+			}
+			newWorkingSet.push(resource);
+		}
+
+		this._workingSet = newWorkingSet;
+		if (this._workingSet.length === workingSetSize) {
+			return; // noop
+		}
+
+		this._workingSetObs.set(this._workingSet, undefined);
+		this._onDidChange.fire();
 	}
 
 	private _assertNotDisposed(): void {

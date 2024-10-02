@@ -872,6 +872,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			modifiedFiles.add(entry.modifiedURI);
 			return {
 				reference: entry.modifiedURI,
+				state: entry.state.get(),
 				kind: 'reference',
 			};
 		}) ?? [];
