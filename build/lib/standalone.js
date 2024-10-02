@@ -103,8 +103,6 @@ function extractEditor(options) {
     delete tsConfig.compilerOptions.moduleResolution;
     writeOutputFile('tsconfig.json', JSON.stringify(tsConfig, null, '\t'));
     [
-        'vs/css.build.ts',
-        'vs/css.ts',
         'vs/loader.js',
         'vs/loader.d.ts'
     ].forEach(copyFile);
