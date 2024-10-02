@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * Options that can be set on a findTextInFiles search.
 	 */
-	export interface FindTextInFilesOptions {
+	export interface FindTextInFilesOptionsOld {
 		/**
 		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
@@ -89,7 +89,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+		export function findTextInFiles(query: TextSearchQueryOld, callback: (result: TextSearchResultOld) => void, token?: CancellationToken): Thenable<TextSearchCompleteOld>;
 
 		/**
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
@@ -99,6 +99,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+		export function findTextInFiles(query: TextSearchQueryOld, options: FindTextInFilesOptionsOld, callback: (result: TextSearchResultOld) => void, token?: CancellationToken): Thenable<TextSearchCompleteOld>;
 	}
 }

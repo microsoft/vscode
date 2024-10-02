@@ -479,7 +479,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	findFiles2(filePattern: vscode.GlobPattern | undefined,
-		options: vscode.FindFiles2Options = {},
+		options: vscode.FindFiles2OptionsOld = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
@@ -490,7 +490,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		const excludeSetting = useDefaultExcludes ?
 			(useDefaultSearchExcludes ? ExcludeSettingOptions.SearchAndFilesExclude : ExcludeSettingOptions.FilesExclude) :
 			ExcludeSettingOptions.None;
-		const newOptions: vscode.FindFiles2OptionsNew = {
+		const newOptions: vscode.FindFiles2Options = {
 			exclude: options.exclude ? [options.exclude] : undefined,
 			useIgnoreFiles: {
 				local: options.useIgnoreFiles,
@@ -505,7 +505,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	findFiles2New(filePatterns: vscode.GlobPattern[],
-		options: vscode.FindFiles2OptionsNew = {},
+		options: vscode.FindFiles2Options = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
@@ -517,7 +517,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
 		include: vscode.GlobPattern | undefined,
 		filePatterns: vscode.GlobPattern[] | undefined,
-		options: vscode.FindFiles2OptionsNew,
+		options: vscode.FindFiles2Options,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		if (token && token.isCancellationRequested) {
 			return Promise.resolve([]);
@@ -571,7 +571,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return result.flat();
 	}
 
-	findTextInFilesNew(query: vscode.TextSearchQueryNew, options: vscode.FindTextInFilesOptionsNew | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
+	findTextInFilesNew(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
 		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
 
 
@@ -623,7 +623,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
+		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;
@@ -694,12 +694,19 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				token) || {}
 			) ?? []);
 			delete this._activeSearchCallbacks[requestId];
-			return result.reduce((acc, val) => {
-				return {
+
+
+			let acc: vscode.TextSearchComplete = { limitHit: false };
+			for (const val of result) {
+				const message = val?.message ? (Array.isArray(val.message) ? val.message : [val.message]) : [];
+
+				acc = {
 					limitHit: acc?.limitHit || (val?.limitHit ?? false),
-					message: [acc?.message ?? [], val?.message ?? []].flat(),
+					message,
 				};
-			}, {}) ?? { limitHit: false };
+			}
+
+			return acc;
 
 		} catch (err) {
 			delete this._activeSearchCallbacks[requestId];
@@ -707,7 +714,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}
 	}
 
-	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptions & { useSearchExclude?: boolean }, callback: (result: vscode.TextSearchResult) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
+	async findTextInFiles(query: vscode.TextSearchQuery, options: vscode.FindTextInFilesOptionsOld & { useSearchExclude?: boolean }, callback: (result: vscode.TextSearchResultOld) => void, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.TextSearchComplete> {
 		this._logService.trace(`extHostWorkspace#findTextInFiles: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles`);
 
 		const previewOptions: vscode.TextSearchPreviewOptions = typeof options.previewOptions === 'undefined' ?
@@ -750,13 +757,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 					ranges: mapArrayOrNot(
 						result.rangeLocations,
 						r => new Range(r.source.startLineNumber, r.source.startColumn, r.source.endLineNumber, r.source.endColumn))
-				} satisfies vscode.TextSearchMatch);
+				} satisfies vscode.TextSearchMatchOld);
 			} else {
 				callback({
 					uri,
 					text: result.text,
 					lineNumber: result.lineNumber
-				} satisfies vscode.TextSearchContext);
+				} satisfies vscode.TextSearchContextOld);
 			}
 		};
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export interface TextSearchCompleteNew {
+	export interface TextSearchComplete {
 		/**
 		 * Additional information regarding the state of the completed search.
 		 *
