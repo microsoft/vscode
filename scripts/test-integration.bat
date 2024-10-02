@@ -25,7 +25,7 @@ echo Storing crash reports into '%VSCODECRASHDIR%'.
 echo Storing log files into '%VSCODELOGSDIR%'.
 
 
-:: Tests standalone (AMD)
+:: Unit tests
 
 echo.
 echo ### node.js integration tests

@@ -619,12 +619,13 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 		this.doc = resourceRef.object.textEditorModel;
-		this.docSnapshot = this._register(
+		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
@@ -632,6 +633,12 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 				false
 			)
 		);
+
+		// Create a reference to this model to avoid it being disposed from under our nose
+		(async () => {
+			this._register(await textModelService.createModelReference(docSnapshot.uri));
+		})();
+
 		this._register(resourceRef);
 	}
 
