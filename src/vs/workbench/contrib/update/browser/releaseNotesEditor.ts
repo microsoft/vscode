@@ -108,7 +108,7 @@ export class ReleaseNotesManager {
 					options: {
 						tryRestoreScrollPosition: true,
 						enableFindWidget: true,
-						disableServiceWorker: true,
+						disableServiceWorker: useCurrentFile ? false : true,
 					},
 					contentOptions: {
 						localResourceRoots: useCurrentFile ? [base] : [],
@@ -264,7 +264,6 @@ export class ReleaseNotesManager {
 		const nonce = generateUuid();
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
-			allowUnknownProtocols: true,
 			shouldSanitize: false,
 			markedExtensions: [{
 				renderer: {
@@ -282,6 +281,7 @@ export class ReleaseNotesManager {
 			<head>
 				<base href="${asWebviewUri(fileContent.base).toString(true)}/" >
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; style-src 'nonce-${nonce}' https://code.visualstudio.com; script-src 'nonce-${nonce}';">
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
@@ -450,4 +450,3 @@ export class ReleaseNotesManager {
 		}
 	}
 }
-
