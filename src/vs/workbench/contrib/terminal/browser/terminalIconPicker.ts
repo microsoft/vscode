@@ -82,10 +82,6 @@ export class TerminalIconPicker extends Disposable {
 			}
 			this._iconSelectBox.layout(new Dimension(486, 260));
 			this._iconSelectBox.focus();
-			// Force a rerender to make the position correct
-			setTimeout(() => {
-				window.dispatchEvent(new Event('resize'));
-			}, 10);
 		});
 	}
 }
