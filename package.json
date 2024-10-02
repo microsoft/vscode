@@ -77,7 +77,7 @@
     "@vscode/proxy-agent": "^0.22.0",
     "@vscode/ripgrep": "^1.15.9",
     "@vscode/spdlog": "^0.15.0",
-    "@vscode/sqlite3": "5.1.6-vscode",
+    "@vscode/sqlite3": "5.1.7-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/tree-sitter-wasm": "^0.0.4",
     "@vscode/vscode-languagedetection": "1.0.21",
