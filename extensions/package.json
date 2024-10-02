@@ -16,6 +16,8 @@
   },
   "overrides": {
     "node-gyp-build": "4.8.1",
-    "node-addon-api": "7.1.0"
+    "@parcel/watcher@2.1.0": {
+      "node-addon-api": "7.1.0"
+    }
   }
 }
