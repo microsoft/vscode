@@ -37,13 +37,9 @@ import { IChatVariableData, IChatVariablesService } from '../../common/chatVaria
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { imageToHash, isImage } from '../chatImagePaste.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 
 export function registerChatContextActions() {
