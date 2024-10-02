@@ -322,12 +322,21 @@ export class ESBuildTranspiler implements ITranspiler {
 		const t1 = Date.now();
 		this._jobs.push(esbuild.transform(file.contents, {
 			target: ['es2022'],
+			format: this._cmdLine.options.module === ts.ModuleKind.CommonJS ? 'cjs' : 'esm',
 			loader: 'ts',
-			tsconfigRaw: JSON.stringify({ compilerOptions: this._cmdLine.options }),
+			tsconfigRaw: JSON.stringify({
+				compilerOptions: this._cmdLine.options
+			}),
 			supported: {
 				'class-static-blocks': false // SEE https://github.com/evanw/esbuild/issues/3823
 			}
 		}).then(result => {
+
+			// check if output of a DTS-files isn't just "empty" and iff so
+			// skip this file
+			if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
+				return;
+			}
 
 			const outBase = this._cmdLine.options.outDir ?? file.base;
 			const outPath = this._outputFileNames.getOutputFileName(file.path);
