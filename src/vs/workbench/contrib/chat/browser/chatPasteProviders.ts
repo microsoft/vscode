@@ -17,7 +17,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ChatContextAttachments } from './contrib/chatContextAttachments.js';
+import { ChatContextAttachments } from './chatWidget.js';
 
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
