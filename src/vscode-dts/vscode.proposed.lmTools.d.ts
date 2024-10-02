@@ -85,7 +85,7 @@ declare module 'vscode' {
 		/**
 		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
 		 */
-		export function registerTool(id: string, tool: LanguageModelTool): Disposable;
+		export function registerTool<T>(id: string, tool: LanguageModelTool<T>): Disposable;
 
 		/**
 		 * A list of all available tools.
@@ -95,12 +95,12 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool<T>(id: string, options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	export type ChatParticipantToolToken = unknown;
 
-	export interface LanguageModelToolInvocationOptions {
+	export interface LanguageModelToolInvocationOptions<T> {
 		/**
 		 * When this tool is being invoked within the context of a chat request, this token should be passed from {@link ChatRequest.toolInvocationToken}.
 		 * In that case, a progress bar will be automatically shown for the tool invocation in the chat response view. If the tool is being invoked
@@ -111,7 +111,7 @@ declare module 'vscode' {
 		/**
 		 * Parameters with which to invoke the tool.
 		 */
-		parameters: Object;
+		parameters: T;
 
 		/**
 		 * A tool invoker can request that particular content types be returned from the tool. All tools are required to support `text/plain`.
@@ -137,7 +137,7 @@ declare module 'vscode' {
 		};
 	}
 
-	export type JSONSchema = object;
+	export type JSONSchema = Object;
 
 	export interface LanguageModelToolDescription {
 		/**
@@ -166,28 +166,24 @@ declare module 'vscode' {
 		supportedContentTypes: string[];
 	}
 
-	export interface LanguageModelToolProvideConfirmationMessageOptions {
-		participantName: string;
-		parameters: any;
-	}
-
 	export interface LanguageModelToolConfirmationMessages {
 		title: string;
 		message: string | MarkdownString;
 	}
 
-	export interface LanguageModelTool {
-		invoke(options: LanguageModelToolInvocationOptions, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+	export interface LanguageModelToolInvocationPrepareOptions<T> {
+		participantName: string;
+		parameters: T;
+	}
 
-		/**
-		 * This can be implemented to customize the message shown to the user when a tool requires confirmation.
-		 */
-		provideToolConfirmationMessages?(options: LanguageModelToolProvideConfirmationMessageOptions, token: CancellationToken): Thenable<LanguageModelToolConfirmationMessages>;
+	export interface LanguageModelTool<T> {
+		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+		prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
+	}
 
-		/**
-		 * This message will be shown with the progress notification when the tool is invoked in a chat session.
-		 */
-		provideToolInvocationMessage?(parameters: any, token: CancellationToken): Thenable<string>;
+	export interface PreparedToolInvocation {
+		invocationMessage?: string;
+		confirmationMessages?: LanguageModelToolConfirmationMessages;
 	}
 
 	export interface ChatLanguageModelToolReference {
