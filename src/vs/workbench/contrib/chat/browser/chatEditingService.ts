@@ -71,7 +71,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				return;
 			}
 			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Edited);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
@@ -609,7 +609,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this.doc.uri;
 	}
 
-	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Edited);
+	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
 	public get state(): IObservable<WorkingSetEntryState> {
 		return this._stateObs;
 	}
@@ -637,11 +637,11 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	applyEdits(textEdits: TextEdit[]): void {
 		this.doc.applyEdits(textEdits);
-		this._stateObs.set(WorkingSetEntryState.Edited, undefined);
+		this._stateObs.set(WorkingSetEntryState.Modified, undefined);
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Edited) {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
@@ -651,7 +651,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	}
 
 	async reject(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Edited) {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
