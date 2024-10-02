@@ -19,6 +19,7 @@ import { openContextMenu } from './textInputContextMenu.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TerminalFindCommandId } from '../common/terminal.find.js';
+import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;
 
@@ -149,7 +150,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected _onFocusTrackerFocus() {
 		if ('overrideCopyOnSelection' in this._instance) {
-			this._overrideCopyOnSelectionDisposable = this._instance.overrideCopyOnSelection(false);
+			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
 		}
 		this._findWidgetFocused.set(true);
 	}

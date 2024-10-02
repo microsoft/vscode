@@ -5,10 +5,10 @@
 
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
@@ -19,10 +19,9 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/m
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
@@ -33,14 +32,9 @@ import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.j
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatWidgetService } from './chat.js';
-
-const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
-const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
-const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 
 export class ChatEditingService extends Disposable implements IChatEditingService {
 
@@ -77,7 +71,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				return;
 			}
 			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== ModifiedFileEntryState.Undecided);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
@@ -243,7 +237,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 }
 
 class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResolver {
-	public static readonly scheme = 'chat-editing-multi-diff-source';
+	public static readonly scheme = CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME;
 
 	public static getMultiDiffSourceUri(): URI {
 		return URI.from({
@@ -295,206 +289,6 @@ class ChatEditingMultiDiffSource implements IResolvedMultiDiffSource {
 		private readonly _currentSession: IObservable<ChatEditingSession | null>
 	) { }
 }
-
-registerAction2(class OpenFileAction extends Action2 {
-	constructor() {
-		super({
-			id: 'chatEditing.openFile',
-			title: localize2('open.file', 'Open File'),
-			icon: Codicon.goToFile,
-			menu: [{
-				id: MenuId.ChatEditingSessionWidgetToolbar,
-				order: 0,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const editorService = accessor.get(IEditorService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-
-		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
-		const uris: URI[] = [];
-		if (URI.isUri(args[0])) {
-			uris.push(args[0]);
-		} else if (chatWidget) {
-			uris.push(...chatWidget.input.selectedElements);
-		}
-		if (!uris.length) {
-			return;
-		}
-
-		await Promise.all(uris.map((uri) => editorService.openEditor({ resource: uri, options: { pinned: true, activation: EditorActivation.ACTIVATE } })));
-	}
-});
-
-registerAction2(class AcceptAction extends Action2 {
-	constructor() {
-		super({
-			id: 'chatEditing.acceptFile',
-			title: localize2('accept.file', 'Accept'),
-			icon: Codicon.check,
-			menu: [{
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
-				id: MenuId.MultiDiffEditorFileToolbar,
-				order: 0,
-				group: 'navigation',
-			}, {
-				id: MenuId.ChatEditingSessionWidgetToolbar,
-				order: 2,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-
-		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
-		const uris: URI[] = [];
-		if (URI.isUri(args[0])) {
-			uris.push(args[0]);
-		} else if (chatWidget) {
-			uris.push(...chatWidget.input.selectedElements);
-		}
-		if (!uris.length) {
-			return;
-		}
-
-		await currentEditingSession.accept(...uris);
-	}
-});
-
-registerAction2(class DiscardAction extends Action2 {
-	constructor() {
-		super({
-			id: 'chatEditing.discardFile',
-			title: localize2('discard.file', 'Discard'),
-			icon: Codicon.discard,
-			menu: [{
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
-				id: MenuId.MultiDiffEditorFileToolbar,
-				order: 0,
-				group: 'navigation',
-			}, {
-				id: MenuId.ChatEditingSessionWidgetToolbar,
-				order: 1,
-				group: 'navigation'
-			}],
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-
-		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
-		const uris: URI[] = [];
-		if (URI.isUri(args[0])) {
-			uris.push(args[0]);
-		} else if (chatWidget) {
-			uris.push(...chatWidget.input.selectedElements);
-		}
-		if (!uris.length) {
-			return;
-		}
-
-		await currentEditingSession.reject(...uris);
-	}
-});
-
-export class ChatEditingAcceptAllAction extends Action2 {
-	static readonly ID = 'chatEditing.acceptAllFiles';
-	static readonly LABEL = localize('accept.allFiles', 'Accept All');
-
-	constructor() {
-		super({
-			id: ChatEditingAcceptAllAction.ID,
-			title: ChatEditingAcceptAllAction.LABEL,
-			// icon: Codicon.goToFile,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme),
-				id: MenuId.EditorTitle,
-				order: 0,
-				group: 'navigation',
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-		await currentEditingSession.accept();
-	}
-}
-registerAction2(ChatEditingAcceptAllAction);
-
-export class ChatEditingDiscardAllAction extends Action2 {
-	static readonly ID = 'chatEditing.discardAllFiles';
-	static readonly LABEL = localize('discard.allFiles', 'Discard All');
-
-	constructor() {
-		super({
-			id: ChatEditingDiscardAllAction.ID,
-			title: ChatEditingDiscardAllAction.LABEL,
-			// icon: Codicon.goToFile,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', ChatEditingMultiDiffSourceResolver.scheme),
-				id: MenuId.EditorTitle,
-				order: 0,
-				group: 'navigation',
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-		await currentEditingSession.reject();
-	}
-}
-registerAction2(ChatEditingDiscardAllAction);
-
-export class ChatEditingShowChangesAction extends Action2 {
-	static readonly ID = 'chatEditing.openDiffs';
-	static readonly LABEL = localize('chatEditing.openDiffs', 'Open Diffs');
-
-	constructor() {
-		super({
-			id: ChatEditingShowChangesAction.ID,
-			title: ChatEditingShowChangesAction.LABEL,
-			f1: false
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const currentEditingSession = chatEditingService.currentEditingSession;
-		if (!currentEditingSession) {
-			return;
-		}
-		await currentEditingSession.show();
-	}
-}
-registerAction2(ChatEditingShowChangesAction);
 
 type ChatEditingTextModelContentQueryData = { kind: 'empty' } | { kind: 'doc'; documentId: string };
 
@@ -591,6 +385,29 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
+	}
+
+	remove(...uris: URI[]): void {
+		this._assertNotDisposed();
+
+		const workingSetSize = this._workingSet.length;
+
+		const urisToRemove = new ResourceSet(uris);
+		const newWorkingSet = [];
+		for (const resource of this._workingSet) {
+			if (urisToRemove.has(resource)) {
+				continue;
+			}
+			newWorkingSet.push(resource);
+		}
+
+		this._workingSet = newWorkingSet;
+		if (this._workingSet.length === workingSetSize) {
+			return; // noop
+		}
+
+		this._workingSetObs.set(this._workingSet, undefined);
+		this._onDidChange.fire();
 	}
 
 	private _assertNotDisposed(): void {
@@ -792,8 +609,8 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this.doc.uri;
 	}
 
-	private readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Undecided);
-	public get state(): IObservable<ModifiedFileEntryState> {
+	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
+	public get state(): IObservable<WorkingSetEntryState> {
 		return this._stateObs;
 	}
 
@@ -802,12 +619,13 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 		this.doc = resourceRef.object.textEditorModel;
-		this.docSnapshot = this._register(
+		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
@@ -815,31 +633,37 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 				false
 			)
 		);
+
+		// Create a reference to this model to avoid it being disposed from under our nose
+		(async () => {
+			this._register(await textModelService.createModelReference(docSnapshot.uri));
+		})();
+
 		this._register(resourceRef);
 	}
 
 	applyEdits(textEdits: TextEdit[]): void {
 		this.doc.applyEdits(textEdits);
-		this._stateObs.set(ModifiedFileEntryState.Undecided, undefined);
+		this._stateObs.set(WorkingSetEntryState.Modified, undefined);
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== ModifiedFileEntryState.Undecided) {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 		this.docSnapshot.setValue(this.doc.createSnapshot());
-		this._stateObs.set(ModifiedFileEntryState.Accepted, transaction);
+		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
 		await this.collapse(transaction);
 	}
 
 	async reject(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== ModifiedFileEntryState.Undecided) {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
 		this.doc.setValue(this.docSnapshot.createSnapshot());
-		this._stateObs.set(ModifiedFileEntryState.Rejected, transaction);
+		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
 		await this.collapse(transaction);
 	}
 

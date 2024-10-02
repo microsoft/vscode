@@ -31,7 +31,6 @@
 **/src/vs/base/test/common/filters.perf.data.js
 **/src/vs/loader.js
 **/test/unit/assert.js
-**/test/unit/assert-esm.js
 **/test/automation/out/**
 **/typings/**
 !.vscode

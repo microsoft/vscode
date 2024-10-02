@@ -47,6 +47,8 @@ export interface ITerminalContribution extends IDisposable {
 	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void;
 	xtermOpen?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
+
+	handleMouseEvent?(event: MouseEvent): Promise<{ handled: boolean } | void> | { handled: boolean } | void;
 }
 
 /**
@@ -706,9 +708,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidChangeShellType: Event<TerminalShellType>;
 	onDidChangeVisibility: Event<boolean>;
 
-	onWillPaste: Event<string>;
-	onDidPaste: Event<string>;
-
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
 	 */
@@ -867,11 +866,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
 
 	/**
-	 * Copies the terminal selection to the clipboard.
-	 */
-	copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void>;
-
-	/**
 	 * When the panel is hidden or a terminal in the editor area becomes inactive, reset the focus context key
 	 * to avoid issues like #147180.
 	 */
@@ -885,22 +879,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * @param force Force focus even if there is a selection.
 	 */
 	focusWhenReady(force?: boolean): Promise<void>;
-
-	/**
-	 * Focuses and pastes the contents of the clipboard into the terminal instance.
-	 */
-	paste(): Promise<void>;
-
-	/**
-	 * Focuses and pastes the contents of the selection clipboard into the terminal instance.
-	 */
-	pasteSelection(): Promise<void>;
-
-	/**
-	 * Override the copy on selection feature with a custom value.
-	 * @param value Whether to enable copySelection.
-	 */
-	overrideCopyOnSelection(value: boolean): IDisposable;
 
 	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
@@ -1087,6 +1065,8 @@ export interface IXtermTerminal extends IDisposable {
 
 	readonly onDidChangeSelection: Event<void>;
 	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number }>;
+	readonly onDidRequestRunCommand: Event<{ command: ITerminalCommand; noNewLine?: boolean }>;
+	readonly onDidRequestCopyAsHtml: Event<{ command: ITerminalCommand }>;
 
 	/**
 	 * Event fired when focus enters (fires with true) or leaves (false) the terminal.
@@ -1170,10 +1150,9 @@ export interface IXtermTerminal extends IDisposable {
 
 	/**
 	 * Copies the terminal selection.
-	 * @param {boolean} copyAsHtml Whether to copy selection as HTML, defaults to false.
+	 * @param copyAsHtml Whether to copy selection as HTML, defaults to false.
 	 */
-	copySelection(copyAsHtml?: boolean): void;
-
+	copySelection(copyAsHtml?: boolean, command?: ITerminalCommand): void;
 	/**
 	 * Focuses the terminal. Warning: {@link ITerminalInstance.focus} should be
 	 * preferred when dealing with terminal instances in order to get
