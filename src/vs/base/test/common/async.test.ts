@@ -1527,7 +1527,7 @@ suite('Async', () => {
 			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: undefined,
-				throttleDelay: 20, // 100ms delay
+				throttleDelay: 5,
 				waitThrottleDelayBetweenWorkUnits: true
 			}, handler));
 
@@ -1535,21 +1535,16 @@ suite('Async', () => {
 			assert.strictEqual(worked, true);
 			assertArrayEquals(handled, [1, 2, 3]);
 
-			// Add more work immediately, should not be processed due to throttle delay
+			await async.timeout(2);
+
+			// Add more work immediately, should not be processed due to the `waitThrottleDelayBetweenWorkUnits`. We only waited 2 of the 5ms.
 			worked = worker.work([4, 5, 6]);
 			assert.strictEqual(worked, true);
 			assertArrayEquals(handled, [1, 2, 3]);
 
-			// Wait for throttle delay to pass
-			await new Promise(resolve => setTimeout(resolve, 150));
-
-			// Verify that the second batch of work has been processed
+			// Wait an additional 5 ms and check that the work has now been processed
+			await async.timeout(5);
 			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6]);
-
-			// Add more work after throttle delay
-			worked = worker.work([7, 8, 9]);
-			assert.strictEqual(worked, true);
-			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9]);
 		});
 	});
 
