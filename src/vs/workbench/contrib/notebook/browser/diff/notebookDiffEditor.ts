@@ -24,7 +24,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
-import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions } from '../notebookBrowser.js';
+import { CellEditState, IBaseCellEditorOptions, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions } from '../notebookBrowser.js';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor, INotebookDiffViewModel } from './notebookDiffEditorBrowser.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -48,6 +48,7 @@ import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { BaseCellEditorOptions } from '../viewModel/cellEditorOptions.js';
 
 const $ = DOM.$;
 
@@ -142,6 +143,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	get isDisposed() {
 		return this._isDisposed;
 	}
+
+	private _baseCellEditorOptions = new Map<string, IBaseCellEditorOptions>();
 
 	constructor(
 		group: IEditorGroup,
@@ -272,6 +275,17 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 	didResizeOutput(cellId: string): void {
 		// throw new Error('Method not implemented.');
+	}
+	getBaseCellEditorOptions(language: string): IBaseCellEditorOptions {
+		const existingOptions = this._baseCellEditorOptions.get(language);
+
+		if (existingOptions) {
+			return existingOptions;
+		} else {
+			const options = new BaseCellEditorOptions(this, this.notebookOptions, this.configurationService, language);
+			this._baseCellEditorOptions.set(language, options);
+			return options;
+		}
 	}
 
 	protected createEditor(parent: HTMLElement): void {
