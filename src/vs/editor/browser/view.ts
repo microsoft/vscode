@@ -7,7 +7,7 @@ import * as dom from '../../base/browser/dom.js';
 import { FastDomNode, createFastDomNode } from '../../base/browser/fastDomNode.js';
 import { IMouseWheelEvent } from '../../base/browser/mouseEvent.js';
 import { inputLatency } from '../../base/browser/performance.js';
-import { CodeWindow } from '../../base/browser/window.js';
+import { CodeWindow, mainWindow } from '../../base/browser/window.js';
 import { BugIndicatingError, onUnexpectedError } from '../../base/common/errors.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import { IPointerHandlerHelper } from './controller/mouseHandler.js';
@@ -456,9 +456,13 @@ export class View extends ViewEventHandler {
 			throw new BugIndicatingError();
 		}
 		if (this._renderAnimationFrame === null) {
+			const targetWindow = dom.getWindow(this.domNode?.domNode);
+			if (targetWindow !== mainWindow && this._editContext instanceof NativeEditContext) {
+				this._editContext.apply();
+			}
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
-				window: dom.getWindow(this.domNode?.domNode),
+				window: targetWindow,
 				prepareRenderText: () => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();
