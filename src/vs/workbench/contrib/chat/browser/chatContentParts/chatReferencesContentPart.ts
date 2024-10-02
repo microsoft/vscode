@@ -284,11 +284,10 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 }
 
 interface ICollapsibleListTemplate {
-	toolbar: MenuWorkbenchToolBar | undefined;
 	readonly contextKeyService?: IContextKeyService;
-	readonly instantiationService?: IInstantiationService;
 	readonly label: IResourceLabel;
 	readonly templateDisposables: DisposableStore;
+	toolbar: MenuWorkbenchToolBar | undefined;
 	actionBarContainer?: HTMLElement;
 }
 
@@ -313,16 +312,15 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		let toolbar;
 		let actionBarContainer;
 		let contextKeyService;
-		let scopedInstantiationService;
 		if (this.menuId) {
 			actionBarContainer = $('.chat-collapsible-list-action-bar');
-			const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
+			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
 			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
 			label.element.appendChild(actionBarContainer);
 		}
 
-		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService, instantiationService: scopedInstantiationService };
+		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
 	}
 
 
