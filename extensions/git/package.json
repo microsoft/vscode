@@ -631,6 +631,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.cherryPickAbort",
+        "title": "%command.cherryPickAbort%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.addRemote",
         "title": "%command.addRemote%",
         "category": "Git",
@@ -1202,6 +1208,10 @@
         {
           "command": "git.cherryPick",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.cherryPickAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitCherryPickInProgress"
         },
         {
           "command": "git.pull",

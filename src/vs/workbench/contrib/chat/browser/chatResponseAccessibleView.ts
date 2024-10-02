@@ -52,7 +52,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		this._focusedItem = item;
 	}
 
-	readonly id = AccessibleViewProviderId.Chat;
+	readonly id = AccessibleViewProviderId.PanelChat;
 	readonly verbositySettingKey = AccessibilityVerbositySettingId.Chat;
 	readonly options = { type: AccessibleViewType.View };
 
