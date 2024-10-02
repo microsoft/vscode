@@ -76,7 +76,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 
 		this._editContext = new EditContext();
-		this.domNode.domNode.editContext = this._editContext;
+		this.setEditContextOnDomNode();
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
 
@@ -175,6 +175,12 @@ export class NativeEditContext extends AbstractEditContext {
 	public focus(): void { this._focusTracker.focus(); }
 
 	public refreshFocusState(): void { }
+
+	// TODO: added as a workaround fix for https://github.com/microsoft/vscode/issues/229825
+	// When this issue will be fixed the following should be removed.
+	public setEditContextOnDomNode(): void {
+		this.domNode.domNode.editContext = this._editContext;
+	}
 
 	// --- Private methods ---
 
