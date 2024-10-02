@@ -59,17 +59,16 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		if (!imageItem || !mimeType) {
 			return;
 		}
-
 		const currClipboard = await imageItem.asFile()?.data();
-
-		if (!currClipboard || !isImage(currClipboard)) {
+		if (token.isCancellationRequested || !currClipboard) {
 			return;
 		}
 
 		const imageContext = await getImageAttachContext(currClipboard, mimeType);
-		if (!imageContext) {
+		if (token.isCancellationRequested || !imageContext) {
 			return;
 		}
+
 		const widget = this.chatWidgetService.getWidgetByInputUri(_model.uri);
 		if (!widget) {
 			return;

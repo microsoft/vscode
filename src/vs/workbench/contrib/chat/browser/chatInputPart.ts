@@ -844,6 +844,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Update hover image
 		hoverElement.appendChild(hoverImage);
+
+		hoverImage.onload = () => {
+			URL.revokeObjectURL(url);
+		};
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, initialState?: boolean, chatWidget?: IChatWidget) {
