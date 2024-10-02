@@ -84,7 +84,7 @@ registerAction2(class OpenFileAction extends WorkingSetAction {
 			icon: Codicon.goToFile,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -110,7 +110,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 2,
 				group: 'navigation'
 			}],
@@ -135,7 +135,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 1,
 				group: 'navigation'
 			}],

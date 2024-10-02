@@ -188,7 +188,6 @@ export class CollapsibleListPool extends Disposable {
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
 		private readonly menuId: MenuId | undefined,
-		private readonly options: { enableFileDecorations?: boolean } | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -208,7 +207,7 @@ export class CollapsibleListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId, this.options)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
 			{
 				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
@@ -299,7 +298,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	constructor(
 		private labels: ResourceLabels,
 		private menuId: MenuId | undefined,
-		private options: { enableFileDecorations?: boolean } | undefined,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
 		@IProductService private readonly productService: IProductService,
@@ -384,7 +382,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
-					fileDecorations: this.options?.enableFileDecorations ? { badges: true, colors: true } : { badges: false, colors: false },
+					fileDecorations: { badges: false, colors: false },
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title
 				});
@@ -406,9 +404,16 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (data.state !== undefined) {
 				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
 			}
-			const actionBarContainer = $('.chat-collapsible-list-action-bar');
-			templateData.toolbar = templateData.templateDisposables.add(templateData.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: arg } }));
+
+			const actionBarContainer = templateData.label.element.querySelector('.chat-collapsible-list-action-bar') as HTMLElement ?? $('.chat-collapsible-list-action-bar');
+			templateData.toolbar = templateData.templateDisposables.add(templateData.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg } }));
 			templateData.label.element.appendChild(actionBarContainer);
+
+			if (data.state === WorkingSetEntryState.Modified && !actionBarContainer.classList.contains('modified')) {
+				actionBarContainer.classList.add('modified');
+			} else if (data.state !== WorkingSetEntryState.Modified) {
+				actionBarContainer.classList.remove('modified');
+			}
 		}
 	}
 
