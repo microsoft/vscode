@@ -2506,7 +2506,7 @@ export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
 		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
-		const isSymbolInformation = (x: any): x is vscode.SymbolInformation => x instanceof types.SymbolInformation;
+		const isSymbolInformation = (thing: object): thing is vscode.SymbolInformation => 'name' in thing;
 
 		return {
 			kind: 'inlineReference',

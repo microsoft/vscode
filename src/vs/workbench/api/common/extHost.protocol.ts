@@ -53,7 +53,7 @@ import { CallHierarchyItem } from '../../contrib/callHierarchy/common/callHierar
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatWelcomeMessageContent } from '../../contrib/chat/common/chatAgents.js';
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from '../../contrib/chat/common/chatVariables.js';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from '../../contrib/chat/common/languageModels.js';
 import { IToolConfirmationMessages, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
@@ -1275,6 +1275,8 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, handle?: number): Promise<number | void>;
+	$handleAnchorResolve(requestId: string, handle: string, anchor: Dto<IChatContentInlineReference>): void;
+
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void;
 }

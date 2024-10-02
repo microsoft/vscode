@@ -249,7 +249,7 @@ export = new class implements eslint.Rule.RuleModule {
 			const relativeFilename = getRelativeFilename(context);
 			importPath = path.posix.join(path.posix.dirname(relativeFilename), importPath);
 			if (/^src\/vs\//.test(importPath)) {
-				// resolve using AMD base url
+				// resolve using base url
 				importPath = importPath.substring('src/'.length);
 			}
 		}
