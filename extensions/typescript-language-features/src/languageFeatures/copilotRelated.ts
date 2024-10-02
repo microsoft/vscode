@@ -29,7 +29,14 @@ export function register(
 			const relatedAPI = ext.exports as {
 				registerRelatedFilesProvider(
 					providerId: { extensionId: string; languageId: string },
-					callback: (uri: vscode.Uri, cancellationToken: vscode.CancellationToken) => Promise<{ entries: vscode.Uri[]; traits?: { name: string; value: string }[] }>
+					callback: (
+						uri: vscode.Uri,
+						context: { flags: Record<string, unknown> },
+						cancellationToken: vscode.CancellationToken
+					) => Promise<{
+						entries: vscode.Uri[];
+						traits?: Array<{ name: string; value: string; includeInPrompt?: boolean; promptTextOverride?: string }>;
+					}>
 				): vscode.Disposable;
 			} | undefined;
 			if (relatedAPI?.registerRelatedFilesProvider) {
@@ -41,7 +48,7 @@ export function register(
 						extensionId: 'vscode.typescript-language-features',
 						languageId: syntax.language
 					};
-					disposers.push(relatedAPI.registerRelatedFilesProvider(id, async (uri, token) => {
+					disposers.push(relatedAPI.registerRelatedFilesProvider(id, async (uri, _context, token) => {
 						let document;
 						try {
 							document = await vscode.workspace.openTextDocument(uri);
