@@ -14,9 +14,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import glob from 'glob';
 import minimatch from 'minimatch';
-// const coverage = require('../coverage');
 import minimist from 'minimist';
-// const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
 
@@ -114,15 +112,6 @@ function main() {
 	 * @param onError
 	 */
 	const loader = function (modules, onLoad, onError) {
-
-		modules = modules.filter(mod => {
-			if (mod.endsWith('css.build.test')) {
-				// AMD ONLY, ignore for ESM
-				return false;
-			}
-			return true;
-		});
-
 		const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
 			console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
 			throw err;

@@ -64,14 +64,12 @@ import { TerminalEditorInput } from './terminalEditorInput.js';
 import { TerminalExtensionsRegistry } from './terminalExtensions.js';
 import { getColorClass, createColorStyleElement, getStandardColors } from './terminalIcon.js';
 import { TerminalProcessManager } from './terminalProcessManager.js';
-import { showRunRecentQuickPick } from './terminalRunRecentQuickPick.js';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from './terminalStatusList.js';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from './terminalUri.js';
 import { TerminalWidgetManager } from './widgets/widgetManager.js';
 import { LineDataEventAddon } from './xterm/lineDataEventAddon.js';
 import { XtermTerminal, getXtermScaledDimensions } from './xterm/xtermTerminal.js';
 import { IEnvironmentVariableInfo } from '../common/environmentVariable.js';
-import { getCommandHistory, getDirectoryHistory } from '../common/history.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
@@ -362,7 +360,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
-		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -450,24 +447,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
+		this._register(this.capabilities.onDidAddCapabilityType(e => this._logService.debug('terminalInstance added capability', e)));
+		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
 		this._register(this.capabilities.onDidAddCapabilityType(e => {
-			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
 				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
 					this._setTitle(this.title, TitleEventSource.Config);
-					this._scopedInstantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
-				});
-			} else if (e === TerminalCapability.CommandDetection) {
-				const commandCapability = this.capabilities.get(TerminalCapability.CommandDetection);
-				commandCapability?.onCommandFinished(e => {
-					if (e.command.trim().length > 0) {
-						this._scopedInstantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._shellType });
-					}
 				});
 			}
 		}));
-		this._register(this.capabilities.onDidRemoveCapabilityType(e => this._logService.debug('terminalInstance removed capability', e)));
 
 		// Resolve just the icon ahead of time so that it shows up immediately in the tabs. This is
 		// disabled in remote because this needs to be sync and the OS may differ on the remote
@@ -593,7 +582,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			let contribution: ITerminalContribution;
 			try {
-				contribution = this._register(this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager));
+				contribution = this._register(this._scopedInstantiationService.createInstance(desc.ctor, {
+					instance: this,
+					processManager: this._processManager,
+					widgetManager: this._widgetManager
+				}));
 				this._contributions.set(desc.id, contribution);
 			} catch (err) {
 				onUnexpectedError(err);
@@ -896,12 +889,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		// Use bracketed paste mode only when not running the command
 		await this.sendText(commandLine, shouldExecute, !shouldExecute);
-	}
-
-	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
-		return this._scopedInstantiationService.invokeFunction(
-			showRunRecentQuickPick, this, this._terminalInRunCommandPicker, type, filterMode, value
-		);
 	}
 
 	detachFromElement(): void {
