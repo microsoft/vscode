@@ -103,23 +103,7 @@ const serverWithWebResources = [
 	...serverWithWebResourceIncludes,
 	...serverWithWebResourceExcludes
 ];
-
-const serverEntryPoints = [
-	// 'vs/server/node/server.main' is not included here because it gets inlined via ./src/server-main.js
-	// 'vs/server/node/server.cli' is not included here because it gets inlined via ./src/server-cli.js
-	{
-		name: 'vs/workbench/api/node/extensionHostProcess',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/platform/files/node/watcher/watcherMain',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/platform/terminal/node/ptyHostMain',
-		exclude: ['vs/css']
-	}
-];
+const serverEntryPoints = buildfile.codeServer;
 
 const webEntryPoints = [
 	buildfile.workerEditor,
@@ -324,7 +308,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...{ type: 'module' } })) // TODO@esm this should be configured in the top level package.json
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);

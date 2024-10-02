@@ -447,10 +447,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
-		// TODO@jrieken this isn't proper
-		const key = `submenuitem.${MenuId.ChatCommandCenter.id}`;
-
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, key, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 
 			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
 			if (!agent?.metadata.themeIcon) {

@@ -19,7 +19,7 @@ import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariabl
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView } from './chat.js';
-import { ChatContextAttachments } from './contrib/chatContextAttachments.js';
+import { ChatContextAttachments } from './chatWidget.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 interface IChatData {

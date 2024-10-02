@@ -118,7 +118,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
-			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true);
+			const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(model, selection, 10, true, true);
 			return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 		},
 		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {

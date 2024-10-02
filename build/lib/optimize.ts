@@ -63,8 +63,6 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 		entryPoint.exclude?.forEach(allMentionedModules.add, allMentionedModules);
 	}
 
-	allMentionedModules.delete('vs/css'); // TODO@esm remove this when vs/css is removed
-
 	const bundleAsync = async () => {
 
 		const files: VinylFile[] = [];

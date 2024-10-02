@@ -33,7 +33,7 @@ import { TerminalChatController } from '../../terminal/terminalContribChatExport
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
-import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatRequestVariableEntry, IChatResponseModel, isChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
@@ -937,7 +937,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
 		this.inputPart.attachContext(overwrite, ...contentReferences);
 
-		if (this.chatEditingService.currentEditingSession) {
+		if (this.chatEditingService.currentEditingSession && this.chatEditingService.currentEditingSession?.chatSessionId === this.viewModel?.sessionId) {
 			this.renderChatEditingSessionState(this.chatEditingService.currentEditingSession);
 		}
 	}
@@ -1170,3 +1170,67 @@ export class ChatWidgetService implements IChatWidgetService {
 		);
 	}
 }
+
+export class ChatContextAttachments extends Disposable implements IChatWidgetContrib {
+
+	private _attachedContext = new Map<string, IChatRequestVariableEntry>();
+
+	public static readonly ID = 'chatContextAttachments';
+
+	get id() {
+		return ChatContextAttachments.ID;
+	}
+
+	constructor(readonly widget: IChatWidget) {
+		super();
+
+		this._register(this.widget.onDidChangeContext(({ removed, added }) => {
+			removed?.forEach(attachment => this._attachedContext.delete(attachment.id));
+			added?.forEach(attachment => {
+				if (!this._attachedContext.has(attachment.id)) {
+					this._attachedContext.set(attachment.id, attachment);
+				}
+			});
+		}));
+
+		this._register(this.widget.onDidSubmitAgent(() => {
+			this._clearAttachedContext();
+		}));
+	}
+
+	getInputState(): IChatRequestVariableEntry[] {
+		return [...this._attachedContext.values()];
+	}
+
+	setInputState(s: unknown): void {
+		const attachments = Array.isArray(s) ? s.filter(isChatRequestVariableEntry) : [];
+		this.setContext(true, ...attachments);
+	}
+
+	getContext() {
+		return new Set(this._attachedContext.keys());
+	}
+
+	setContext(overwrite: boolean, ...attachments: IChatRequestVariableEntry[]) {
+		if (overwrite) {
+			this._attachedContext.clear();
+		}
+
+		const newAttachments = [];
+		for (const attachment of attachments) {
+			if (!this._attachedContext.has(attachment.id)) {
+				this._attachedContext.set(attachment.id, attachment);
+				newAttachments.push(attachment);
+			}
+		}
+
+		this.widget.setContext(overwrite, ...newAttachments);
+	}
+
+	private _clearAttachedContext() {
+		this._attachedContext.clear();
+	}
+}
+
+ChatWidget.CONTRIBS.push(ChatContextAttachments);
+

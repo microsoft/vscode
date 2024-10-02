@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
 import { raceCancellation } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
@@ -16,6 +16,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { assertType } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { Location } from '../../../editor/common/languages.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -103,7 +104,7 @@ class ChatAgentResponseStream {
 				}
 			};
 
-			this._apiObject = {
+			this._apiObject = Object.freeze<vscode.ChatResponseStream>({
 				markdown(value) {
 					throwIfDone(this.markdown);
 					const part = new extHostTypes.ChatResponseMarkdownPart(value);
@@ -138,11 +139,8 @@ class ChatAgentResponseStream {
 					return this;
 				},
 				anchor(value, title?: string) {
-					throwIfDone(this.anchor);
 					const part = new extHostTypes.ChatResponseAnchorPart(value, title);
-					const dto = typeConvert.ChatResponseAnchorPart.from(part);
-					_report(dto);
-					return this;
+					return this.push(part);
 				},
 				button(value) {
 					throwIfDone(this.anchor);
@@ -263,6 +261,24 @@ class ChatAgentResponseStream {
 					} else if (part instanceof extHostTypes.ChatResponseProgressPart2) {
 						const dto = part.task ? typeConvert.ChatTask.from(part) : typeConvert.ChatResponseProgressPart.from(part);
 						_report(dto, part.task);
+					} else if (part instanceof extHostTypes.ChatResponseAnchorPart) {
+						const dto = typeConvert.ChatResponseAnchorPart.from(part);
+
+						if (part.resolve) {
+							checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
+
+							dto.resolveId = generateUuid();
+
+							const cts = new CancellationTokenSource();
+							part.resolve(cts.token)
+								.then(() => {
+									const resolvedDto = typeConvert.ChatResponseAnchorPart.from(part);
+									that._proxy.$handleAnchorResolve(that._request.requestId, dto.resolveId!, resolvedDto);
+								})
+								.then(() => cts.dispose(), () => cts.dispose());
+							that._sessionDisposables.add(toDisposable(() => cts.dispose(true)));
+						}
+						_report(dto);
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
@@ -270,7 +286,7 @@ class ChatAgentResponseStream {
 
 					return this;
 				},
-			};
+			});
 		}
 
 		return this._apiObject;
