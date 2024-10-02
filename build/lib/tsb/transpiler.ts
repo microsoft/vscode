@@ -324,6 +324,7 @@ export class ESBuildTranspiler implements ITranspiler {
 			target: ['es2022'],
 			format: this._cmdLine.options.module === ts.ModuleKind.CommonJS ? 'cjs' : 'esm',
 			loader: 'ts',
+			sourcemap: 'inline',
 			tsconfigRaw: JSON.stringify({
 				compilerOptions: this._cmdLine.options
 			}),
@@ -334,7 +335,7 @@ export class ESBuildTranspiler implements ITranspiler {
 
 			// check if output of a DTS-files isn't just "empty" and iff so
 			// skip this file
-			if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
+			if (file.path.endsWith('.d.ts') || _isDefaultEmpty(result.code)) {
 				return;
 			}
 
@@ -358,6 +359,7 @@ export class ESBuildTranspiler implements ITranspiler {
 function _isDefaultEmpty(src: string): boolean {
 	return src
 		.replace('"use strict";', '')
+		.replace(/\/\/# sourceMappingURL.*^/, '')
 		.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
 		.trim().length === 0;
 }
