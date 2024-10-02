@@ -75,12 +75,12 @@ function extensionResultIsMatch(data: vscode.TextSearchResultOld): data is vscod
 suite('ExtHostSearch', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function registerTestTextSearchProvider(provider: vscode.TextSearchProvider, scheme = 'file'): Promise<void> {
+	async function registerTestTextSearchProvider(provider: vscode.TextSearchProviderOld, scheme = 'file'): Promise<void> {
 		disposables.add(extHostSearch.registerTextSearchProviderOld(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
-	async function registerTestFileSearchProvider(provider: vscode.FileSearchProvider, scheme = 'file'): Promise<void> {
+	async function registerTestFileSearchProvider(provider: vscode.FileSearchProviderOld, scheme = 'file'): Promise<void> {
 		disposables.add(extHostSearch.registerFileSearchProviderOld(scheme, provider));
 		await rpcProtocol.sync();
 	}
