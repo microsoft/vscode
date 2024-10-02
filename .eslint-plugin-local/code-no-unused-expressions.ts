@@ -12,7 +12,7 @@
  */
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 import * as ESTree from 'estree';
 
 //------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ module.exports = {
 
 		return {
 			ExpressionStatement(node: TSESTree.ExpressionStatement) {
-				if (!isValidExpression(node.expression) && !isDirective(node, <TSESTree.Node[]>context.getAncestors())) {
+				if (!isValidExpression(node.expression) && !isDirective(node, <TSESTree.Node[]>context.sourceCode.getAncestors(node))) {
 					context.report({ node: <ESTree.Node>node, message: `Expected an assignment or function call and instead saw an expression. ${node.expression}` });
 				}
 			}

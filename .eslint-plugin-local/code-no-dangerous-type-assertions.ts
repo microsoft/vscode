@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
 export = new class NoDangerousTypeAssertions implements eslint.Rule.RuleModule {
 

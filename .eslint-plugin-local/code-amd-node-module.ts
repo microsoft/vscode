@@ -12,7 +12,8 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			amdX: 'Use `import type` for import declarations, use `amdX#importAMDNodeModule` for import expressions'
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

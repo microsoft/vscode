@@ -4,32 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
-export = new class ApiInterfaceNaming implements eslint.Rule.RuleModule {
-
-	private static _nameRegExp = /^I[A-Z]/;
+export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
+		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines' },
 		messages: {
-			naming: 'Interfaces must not be prefixed with uppercase `I`',
-		}
+			noTypeDiscrimination: 'Do not use type discrimination properties'
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-
 		return {
-			['TSInterfaceDeclaration Identifier']: (node: any) => {
+			['TSPropertySignature[optional=false] TSTypeAnnotation TSLiteralType Literal']: (node: any) => {
+				const raw = String((<TSESTree.Literal>node).raw)
 
-				const name = (<TSESTree.Identifier>node).name;
-				if (ApiInterfaceNaming._nameRegExp.test(name)) {
+				if (/^('|").*\1$/.test(raw)) {
+
 					context.report({
-						node,
-						messageId: 'naming'
+						node: node,
+						messageId: 'noTypeDiscrimination'
 					});
 				}
 			}
-		};
+		}
 	}
 };
-

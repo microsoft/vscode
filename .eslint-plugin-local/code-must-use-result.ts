@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
 const VALID_USES = new Set<TSESTree.AST_NODE_TYPES | undefined>([
 	TSESTree.AST_NODE_TYPES.AwaitExpression,
@@ -12,6 +12,9 @@ const VALID_USES = new Set<TSESTree.AST_NODE_TYPES | undefined>([
 ]);
 
 export = new class MustUseResults implements eslint.Rule.RuleModule {
+	readonly meta: eslint.Rule.RuleMetaData = {
+		schema: false
+	}
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 

@@ -15,7 +15,8 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 		},
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

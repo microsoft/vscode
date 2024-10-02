@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
 
 function isStringLiteral(node: TSESTree.Node | null | undefined): node is TSESTree.StringLiteral {
 	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
@@ -24,7 +24,8 @@ export = new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
 			badKey: 'The key \'{{key}}\' doesn\'t conform to a valid localize identifier.',
 			duplicateKey: 'Duplicate key \'{{key}}\' with different message value.',
 			badMessage: 'Message argument to \'{{message}}\' must be a string literal.'
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

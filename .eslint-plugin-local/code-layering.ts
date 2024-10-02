@@ -20,7 +20,18 @@ export = new class implements eslint.Rule.RuleModule {
 		},
 		docs: {
 			url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
-		}
+		},
+		schema: [
+			{
+				type: 'object',
+				additionalProperties: {
+					type: 'array',
+					items: {
+						type: 'string'
+					}
+				}
+			}
+		]
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

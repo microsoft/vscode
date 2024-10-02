@@ -13,7 +13,8 @@ export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rul
 		messages: {
 			ensure: 'Suites should include a call to `ensureNoDisposablesAreLeakedInTestSuite()` to ensure no disposables are leaked in tests.'
 		},
-		fixable: 'code'
+		fixable: 'code',
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

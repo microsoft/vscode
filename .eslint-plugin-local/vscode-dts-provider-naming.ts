@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
 export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			naming: 'A provider should only have functions like provideXYZ or resolveXYZ',
-		}
+		},
+		schema: false,
 	};
 
 	private static _providerFunctionNames = /^(provide|resolve|prepare).+/;

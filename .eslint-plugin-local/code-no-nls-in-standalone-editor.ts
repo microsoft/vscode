@@ -12,7 +12,8 @@ export = new class NoNlsInStandaloneEditorRule implements eslint.Rule.RuleModule
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			noNls: 'Not allowed to import vs/nls in standalone editor modules. Use standaloneStrings.ts'
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

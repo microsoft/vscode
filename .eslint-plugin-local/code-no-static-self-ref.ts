@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 
 /**
  * WORKAROUND for https://github.com/evanw/esbuild/issues/3823
@@ -15,7 +15,7 @@ export = new class implements eslint.Rule.RuleModule {
 
 		function checkProperty(inNode: any) {
 
-			const classDeclaration = context.getAncestors().find(node => node.type === 'ClassDeclaration');
+			const classDeclaration = context.sourceCode.getAncestors(inNode).find(node => node.type === 'ClassDeclaration');
 			const propertyDefinition = <TSESTree.PropertyDefinition>inNode;
 
 			if (!classDeclaration || !classDeclaration.id?.name) {
@@ -33,7 +33,7 @@ export = new class implements eslint.Rule.RuleModule {
 			}
 
 			const name = classDeclaration.id.name;
-			const valueText = context.getSourceCode().getText(<any>propertyDefinition.value)
+			const valueText = context.sourceCode.getText(<any>propertyDefinition.value)
 
 			if (valueText.includes(name + '.')) {
 

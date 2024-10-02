@@ -11,7 +11,8 @@ export = new class ApiVsCodeInComments implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			comment: `Don't use the term 'vs code' in comments`
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

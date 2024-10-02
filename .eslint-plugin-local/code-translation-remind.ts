@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/experimental-utils';
+import { TSESTree } from '@typescript-eslint/utils';
 import { readFileSync } from 'fs';
 import { createImportRuleListener } from './utils';
 
@@ -16,7 +16,8 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {

@@ -5,21 +5,25 @@
 
 import * as eslint from 'eslint';
 
-export = new class DeclareServiceBrand implements eslint.Rule.RuleModule {
+export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
-		fixable: 'code'
+		messages: {
+			usage: 'Use the Thenable-type instead of the Promise type',
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+
+
+
 		return {
-			['PropertyDefinition[key.name="_serviceBrand"][value]']: (node: any) => {
-				return context.report({
+			['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node: any) => {
+
+				context.report({
 					node,
-					message: `The '_serviceBrand'-property should not have a value`,
-					fix: (fixer) => {
-						return fixer.replaceText(node, 'declare _serviceBrand: undefined;')
-					}
+					messageId: 'usage',
 				});
 			}
 		};

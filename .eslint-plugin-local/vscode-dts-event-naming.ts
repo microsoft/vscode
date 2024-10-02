@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/experimental-utils';
+import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
 
 export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
@@ -19,7 +19,8 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 			verb: 'Unknown verb \'{{verb}}\' - is this really a verb? Iff so, then add this verb to the configuration',
 			subject: 'Unknown subject \'{{subject}}\' - This subject has not been used before but it should refer to something in the API',
 			unknown: 'UNKNOWN event declaration, lint-rule needs tweaking'
-		}
+		},
+		schema: false,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
