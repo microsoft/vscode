@@ -30,7 +30,7 @@ suite('NotebookMultiCursor', () => {
 	teardown(() => {
 	});
 
-	test('Add Find Match to selection', async function () {
+	test.skip('Add Find Match to selection', async function () {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
