@@ -64,7 +64,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const imageContext = await getImageAttachContext(currClipboard, mimeType);
+		const imageContext = await getImageAttachContext(currClipboard, mimeType, token);
 		if (token.isCancellationRequested || !imageContext) {
 			return;
 		}
@@ -81,10 +81,15 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	}
 }
 
-async function getImageAttachContext(data: Uint8Array, mimeType: string): Promise<IChatRequestVariableEntry> {
+async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken): Promise<IChatRequestVariableEntry | undefined> {
+	const imageHash = await imageToHash(data);
+	if (token.isCancellationRequested) {
+		return undefined;
+	}
+
 	return {
 		value: data,
-		id: await imageToHash(data),
+		id: imageHash,
 		name: localize('pastedImage', 'Pasted Image'),
 		isImage: true,
 		icon: Codicon.fileMedia,
