@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IPickerQuickAccessItem } from '../../../../platform/quickinput/browser/pickerQuickAccess.js';
 
-export function resolveContentAndKeybindingItems(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, value?: string): { content: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined; configuredKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
+export function resolveContentAndKeybindingItems(keybindingService: IKeybindingService, value?: string): { content: MarkdownString; configureKeybindingItems: IPickerQuickAccessItem[] | undefined; configuredKeybindingItems: IPickerQuickAccessItem[] | undefined } | undefined {
 	if (!value) {
 		return;
 	}
@@ -19,7 +18,7 @@ export function resolveContentAndKeybindingItems(keybindingService: IKeybindingS
 		const commandId = match?.groups?.commandId;
 		let kbLabel;
 		if (match?.length && commandId) {
-			const keybinding = keybindingService.lookupKeybinding(commandId, contextKeyService)?.getAriaLabel();
+			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
 			if (!keybinding) {
 				kbLabel = ` (unassigned keybinding)`;
 				configureKeybindingItems.push({
