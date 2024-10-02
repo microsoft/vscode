@@ -534,7 +534,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		const exitThisDialogHint = this._exitDialogHint(provider);
 		let configureKbHint = '';
 		let configureAssignedKbHint = '';
-		const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, this._contextKeyService, screenReaderModeHint + content + readMoreLinkHint + disableHelpHint + exitThisDialogHint);
+		const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, screenReaderModeHint + content + readMoreLinkHint + disableHelpHint + exitThisDialogHint);
 		if (resolvedContent) {
 			content = resolvedContent.content.value;
 			if (resolvedContent.configureKeybindingItems) {
