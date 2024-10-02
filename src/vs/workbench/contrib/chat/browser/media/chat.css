@@ -509,7 +509,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar.modified::after {
-	content: "M";
+	content: "E";
 	padding-right: 4px;
 	color: var(--vscode-chat-editedFileForeground);
 }
