@@ -2930,6 +2930,7 @@ export namespace LanguageModelToolDescription {
 			parametersSchema: item.parametersSchema,
 			displayName: item.displayName,
 			supportedContentTypes: item.supportedContentTypes,
+			tags: item.tags ?? [],
 		};
 	}
 }

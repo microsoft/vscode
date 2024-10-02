@@ -26,6 +26,7 @@ export interface IToolData {
 	name?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
+	tags?: string[];
 	displayName?: string;
 	userDescription?: string;
 	modelDescription: string;

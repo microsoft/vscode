@@ -143,27 +143,33 @@ declare module 'vscode' {
 		/**
 		 * A unique identifier for the tool.
 		 */
-		id: string;
+		readonly id: string;
 
 		/**
 		 * A human-readable name for this tool that may be used to describe it in the UI.
 		 */
-		displayName: string | undefined;
+		readonly displayName: string | undefined;
 
 		/**
 		 * A description of this tool that may be passed to a language model.
 		 */
-		modelDescription: string;
+		readonly modelDescription: string;
 
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
-		parametersSchema?: JSONSchema;
+		readonly parametersSchema?: JSONSchema;
 
 		/**
 		 * The list of content types that the tool has declared support for.
 		 */
-		supportedContentTypes: string[];
+		readonly supportedContentTypes: string[];
+
+		/**
+		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities.
+		 * A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand.
+		 */
+		readonly tags: string[];
 	}
 
 	export interface LanguageModelToolConfirmationMessages {
