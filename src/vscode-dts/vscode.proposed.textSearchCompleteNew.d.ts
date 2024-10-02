@@ -14,13 +14,13 @@ declare module 'vscode' {
 		 *
 		 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 		 */
-		message?: TextSearchCompleteMessageNew[];
+		message?: TextSearchCompleteMessage[];
 	}
 
 	/**
 	 * A message regarding a completed search.
 	 */
-	export interface TextSearchCompleteMessageNew {
+	export interface TextSearchCompleteMessage {
 		/**
 		 * Markdown text of the message.
 		 */

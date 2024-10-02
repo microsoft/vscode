@@ -159,6 +159,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFilesNew(query: TextSearchQuery, options?: FindTextInFilesOptions, token?: CancellationToken): FindTextInFilesResponse;
+		export function findTextInFiles2(query: TextSearchQuery, options?: FindTextInFilesOptions, token?: CancellationToken): FindTextInFilesResponse;
 	}
 }

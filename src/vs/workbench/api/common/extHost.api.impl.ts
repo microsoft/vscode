@@ -985,7 +985,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
-			findTextInFilesNew: (query: vscode.TextSearchQuery, options?: vscode.FindTextInFilesOptions, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
+			findTextInFiles2: (query: vscode.TextSearchQuery, options?: vscode.FindTextInFilesOptions, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
 				checkProposedApiEnabled(extension, 'findTextInFilesNew');
 				checkProposedApiEnabled(extension, 'textSearchProviderNew');
 				return extHostWorkspace.findTextInFilesNew(query, options, extension.identifier, token);
