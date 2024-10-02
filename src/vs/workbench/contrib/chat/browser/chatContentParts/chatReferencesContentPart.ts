@@ -388,7 +388,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
-					fileDecorations: { badges: false, colors: false },
+					fileDecorations: undefined,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title
 				});
