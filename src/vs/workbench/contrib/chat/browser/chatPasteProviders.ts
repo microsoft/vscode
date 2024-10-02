@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
+import { IDataTransferItem, IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DocumentPasteContext, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
@@ -35,8 +35,28 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const imageItem = dataTransfer.get('image/png') || dataTransfer.get('image/jpeg') || dataTransfer.get('image/bmp') || dataTransfer.get('image/gif') || dataTransfer.get('image/tiff');
-		if (!imageItem) {
+		const supportedMimeTypes = [
+			'image/png',
+			'image/jpeg',
+			'image/jpg',
+			'image/bmp',
+			'image/gif',
+			'image/tiff'
+		];
+
+		let mimeType: string | undefined;
+		let imageItem: IDataTransferItem | undefined;
+
+		// Find the first matching image type in the dataTransfer
+		for (const type of supportedMimeTypes) {
+			imageItem = dataTransfer.get(type);
+			if (imageItem) {
+				mimeType = type;
+				break;
+			}
+		}
+
+		if (!imageItem || !mimeType) {
 			return;
 		}
 
@@ -46,7 +66,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const imageContext = await getImageAttachContext(currClipboard);
+		const imageContext = await getImageAttachContext(currClipboard, mimeType);
 		if (!imageContext) {
 			return;
 		}
@@ -62,7 +82,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	}
 }
 
-async function getImageAttachContext(data: Uint8Array): Promise<IChatRequestVariableEntry> {
+async function getImageAttachContext(data: Uint8Array, mimeType: string): Promise<IChatRequestVariableEntry> {
 	return {
 		value: data,
 		id: await imageToHash(data),
@@ -70,6 +90,8 @@ async function getImageAttachContext(data: Uint8Array): Promise<IChatRequestVari
 		isImage: true,
 		icon: Codicon.fileMedia,
 		isDynamic: true,
+		isFile: false,
+		mimeType
 	};
 }
 
