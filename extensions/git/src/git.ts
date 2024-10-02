@@ -2106,14 +2106,21 @@ export class Repository {
 			await this.exec(['cherry-pick', commitHash]);
 		} catch (err) {
 			if (/The previous cherry-pick is now empty, possibly due to conflict resolution./.test(err.stderr ?? '')) {
-				// Abort the cherry-pick operation
-				await this.exec(['cherry-pick', '--abort']);
+				// Abort cherry-pick
+				await this.cherryPickAbort();
 
 				err.gitErrorCode = GitErrorCodes.CherryPickEmpty;
+			} else {
+				// Conflict during cherry-pick
+				err.gitErrorCode = GitErrorCodes.CherryPickConflict;
 			}
 
 			throw err;
 		}
+	}
+
+	async cherryPickAbort(): Promise<void> {
+		await this.exec(['cherry-pick', '--abort']);
 	}
 
 	async blame(path: string): Promise<string> {
