@@ -873,7 +873,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 }
 
-class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
+export class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID,
@@ -896,9 +896,11 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	}
 
 	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		await NotebookAddMatchToMultiSelectionAction.handleAddMatchToSelection(context);
+	}
 
+	static async handleAddMatchToSelection(context: INotebookActionContext) {
+		const editor = context.notebookEditor;
 		if (!editor) {
 			return;
 		}
@@ -912,7 +914,7 @@ class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
 	}
 }
 
-class NotebookExitMultiSelectionAction extends NotebookAction {
+export class NotebookExitMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: 'noteMultiCursor.exit',
@@ -935,9 +937,11 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 	}
 
 	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		NotebookExitMultiSelectionAction.handleExitMultiSelection(context);
+	}
 
+	static async handleExitMultiSelection(context: INotebookActionContext) {
+		const editor = context.notebookEditor;
 		if (!editor) {
 			return;
 		}
@@ -947,7 +951,7 @@ class NotebookExitMultiSelectionAction extends NotebookAction {
 	}
 }
 
-class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
+export class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: 'noteMultiCursor.deleteLeft',
@@ -978,9 +982,11 @@ class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 	}
 
 	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+		NotebookDeleteLeftMultiSelectionAction.handleDeleteLeft(context);
+	}
 
+	static async handleDeleteLeft(context: INotebookActionContext) {
+		const editor = context.notebookEditor;
 		if (!editor) {
 			return;
 		}
@@ -990,7 +996,7 @@ class NotebookDeleteLeftMultiSelectionAction extends NotebookAction {
 	}
 }
 
-class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
+export class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
 	constructor() {
 		super({
 			id: 'noteMultiCursor.deleteRight',
@@ -1021,25 +1027,28 @@ class NotebookDeleteRightMultiSelectionAction extends NotebookAction {
 	}
 
 	override async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const nbEditor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-		if (!nbEditor) {
+		NotebookDeleteRightMultiSelectionAction.handleDeleteRight(context);
+	}
+
+	static async handleDeleteRight(context: INotebookActionContext) {
+		const editor = context.notebookEditor;
+		if (!editor) {
 			return;
 		}
-		const cellEditor = nbEditor.activeCodeEditor;
+		const cellEditor = editor.activeCodeEditor;
 		if (!cellEditor) {
 			return;
 		}
 
 		// need to run the command manually since we are overriding the command, this ensures proper cursor animation behavior
-		CoreEditingCommands.DeleteRight.runEditorCommand(accessor, cellEditor, null);
+		CoreEditingCommands.DeleteRight.runEditorCommand(null, cellEditor, null);
 
-		const controller = nbEditor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+		const controller = editor.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
 		controller.deleteRight();
 	}
 }
 
-class NotebookMultiCursorUndoRedoContribution extends Disposable {
+export class NotebookMultiCursorUndoRedoContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.notebook.multiCursorUndoRedo';
 

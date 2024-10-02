@@ -69,6 +69,7 @@ import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFac
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { INotebookOutlineEntryFactory, NotebookOutlineEntryFactory } from '../../browser/viewModel/notebookOutlineEntryFactory.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -502,6 +503,53 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 	));
 
 	return cellList;
+}
+
+export function createCodeCellViewModel(version: number = 1, source = '# code', textmodelId = 'textId') {
+	return {
+		uri: { toString() { return textmodelId; } },
+		id: textmodelId,
+		textBuffer: {
+			getLineCount() { return 0; }
+		},
+		getText() {
+			return source;
+		},
+		model: {
+			textModel: {
+				id: textmodelId,
+				getVersionId() { return version; }
+			}
+		},
+		resolveTextModel() {
+			return this.model.textModel as unknown;
+		},
+		cellKind: 2
+	} as ICellViewModel;
+}
+
+export function createMarkupCellViewModel(version: number = 1, source = 'markup', textmodelId = 'textId', alternativeId = 1) {
+	return {
+		textBuffer: {
+			getLineCount() { return 0; }
+		},
+		getText() {
+			return source;
+		},
+		getAlternativeId() {
+			return alternativeId;
+		},
+		model: {
+			textModel: {
+				id: textmodelId,
+				getVersionId() { return version; }
+			}
+		},
+		resolveTextModel() {
+			return this.model.textModel as unknown;
+		},
+		cellKind: 1
+	} as ICellViewModel;
 }
 
 export function valueBytesFromString(value: string): VSBuffer {

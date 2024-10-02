@@ -14,12 +14,11 @@ import { IOutlineModelService, OutlineModel } from '../../../../../../editor/con
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { NotebookBreadcrumbsProvider, NotebookCellOutline, NotebookOutlinePaneProvider, NotebookQuickPickProvider } from '../../../browser/contrib/outline/notebookOutline.js';
-import { ICellViewModel } from '../../../browser/notebookBrowser.js';
 import { INotebookCellOutlineDataSource } from '../../../browser/viewModel/notebookOutlineDataSource.js';
 import { NotebookOutlineEntryFactory } from '../../../browser/viewModel/notebookOutlineEntryFactory.js';
 import { OutlineEntry } from '../../../browser/viewModel/OutlineEntry.js';
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
-import { MockDocumentSymbol } from '../testNotebookEditor.js';
+import { createCodeCellViewModel, createMarkupCellViewModel, MockDocumentSymbol } from '../testNotebookEditor.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
@@ -74,29 +73,6 @@ suite('Notebook Outline View Providers', function () {
 	// #endregion
 	// #region Helpers
 
-	function createCodeCellViewModel(version: number = 1, source = '# code', textmodelId = 'textId') {
-		return {
-			uri: { toString() { return textmodelId; } },
-			id: textmodelId,
-			textBuffer: {
-				getLineCount() { return 0; }
-			},
-			getText() {
-				return source;
-			},
-			model: {
-				textModel: {
-					id: textmodelId,
-					getVersionId() { return version; }
-				}
-			},
-			resolveTextModel() {
-				return this.model.textModel as unknown;
-			},
-			cellKind: 2
-		} as ICellViewModel;
-	}
-
 	function createMockOutlineDataSource(entries: OutlineEntry[], activeElement: OutlineEntry | undefined = undefined) {
 		return new class extends mock<IReference<INotebookCellOutlineDataSource>>() {
 			override object: INotebookCellOutlineDataSource = {
@@ -106,29 +82,6 @@ suite('Notebook Outline View Providers', function () {
 		};
 	}
 
-	function createMarkupCellViewModel(version: number = 1, source = 'markup', textmodelId = 'textId', alternativeId = 1) {
-		return {
-			textBuffer: {
-				getLineCount() { return 0; }
-			},
-			getText() {
-				return source;
-			},
-			getAlternativeId() {
-				return alternativeId;
-			},
-			model: {
-				textModel: {
-					id: textmodelId,
-					getVersionId() { return version; }
-				}
-			},
-			resolveTextModel() {
-				return this.model.textModel as unknown;
-			},
-			cellKind: 1
-		} as ICellViewModel;
-	}
 
 	function flatten(element: OutlineEntry, dataSource: IDataSource<NotebookCellOutline, OutlineEntry>): OutlineEntry[] {
 		const elements: OutlineEntry[] = [];
