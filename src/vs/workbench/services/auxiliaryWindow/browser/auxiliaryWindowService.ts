@@ -498,6 +498,9 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
+		console.log('auxiliaryWindow : ', auxiliaryWindow);
+		console.log('mainWindow : ', mainWindow);
+
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes

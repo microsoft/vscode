@@ -17,7 +17,7 @@ import { isObject } from '../../../../base/common/types.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IWindowsConfiguration } from '../../../../platform/window/common/window.js';
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from '../../../../base/common/verifier.js';
-import { IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowOpenOptions } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { ContextKeyValue, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export interface IEditorPartCreationOptions {
@@ -187,7 +187,7 @@ export interface IEditorPartsView {
 
 	readonly count: number;
 
-	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<{ part: IAuxiliaryEditorPart; auxiliaryWindow: IAuxiliaryWindow }>;
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
 }

@@ -252,6 +252,8 @@ class DropOverlay extends Themable {
 
 	private async handleDrop(event: DragEvent, splitDirection?: GroupDirection): Promise<void> {
 
+		console.log('handleDrop');
+
 		// Determine target group
 		const ensureTargetGroup = () => {
 			let targetGroup: IEditorGroup;

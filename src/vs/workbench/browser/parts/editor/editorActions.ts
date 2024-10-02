@@ -2543,13 +2543,15 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		console.log('BaseMoveCopyEditorToNewWindowAction');
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const resolvedContext = resolveCommandsContext(args, accessor.get(IEditorService), editorGroupService, accessor.get(IListService));
 		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorResult = await editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorPart = auxiliaryEditorResult.part;
 
 		// only single group supported for move/copy for now
 		const { group, editors } = resolvedContext.groupedEditors[0];
@@ -2612,10 +2614,12 @@ abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		console.log('BaseMoveCopyEditorGroupToNewWindowAction');
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const activeGroup = editorGroupService.activeGroup;
 
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorResult = await editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorPart = auxiliaryEditorResult.part;
 
 		editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
 			mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
@@ -2690,9 +2694,10 @@ export class NewEmptyEditorWindowAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		console.log('NewEmptyEditorWindowAction');
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-		auxiliaryEditorPart.activeGroup.focus();
+		auxiliaryEditorPart.part.activeGroup.focus();
 	}
 }

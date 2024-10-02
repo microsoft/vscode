@@ -27,6 +27,7 @@ import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { CodeWindow } from '../../../../../base/browser/window.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -36,6 +37,8 @@ enum CompositionClassName {
 }
 
 export class NativeEditContext extends AbstractEditContext {
+
+	public static CLASS_NAME = `native-edit-context`;
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
@@ -53,6 +56,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private readonly _selectionChangeListener: MutableDisposable<IDisposable>;
 
 	constructor(
+		window: CodeWindow,
 		context: ViewContext,
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		viewController: ViewController,
@@ -63,7 +67,7 @@ export class NativeEditContext extends AbstractEditContext {
 		super(context);
 
 		this.domNode = new FastDomNode(document.createElement('div'));
-		this.domNode.setClassName(`native-edit-context`);
+		this.domNode.setClassName(NativeEditContext.CLASS_NAME);
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
@@ -75,7 +79,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
-		this._editContext = new EditContext();
+		this._editContext = new (window as any).EditContext();
 		this.domNode.domNode.editContext = this._editContext;
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
@@ -107,6 +111,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			console.log('textupdate : ', e);
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {

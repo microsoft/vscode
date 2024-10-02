@@ -17,6 +17,7 @@ import { IGroupModelChangeEvent } from '../../../common/editor/editorGroupModel.
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { IMenuChangeEvent } from '../../../../platform/actions/common/actions.js';
 import { DeepPartial } from '../../../../base/common/types.js';
+import { IAuxiliaryWindow } from '../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -558,7 +559,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<{ part: IAuxiliaryEditorPart; auxiliaryWindow: IAuxiliaryWindow }>;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

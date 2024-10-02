@@ -19,7 +19,7 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart, IEditorPartUIState } from './editorPart.js';
 import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -27,6 +27,8 @@ import { IWorkbenchLayoutService, shouldShowCustomTitleBar } from '../../../serv
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { NativeEditContext } from '../../../../editor/browser/controller/editContext/native/nativeEditContext.js';
 
 export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
 	readonly state?: IEditorPartUIState;
@@ -36,6 +38,8 @@ export interface ICreateAuxiliaryEditorPartResult {
 	readonly part: AuxiliaryEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
 	readonly disposables: DisposableStore;
+
+	readonly auxiliaryWindow: IAuxiliaryWindow;
 }
 
 export class AuxiliaryEditorPart {
@@ -208,9 +212,54 @@ export class AuxiliaryEditorPart {
 			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
 		)));
 
+
+		// TODO: workaround for https://issues.chromium.org/issues/369865060, remove when fixed
+
+		console.log('mainWindow.window.document : ', mainWindow.window.document);
+		console.log('auxiliaryWindow.container : ', auxiliaryWindow.container);
+		const auxiliaryWindowDocument = auxiliaryWindow.window.document;
+		console.log('auxiliaryWindowDocument : ', auxiliaryWindowDocument);
+		console.log('auxiliaryWindowDocument.head : ', auxiliaryWindowDocument.head);
+
+		const auxiliaryWindowBody = auxiliaryWindowDocument.body.children.item(0);
+		console.log('auxiliaryWindowBody : ', auxiliaryWindowBody);
+
+		const container = auxiliaryWindow.container;
+		console.log('container : ', container);
+
+		// Whether using container or auxiliaryWindowBody the childOfInterest is defined, but the childOfChildOfInterest is not
+		const childOfInterest = container?.children.item(1)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(1)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(4);
+		console.log('childOfInterest : ', childOfInterest);
+
+		const childOfChildOfInterest = childOfInterest?.children.item(0);
+		console.log('childOfChildOfInterest : ', childOfChildOfInterest);
+
+		const foundElements = container.getElementsByClassName(NativeEditContext.CLASS_NAME);
+		console.log('foundElements : ', foundElements);
+
+		const newElement = auxiliaryWindow.window.document.getElementsByClassName(NativeEditContext.CLASS_NAME);
+		console.log('newElement : ', newElement);
+
+		const oldElement = mainWindow.window.document.getElementsByClassName(NativeEditContext.CLASS_NAME);
+		console.log('oldElement : ', oldElement);
+
+		const newElementActual = newElement.item(0);
+		console.log('newElementActual : ', newElementActual);
+
+		const oldElementActual = oldElement.item(0);
+		console.log('oldElementActual : ', oldElementActual);
+
+		if (newElement && oldElement) {
+			//const oldEditContext = oldElement.editContext;
+			// console.log('oldEditContext : ', oldEditContext);
+			// newElement.editContext = oldEditContext;
+		}
+
+		console.log('editorPart : ', editorPart);
 		return {
 			part: editorPart,
 			instantiationService,
+			auxiliaryWindow,
 			disposables
 		};
 	}

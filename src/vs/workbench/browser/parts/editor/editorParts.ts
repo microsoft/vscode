@@ -18,7 +18,7 @@ import { MultiWindowParts } from '../../part.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { isHTMLElement } from '../../../../base/browser/dom.js';
@@ -99,8 +99,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<IAuxiliaryEditorPart>());
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
-	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<IAuxiliaryEditorPart> {
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
+	async createAuxiliaryEditorPart(options?: IAuxiliaryEditorPartOpenOptions): Promise<{ part: IAuxiliaryEditorPart; auxiliaryWindow: IAuxiliaryWindow }> {
+		console.log('options : ', options);
+		const { part, auxiliaryWindow, instantiationService, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
 
 		// Keep instantiation service
 		this.mapPartToInstantiationService.set(part.windowId, instantiationService);
@@ -111,7 +112,10 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		this._onDidCreateAuxiliaryEditorPart.fire(part);
 
-		return part;
+		return {
+			part,
+			auxiliaryWindow
+		};
 	}
 
 	//#endregion
@@ -289,12 +293,13 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private async restoreState(state: IEditorPartsUIState): Promise<void> {
+		console.log('restoreState : ', state);
 		if (state.auxiliary.length) {
 			const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
 
 			// Create auxiliary editor parts
 			for (const auxiliaryEditorPartState of state.auxiliary) {
-				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart(auxiliaryEditorPartState));
+				auxiliaryEditorPartPromises.push(Promise.resolve((await this.createAuxiliaryEditorPart(auxiliaryEditorPartState)).part));
 			}
 
 			// Await creation

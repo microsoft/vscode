@@ -182,6 +182,7 @@ import { ContextMenuService } from '../../../platform/contextview/browser/contex
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
+import { IAuxiliaryWindow } from '../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -892,7 +893,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
-	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
+	createAuxiliaryEditorPart(): Promise<{ part: IAuxiliaryEditorPart; auxiliaryWindow: IAuxiliaryWindow }> { throw new Error('Method not implemented.'); }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -1855,7 +1856,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 		return Disposable.None;
 	}
 
-	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+	createAuxiliaryEditorPart(): Promise<{ part: IAuxiliaryEditorPart; auxiliaryWindow: IAuxiliaryWindow }> {
 		throw new Error('Method not implemented.');
 	}
 

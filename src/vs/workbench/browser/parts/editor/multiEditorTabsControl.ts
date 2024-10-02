@@ -58,6 +58,8 @@ import { IReadonlyEditorGroupModel } from '../../../common/editor/editorGroupMod
 import { IHostService } from '../../../services/host/browser/host.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { applyDragImage } from '../../../../base/browser/dnd.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { NativeEditContext } from '../../../../editor/browser/controller/editContext/native/nativeEditContext.js';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -1138,6 +1140,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			},
 
 			onDragEnd: async e => {
+				console.log('onDragEnd');
+
 				this.updateDropFeedback(tab, false, e, tabIndex);
 				const draggedEditors = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
@@ -1151,10 +1155,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return; // drag to open in new window is disabled
 				}
 
-				const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);
-				if (!auxiliaryEditorPart) {
+				const auxiliaryEditorResult = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);
+				if (!auxiliaryEditorResult) {
 					return;
 				}
+
+				const auxiliaryEditorPart = auxiliaryEditorResult.part;
+				console.log('auxiliaryEditorPart : ', auxiliaryEditorPart);
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
 				const editors = draggedEditors.map(de => ({ editor: de.identifier.editor }));
@@ -1163,6 +1170,43 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				} else {
 					this.groupView.copyEditors(editors, targetGroup);
 				}
+
+				const auxiliaryWindow = auxiliaryEditorResult.auxiliaryWindow;
+				console.log('mainWindow.window.document : ', mainWindow.window.document);
+				console.log('auxiliaryWindow.container : ', auxiliaryWindow.container);
+				console.log('auxiliaryWindow.window.document : ', auxiliaryWindow.window.document);
+				console.log('auxiliaryWindow.window.document.head : ', auxiliaryWindow.window.document.head);
+
+				const auxiliaryWindowBody = auxiliaryWindow.window.document.body.children.item(0);
+				console.log('auxiliaryWindowBody : ', auxiliaryWindowBody);
+
+				const container = auxiliaryWindow.container;
+
+				// Whether using container or auxiliaryWindowBody the childOfInterest is defined, but the childOfChildOfInterest is not
+				const childOfInterest = container?.children.item(1)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(1)?.children.item(0)?.children.item(0)?.children.item(0)?.children.item(4);
+				console.log('childOfInterest : ', childOfInterest);
+
+				const childOfChildOfInterest = childOfInterest?.children.item(0);
+				console.log('childOfChildOfInterest : ', childOfChildOfInterest);
+
+				const childOfChildOfChildOfInterest = childOfChildOfInterest?.children.item(0);
+				console.log('childOfChildOfChildOfInterest : ', childOfChildOfChildOfInterest);
+
+				// ---
+				const foundElements = container.getElementsByClassName(NativeEditContext.CLASS_NAME);
+				console.log('foundElements : ', foundElements);
+
+				const newElement = auxiliaryWindow.window.document.getElementsByClassName(NativeEditContext.CLASS_NAME);
+				console.log('newElement : ', newElement);
+
+				const oldElement = mainWindow.window.document.getElementsByClassName(NativeEditContext.CLASS_NAME);
+				console.log('oldElement : ', oldElement);
+
+				const newElementActual = newElement.item(0);
+				console.log('newElementActual : ', newElementActual);
+
+				const oldElementActual = oldElement.item(0);
+				console.log('oldElementActual : ', oldElementActual);
 
 				targetGroup.focus();
 			},

@@ -1370,6 +1370,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	moveEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): boolean {
 
+		console.log('moveEditors');
+
 		// Optimization: knowing that we move many editors, we
 		// delay the title update to a later point for this group
 		// through a method that allows for bulk updates but only
@@ -1499,6 +1501,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	copyEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): void {
 
+		console.log('copyEditors');
 		// Optimization: knowing that we move many editors, we
 		// delay the title update to a later point for this group
 		// through a method that allows for bulk updates but only

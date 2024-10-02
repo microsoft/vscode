@@ -49,6 +49,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IAuxiliaryWindow } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -345,7 +346,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return;
 		}
 
-		const targetGroup = auxiliaryEditorPart.activeGroup;
+		const targetGroup = auxiliaryEditorPart.part.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
 			mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
 		});
@@ -353,7 +354,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		targetGroup.focus();
 	}
 
-	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<{ part: IAuxiliaryEditorPart; auxiliaryWindow: IAuxiliaryWindow } | undefined> {
 		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
 		const window = getActiveWindow();
 		if (window.document.visibilityState === 'visible' && window.document.hasFocus()) {

@@ -871,6 +871,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): boolean {
+		console.log('mergeGroup');
+
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
