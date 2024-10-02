@@ -18,7 +18,7 @@ import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
+import { derivedObservableWithCache, derivedOpts, latestChangedValue, observableFromEventOpts } from '../../../../base/common/observable.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 
@@ -186,7 +186,15 @@ export class SCMViewService implements ISCMViewService {
 	 * The focused repository takes precedence over the active editor repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	readonly activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
+	private readonly _activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
+
+	/**
+	 * Derived with a custom equality function
+	 */
+	readonly activeRepository = derivedOpts<ISCMRepository | undefined>({
+		owner: this,
+		equalsFn: (r1, r2) => r1?.id === r2?.id
+	}, reader => this._activeRepository.read(reader));
 
 	private _repositoriesSortKey: ISCMRepositorySortKey;
 	private _sortKeyContextKey: IContextKey<ISCMRepositorySortKey>;
