@@ -284,11 +284,11 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 }
 
 interface ICollapsibleListTemplate {
-	toolbar: MenuWorkbenchToolBar | undefined;
-	readonly contextKeyService: IContextKeyService;
-	readonly instantiationService: IInstantiationService;
+	readonly contextKeyService?: IContextKeyService;
 	readonly label: IResourceLabel;
 	readonly templateDisposables: DisposableStore;
+	toolbar: MenuWorkbenchToolBar | undefined;
+	actionBarContainer?: HTMLElement;
 }
 
 class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
@@ -309,10 +309,18 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 
-		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(container));
-		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		let toolbar;
+		let actionBarContainer;
+		let contextKeyService;
+		if (this.menuId) {
+			actionBarContainer = $('.chat-collapsible-list-action-bar');
+			contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(actionBarContainer));
+			const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
+			label.element.appendChild(actionBarContainer);
+		}
 
-		return { templateDisposables, label, toolbar: undefined, contextKeyService, instantiationService: scopedInstantiationService };
+		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService };
 	}
 
 
@@ -327,8 +335,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 	renderElement(data: IChatCollapsibleListItem, index: number, templateData: ICollapsibleListTemplate, height: number | undefined): void {
-		templateData.toolbar?.dispose();
-
 		if (data.kind === 'warning') {
 			templateData.label.setResource({ name: data.content.value }, { icon: Codicon.warning });
 			return;
@@ -382,7 +388,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
-					fileDecorations: { badges: false, colors: false },
+					fileDecorations: undefined,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title
 				});
@@ -400,19 +406,19 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			}
 		}
 
-		if (this.menuId) {
-			if (data.state !== undefined) {
-				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
+		if (data.state !== undefined) {
+			if (templateData.actionBarContainer) {
+				if (data.state === WorkingSetEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
+					templateData.actionBarContainer.classList.add('modified');
+				} else if (data.state !== WorkingSetEntryState.Modified) {
+					templateData.actionBarContainer.classList.remove('modified');
+				}
 			}
-
-			const actionBarContainer = templateData.label.element.querySelector('.chat-collapsible-list-action-bar') as HTMLElement ?? $('.chat-collapsible-list-action-bar');
-			templateData.toolbar = templateData.templateDisposables.add(templateData.instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg } }));
-			templateData.label.element.appendChild(actionBarContainer);
-
-			if (data.state === WorkingSetEntryState.Modified && !actionBarContainer.classList.contains('modified')) {
-				actionBarContainer.classList.add('modified');
-			} else if (data.state !== WorkingSetEntryState.Modified) {
-				actionBarContainer.classList.remove('modified');
+			if (templateData.toolbar) {
+				templateData.toolbar.context = arg;
+			}
+			if (templateData.contextKeyService && data.state !== undefined) {
+				chatEditingWidgetFileStateContextKey.bindTo(templateData.contextKeyService).set(data.state);
 			}
 		}
 	}

@@ -6,10 +6,9 @@
 import {
 	window, languages, Uri, Disposable, commands, QuickPickItem,
 	extensions, workspace, Extension, WorkspaceFolder, QuickPickItemKind,
-	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n
+	ThemeIcon, TextDocument, LanguageStatusSeverity, l10n, DocumentSelector
 } from 'vscode';
 import { JSONLanguageStatus, JSONSchemaSettings } from './jsonClient';
-import { DocumentSelector } from 'vscode-languageclient';
 
 type ShowSchemasInput = {
 	schemas: string[];

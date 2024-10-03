@@ -312,7 +312,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			// only cache a provider with an ID so that it will eventually be cleared.
 			this._lastProvider = provider;
 		}
-		if (provider.id === AccessibleViewProviderId.Chat) {
+		if (provider.id === AccessibleViewProviderId.PanelChat || provider.id === AccessibleViewProviderId.QuickChat) {
 			this._register(this._codeBlockContextProviderService.registerProvider({ getCodeBlockContext: () => this.getCodeBlockContext() }, 'accessibleView'));
 		}
 		if (provider instanceof ExtensionContentProvider) {
@@ -359,7 +359,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 		if (!markdown) {
 			return;
 		}
-		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.PanelChat && this._currentProvider?.id !== AccessibleViewProviderId.QuickChat) {
 			return;
 		}
 		if (this._currentProvider.options.language && this._currentProvider.options.language !== 'markdown') {
@@ -784,7 +784,7 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 	}
 
 	private _getChatHints(): string | undefined {
-		if (this._currentProvider?.id !== AccessibleViewProviderId.Chat) {
+		if (this._currentProvider?.id !== AccessibleViewProviderId.PanelChat && this._currentProvider?.id !== AccessibleViewProviderId.QuickChat) {
 			return;
 		}
 		return [localize('insertAtCursor', " - Insert the code block at the cursor{0}.", '<keybinding:workbench.action.chat.insertCodeBlock>'),

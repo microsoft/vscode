@@ -26,6 +26,7 @@ export interface IToolData {
 	name?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
+	tags?: string[];
 	displayName?: string;
 	userDescription?: string;
 	modelDescription: string;
@@ -43,7 +44,7 @@ interface IToolEntry {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
-	parameters: any;
+	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	requestedContentTypes: string[];
@@ -62,10 +63,14 @@ export interface IToolConfirmationMessages {
 	message: string | IMarkdownString;
 }
 
+export interface IPreparedToolInvocation {
+	invocationMessage?: string;
+	confirmationMessages?: IToolConfirmationMessages;
+}
+
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	provideToolConfirmationMessages(participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined>;
-	provideToolInvocationMessage(parameters: any, token: CancellationToken): Promise<string | undefined>;
+	prepareToolInvocation?(participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -208,22 +213,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// TODO if a tool requiresConfirmation but is not being invoked inside a chat session, we can show some other UI, like a modal notification
 			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
 
-			const getConfirmationMessages = async (): Promise<IToolConfirmationMessages | undefined> => {
-				if (!tool.data.requiresConfirmation) {
-					return undefined;
-				}
-
-				return (await tool.impl!.provideToolConfirmationMessages(participantName, dto.parameters, token)) ?? {
+			const prepared = tool.impl.prepareToolInvocation ?
+				await tool.impl.prepareToolInvocation(participantName, dto.parameters, token)
+				: undefined;
+			const confirmationMessages = tool.data.requiresConfirmation ?
+				prepared?.confirmationMessages ?? {
 					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
 					message: localize('toolConfirmMessage', "{0} will use {1}.", participantName, `"${tool.data.displayName ?? tool.data.id}"`),
-				};
-			};
-			const [invocationMessage, confirmationMessages] = await Promise.all([
-				tool.impl.provideToolInvocationMessage(dto.parameters, token),
-				getConfirmationMessages()
-			]);
+				}
+				: undefined;
+
 			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
-			toolInvocation = new ChatToolInvocation(invocationMessage ?? defaultMessage, confirmationMessages);
+			const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
+			toolInvocation = new ChatToolInvocation(invocationMessage, confirmationMessages);
 			token.onCancellationRequested(() => {
 				toolInvocation!.confirmed.complete(false);
 			});

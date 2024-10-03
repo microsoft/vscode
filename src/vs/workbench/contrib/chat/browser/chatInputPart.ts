@@ -895,6 +895,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 			}
 		});
+		entries.sort((a, b) => {
+			if (a.kind === 'reference' && b.kind === 'reference') {
+				if (a.state === b.state || a.state === undefined || b.state === undefined) {
+					return a.reference.toString().localeCompare(b.reference.toString());
+				}
+				return a.state - b.state;
+			}
+			return 0;
+		});
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		if (entries.length !== this._chatEditList?.object.length) {
 			const overviewText = overviewRegion.querySelector('span') ?? dom.append(overviewRegion, $('span'));
