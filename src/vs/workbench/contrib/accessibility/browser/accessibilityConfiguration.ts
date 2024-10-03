@@ -759,6 +759,12 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'minimum': 0,
 					'tags': ['accessibility']
 				},
+				[AccessibilityVoiceSettingId.IgnoreCodeBlocks]: {
+					'markdownDescription': localize('voice.ignoreCodeBlocks', "Whether to ignore code snippets from the text to speech in copilot chat."),
+					'type': 'boolean',
+					'default': true,
+					'tags': ['accessibility']
+				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
 					'markdownDescription': localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					'type': 'string',

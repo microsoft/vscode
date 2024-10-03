@@ -147,7 +147,6 @@ export interface IChatResponseModel {
 	setVote(vote: ChatAgentVoteDirection): void;
 	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): boolean;
-	withoutCodeBlocks(): string;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
