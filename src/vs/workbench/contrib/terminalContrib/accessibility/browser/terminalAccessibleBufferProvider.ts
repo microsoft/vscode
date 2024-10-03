@@ -29,7 +29,7 @@ export class TerminalAccessibleBufferProvider extends Disposable implements IAcc
 		private _bufferTracker: BufferContentTracker,
 		customHelp: () => string,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalService terminalService: ITerminalService,
 	) {
 		super();
 		this.options.customHelp = customHelp;

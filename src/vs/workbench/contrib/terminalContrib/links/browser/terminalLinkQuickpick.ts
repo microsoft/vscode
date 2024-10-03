@@ -266,7 +266,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		this._editorSequencer.queue(async () => {
 			await this._editorViewState.openTransientEditor({
 				resource: link.uri,
-				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection, }
+				options: { preserveFocus: true, revealIfOpened: true, ignoreError: true, selection }
 			});
 		});
 	}

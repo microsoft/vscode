@@ -86,7 +86,7 @@ export class TerminalChatWidget extends Disposable {
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
 					}
 				}
-			}
+			},
 		);
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,

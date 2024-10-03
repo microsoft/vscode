@@ -72,7 +72,7 @@ class TerminalHistoryContribution extends Disposable implements ITerminalContrib
 			this._terminalInRunCommandPicker,
 			type,
 			filterMode,
-			value
+			value,
 		);
 	}
 }
