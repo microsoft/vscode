@@ -12,9 +12,10 @@ import { ITestMessageStackFrame } from '../../common/testTypes.js';
 
 export class TestResultStackWidget extends Disposable {
 	private readonly widget: CallStackWidget;
-	private readonly changeStackFrameEmitter = this._register(new Emitter<ITestMessageStackFrame>());
 
-	public readonly onDidChangeStackFrame = this.changeStackFrameEmitter.event;
+	public get onDidScroll() {
+		return this.widget.onDidScroll;
+	}
 
 	constructor(
 		private readonly container: HTMLElement,
