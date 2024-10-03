@@ -197,7 +197,10 @@ module.exports.eslintFilter = [
 	'**/*.cjs',
 	'**/*.mjs',
 	'**/*.ts',
-	...require(join(__dirname, '..', '.eslintignore.json'))
+	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
+		.toString()
+		.split(/\r\n|\n/)
+		.filter(line => line && !line.startsWith('#'))
 		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 

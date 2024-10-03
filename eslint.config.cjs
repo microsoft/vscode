@@ -11,7 +11,10 @@ const stylisticTs = require('@stylistic/eslint-plugin-ts');
 const pluginHeader = require('eslint-plugin-header');
 pluginHeader.rules.header.meta.schema = false;
 
-const ignores = JSON.parse(fs.readFileSync(path.join(__dirname, '.eslintignore.json'), 'utf8').toString());
+const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.filter(line => line && !line.startsWith('#'));
 
 module.exports = tseslint.config(
 	{
