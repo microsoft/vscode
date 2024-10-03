@@ -31,6 +31,7 @@ export interface IStickyLineCandidateProvider {
 	update(): Promise<void>;
 	getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[];
 	onDidChangeStickyScroll: Event<void>;
+	findNumberOfStickyLinesAboveLine(lineNumber: number): number;
 
 }
 
@@ -200,5 +201,13 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			}
 		}
 		return stickyLineCandidates;
+	}
+
+	public findNumberOfStickyLinesAboveLine(lineNumber: number): number {
+		if (!this._model?.element) {
+			return -1;
+		}
+		console.log('this._model.element : ', this._model.element);
+		return -1;
 	}
 }

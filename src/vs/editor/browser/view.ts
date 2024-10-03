@@ -61,6 +61,7 @@ import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
+import { EditorContext } from './widget/codeEditor/codeEditorWidget.js';
 
 
 export interface IContentWidgetData {
@@ -114,6 +115,7 @@ export class View extends ViewEventHandler {
 	private _targetWindow: CodeWindow | undefined;
 
 	constructor(
+		editorContext: EditorContext,
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
 		colorTheme: IColorTheme,
@@ -164,7 +166,7 @@ export class View extends ViewEventHandler {
 		this._viewParts.push(this._scrollbar);
 
 		// View Lines
-		this._viewLines = new ViewLines(this._context, this._linesContent);
+		this._viewLines = new ViewLines(editorContext, this._context, this._linesContent);
 		if (this._viewGpuContext) {
 			this._viewLinesGpu = this._instantiationService.createInstance(ViewLinesGpu, this._context, this._viewGpuContext);
 		}

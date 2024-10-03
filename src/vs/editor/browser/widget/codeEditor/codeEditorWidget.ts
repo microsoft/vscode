@@ -60,6 +60,11 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IStickyScrollController, StickyScrollController } from '../../../contrib/stickyScroll/browser/stickyScrollController.js';
+
+export interface EditorContext {
+	findNumberOfStickyLinesAboveLine(lineNumber: number): number | null;
+}
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -244,6 +249,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
+	private _stickyScrollController: IStickyScrollController | null = null;
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,
@@ -375,6 +382,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}));
 
 		this._codeEditorService.addCodeEditor(this);
+
+		this._stickyScrollController = StickyScrollController.get(this);
 	}
 
 	public writeScreenReaderContent(reason: string): void {
@@ -1858,7 +1867,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onMouseDropCanceled = (e) => this._onMouseDropCanceled.fire(e);
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
+		console.log('this : ', this);
 		const view = new View(
+			this._editorContext(),
 			commandDelegate,
 			this._configuration,
 			this._themeService.getColorTheme(),
@@ -1869,6 +1880,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 
 		return [view, true];
+	}
+
+	private _editorContext(): EditorContext {
+		const that = this;
+		return {
+			findNumberOfStickyLinesAboveLine(lineNumber: number): number | null {
+				if (that._stickyScrollController) {
+					return that._stickyScrollController.findNumberOfStickyLinesAboveLine(lineNumber);
+				}
+				return null;
+			}
+		};
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {

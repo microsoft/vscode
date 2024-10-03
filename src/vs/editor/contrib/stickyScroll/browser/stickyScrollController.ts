@@ -40,6 +40,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
+	findNumberOfStickyLinesAboveLine(lineNumber: number): number;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -374,6 +375,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
+	}
+
+	public findNumberOfStickyLinesAboveLine(lineNumber: number): number {
+		return this._stickyLineCandidateProvider.findNumberOfStickyLinesAboveLine(lineNumber);
 	}
 
 	private _onContextMenu(targetWindow: Window, e: MouseEvent) {
