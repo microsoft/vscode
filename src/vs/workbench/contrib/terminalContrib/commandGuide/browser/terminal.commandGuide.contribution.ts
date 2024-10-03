@@ -19,7 +19,7 @@ import { terminalCommandGuideConfigSection, TerminalCommandGuideSettingId, type 
 // #region Terminal Contributions
 
 class TerminalCommandGuideContribution extends Disposable implements ITerminalContribution {
-	static readonly ID = 'terminal.highlight';
+	static readonly ID = 'terminal.commandGuide';
 
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalCommandGuideContribution | null {
 		return instance.getContribution<TerminalCommandGuideContribution>(TerminalCommandGuideContribution.ID);

@@ -88,7 +88,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		const dataProvider = this._dataProviders.get(treeViewId);
 		if (viewer && dataProvider) {
 			const itemsToRefresh = dataProvider.dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
-			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : undefined);
+			return viewer.refresh(itemsToRefresh.items.length ? itemsToRefresh.items : undefined, itemsToRefresh.checkboxes.length ? itemsToRefresh.checkboxes : undefined);
 		}
 		return Promise.resolve();
 	}
@@ -287,22 +287,26 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				});
 	}
 
-	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {
+	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): { items: ITreeItem[]; checkboxes: ITreeItem[] } {
 		const itemsToRefresh: ITreeItem[] = [];
+		const checkboxesToRefresh: ITreeItem[] = [];
 		if (itemsToRefreshByHandle) {
-			for (const treeItemHandle of Object.keys(itemsToRefreshByHandle)) {
-				const currentTreeItem = this.getItem(treeItemHandle);
+			for (const newTreeItemHandle of Object.keys(itemsToRefreshByHandle)) {
+				const currentTreeItem = this.getItem(newTreeItemHandle);
 				if (currentTreeItem) { // Refresh only if the item exists
-					const treeItem = itemsToRefreshByHandle[treeItemHandle];
+					const newTreeItem = itemsToRefreshByHandle[newTreeItemHandle];
+					if (currentTreeItem.checkbox?.isChecked !== newTreeItem.checkbox?.isChecked) {
+						checkboxesToRefresh.push(currentTreeItem);
+					}
 					// Update the current item with refreshed item
-					this.updateTreeItem(currentTreeItem, treeItem);
-					if (treeItemHandle === treeItem.handle) {
+					this.updateTreeItem(currentTreeItem, newTreeItem);
+					if (newTreeItemHandle === newTreeItem.handle) {
 						itemsToRefresh.push(currentTreeItem);
 					} else {
 						// Update maps when handle is changed and refresh parent
-						this.itemsMap.delete(treeItemHandle);
+						this.itemsMap.delete(newTreeItemHandle);
 						this.itemsMap.set(currentTreeItem.handle, currentTreeItem);
-						const parent = treeItem.parentHandle ? this.itemsMap.get(treeItem.parentHandle) : null;
+						const parent = newTreeItem.parentHandle ? this.itemsMap.get(newTreeItem.parentHandle) : null;
 						if (parent) {
 							itemsToRefresh.push(parent);
 						}
@@ -310,7 +314,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				}
 			}
 		}
-		return itemsToRefresh;
+		return { items: itemsToRefresh, checkboxes: checkboxesToRefresh };
 	}
 
 	getItem(treeItemHandle: string): ITreeItem | undefined {

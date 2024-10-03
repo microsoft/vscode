@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import { shouldPasteTerminalText } from '../../common/terminalClipboard.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
+import { shouldPasteTerminalText } from '../../browser/terminalClipboard.js';
 
 suite('TerminalClipboard', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
