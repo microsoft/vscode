@@ -84,8 +84,8 @@ export function registerNewChatActions() {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const widget = widgetService.getWidgetBySessionId(context.sessionId);
 			if (isChatViewTitleActionContext(context)) {
+				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
 				if (widget) {
