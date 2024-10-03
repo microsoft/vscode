@@ -290,7 +290,7 @@ declare module 'vscode' {
 		 * The list of tools that the user attached to their request.
 		 *
 		 * *Note* that if tools are referenced in the text of the prompt, using `#`, the prompt contains references as authored
-		 * and that it is up to the participant to further modify the prompt, for instance by inlining reference values or
+		 * and it is up to the participant to further modify the prompt, for instance by inlining reference values or
 		 * creating links to headings which contain the resolved values. References are sorted in reverse by their range in the
 		 * prompt. That means the last reference in the prompt is the first in this list. This simplifies string-manipulation of
 		 * the prompt.
