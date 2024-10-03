@@ -20,7 +20,7 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED } from '../../common/chatContextKeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { ChatContextAttachments } from '../contrib/chatContextAttachments.js';
+import { ChatContextAttachments } from '../chatWidget.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 

@@ -4420,10 +4420,13 @@ export class ChatResponseFileTreePart {
 	}
 }
 
-export class ChatResponseAnchorPart {
+export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
-	value2: vscode.Uri | vscode.Location | vscode.SymbolInformation;
 	title?: string;
+
+	value2: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	resolve?(token: vscode.CancellationToken): Thenable<void>;
+
 	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
 		this.value = value as any;
 		this.value2 = value;
@@ -4558,6 +4561,15 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 	constructor(
 		readonly cell: vscode.TextDocument
 	) { }
+}
+
+export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
+	mimeType: string;
+	data: () => Thenable<Uint8Array>;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+		this.mimeType = mimeType;
+		this.data = data;
+	}
 }
 
 export enum LanguageModelChatMessageRole {

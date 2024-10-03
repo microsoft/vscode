@@ -111,6 +111,8 @@ export class View extends ViewEventHandler {
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
 
+	private _targetWindow: CodeWindow | undefined;
+
 	constructor(
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
@@ -456,9 +458,14 @@ export class View extends ViewEventHandler {
 			throw new BugIndicatingError();
 		}
 		if (this._renderAnimationFrame === null) {
+			const targetWindow = dom.getWindow(this.domNode?.domNode);
+			if (targetWindow !== this._targetWindow && this._editContext instanceof NativeEditContext) {
+				this._editContext.setEditContextOnDomNode();
+				this._targetWindow = targetWindow;
+			}
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
-				window: dom.getWindow(this.domNode?.domNode),
+				window: targetWindow,
 				prepareRenderText: () => {
 					if (this._store.isDisposed) {
 						throw new BugIndicatingError();

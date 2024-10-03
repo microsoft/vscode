@@ -20,7 +20,7 @@ import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from '../.
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileService, PROFILE_FILTER } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileManagementService, IUserDataProfileService, PROFILE_FILTER } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Button, ButtonBar, ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles, getInputBoxStyle, getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -71,6 +71,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 
 const editIcon = registerIcon('profiles-editor-edit-folder', Codicon.edit, localize('editIcon', 'Icon for the edit folder icon in the profiles editor.'));
+const removeIcon = registerIcon('profiles-editor-remove-folder', Codicon.close, localize('removeIcon', 'Icon for the remove folder icon in the profiles editor.'));
 
 export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
@@ -1569,8 +1570,8 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 					label: '',
 					tooltip: '',
 					weight: 1,
-					minimumWidth: 60,
-					maximumWidth: 60,
+					minimumWidth: 84,
+					maximumWidth: 84,
 					templateId: WorkspaceUriActionsColumnRenderer.TEMPLATE_ID,
 					project(row: WorkspaceTableElement): WorkspaceTableElement { return row; }
 				},
@@ -2138,6 +2139,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 
 	constructor(
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
@@ -2167,6 +2169,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		const actions: IAction[] = [];
 		actions.push(this.createOpenAction(item));
 		actions.push(new ChangeProfileAction(item, this.userDataProfilesService));
+		actions.push(this.createDeleteAction(item));
 		templateData.actionBar.push(actions, { icon: true });
 	}
 
@@ -2178,6 +2181,17 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 			id: 'openWorkspace',
 			tooltip: localize('open', "Open in New Window"),
 			run: () => item.profileElement.openWorkspace(item.workspace)
+		};
+	}
+
+	private createDeleteAction(item: WorkspaceTableElement): IAction {
+		return {
+			label: '',
+			class: ThemeIcon.asClassName(removeIcon),
+			enabled: this.userDataProfileManagementService.getDefaultProfileToUse().id !== item.profileElement.profile.id,
+			id: 'deleteTrustedUri',
+			tooltip: localize('deleteTrustedUri', "Delete Path"),
+			run: () => item.profileElement.updateWorkspaces([], [item.workspace])
 		};
 	}
 

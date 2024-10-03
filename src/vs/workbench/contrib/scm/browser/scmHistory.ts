@@ -298,7 +298,7 @@ export function toISCMHistoryItemViewModelArray(
 			// Color index (label -> next color)
 			let colorIdentifier: string | undefined;
 
-			if (!firstParentAdded) {
+			if (i === 0) {
 				colorIdentifier = getLabelColorIdentifier(historyItem, colorMap);
 			} else {
 				const historyItemParent = historyItems
