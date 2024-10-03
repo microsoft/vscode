@@ -51,7 +51,7 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super();
 	}

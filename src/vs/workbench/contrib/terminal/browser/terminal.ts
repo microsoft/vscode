@@ -1041,7 +1041,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 }
 
 export const enum XtermTerminalConstants {
-	SearchHighlightLimit = 1000
+	SearchHighlightLimit = 20000
 }
 
 export interface IXtermAttachToElementOptions {

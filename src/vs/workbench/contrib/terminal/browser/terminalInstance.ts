@@ -13,7 +13,7 @@ import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scro
 import { AutoOpenBarrier, Barrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { ErrorNoTelemetry, onUnexpectedError } from '../../../../base/common/errors.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ISeparator, template } from '../../../../base/common/labels.js';
@@ -133,7 +133,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _processManager: ITerminalProcessManager;
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
 	private readonly _resource: URI;
-	private _xtermReadyPromise: Promise<XtermTerminal>;
+
+	/**
+	 * Resolves when xterm.js is ready, this will be undefined if the terminal instance is disposed
+	 * before xterm.js could be created.
+	 */
+	private _xtermReadyPromise: Promise<XtermTerminal | undefined>;
+
 	private _pressAnyKeyToCloseListener: IDisposable | undefined;
 	private _instanceId: number;
 	private _latestXtermWriteData: number = 0;
@@ -347,7 +353,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	private readonly _onLineData = this._register(new Emitter<string>({
-		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise).raw.loadAddon(this._lineDataEventAddon!)
+		onDidAddFirstListener: async () => (this.xterm ?? await this._xtermReadyPromise)?.raw.loadAddon(this._lineDataEventAddon!)
 	}));
 	readonly onLineData = this._onLineData.event;
 
@@ -584,7 +590,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				onUnexpectedError(err);
 			}
 			this._xtermReadyPromise.then(xterm => {
-				contribution.xtermReady?.(xterm);
+				if (xterm) {
+					contribution.xtermReady?.(xterm);
+				}
 			});
 			this._register(this.onDisposed(() => {
 				contribution.dispose();
@@ -620,6 +628,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.shellLaunchConfig?.attachPersistentProcess?.color) {
 			return this.shellLaunchConfig.attachPersistentProcess.color;
 		}
+
 		if (this._processManager.processState >= ProcessState.Launching) {
 			return undefined;
 		}
@@ -729,10 +738,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
-	protected async _createXterm(): Promise<XtermTerminal> {
+	protected async _createXterm(): Promise<XtermTerminal | undefined> {
 		const Terminal = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
 		if (this.isDisposed) {
-			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
+			return undefined;
 		}
 
 		const disableShellIntegrationReporting = (this.shellLaunchConfig.executable === undefined || this.shellType === undefined) || !shellIntegrationSupportedShellTypes.includes(this.shellType);
@@ -905,7 +914,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this.xterm?.refresh();
 
-		setTimeout(() => this._initDragAndDrop(container));
+		setTimeout(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._initDragAndDrop(container);
+		}, 0);
 	}
 
 	/**
@@ -937,7 +951,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Fire xtermOpen on all contributions
 		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(xterm => contribution.xtermOpen?.(xterm));
+				this._xtermReadyPromise.then(xterm => {
+					if (xterm) {
+						contribution.xtermOpen?.(xterm);
+					}
+				});
 			} else {
 				contribution.xtermOpen?.(this.xterm);
 			}
@@ -1342,7 +1360,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// _xtermReadyPromise is ready constructed since this is called from the ctor
 				setTimeout(() => {
 					this._xtermReadyPromise.then(xterm => {
-						this._messageTitleDisposable.value = xterm.raw.onTitleChange(e => this._onTitleChange(e));
+						if (xterm) {
+							this._messageTitleDisposable.value = xterm.raw.onTitleChange(e => this._onTitleChange(e));
+						}
 					});
 				});
 				this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
@@ -1535,6 +1555,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const waitOnExit = this.waitOnExit;
 		if (waitOnExit && this._processManager.processState !== ProcessState.KilledByUser) {
 			this._xtermReadyPromise.then(xterm => {
+				if (!xterm) {
+					return;
+				}
 				if (exitMessage) {
 					xterm.raw.write(formatMessageForTerminal(exitMessage));
 				}
@@ -1795,7 +1818,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Layout all contributions
 		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm, dimension));
+				this._xtermReadyPromise.then(xterm => {
+					if (xterm) {
+						contribution.layout?.(xterm, dimension);
+					}
+				});
 			} else {
 				contribution.layout?.(this.xterm, dimension);
 			}

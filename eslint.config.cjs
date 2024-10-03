@@ -6,7 +6,6 @@
 const fs = require('fs');
 const path = require('path');
 const tseslint = require('typescript-eslint');
-const stylisticTs = require('@stylistic/eslint-plugin-ts');
 
 const pluginHeader = require('eslint-plugin-header');
 pluginHeader.rules.header.meta.schema = false;
@@ -29,7 +28,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'@stylistic/ts': stylisticTs,
+			'@stylistic/ts': require('@stylistic/eslint-plugin-ts'),
 			'@typescript-eslint': tseslint.plugin,
 			'local': require('eslint-plugin-local'),
 			'jsdoc': require('eslint-plugin-jsdoc'),
@@ -1324,7 +1323,8 @@ module.exports = tseslint.config(
 				// typeLike
 				{ 'selector': 'typeLike', 'format': ['PascalCase'] },
 				{ 'selector': 'interface', 'format': ['PascalCase'] }
-			]
+			],
+			'comma-dangle': ['warn', 'only-multiline']
 		}
 	},
 	// markdown-language-features

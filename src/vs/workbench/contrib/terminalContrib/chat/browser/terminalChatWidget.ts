@@ -43,19 +43,19 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(this._contextKeyService);
-		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(this._contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
 		_terminalElement.appendChild(this._container);
 
-		this._inlineChatWidget = this._instantiationService.createInstance(
+		this._inlineChatWidget = instantiationService.createInstance(
 			InlineChatWidget,
 			{
 				location: ChatAgentLocation.Terminal,
@@ -86,7 +86,7 @@ export class TerminalChatWidget extends Disposable {
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
 					}
 				}
-			}
+			},
 		);
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,

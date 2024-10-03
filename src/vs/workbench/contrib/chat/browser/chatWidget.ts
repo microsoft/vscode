@@ -1233,4 +1233,3 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 }
 
 ChatWidget.CONTRIBS.push(ChatContextAttachments);
-
