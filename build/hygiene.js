@@ -21,7 +21,7 @@ const copyrightHeaderLines = [
 ];
 
 function hygiene(some, linting = true) {
-	const gulpeslint = require('gulp-eslint');
+	const eslint = require('./gulp-eslint');
 	const gulpstylelint = require('./stylelint');
 	const formatter = require('./lib/formatter');
 
@@ -172,13 +172,7 @@ function hygiene(some, linting = true) {
 			result
 				.pipe(filter(eslintFilter))
 				.pipe(
-					gulpeslint({
-						configFile: '.eslintrc.json'
-					})
-				)
-				.pipe(gulpeslint.formatEach('compact'))
-				.pipe(
-					gulpeslint.results((results) => {
+					eslint((results) => {
 						errorCount += results.warningCount;
 						errorCount += results.errorCount;
 					})

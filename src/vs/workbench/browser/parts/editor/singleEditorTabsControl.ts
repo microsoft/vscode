@@ -34,7 +34,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private breadcrumbsControlFactory: BreadcrumbsControlFactory | undefined;
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
-	protected override create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): HTMLElement {
 		super.create(parent);
 
 		const titleContainer = this.titleContainer = parent;
@@ -68,6 +68,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 		// Create editor actions toolbar
 		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
+
+		return titleContainer;
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {

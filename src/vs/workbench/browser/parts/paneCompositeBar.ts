@@ -11,7 +11,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
-import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from '../../../base/browser/dom.js';
+import { Dimension, createCSSRule, isMouseEvent } from '../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';

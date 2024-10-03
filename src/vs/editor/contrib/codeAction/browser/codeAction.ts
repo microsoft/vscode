@@ -249,7 +249,8 @@ export enum ApplyCodeActionReason {
 	OnSave = 'onSave',
 	FromProblemsView = 'fromProblemsView',
 	FromCodeActions = 'fromCodeActions',
-	FromAILightbulb = 'fromAILightbulb' // direct invocation when clicking on the AI lightbulb
+	FromAILightbulb = 'fromAILightbulb', // direct invocation when clicking on the AI lightbulb
+	FromProblemsHover = 'fromProblemsHover'
 }
 
 export async function applyCodeAction(

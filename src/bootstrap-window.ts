@@ -8,31 +8,26 @@
 (function () {
 
 	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
+	type ILoadResult<M, T extends ISandboxConfiguration> = import('vs/platform/window/electron-sandbox/window.js').ILoadResult<M, T>;
 	type ILoadOptions<T extends ISandboxConfiguration> = import('vs/platform/window/electron-sandbox/window.js').ILoadOptions<T>;
 	type IMainWindowSandboxGlobals = import('./vs/base/parts/sandbox/electron-sandbox/globals.js').IMainWindowSandboxGlobals;
 
 	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
 
-	// increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
-	Error.stackTraceLimit = 100;
-
-	async function load<T extends ISandboxConfiguration>(esModule: string, resultCallback: (result: any, configuration: T) => Promise<unknown> | undefined, options: ILoadOptions<T>): Promise<void> {
+	async function load<M, T extends ISandboxConfiguration>(esModule: string, options: ILoadOptions<T>): Promise<ILoadResult<M, T>> {
 
 		// Window Configuration from Preload Script
 		const configuration = await resolveWindowConfiguration<T>();
 
-		// Signal can modify DOM
-		options?.canModifyDOM?.(configuration);
+		// Signal before import()
+		options?.beforeImport?.(configuration);
 
 		// Developer settings
-		const { enableDeveloperKeybindings, removeDeveloperKeybindingsAfterLoad, developerDeveloperKeybindingsDisposable } = setupDeveloperKeybindings(configuration, options);
+		const { enableDeveloperKeybindings, removeDeveloperKeybindingsAfterLoad, developerDeveloperKeybindingsDisposable, forceDisableShowDevtoolsOnError } = setupDeveloperKeybindings(configuration, options);
 
 		// NLS
 		setupNLS<T>(configuration);
-
-		// Signal before import()
-		options?.beforeImport?.(configuration);
 
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
@@ -45,16 +40,15 @@
 		try {
 			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
 
-			const callbackResult = resultCallback(result, configuration);
-			if (callbackResult instanceof Promise) {
-				await callbackResult;
-
-				if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
-					developerDeveloperKeybindingsDisposable();
-				}
+			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
+				developerDeveloperKeybindingsDisposable();
 			}
+
+			return { result, configuration };
 		} catch (error) {
-			onUnexpectedError(error, enableDeveloperKeybindings);
+			onUnexpectedError(error, enableDeveloperKeybindings && !forceDisableShowDevtoolsOnError);
+
+			throw error;
 		}
 	}
 
@@ -74,11 +68,13 @@
 		const {
 			forceEnableDeveloperKeybindings,
 			disallowReloadKeybinding,
-			removeDeveloperKeybindingsAfterLoad
+			removeDeveloperKeybindingsAfterLoad,
+			forceDisableShowDevtoolsOnError
 		} = typeof options?.configureDeveloperSettings === 'function' ? options.configureDeveloperSettings(configuration) : {
 			forceEnableDeveloperKeybindings: false,
 			disallowReloadKeybinding: false,
-			removeDeveloperKeybindingsAfterLoad: false
+			removeDeveloperKeybindingsAfterLoad: false,
+			forceDisableShowDevtoolsOnError: false
 		};
 
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
@@ -91,7 +87,8 @@
 		return {
 			enableDeveloperKeybindings,
 			removeDeveloperKeybindingsAfterLoad,
-			developerDeveloperKeybindingsDisposable
+			developerDeveloperKeybindingsDisposable,
+			forceDisableShowDevtoolsOnError
 		};
 	}
 

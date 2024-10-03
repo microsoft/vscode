@@ -26,31 +26,10 @@
 		]
 	},
 	"include": [
-		"./bootstrap-esm.ts",
-		"./bootstrap-cli.ts",
-		"./bootstrap-fork.ts",
-		"./bootstrap-import.ts",
-		"./bootstrap-meta.ts",
-		"./bootstrap-node.ts",
-		"./bootstrap-server.ts",
-		"./bootstrap-window.ts",
-		"./cli.ts",
-		"./main.ts",
-		"./server-main.ts",
-		"./server-cli.ts",
-		"./vs/base/common/jsonc.ts",
-		"./vs/base/common/performance.ts",
-		"./vs/base/node/unc.ts",
-		"./vs/base/node/nls.ts",
-		"./vs/platform/environment/node/userDataPath.ts",
-		"./vs/base/parts/sandbox/electron-sandbox/preload-aux.ts",
-		"./vs/base/parts/sandbox/electron-sandbox/preload.ts",
-		"./vs/code/electron-sandbox/processExplorer/processExplorer.ts",
-		"./vs/code/electron-sandbox/workbench/workbench.ts",
-		"./vs/workbench/contrib/issue/electron-sandbox/issueReporter.ts",
+		"./*.ts",
 		"./typings",
 		"./vs/**/*.ts",
-		"vscode-dts/vscode.proposed.*.d.ts",
-		"vscode-dts/vscode.d.ts"
+		"./vscode-dts/vscode.proposed.*.d.ts",
+		"./vscode-dts/vscode.d.ts"
 	]
 }
