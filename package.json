@@ -208,7 +208,7 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
-    "ts-loader": "^9.4.2",
+    "ts-loader": "^9.5.1",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
