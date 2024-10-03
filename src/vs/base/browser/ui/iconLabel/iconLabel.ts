@@ -5,7 +5,7 @@
 
 import './iconlabel.css';
 import * as dom from '../../dom.js';
-import * as css from '../../cssValue';
+import * as css from '../../cssValue.js';
 import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { IMatch } from '../../../common/filters.js';
