@@ -36,7 +36,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private static idPool = 0;
 	public readonly id = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
-	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | { object?: InlineAnchorWidget; element: HTMLElement }>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -92,34 +92,68 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri }, text, currentWidth, rendererOptions.editableCodeBlock);
-				this.allRefs.push(ref);
+				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+				if (!rendererOptions.collapseCodeBlocks) {
+					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
+					this.allRefs.push(ref);
 
-				const ownerMarkdownPartId = this.id;
-				const info: IChatCodeBlockInfo = new class {
-					readonly ownerMarkdownPartId = ownerMarkdownPartId;
-					readonly codeBlockIndex = index;
-					readonly element = element;
-					codemapperUri = undefined; // will be set async
-					public get uri() {
-						// here we must do a getter because the ref.object is rendered
-						// async and the uri might be undefined when it's read immediately
-						return ref.object.uri;
+					// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+					// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+					this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+
+					const ownerMarkdownPartId = this.id;
+					const info: IChatCodeBlockInfo = new class {
+						readonly ownerMarkdownPartId = ownerMarkdownPartId;
+						readonly codeBlockIndex = index;
+						readonly element = element;
+						codemapperUri = undefined; // will be set async
+						public get uri() {
+							// here we must do a getter because the ref.object is rendered
+							// async and the uri might be undefined when it's read immediately
+							return ref.object.uri;
+						}
+						public focus() {
+							ref.object.focus();
+						}
+						public getContent(): string {
+							return ref.object.editor.getValue();
+						}
+					}();
+					this.codeblocks.push(info);
+					orderedDisposablesList.push(ref);
+					return ref.object.element;
+				} else {
+					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, undefined);
+					if (isResponseVM(codeBlockInfo.element)) {
+						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
+						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
+							// Update the existing object's codemapperUri
+							this.codeblocks[codeBlockInfo.codeBlockIndex].codemapperUri = e.codemapperUri;
+							this._onDidChangeHeight.fire();
+						});
 					}
-					public focus() {
-						ref.object.focus();
-					}
-					public getContent(): string {
-						return ref.object.editor.getValue();
-					}
-				}();
-				this.codeblocks.push(info);
-				orderedDisposablesList.push(ref);
-				return ref.object.element;
+					this.allRefs.push(ref);
+					const ownerMarkdownPartId = this.id;
+					const info: IChatCodeBlockInfo = new class {
+						readonly ownerMarkdownPartId = ownerMarkdownPartId;
+						readonly codeBlockIndex = index;
+						readonly element = element;
+						codemapperUri = undefined; // will be set async
+						public get uri() {
+							return undefined;
+						}
+						public focus() {
+							return ref.object.element.focus();
+						}
+						public getContent(): string {
+							return ''; // Not needed for collapsed code blocks
+						}
+					}();
+					this.codeblocks.push(info);
+					orderedDisposablesList.push(ref);
+					return ref.object.element;
+				}
 			},
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
@@ -128,6 +162,24 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
 		this.domNode = result.element;
+	}
+
+	private renderCodeBlockPill(codemapperUri: URI | undefined, anchor: HTMLElement | undefined): IDisposableReference<{ object?: InlineAnchorWidget; element: HTMLElement }> {
+		const fileWidgetAnchor = anchor ?? $('.chat-codeblock');
+		if (codemapperUri) {
+			const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
+			this._register(this.chatMarkdownAnchorService.register(inlineAnchor));
+			return {
+				object: { object: inlineAnchor, element: fileWidgetAnchor },
+				isStale() { return false; },
+				dispose() { }
+			};
+		}
+		return {
+			object: { object: undefined, element: fileWidgetAnchor },
+			isStale() { return false; },
+			dispose() { }
+		};
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, text: string, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
@@ -152,18 +204,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	layout(width: number): void {
 		this.allRefs.forEach((ref, index) => {
-			const codeblockModel = this.codeblocks[index];
-			if (codeblockModel.codemapperUri) {
-				const fileWidgetAnchor = $('.chat-codeblock');
-				const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codeblockModel.codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
-				this._register(this.chatMarkdownAnchorService.register(inlineAnchor));
-				const existingCodeblock = ref.object.element.parentElement?.querySelector('.chat-codeblock');
-				if (!existingCodeblock) {
-					ref.object.element.parentElement?.appendChild(fileWidgetAnchor);
-					ref.object.element.style.display = 'none';
-				}
-			} else {
+			if (ref.object instanceof CodeBlockPart) {
 				ref.object.layout(width);
+			} else if (ref.object.element && !ref.object.object) {
+				const codeblockModel = this.codeblocks[index];
+				if (codeblockModel.codemapperUri) {
+					const pill = this.renderCodeBlockPill(codeblockModel.codemapperUri, ref.object.element);
+					this.allRefs[index] = pill;
+				}
 			}
 		});
 	}

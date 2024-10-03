@@ -105,6 +105,7 @@ export interface IChatListItemRendererOptions {
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
+	readonly collapseCodeBlocks?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 }
 
