@@ -700,40 +700,9 @@ module.exports = tseslint.config(
 					'paths': [
 						{
 							'name': 'electron',
-							'importNames': [
-								'app',
-								'autoUpdater',
-								'BaseWindow',
-								'BrowserWindow',
-								'contentTracing',
-								'desktopCapturer',
-								'dialog',
-								'globalShortcut',
-								'inAppPurchase',
-								'ipcMain',
-								'Menu',
-								'MenuItem',
-								'MessageChannelMain',
-								'MessagePortMain',
-								'nativeTheme',
-								'netLog',
-								'Notification',
-								'powerMonitor',
-								'powerSaveBlocker',
-								'protocol',
-								'pushNotifications',
-								'safeStorage',
-								'screen',
-								'session',
-								'ShareMenu',
-								'TouchBar',
-								'Tray',
-								'utilityProcess',
-								'View',
-								'webContents',
-								'webFrameMain',
-								'webContentsView',
-								'default'
+							'allowImportNames': [
+								'net',
+								'system-preferences',
 							],
 							'message': 'Only net and system-preferences are allowed to be imported from electron'
 						}
