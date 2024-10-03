@@ -18,7 +18,7 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
 	) {
 		super();
 

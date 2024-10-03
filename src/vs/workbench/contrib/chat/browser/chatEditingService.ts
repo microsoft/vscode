@@ -8,6 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
@@ -70,7 +71,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				return;
 			}
 			const entries = currentSession.entries.read(reader);
-			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Edited);
+			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
@@ -386,6 +387,29 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		super();
 	}
 
+	remove(...uris: URI[]): void {
+		this._assertNotDisposed();
+
+		const workingSetSize = this._workingSet.length;
+
+		const urisToRemove = new ResourceSet(uris);
+		const newWorkingSet = [];
+		for (const resource of this._workingSet) {
+			if (urisToRemove.has(resource)) {
+				continue;
+			}
+			newWorkingSet.push(resource);
+		}
+
+		this._workingSet = newWorkingSet;
+		if (this._workingSet.length === workingSetSize) {
+			return; // noop
+		}
+
+		this._workingSetObs.set(this._workingSet, undefined);
+		this._onDidChange.fire();
+	}
+
 	private _assertNotDisposed(): void {
 		if (this._state.get() === ChatEditingSessionState.Disposed) {
 			throw new BugIndicatingError(`Cannot access a disposed editing session`);
@@ -585,7 +609,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this.doc.uri;
 	}
 
-	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Edited);
+	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
 	public get state(): IObservable<WorkingSetEntryState> {
 		return this._stateObs;
 	}
@@ -595,12 +619,13 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 	) {
 		super();
 		this.doc = resourceRef.object.textEditorModel;
-		this.docSnapshot = this._register(
+		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
 				languageService.createById(this.doc.getLanguageId()),
@@ -608,16 +633,22 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 				false
 			)
 		);
+
+		// Create a reference to this model to avoid it being disposed from under our nose
+		(async () => {
+			this._register(await textModelService.createModelReference(docSnapshot.uri));
+		})();
+
 		this._register(resourceRef);
 	}
 
 	applyEdits(textEdits: TextEdit[]): void {
 		this.doc.applyEdits(textEdits);
-		this._stateObs.set(WorkingSetEntryState.Edited, undefined);
+		this._stateObs.set(WorkingSetEntryState.Modified, undefined);
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Edited) {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}
@@ -627,7 +658,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	}
 
 	async reject(transaction: ITransaction | undefined): Promise<void> {
-		if (this._stateObs.get() !== WorkingSetEntryState.Edited) {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
 			// already accepted or rejected
 			return;
 		}

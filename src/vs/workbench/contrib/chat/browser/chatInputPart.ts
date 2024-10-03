@@ -255,7 +255,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
-		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingSessionWidgetToolbar, { enableFileDecorations: true }));
+		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingSessionWidgetToolbar));
 	}
 
 	private setCurrentLanguageModelToDefault() {
@@ -872,6 +872,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			modifiedFiles.add(entry.modifiedURI);
 			return {
 				reference: entry.modifiedURI,
+				state: entry.state.get(),
 				kind: 'reference',
 			};
 		}) ?? [];
@@ -893,6 +894,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					kind: 'reference',
 				});
 			}
+		});
+		entries.sort((a, b) => {
+			if (a.kind === 'reference' && b.kind === 'reference') {
+				if (a.state === b.state || a.state === undefined || b.state === undefined) {
+					return a.reference.toString().localeCompare(b.reference.toString());
+				}
+				return a.state - b.state;
+			}
+			return 0;
 		});
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		if (entries.length !== this._chatEditList?.object.length) {
@@ -949,7 +959,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
 					const editedFile = chatEditingSession.entries.get().find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
-					if (editedFile?.state.get() === WorkingSetEntryState.Edited) {
+					if (editedFile?.state.get() === WorkingSetEntryState.Modified) {
 						void this.editorService.openEditor({
 							original: { resource: URI.from(editedFile.originalURI, true) },
 							modified: { resource: URI.from(editedFile.modifiedURI, true) },
@@ -976,7 +986,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(actionsContainer);
 			const actionsContainerRight = actionsContainer.querySelector('.chat-editing-session-actions-group') as HTMLElement ?? $('.chat-editing-session-actions-group');
 
-			if (chatEditingSession.entries.get().find((e) => e.state.get() === WorkingSetEntryState.Edited)) {
+			if (chatEditingSession.entries.get().find((e) => e.state.get() === WorkingSetEntryState.Modified)) {
 				// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
 				const actions = [];
 				actions.push(

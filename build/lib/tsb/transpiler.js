@@ -263,7 +263,7 @@ class SwcTranspiler {
                 options = SwcTranspiler._swcrcAmd;
             }
         }
-        else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS) {
+        else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS || this._cmdLine.options.module === ts.ModuleKind.Node16) {
             options = SwcTranspiler._swcrcCommonJS;
         }
         this._jobs.push(swc.transform(tsSrc, options).then(output => {

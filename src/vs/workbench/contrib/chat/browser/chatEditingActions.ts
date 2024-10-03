@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -11,8 +12,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, WorkingSetEntryState, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey } from '../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
+import { ChatContextAttachments } from './chatWidget.js';
 
 abstract class WorkingSetAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
@@ -39,6 +41,41 @@ abstract class WorkingSetAction extends Action2 {
 	abstract runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
+
+registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
+	constructor() {
+		super({
+			id: 'chatEditing.removeFileFromWorkingSet',
+			title: localize2('removeFileFromWorkingSet', 'Remove File'),
+			icon: Codicon.close,
+			menu: [{
+				id: MenuId.ChatEditingSessionWidgetToolbar,
+				// when: ContextKeyExpr.false(), // TODO@joyceerhl enable this when attachments are stored as part of the chat input
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached),
+				order: 0,
+				group: 'navigation'
+			}],
+		});
+	}
+
+	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
+		// Remove from working set
+		currentEditingSession.remove(...uris);
+
+		// Remove from chat input part
+		const resourceSet = new ResourceSet(uris);
+		const newContext = [];
+
+		for (const context of chatWidget.input.attachedContext) {
+			if (!URI.isUri(context.value) || !context.isFile || !resourceSet.has(context.value)) {
+				newContext.push(context);
+			}
+		}
+
+		chatWidget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(true, ...newContext);
+	}
+});
+
 registerAction2(class OpenFileAction extends WorkingSetAction {
 	constructor() {
 		super({
@@ -47,7 +84,7 @@ registerAction2(class OpenFileAction extends WorkingSetAction {
 			icon: Codicon.goToFile,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -73,7 +110,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 2,
 				group: 'navigation'
 			}],
@@ -98,7 +135,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 1,
 				group: 'navigation'
 			}],
