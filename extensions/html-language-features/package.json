@@ -28,7 +28,7 @@
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
-    "install-client-next": "yarn add vscode-languageclient@next"
+    "install-client-next": "npm install vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"

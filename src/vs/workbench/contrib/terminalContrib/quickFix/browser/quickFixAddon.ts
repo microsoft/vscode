@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { ITerminalAddon } from '@xterm/headless';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -249,7 +247,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!marker) {
 			return;
 		}
-		const decoration = this._terminal.registerDecoration({ marker, layer: 'top' });
+		const decoration = this._terminal.registerDecoration({ marker, width: 2, layer: 'top' });
 		if (!decoration) {
 			return;
 		}
@@ -286,7 +284,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalQuickFix);
 
-			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
+			const parentElement = e.closest('.xterm')?.parentElement;
 			if (!parentElement) {
 				return;
 			}

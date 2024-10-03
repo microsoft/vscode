@@ -63,6 +63,10 @@ declare module 'vscode' {
 		 * Additionally, the extension can provide a label that will be shown in the UI.
 		 */
 		auth?: true | { label: string };
+
+		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
+		readonly isDefault?: boolean;
+		readonly isUserSelectable?: boolean;
 	}
 
 	export interface ChatResponseProviderMetadata {

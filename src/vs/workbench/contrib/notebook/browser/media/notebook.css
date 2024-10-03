@@ -11,6 +11,10 @@
 	position: relative;
 }
 
+.monaco-workbench .notebookOverlay.notebook-editor .monaco-editor {
+	line-height: 1.4em;
+}
+
 .monaco-workbench .notebookOverlay .cell-list-container > .monaco-list {
 	position: absolute;
 }
@@ -448,12 +452,121 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
-/** Cell Multi-Selection highlight */
+/** Cell Multi-Cursor Cursor highlight */
+/* -- base selection styling -- */
 .nb-multicursor-selection {
-	min-width: 2px;
-	background-color: fuchsia;
+	top: 0;
+	min-width: 1.9px;
+	background-color: var(--vscode-editor-selectionBackground);
+
+	/* unsure about these two */
+	overflow: hidden;
+	box-sizing: border-box;
+}
+/* -- base cursor styling -- */
+.nb-multicursor-cursor {
+	top: 0;
+	min-width: 1.9px;
+	/* z-index: 10000000; */
+	background-color: #AEAFAD;
+
+	/* unsure about these two */
+	overflow: hidden;
+	box-sizing: border-box;
+}
+/* ======================================================================== */
+/* ======================================================================== */
+/* -- block-style -- */
+.nb-cursor-block-style {
+	width: 8px !important;
+}
+/* -- underline-style -- */
+.nb-cursor-underline-style {
+	width: 8px !important;
+	border-bottom-width: 2px;
+	border-bottom-style: solid;
+	background: transparent;
+}
+/* -- line-thin-style -- */
+.nb-cursor-line-thin-style {
+	min-width: none;
+	width: 0.9px !important;
+}
+/* -- block-outline-style -- */
+.nb-cursor-block-outline-style {
+	width: 8px !important;
+	border-width: 1px;
+	border-style: solid;
+	background: transparent;
+}
+/* -- underline-thin-style -- */
+.nb-cursor-underline-thin-style {
+	width: 8px !important;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+	background: transparent;
+}
+/* ======================================================================== */
+/* ======================================================================== */
+/* -- cursor animations -- */
+.nb-blink {
+	animation: nb-cursor-blink 1s step-end infinite;
+}
+.nb-smooth {
+	animation: nb-cursor-smooth 0.5s ease-in-out 0.5s infinite alternate;
+}
+.nb-phase {
+	animation: nb-cursor-phase 0.5s ease-in-out 0.5s infinite alternate;
+}
+.nb-expand{
+	animation: nb-cursor-expand 0.5s ease-in-out 0.5s infinite alternate;
+}
+.nb-smooth-caret-animation {
+	transition: all 80ms;
 }
 
+/* -- animation keyframes -- */
+@keyframes nb-cursor-blink {
+	0% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+@keyframes nb-cursor-smooth {
+	0%,
+	20% {
+		opacity: 1;
+	}
+	60%,
+	100% {
+		opacity: 0;
+	}
+}
+@keyframes nb-cursor-phase {
+	0%,
+	20% {
+		opacity: 1;
+	}
+	90%,
+	100% {
+		opacity: 0;
+	}
+}
+@keyframes nb-cursor-expand {
+	0%,
+	20% {
+		transform: scaleY(1);
+	}
+	80%,
+	100% {
+		transform: scaleY(0);
+	}
+}
 
 /** Cell Search Range selection highlight */
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-multiCellHighlight .cell-focus-indicator,

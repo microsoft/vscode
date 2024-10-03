@@ -17,6 +17,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { gettingStartedContentRegistry } from '../common/gettingStartedContent.js';
 
 
 export class GettingStartedDetailsRenderer {
@@ -221,8 +222,14 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				const module = await import(moduleId);
-				const contents = module.default();
+				const contents = await new Promise<string>((resolve, reject) => {
+					const provider = gettingStartedContentRegistry.getProvider(moduleId);
+					if (!provider) {
+						reject(`Getting started: no provider registered for ${moduleId}`);
+					} else {
+						resolve(provider());
+					}
+				});
 				return contents;
 			}
 		} catch { }

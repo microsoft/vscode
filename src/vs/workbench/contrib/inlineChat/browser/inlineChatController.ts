@@ -204,10 +204,7 @@ export class InlineChatController implements IEditorContribution {
 		this._store.add(this._inlineChatSessionService.onDidEndSession(e => {
 			if (e.session === this._session && e.endedByExternalCause) {
 				this._log('session ENDED by external cause');
-				this._session = undefined;
-				this._strategy?.cancel();
-				this._resetWidget();
-				this.cancelSession();
+				this.finishExistingSession();
 			}
 		}));
 
@@ -903,7 +900,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let responseType = InlineChatResponseType.None;
 		for (const request of this._session.chatModel.getRequests()) {
-			if (!request.response || request.response.isCanceled) {
+			if (!request.response) {
 				continue;
 			}
 			responseType = InlineChatResponseType.Messages;

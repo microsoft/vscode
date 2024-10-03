@@ -134,7 +134,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
 			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
-			icon: !this.configurationService.getValue('workbench.panel.showLabel'),
+			icon: this.configurationService.getValue('workbench.panel.showLabel') === false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {

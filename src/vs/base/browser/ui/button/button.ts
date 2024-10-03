@@ -9,7 +9,7 @@ import { sanitize } from '../../dompurify/dompurify.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../touch.js';
-import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { renderLabelWithIcons } from '../iconLabel/iconLabels.js';
 import { Action, IAction, IActionRunner } from '../../../common/actions.js';
@@ -321,7 +321,7 @@ export class Button extends Disposable implements IButton {
 
 	setTitle(title: string) {
 		if (!this._hover && title !== '') {
-			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
+			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._element, title));
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
@@ -362,6 +362,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.element.classList.add('monaco-button-dropdown');
 		container.appendChild(this.element);
 
+		if (!options.hoverDelegate) {
+			options = { ...options, hoverDelegate: this._register(createInstantHoverDelegate()) };
+		}
+
 		this.button = this._register(new Button(this.element, options));
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.button.label), undefined, true, async () => this._onDidClick.fire(undefined)));
@@ -384,8 +388,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.separatorContainer.style.backgroundColor = buttonBackground ?? '';
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
-		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
+		this.dropdownButton = this._register(new Button(this.element, { ...options, title: localize("button dropdown more actions", 'More Actions...'), supportIcons: true }));
 		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
 		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');

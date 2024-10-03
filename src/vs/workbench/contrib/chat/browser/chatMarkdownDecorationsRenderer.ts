@@ -3,27 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { applyDragImage } from '../../../../base/browser/dnd.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Location } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { listActiveSelectionBackground, listActiveSelectionForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { fillEditorsDragData } from '../../../browser/dnd.js';
-import { contentRefUrl } from '../common/annotations.js';
+import { ContentRefData, contentRefUrl } from '../common/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestVariablePart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
@@ -32,6 +27,9 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
+import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
+import { InlineAnchorWidget } from './chatInlineAnchorWidget.js';
+import './media/chatInlineAnchorWidget.css';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -78,10 +76,10 @@ interface IDecorationWidgetArgs {
 	title?: string;
 }
 
-export class ChatMarkdownDecorationsRenderer {
+export class ChatMarkdownDecorationsRenderer extends Disposable {
+
 	constructor(
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -90,9 +88,12 @@ export class ChatMarkdownDecorationsRenderer {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+		@ILabelService private readonly labelService: ILabelService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IThemeService private readonly themeService: IThemeService,
-	) { }
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+	) {
+		super();
+	}
 
 	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
 		let result = '';
@@ -234,40 +235,22 @@ export class ChatMarkdownDecorationsRenderer {
 	private renderFileWidget(href: string, a: HTMLAnchorElement, store: DisposableStore): void {
 		// TODO this can be a nicer FileLabel widget with an icon. Do a simple link for now.
 		const fullUri = URI.parse(href);
-		let location: Location | { uri: URI; range: undefined };
+		let data: ContentRefData;
 		try {
-			location = revive(JSON.parse(fullUri.fragment));
+			data = revive(JSON.parse(fullUri.fragment));
 		} catch (err) {
 			this.logService.error('Invalid chat widget render data JSON', toErrorMessage(err));
 			return;
 		}
 
-		if (!location.uri || !URI.isUri(location.uri)) {
+		if (data.kind !== 'symbol' && !URI.isUri(data.uri)) {
 			this.logService.error(`Invalid chat widget render data: ${fullUri.fragment}`);
 			return;
 		}
 
-		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
-		a.setAttribute('data-href', location.uri.with({ fragment }).toString());
-
-		const label = this.labelService.getUriLabel(location.uri, { relative: true });
-		a.replaceChildren(dom.$('code', undefined, label));
-
-		const title = location.range ?
-			`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-			label;
-		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), a, title));
-
-		// Drag and drop
-		a.draggable = true;
-		store.add(dom.addDisposableListener(a, 'dragstart', e => {
-			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [location.uri], e));
-
-			const theme = this.themeService.getColorTheme();
-			applyDragImage(e, label, 'monaco-drag-image', theme.getColor(listActiveSelectionBackground)?.toString(), theme.getColor(listActiveSelectionForeground)?.toString());
-		}));
+		const inlineAnchor = store.add(this.instantiationService.createInstance(InlineAnchorWidget, a, data, undefined));
+		this.chatMarkdownAnchorService.register(inlineAnchor);
 	}
-
 
 	private renderResourceWidget(name: string, args: IDecorationWidgetArgs | undefined, store: DisposableStore): HTMLElement {
 		const container = dom.$('span.chat-resource-widget');

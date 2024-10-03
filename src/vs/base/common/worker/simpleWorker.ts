@@ -12,13 +12,6 @@ import { isWeb } from '../platform.js';
 import * as strings from '../strings.js';
 import { URI } from '../uri.js';
 
-// ESM-comment-begin
-// const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-const isESM = true;
-// ESM-uncomment-end
-
 const DEFAULT_CHANNEL = 'default';
 const INITIALIZE = '$initialize';
 
@@ -36,7 +29,7 @@ export interface IWorkerFactory {
 }
 
 export interface IWorkerDescriptor {
-	readonly amdModuleId: string;
+	readonly moduleId: string;
 	readonly esmModuleLocation: URI | undefined;
 	readonly label: string | undefined;
 }
@@ -339,7 +332,7 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 
 		this._worker = this._register(workerFactory.create(
 			{
-				amdModuleId: 'vs/base/common/worker/simpleWorker',
+				moduleId: 'vs/base/common/worker/simpleWorker',
 				esmModuleLocation: workerDescriptor.esmModuleLocation,
 				label: workerDescriptor.label
 			},
@@ -382,12 +375,12 @@ export class SimpleWorkerClient<W extends object> extends Disposable implements 
 		this._onModuleLoaded = this._protocol.sendMessage(DEFAULT_CHANNEL, INITIALIZE, [
 			this._worker.getId(),
 			JSON.parse(JSON.stringify(loaderConfiguration)),
-			workerDescriptor.amdModuleId,
+			workerDescriptor.moduleId,
 		]);
 
 		this.proxy = this._protocol.createProxyToRemoteChannel(DEFAULT_CHANNEL, async () => { await this._onModuleLoaded; });
 		this._onModuleLoaded.catch((e) => {
-			this._onError('Worker failed to load ' + workerDescriptor.amdModuleId, e);
+			this._onError('Worker failed to load ' + workerDescriptor.moduleId, e);
 		});
 	}
 
@@ -573,40 +566,16 @@ export class SimpleWorkerServer implements IWorkerServer {
 
 			// Since this is in a web worker, enable catching errors
 			loaderConfig.catchError = true;
-			globalThis.require.config(loaderConfig);
+			(globalThis as any).require.config(loaderConfig);
 		}
 
-		if (isESM) {
-			const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
-			return import(`${url}`).then((module: { create: IRequestHandlerFactory }) => {
-				this._requestHandler = module.create(this);
+		const url = FileAccess.asBrowserUri(`${moduleId}.js` as AppResourcePath).toString(true);
+		return import(`${url}`).then((module: { create: IRequestHandlerFactory }) => {
+			this._requestHandler = module.create(this);
 
-				if (!this._requestHandler) {
-					throw new Error(`No RequestHandler!`);
-				}
-			});
-		}
-
-		return new Promise<void>((resolve, reject) => {
-			// Use the global require to be sure to get the global config
-
-			// ESM-comment-begin
-			// const req = (globalThis.require || require);
-			// ESM-comment-end
-			// ESM-uncomment-begin
-			const req = globalThis.require;
-			// ESM-uncomment-end
-
-			req([moduleId], (module: { create: IRequestHandlerFactory }) => {
-				this._requestHandler = module.create(this);
-
-				if (!this._requestHandler) {
-					reject(new Error(`No RequestHandler!`));
-					return;
-				}
-
-				resolve();
-			}, reject);
+			if (!this._requestHandler) {
+				throw new Error(`No RequestHandler!`);
+			}
 		});
 	}
 }

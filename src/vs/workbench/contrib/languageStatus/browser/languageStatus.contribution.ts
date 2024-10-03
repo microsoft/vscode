@@ -331,17 +331,19 @@ class LanguageStatus {
 
 		// -- pin
 		const actionBar = new ActionBar(right, { hoverDelegate: nativeHoverDelegate });
+		const actionLabel: string = isPinned ? localize('unpin', "Remove from Status Bar") : localize('pin', "Add to Status Bar");
+		actionBar.setAriaLabel(actionLabel);
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
-			action = new Action('pin', localize('pin', "Add to Status Bar"), ThemeIcon.asClassName(Codicon.pin), true, () => {
+			action = new Action('pin', actionLabel, ThemeIcon.asClassName(Codicon.pin), true, () => {
 				this._dedicated.add(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, true);
 				this._update();
 				this._storeState();
 			});
 		} else {
-			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), ThemeIcon.asClassName(Codicon.pinned), true, () => {
+			action = new Action('unpin', actionLabel, ThemeIcon.asClassName(Codicon.pinned), true, () => {
 				this._dedicated.delete(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, false);
 				this._update();

@@ -79,6 +79,8 @@ export interface ICodeBlockData {
 	readonly textModel: Promise<IResolvedTextEditorModel>;
 	readonly languageId: string;
 
+	readonly codemapperUri?: URI;
+
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
 
@@ -126,6 +128,7 @@ export function parseLocalFileData(text: string) {
 
 export interface ICodeBlockActionContext {
 	code: string;
+	codemapperUri?: URI;
 	languageId?: string;
 	codeBlockIndex: number;
 	element: unknown;
@@ -424,7 +427,8 @@ export class CodeBlockPart extends Disposable {
 			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
-			languageId: textModel.getLanguageId()
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}
@@ -688,20 +692,20 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		const contentHeight = this.getContentHeight();
 		const editorBorder = 2;
-		const dimension = { width: width - editorBorder, height: contentHeight };
+
+		const toolbar = dom.getTotalHeight(this.toolbar.getElement());
+		const content = this.diffEditor.getModel()
+			? this.diffEditor.getContentHeight()
+			: dom.getTotalHeight(this.messageElement);
+
+		const dimension = new dom.Dimension(width - editorBorder, toolbar + content);
 		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
-		this.diffEditor.layout(dimension);
+		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
 		this.updatePaddingForLayout();
 	}
 
-	private getContentHeight() {
-		return this.diffEditor.getModel()
-			? this.diffEditor.getContentHeight()
-			: dom.getTotalHeight(this.messageElement);
-	}
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
 		if (data.parentContextKeyService) {
