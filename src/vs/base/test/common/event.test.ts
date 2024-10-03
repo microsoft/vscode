@@ -1520,6 +1520,27 @@ suite('Event utils', () => {
 		});
 	});
 
+	test('issue #230401', () => {
+		let count = 0;
+		const emitter = ds.add(new Emitter<void>());
+		const disposables = ds.add(new DisposableStore());
+		ds.add(emitter.event(() => {
+			count++;
+			disposables.add(emitter.event(() => {
+				count++;
+			}));
+			disposables.add(emitter.event(() => {
+				count++;
+			}));
+			disposables.clear();
+		}));
+		ds.add(emitter.event(() => {
+			count++;
+		}));
+		emitter.fire();
+		assert.deepStrictEqual(count, 2);
+	});
+
 	suite('chain2', () => {
 		let em: Emitter<number>;
 		let calls: number[];
