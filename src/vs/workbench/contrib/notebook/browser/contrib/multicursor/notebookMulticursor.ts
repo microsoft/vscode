@@ -686,9 +686,9 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	}
 
 	private constructCellEditorOptions(cell: ICellViewModel): EditorConfiguration {
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(cell.language), this.notebookEditor.notebookOptions, this.configurationService);
+		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(cell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		const options = cellEditorOptions.getUpdatedValue(cell.internalMetadata, cell.uri);
-		return new EditorConfiguration(false, MenuId.EditorContent, options, null, this.accessibilityService);
+		return this._register(new EditorConfiguration(false, MenuId.EditorContent, options, null, this.accessibilityService));
 	}
 
 	/**
@@ -870,7 +870,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		});
 		this.trackedMatches = [];
 	}
-
 }
 
 export class NotebookAddMatchToMultiSelectionAction extends NotebookAction {
