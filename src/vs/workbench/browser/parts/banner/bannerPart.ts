@@ -6,7 +6,7 @@
 import './media/bannerpart.css';
 import { localize2 } from '../../../../nls.js';
 import { $, addDisposableListener, append, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
-import { asCSSUrl } from 'vs/base/browser/css';
+import { asCSSUrl } from 'vs/base/browser/cssValue';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';

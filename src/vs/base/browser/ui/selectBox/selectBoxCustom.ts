@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
-import * as cssJs from '../../css.js';
+import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IContentActionHandler } from '../../formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';

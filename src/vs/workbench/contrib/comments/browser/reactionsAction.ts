@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import * as dom from '../../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/css.js';
+import * as cssJs from 'vs/base/browser/cssValue.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';

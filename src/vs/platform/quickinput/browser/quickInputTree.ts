@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/css.js';
+import * as cssJs from 'vs/base/browser/cssValue.js';
 import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';

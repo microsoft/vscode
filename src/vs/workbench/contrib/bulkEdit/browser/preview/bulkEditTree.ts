@@ -11,7 +11,7 @@ import { HighlightedLabel, IHighlight } from '../../../../../base/browser/ui/hig
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../../base/browser/ui/list/list.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/css.js';
+import * as cssJs from 'vs/base/browser/cssValue.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';

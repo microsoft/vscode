@@ -6,7 +6,7 @@
 import './media/timelinePane.css';
 import { localize, localize2 } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
-import * as css from 'vs/base/browser/css';
+import * as css from 'vs/base/browser/cssValue';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { fromNow } from '../../../../base/common/date.js';

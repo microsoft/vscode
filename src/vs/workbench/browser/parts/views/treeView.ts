@@ -5,7 +5,7 @@
 
 import { DataTransfers, IDragAndDropData } from '../../../../base/browser/dnd.js';
 import * as DOM from '../../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/css.js';
+import * as cssJs from 'vs/base/browser/cssValue.js';
 import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';

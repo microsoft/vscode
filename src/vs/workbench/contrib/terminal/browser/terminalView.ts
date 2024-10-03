@@ -5,7 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import * as dom from '../../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/css.js';
+import * as cssJs from 'vs/base/browser/cssValue.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
