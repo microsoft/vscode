@@ -27,7 +27,6 @@ import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { CharacterBoundsUpdateEvent, IEditContext, TextFormatUpdateEvent, TextUpdateEvent } from './editContext.js';
 import { EditContext } from './editContextFactory.js';
 
 // Corresponds to classes in nativeEditContext.css

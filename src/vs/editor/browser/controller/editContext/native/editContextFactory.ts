@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DebugEditContext } from './debugEditContext.js';
-import { EditContextInit, IEditContext } from './editContext.js';
 
 export namespace EditContext {
 

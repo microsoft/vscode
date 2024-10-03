@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DOMString, EditContextEventHandlersEventMap, EditContextInit, EventHandler, IEditContext } from './editContext.js';
-
 const COLOR_FOR_CONTROL_BOUNDS = 'blue';
 const COLOR_FOR_SELECTION_BOUNDS = 'red';
 const COLOR_FOR_CHARACTER_BOUNDS = 'green';
