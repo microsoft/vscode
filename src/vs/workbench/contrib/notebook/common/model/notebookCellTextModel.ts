@@ -106,7 +106,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._onDidChangeContent.fire('mime');
 	}
 
-	private _textBuffer!: model.IReadonlyTextBuffer;
+	private _textBuffer!: model.ITextBuffer;
 
 	get textBuffer() {
 		if (this._textBuffer) {
