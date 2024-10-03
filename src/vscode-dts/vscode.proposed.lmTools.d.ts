@@ -279,7 +279,7 @@ declare module 'vscode' {
 		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was
 		 * not part of the prompt text.
 		 *
-		 * *Note* that the indices take the leading `#`-character into account which means they can used to modify the prompt
+		 * *Note* that the indices take the leading `#`-character into account which means they can be used to modify the prompt
 		 * as-is.
 		 */
 		readonly range?: [start: number, end: number];
