@@ -41,7 +41,7 @@ import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, I
 import { INotebookSearchService } from '../common/notebookSearch.js';
 import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from '../common/searchNotebookHelpers.js';
 import { ReplacePattern } from '../../../services/search/common/replace.js';
-import { DEFAULT_MAX_SEARCH_RESULTS, IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from '../../../services/search/common/search.js';
+import { DEFAULT_MAX_SEARCH_RESULTS, IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchQuery, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from '../../../services/search/common/search.js';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from '../../../services/search/common/searchHelpers.js';
 import { CellSearchModel } from '../common/cellSearchModel.js';
 import { CellFindMatchModel } from '../../notebook/browser/contrib/find/findModel.js';
@@ -957,7 +957,7 @@ export class FolderMatch extends Disposable {
 		protected _resource: URI | null,
 		private _id: string,
 		protected _index: number,
-		protected _query: ITextQuery,
+		protected _query: ITextSearchQuery,
 		private _parent: TextSearchResult | FolderMatch,
 		private _searchResult: SearchResult,
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
@@ -1055,7 +1055,7 @@ export class FolderMatch extends Disposable {
 
 	}
 
-	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
+	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextSearchQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
 		const folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchResult, baseWorkspaceFolder));
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
@@ -1153,7 +1153,7 @@ export class FolderMatch extends Disposable {
 		return this.allDownstreamFileMatches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
-	get query(): ITextQuery | null {
+	get query(): ITextSearchQuery | null {
 		return this._query;
 	}
 
@@ -1341,7 +1341,7 @@ export class FolderMatchWithResource extends FolderMatch {
 
 	protected _normalizedResource: Lazy<URI>;
 
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: TextSearchResult | FolderMatch, _searchResult: SearchResult, _closestRoot: FolderMatchWorkspaceRoot | null,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextSearchQuery, _parent: TextSearchResult | FolderMatch, _searchResult: SearchResult, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -1365,7 +1365,7 @@ export class FolderMatchWithResource extends FolderMatch {
  * FolderMatchWorkspaceRoot => folder for workspace root
  */
 export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: TextSearchResult, private readonly _ai: boolean,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextSearchQuery, _parent: TextSearchResult, private readonly _ai: boolean,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -1429,7 +1429,8 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 			parent = folderMatch;
 		}
 
-		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root, searchInstanceID);
+		const contentPatternToUse = typeof (this._query.contentPattern) === 'string' ? { pattern: this._query.contentPattern } : this._query.contentPattern;
+		return this.createFileMatch(contentPatternToUse, this._query.previewOptions, this._query.maxResults, parent, rawFileMatch, root, searchInstanceID);
 	}
 }
 
@@ -1438,7 +1439,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
  * FolderMatch => required resource (normal folder node)
  */
 export class FolderMatchNoRoot extends FolderMatch {
-	constructor(_id: string, _index: number, _query: ITextQuery, _parent: TextSearchResult,
+	constructor(_id: string, _index: number, _query: ITextSearchQuery, _parent: TextSearchResult,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -1449,9 +1450,11 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): FileMatch {
+
+		const contentPatternToUse = typeof (this._query.contentPattern) === 'string' ? { pattern: this._query.contentPattern } : this._query.contentPattern;
 		const fileMatch = this._register(this.instantiationService.createInstance(
 			FileMatch,
-			this._query.contentPattern,
+			contentPatternToUse,
 			this._query.previewOptions,
 			this._query.maxResults,
 			this, rawFileMatch,
@@ -1465,13 +1468,13 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 }
 
-export class TextSearchResult extends Disposable {
+export class TextSearchResult<QueryType extends ITextSearchQuery = ITextSearchQuery> extends Disposable {
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _isDirty = false;
 	private _showHighlights: boolean = false;
 
-	private _query: ITextQuery | null = null;
+	private _query: QueryType | null = null;
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => Promise<void> = () => Promise.resolve();
 
@@ -1487,6 +1490,7 @@ export class TextSearchResult extends Disposable {
 		private _allowOtherResults: boolean,
 		private _parent: SearchResult,
 		private _id: string,
+		// private _isQueryDifferent: (q1: QueryType, q2: QueryType) => boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
@@ -1616,11 +1620,11 @@ export class TextSearchResult extends Disposable {
 		return this._folderMatchesMap.findSubstr(resource);
 	}
 
-	get query(): ITextQuery | null {
+	get query(): QueryType | null {
 		return this._query;
 	}
 
-	set query(query: ITextQuery | null) {
+	set query(query: QueryType | null) {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
 		this.disposePastResults = async () => {
@@ -1639,20 +1643,21 @@ export class TextSearchResult extends Disposable {
 
 		this._folderMatches = (query && query.folderQueries || [])
 			.map(fq => fq.folder)
-			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query, this.isAIContributed));
+			.map((resource, index) => <FolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query));
 
 		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
 
 		if (this._allowOtherResults) {
-			this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query, this.isAIContributed);
+			this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
 		}
 
 		this._query = query;
 	}
-	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery, ai: boolean): FolderMatch {
+
+	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: QueryType): FolderMatch {
 		let folderMatch: FolderMatch;
 		if (resource) {
-			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this, ai));
+			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this, this.isAIContributed));
 		} else {
 			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this));
 		}
@@ -1746,7 +1751,7 @@ export class TextSearchResult extends Disposable {
 	}
 }
 
-export class ReplaceableTextSearchResult extends TextSearchResult {
+export class ReplaceableTextSearchResult<T extends ITextSearchQuery = ITextSearchQuery> extends TextSearchResult<T> {
 	constructor(
 		_allowOtherResults: boolean,
 		parent: SearchResult,
@@ -1927,8 +1932,8 @@ export class SearchResult extends Disposable {
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
-	private _plainTextSearchResult: ReplaceableTextSearchResult;
-	private _aiTextSearchResult: TextSearchResult;
+	private _plainTextSearchResult: ReplaceableTextSearchResult<ITextQuery>;
+	private _aiTextSearchResult: TextSearchResult<IAITextQuery>;
 
 	constructor(
 		public readonly searchModel: SearchModel,
@@ -1954,11 +1959,11 @@ export class SearchResult extends Disposable {
 
 	}
 
-	get plainTextSearchResult(): ReplaceableTextSearchResult {
+	get plainTextSearchResult(): ReplaceableTextSearchResult<ITextQuery> {
 		return this._plainTextSearchResult;
 	}
 
-	get aiTextSearchResult(): TextSearchResult {
+	get aiTextSearchResult(): TextSearchResult<IAITextQuery> {
 		return this._aiTextSearchResult;
 	}
 
@@ -2029,7 +2034,13 @@ export class SearchResult extends Disposable {
 
 	set query(query: ITextQuery | null) {
 		this._plainTextSearchResult.query = query;
-		this._aiTextSearchResult.query = query;
+	}
+
+	setAIQueryUsingTextQuery(query?: ITextQuery | null) {
+		if (!query) {
+			query = this.query;
+		}
+		this._aiTextSearchResult.query = aiTextQueryFromTextQuery(this.query);
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -2265,9 +2276,10 @@ export class SearchModel extends Disposable {
 			// already has matches or pending matches
 			throw Error('AI results already exist');
 		} else {
-			if (this._searchQuery) {
+			const query = this.searchResult.aiTextSearchResult.query;
+			if (query) {
 				return this.aiSearch(
-					{ ...this._searchQuery, contentPattern: this._searchQuery.contentPattern.pattern, type: QueryType.aiText },
+					query,
 					onProgress,
 				);
 			} else {
@@ -2737,3 +2749,6 @@ function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
 	return retEvent;
 }
 
+function aiTextQueryFromTextQuery(query: ITextQuery | null): IAITextQuery | null {
+	return query === null ? null : { ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText };
+}
