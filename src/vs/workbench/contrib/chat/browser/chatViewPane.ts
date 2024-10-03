@@ -156,13 +156,14 @@ export class ChatViewPane extends ViewPane {
 				ChatWidget,
 				this.chatOptions.location,
 				{ viewId: this.id },
-				{ supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel },
+				{ supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel, rendererOptions: { collapseCodeBlocks: this.chatOptions.location === ChatAgentLocation.EditingSession } },
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: locationBasedColors.background,
 					overlayBackground: locationBasedColors.overlayBackground,
 					inputEditorBackground: locationBasedColors.background,
-					resultEditorBackground: editorBackground
+					resultEditorBackground: editorBackground,
+
 				}));
 			this._register(this.onDidChangeBodyVisibility(visible => {
 				this._widget.setVisible(visible);
