@@ -11,7 +11,6 @@ import { HighlightedLabel, IHighlight } from '../../../../../base/browser/ui/hig
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../../base/browser/ui/list/list.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import * as dom from '../../../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/cssValue.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
@@ -31,6 +30,7 @@ import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/mo
 import { SnippetParser } from '../../../../../editor/contrib/snippet/browser/snippetParser.js';
 import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import * as css from '../../../../../base/browser/cssValue.js';
 
 // --- VIEW MODEL
 
@@ -437,14 +437,14 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 		} else if (URI.isUri(metadata.iconPath)) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', cssJs.asCSSUrl(metadata.iconPath));
-			template.icon.style.setProperty('--background-light', cssJs.asCSSUrl(metadata.iconPath));
+			template.icon.style.setProperty('--background-dark', css.asCSSUrl(metadata.iconPath));
+			template.icon.style.setProperty('--background-light', css.asCSSUrl(metadata.iconPath));
 
 		} else if (metadata.iconPath) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', cssJs.asCSSUrl(metadata.iconPath.dark));
-			template.icon.style.setProperty('--background-light', cssJs.asCSSUrl(metadata.iconPath.light));
+			template.icon.style.setProperty('--background-dark', css.asCSSUrl(metadata.iconPath.dark));
+			template.icon.style.setProperty('--background-light', css.asCSSUrl(metadata.iconPath.light));
 		}
 
 		template.label.setLabel(metadata.label, metadata.description, {
@@ -636,14 +636,14 @@ class TextEditElementTemplate {
 			} else if (URI.isUri(iconPath)) {
 				// background-image
 				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', cssJs.asCSSUrl(iconPath));
-				this._icon.style.setProperty('--background-light', cssJs.asCSSUrl(iconPath));
+				this._icon.style.setProperty('--background-dark', css.asCSSUrl(iconPath));
+				this._icon.style.setProperty('--background-light', css.asCSSUrl(iconPath));
 
 			} else {
 				// background-image
 				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', cssJs.asCSSUrl(iconPath.dark));
-				this._icon.style.setProperty('--background-light', cssJs.asCSSUrl(iconPath.light));
+				this._icon.style.setProperty('--background-dark', css.asCSSUrl(iconPath.dark));
+				this._icon.style.setProperty('--background-light', css.asCSSUrl(iconPath.light));
 			}
 		}
 

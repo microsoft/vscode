@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
-import { asCssValueWithDefault } from 'vs/base/browser/cssValue.js';
+import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';

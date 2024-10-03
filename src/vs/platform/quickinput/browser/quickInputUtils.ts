@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
-import * as cssJs from 'vs/base/browser/cssValue.js';
+import * as cssJs from '../../../base/browser/cssValue.js';
 import { DomEmitter } from '../../../base/browser/event.js';
 import { Event } from '../../../base/common/event.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';

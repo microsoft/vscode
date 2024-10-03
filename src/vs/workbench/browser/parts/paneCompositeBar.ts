@@ -12,7 +12,7 @@ import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../.
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
 import { Dimension, createCSSRule, isMouseEvent } from '../../../base/browser/dom.js';
-import { asCSSUrl } from 'vs/base/browser/cssValue.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
