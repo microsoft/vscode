@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 //@ts-check
 const fs = require('fs');
 const path = require('path');
@@ -15,41 +14,26 @@ pluginHeader.rules.header.meta.schema = false;
 const ignores = JSON.parse(fs.readFileSync(path.join(__dirname, '.eslintignore.json'), 'utf8').toString());
 
 module.exports = tseslint.config(
-	// Global ignores
 	{
+		// Global ignores
 		ignores,
 	},
 	{
 		files: [
-			'src/**/*.ts',
+			'**/*.ts',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
-			parserOptions: {
-				ecmaVersion: 2020,
-				sourceType: 'module',
-				project: path.join(__dirname, 'src', 'tsconfig.json'),
-			}
 		},
 		plugins: {
 			'@stylistic/ts': stylisticTs,
 			'@typescript-eslint': tseslint.plugin,
 			'local': require('eslint-plugin-local'),
-			'header': pluginHeader,
 			'jsdoc': require('eslint-plugin-jsdoc'),
 		},
 		rules: {
 			'@stylistic/ts/semi': 'warn',
 			'@stylistic/ts/member-delimiter-style': 'warn',
-			'@typescript-eslint/naming-convention': [
-				'warn',
-				{
-					'selector': 'class',
-					'format': [
-						'PascalCase'
-					]
-				}
-			],
 			'local/code-no-unused-expressions': [
 				'warn',
 				{
@@ -61,6 +45,34 @@ module.exports = tseslint.config(
 		}
 	},
 	{
+		files: [
+			'src/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: {
+				project: path.join(__dirname, 'src', 'tsconfig.json'),
+			}
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				{
+					'selector': 'class',
+					'format': [
+						'PascalCase'
+					]
+				}
+			]
+		}
+	},
+	{
+		languageOptions: {
+			parser: tseslint.parser,
+		},
 		plugins: {
 			'local': require('eslint-plugin-local'),
 			'header': pluginHeader,
@@ -90,7 +102,6 @@ module.exports = tseslint.config(
 			'no-throw-literal': 'warn',
 			'no-unsafe-finally': 'warn',
 			'no-unused-labels': 'warn',
-			'no-control-regex': 'warn',
 			'no-misleading-character-class': 'warn',
 			'no-restricted-globals': [
 				'warn',
@@ -379,6 +390,10 @@ module.exports = tseslint.config(
 				{
 					'selector': `BinaryExpression[operator='instanceof'][right.name=/^HTML\\w+/]`,
 					'message': 'Use DOM.isHTMLElement() and related methods to support multi-window scenarios.'
+				},
+				{
+					'selector': `BinaryExpression[operator='instanceof'][right.name=/^SVG\\w+/]`,
+					'message': 'Use DOM.isSVGElement() and related methods to support multi-window scenarios.'
 				},
 				{
 					'selector': `BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']`,
@@ -1312,6 +1327,83 @@ module.exports = tseslint.config(
 					]
 				}
 			]
+		}
+	},
+	// Terminal
+	{
+		files: [
+			'src/vs/workbench/contrib/terminal/**/*.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		rules: {
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				// variableLike
+				{ 'selector': 'variable', 'format': ['camelCase', 'UPPER_CASE', 'PascalCase'] },
+				{ 'selector': 'variable', 'filter': '^I.+Service$', 'format': ['PascalCase'], 'prefix': ['I'] },
+				// memberLike
+				{ 'selector': 'memberLike', 'modifiers': ['private'], 'format': ['camelCase'], 'leadingUnderscore': 'require' },
+				{ 'selector': 'memberLike', 'modifiers': ['protected'], 'format': ['camelCase'], 'leadingUnderscore': 'require' },
+				{ 'selector': 'enumMember', 'format': ['PascalCase'] },
+				// memberLike - Allow enum-like objects to use UPPER_CASE
+				{ 'selector': 'method', 'modifiers': ['public'], 'format': ['camelCase', 'UPPER_CASE'] },
+				// typeLike
+				{ 'selector': 'typeLike', 'format': ['PascalCase'] },
+				{ 'selector': 'interface', 'format': ['PascalCase'] }
+			]
+		}
+	},
+	// markdown-language-features
+	{
+		files: [
+			'extensions/markdown-language-features/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				{
+					'selector': 'default',
+					'modifiers': ['private'],
+					'format': null,
+					'leadingUnderscore': 'require'
+				},
+				{
+					'selector': 'default',
+					'modifiers': ['public'],
+					'format': null,
+					'leadingUnderscore': 'forbid'
+				}
+			]
+		}
+	},
+	// typescript-language-features
+	{
+		files: [
+			'extensions/typescript-language-features/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: {
+				project: [
+					'extensions/typescript-language-features/tsconfig.json',
+					'extensions/typescript-language-features/web/tsconfig.json'
+				],
+			}
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/prefer-optional-chain': 'warn',
+			'@typescript-eslint/prefer-readonly': 'warn',
 		}
 	}
 );

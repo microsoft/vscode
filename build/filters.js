@@ -194,6 +194,8 @@ module.exports.tsFormattingFilter = [
 
 module.exports.eslintFilter = [
 	'**/*.js',
+	'**/*.cjs',
+	'**/*.mjs',
 	'**/*.ts',
 	...require(join(__dirname, '..', '.eslintignore.json'))
 		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
