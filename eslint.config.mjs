@@ -2,19 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-const fs = require('fs');
-const path = require('path');
-const tseslint = require('typescript-eslint');
+// @ts-check
+import fs from 'fs';
+import path from 'path';
+import tseslint from 'typescript-eslint';
 
-const pluginHeader = require('eslint-plugin-header');
+import stylisticTs from '@stylistic/eslint-plugin-ts';
+import pluginLocal from 'eslint-plugin-local';
+import pluginJsdoc from 'eslint-plugin-jsdoc';
+
+import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 	.toString()
 	.split(/\r\n|\n/)
 	.filter(line => line && !line.startsWith('#'));
 
-module.exports = tseslint.config(
+export default tseslint.config(
 	// Global ignores
 	{
 		ignores,
@@ -25,7 +31,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 			'header': pluginHeader,
 		},
 		rules: {
@@ -115,7 +121,7 @@ module.exports = tseslint.config(
 			]
 		},
 	},
-	// TS specific rules
+	// TS
 	{
 		files: [
 			'**/*.ts',
@@ -124,10 +130,10 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'@stylistic/ts': require('@stylistic/eslint-plugin-ts'),
+			'@stylistic/ts': stylisticTs,
 			'@typescript-eslint': tseslint.plugin,
-			'local': require('eslint-plugin-local'),
-			'jsdoc': require('eslint-plugin-jsdoc'),
+			'local': pluginLocal,
+			'jsdoc': pluginJsdoc,
 		},
 		rules: {
 			'@stylistic/ts/semi': 'warn',
@@ -142,7 +148,7 @@ module.exports = tseslint.config(
 			'local/code-no-static-self-ref': 'warn'
 		}
 	},
-	// vscode TS specific rules
+	// vscode TS
 	{
 		files: [
 			'src/**/*.ts',
@@ -168,7 +174,7 @@ module.exports = tseslint.config(
 			]
 		}
 	},
-	// Test specific rules
+	// Tests
 	{
 		files: [
 			'**/*.test.ts'
@@ -177,7 +183,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-must-use-super-dispose': 'off',
@@ -207,7 +213,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-ensure-no-disposables-leak-in-test': [
@@ -249,7 +255,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/vscode-dts-create-func': 'warn',
@@ -371,7 +377,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-amd-node-module': 'warn'
@@ -385,7 +391,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-no-global-document-listener': 'warn',
@@ -727,7 +733,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-import-patterns': [
@@ -1226,7 +1232,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-import-patterns': [
@@ -1284,7 +1290,7 @@ module.exports = tseslint.config(
 			parser: tseslint.parser,
 		},
 		plugins: {
-			'local': require('eslint-plugin-local'),
+			'local': pluginLocal,
 		},
 		rules: {
 			'local/code-no-runtime-import': [
