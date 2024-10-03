@@ -70,7 +70,7 @@ export interface IPreparedToolInvocation {
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation(participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	prepareToolInvocation?(participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
@@ -213,7 +213,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// TODO if a tool requiresConfirmation but is not being invoked inside a chat session, we can show some other UI, like a modal notification
 			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
 
-			const prepared = await tool.impl.prepareToolInvocation(participantName, dto.parameters, token);
+			const prepared = tool.impl.prepareToolInvocation ?
+				await tool.impl.prepareToolInvocation(participantName, dto.parameters, token)
+				: undefined;
 			const confirmationMessages = tool.data.requiresConfirmation ?
 				prepared?.confirmationMessages ?? {
 					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
