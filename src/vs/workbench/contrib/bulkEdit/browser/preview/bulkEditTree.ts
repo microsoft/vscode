@@ -11,6 +11,7 @@ import { HighlightedLabel, IHighlight } from '../../../../../base/browser/ui/hig
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../../base/browser/ui/list/list.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import * as dom from '../../../../../base/browser/dom.js';
+import * as cssJs from 'vs/base/browser/css.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
@@ -436,14 +437,14 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 		} else if (URI.isUri(metadata.iconPath)) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', dom.asCSSUrl(metadata.iconPath));
-			template.icon.style.setProperty('--background-light', dom.asCSSUrl(metadata.iconPath));
+			template.icon.style.setProperty('--background-dark', cssJs.asCSSUrl(metadata.iconPath));
+			template.icon.style.setProperty('--background-light', cssJs.asCSSUrl(metadata.iconPath));
 
 		} else if (metadata.iconPath) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', dom.asCSSUrl(metadata.iconPath.dark));
-			template.icon.style.setProperty('--background-light', dom.asCSSUrl(metadata.iconPath.light));
+			template.icon.style.setProperty('--background-dark', cssJs.asCSSUrl(metadata.iconPath.dark));
+			template.icon.style.setProperty('--background-light', cssJs.asCSSUrl(metadata.iconPath.light));
 		}
 
 		template.label.setLabel(metadata.label, metadata.description, {
@@ -635,14 +636,14 @@ class TextEditElementTemplate {
 			} else if (URI.isUri(iconPath)) {
 				// background-image
 				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', dom.asCSSUrl(iconPath));
-				this._icon.style.setProperty('--background-light', dom.asCSSUrl(iconPath));
+				this._icon.style.setProperty('--background-dark', cssJs.asCSSUrl(iconPath));
+				this._icon.style.setProperty('--background-light', cssJs.asCSSUrl(iconPath));
 
 			} else {
 				// background-image
 				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', dom.asCSSUrl(iconPath.dark));
-				this._icon.style.setProperty('--background-light', dom.asCSSUrl(iconPath.light));
+				this._icon.style.setProperty('--background-dark', cssJs.asCSSUrl(iconPath.dark));
+				this._icon.style.setProperty('--background-light', cssJs.asCSSUrl(iconPath.light));
 			}
 		}
 
