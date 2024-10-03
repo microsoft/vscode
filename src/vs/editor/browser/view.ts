@@ -268,7 +268,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		const domNode = dom.getWindow(this.domNode.domNode);
+		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
 		const isEditContextSupported = EditContext.supported(domNode);
 		const EditContextType = (experimentalEditContextEnabled && isEditContextSupported) ? NativeEditContext : TextAreaEditContext;
 		return this._instantiationService.createInstance(EditContextType, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
