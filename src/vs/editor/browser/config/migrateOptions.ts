@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from '../../common/config/editorOptions.js';
 
 export interface ISettingsReader {
 	(key: string): any;

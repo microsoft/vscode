@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import { basename, join, posix } from 'path';
 import * as vscode from 'vscode';
@@ -619,6 +619,7 @@ suite('vscode API - workspace', () => {
 
 	test('findFiles2, exclude', () => {
 		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+			res.forEach(r => console.log(r.toString()));
 			assert.strictEqual(res.length, 1);
 		});
 	});

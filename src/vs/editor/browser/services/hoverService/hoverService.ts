@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { HoverWidget } from 'vs/editor/browser/services/hoverService/hoverWidget';
-import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow } from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { mainWindow } from 'vs/base/browser/window';
-import { ContextViewHandler } from 'vs/platform/contextview/browser/contextViewService';
-import type { IHoverOptions, IHoverWidget, IUpdatableHover, IUpdatableHoverContentOrFactory, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
-import type { IHoverDelegate, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { UpdatableHoverWidget } from 'vs/editor/browser/services/hoverService/updatableHoverWidget';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { editorHoverBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { HoverWidget } from './hoverWidget.js';
+import { IContextViewProvider, IDelegate } from '../../../../base/browser/ui/contextview/contextview.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement, isEditableElement } from '../../../../base/browser/dom.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
+import type { IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { ManagedHoverWidget } from './updatableHoverWidget.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -90,7 +90,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}, undefined, hoverDisposables);
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
-			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
+			const targetElement = isHTMLElement(options.target) ? options.target : options.target.targetElements[0];
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
@@ -189,22 +189,22 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 	}
 
-	private readonly _existingHovers = new Map<HTMLElement, IUpdatableHover>();
+	private readonly _managedHovers = new Map<HTMLElement, IManagedHover>();
 
 	// TODO: Investigate performance of this function. There seems to be a lot of content created
 	//       and thrown away on start up
-	setupUpdatableHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions | undefined): IUpdatableHover {
+	setupManagedHover(hoverDelegate: IHoverDelegate, targetElement: HTMLElement, content: IManagedHoverContentOrFactory, options?: IManagedHoverOptions | undefined): IManagedHover {
 
-		htmlElement.setAttribute('custom-hover', 'true');
+		targetElement.setAttribute('custom-hover', 'true');
 
-		if (htmlElement.title !== '') {
+		if (targetElement.title !== '') {
 			console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
-			console.trace('Stack trace:', htmlElement.title);
-			htmlElement.title = '';
+			console.trace('Stack trace:', targetElement.title);
+			targetElement.title = '';
 		}
 
 		let hoverPreparation: IDisposable | undefined;
-		let hoverWidget: UpdatableHoverWidget | undefined;
+		let hoverWidget: ManagedHoverWidget | undefined;
 
 		const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
 			const hadHover = hoverWidget !== undefined;
@@ -225,23 +225,23 @@ export class HoverService extends Disposable implements IHoverService {
 		const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget, trapFocus?: boolean) => {
 			return new TimeoutTimer(async () => {
 				if (!hoverWidget || hoverWidget.isDisposed) {
-					hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
+					hoverWidget = new ManagedHoverWidget(hoverDelegate, target || targetElement, delay > 0);
 					await hoverWidget.update(typeof content === 'function' ? content() : content, focus, { ...options, trapFocus });
 				}
 			}, delay);
 		};
 
 		let isMouseDown = false;
-		const mouseDownEmitter = addDisposableListener(htmlElement, EventType.MOUSE_DOWN, () => {
+		const mouseDownEmitter = addDisposableListener(targetElement, EventType.MOUSE_DOWN, () => {
 			isMouseDown = true;
 			hideHover(true, true);
 		}, true);
-		const mouseUpEmitter = addDisposableListener(htmlElement, EventType.MOUSE_UP, () => {
+		const mouseUpEmitter = addDisposableListener(targetElement, EventType.MOUSE_UP, () => {
 			isMouseDown = false;
 		}, true);
-		const mouseLeaveEmitter = addDisposableListener(htmlElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
+		const mouseLeaveEmitter = addDisposableListener(targetElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
 			isMouseDown = false;
-			hideHover(false, (<any>e).fromElement === htmlElement);
+			hideHover(false, (<any>e).fromElement === targetElement);
 		}, true);
 
 		const onMouseOver = (e: MouseEvent) => {
@@ -252,53 +252,52 @@ export class HoverService extends Disposable implements IHoverService {
 			const toDispose: DisposableStore = new DisposableStore();
 
 			const target: IHoverDelegateTarget = {
-				targetElements: [htmlElement],
+				targetElements: [targetElement],
 				dispose: () => { }
 			};
 			if (hoverDelegate.placement === undefined || hoverDelegate.placement === 'mouse') {
 				// track the mouse position
 				const onMouseMove = (e: MouseEvent) => {
 					target.x = e.x + 10;
-					if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target, htmlElement) !== htmlElement) {
+					if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target, targetElement) !== targetElement) {
 						hideHover(true, true);
 					}
 				};
-				toDispose.add(addDisposableListener(htmlElement, EventType.MOUSE_MOVE, onMouseMove, true));
+				toDispose.add(addDisposableListener(targetElement, EventType.MOUSE_MOVE, onMouseMove, true));
 			}
 
 			hoverPreparation = toDispose;
 
-			if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target as HTMLElement, htmlElement) !== htmlElement) {
+			if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target as HTMLElement, targetElement) !== targetElement) {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 
 			toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
 		};
-		const mouseOverDomEmitter = addDisposableListener(htmlElement, EventType.MOUSE_OVER, onMouseOver, true);
+		const mouseOverDomEmitter = addDisposableListener(targetElement, EventType.MOUSE_OVER, onMouseOver, true);
 
 		const onFocus = () => {
 			if (isMouseDown || hoverPreparation) {
 				return;
 			}
 			const target: IHoverDelegateTarget = {
-				targetElements: [htmlElement],
+				targetElements: [targetElement],
 				dispose: () => { }
 			};
 			const toDispose: DisposableStore = new DisposableStore();
 			const onBlur = () => hideHover(true, true);
-			toDispose.add(addDisposableListener(htmlElement, EventType.BLUR, onBlur, true));
+			toDispose.add(addDisposableListener(targetElement, EventType.BLUR, onBlur, true));
 			toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
 			hoverPreparation = toDispose;
 		};
 
 		// Do not show hover when focusing an input or textarea
 		let focusDomEmitter: undefined | IDisposable;
-		const tagName = htmlElement.tagName.toLowerCase();
-		if (tagName !== 'input' && tagName !== 'textarea') {
-			focusDomEmitter = addDisposableListener(htmlElement, EventType.FOCUS, onFocus, true);
+		if (!isEditableElement(targetElement)) {
+			focusDomEmitter = addDisposableListener(targetElement, EventType.FOCUS, onFocus, true);
 		}
 
-		const hover: IUpdatableHover = {
+		const hover: IManagedHover = {
 			show: focus => {
 				hideHover(false, true); // terminate a ongoing mouse over preparation
 				triggerShowHover(0, focus, undefined, focus); // show hover immediately
@@ -311,7 +310,7 @@ export class HoverService extends Disposable implements IHoverService {
 				await hoverWidget?.update(content, undefined, hoverOptions);
 			},
 			dispose: () => {
-				this._existingHovers.delete(htmlElement);
+				this._managedHovers.delete(targetElement);
 				mouseOverDomEmitter.dispose();
 				mouseLeaveEmitter.dispose();
 				mouseDownEmitter.dispose();
@@ -320,19 +319,19 @@ export class HoverService extends Disposable implements IHoverService {
 				hideHover(true, true);
 			}
 		};
-		this._existingHovers.set(htmlElement, hover);
+		this._managedHovers.set(targetElement, hover);
 		return hover;
 	}
 
-	triggerUpdatableHover(target: HTMLElement): void {
-		const hover = this._existingHovers.get(target);
+	showManagedHover(target: HTMLElement): void {
+		const hover = this._managedHovers.get(target);
 		if (hover) {
 			hover.show(true);
 		}
 	}
 
 	public override dispose(): void {
-		this._existingHovers.forEach(hover => hover.dispose());
+		this._managedHovers.forEach(hover => hover.dispose());
 		super.dispose();
 	}
 }

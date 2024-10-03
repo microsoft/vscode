@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { GlyphMarginLanesModel, } from 'vs/editor/common/viewModel/glyphLanesModel';
-import { Range } from 'vs/editor/common/core/range';
-import { GlyphMarginLane } from 'vs/editor/common/model';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { GlyphMarginLanesModel, } from '../../../common/viewModel/glyphLanesModel.js';
+import { Range } from '../../../common/core/range.js';
+import { GlyphMarginLane } from '../../../common/model.js';
 
 suite('GlyphLanesModel', () => {
 	let model: GlyphMarginLanesModel;

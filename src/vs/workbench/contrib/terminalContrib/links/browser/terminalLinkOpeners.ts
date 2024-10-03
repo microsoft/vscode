@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { detectLinks, getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { ITerminalLinkOpener, ITerminalSimpleLink } from './links.js';
+import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
+import { ISearchService } from '../../../../services/search/common/search.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { detectLinks, getLinkSuffix } from './terminalLinkParsing.js';
+import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -77,7 +77,7 @@ export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalL
 }
 
 export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
-	protected _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
+	protected _fileQueryBuilder: QueryBuilder;
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -86,13 +86,14 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _getOS: () => OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISearchService private readonly _searchService: ISearchService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
+		this._fileQueryBuilder = instantiationService.createInstance(QueryBuilder);
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
@@ -106,11 +107,17 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// Try extract any trailing line and column numbers by matching the text against parsed
 		// links. This will give a search link `foo` on a line like `"foo", line 10` to open the
 		// quick pick with `foo:10` as the contents.
+		//
+		// This also normalizes the path to remove suffixes like :10 or :5.0-4
 		if (link.contextLine) {
 			const parsedLinks = detectLinks(link.contextLine, this._getOS());
-			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text === parsedLink.path.text);
+			// Optimistically check that the link _starts with_ the parsed link text. If so,
+			// continue to use the parsed link
+			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text.startsWith(parsedLink.path.text));
 			if (matchingParsedLink) {
 				if (matchingParsedLink.suffix?.row !== undefined) {
+					// Normalize the path based on the parsed link
+					text = matchingParsedLink.path.text;
 					text += `:${matchingParsedLink.suffix.row}`;
 					if (matchingParsedLink.suffix?.col !== undefined) {
 						text += `:${matchingParsedLink.suffix.col}`;

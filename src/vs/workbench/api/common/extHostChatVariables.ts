@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostChatVariablesShape, IChatVariableResolverProgressDto, IMainContext, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../base/common/errors.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostChatVariablesShape, IChatVariableResolverProgressDto, IMainContext, MainContext, MainThreadChatVariablesShape } from './extHost.protocol.js';
+import * as typeConvert from './extHostTypeConverters.js';
+import * as extHostTypes from './extHostTypes.js';
+import { IChatRequestVariableValue, IChatVariableData } from '../../contrib/chat/common/chatVariables.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatVariables implements ExtHostChatVariablesShape {
@@ -52,10 +53,11 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		return undefined;
 	}
 
-	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver): IDisposable {
+	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, themeIconId?: string): IDisposable {
 		const handle = ExtHostChatVariables._idPool++;
-		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, modelDescription }, resolver: resolver });
-		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription, isSlow });
+		const icon = themeIconId ? ThemeIcon.fromId(themeIconId) : undefined;
+		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, modelDescription, icon }, resolver: resolver });
+		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription, isSlow, fullName, icon });
 
 		return toDisposable(() => {
 			this._resolver.delete(handle);

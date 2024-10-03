@@ -252,7 +252,8 @@
 
 .test-output-peek-message-container .preview-text {
 	padding: 8px 12px 8px 20px;
-	height: calc(100% - 16px);
+	line-height: normal;
+	white-space: normal;
 }
 
 .test-output-peek-message-container .preview-text p:first-child {
@@ -265,6 +266,50 @@
 
 .test-output-peek-message-container .preview-text a {
 	cursor: pointer;
+}
+
+.testing-followup-action {
+	line-height: 25px;
+	overflow: hidden;
+	pointer-events: none;
+	display: flex;
+	align-items: center;
+	gap: 14px;
+
+	&.animated {
+		animation: fadeIn 150ms ease-out;
+	}
+
+	> a {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+		pointer-events: auto;
+		width: fit-content;
+		flex-shrink: 0;
+
+		&, .codicon {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		&:hover {
+			color: var(--vscode-textLink-activeForeground);
+		}
+
+		&[aria-disabled="true"] {
+			color: inherit;
+			cursor: default;
+
+			.codicon {
+				color: inherit;
+			}
+		}
+	}
+}
+
+.test-output-call-stack {
+	height: 100%;
 }
 
 /** -- filter  */
@@ -354,11 +399,11 @@
 }
 
 .monaco-editor .testing-inline-message-severity-0 {
-	color: var(--vscode-testing-message-error-decorationForeground) !important;
+	background: var(--vscode-testing-message-error-lineBackground) !important;
 }
 
 .monaco-editor .testing-inline-message-severity-1 {
-	color: var(--vscode-testing-message-info-decorationForeground) !important;
+	background: var(--vscode-testing-message-info-lineBackground) !important;
 }
 
 /** -- coverage  */

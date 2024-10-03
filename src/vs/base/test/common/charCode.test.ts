@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { CharCode } from 'vs/base/common/charCode';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { CharCode } from '../../common/charCode.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('CharCode', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

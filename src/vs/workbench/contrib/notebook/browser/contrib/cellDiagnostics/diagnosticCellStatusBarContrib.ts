@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorun } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnosticsActions';
-import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
-import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { INotebookCellStatusBarItem, CellStatusbarAlignment } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../nls.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { OPEN_CELL_FAILURE_ACTIONS_COMMAND_ID } from './cellDiagnosticsActions.js';
+import { NotebookStatusBarController } from '../cellStatusBar/executionStatusBarItemController.js';
+import { INotebookEditor, INotebookEditorContribution, INotebookViewModel } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { INotebookCellStatusBarItem, CellStatusbarAlignment } from '../../../common/notebookCommon.js';
+import { ICellExecutionError } from '../../../common/notebookExecutionStateService.js';
 
 export class DiagnosticCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.statusBar.diagtnostic';

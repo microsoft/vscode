@@ -65,6 +65,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedNavTreeResponse))),
 			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedNavTreeResponse))),
 			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./languageFeatures/copyPaste').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/definitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
@@ -137,7 +138,11 @@ export default class LanguageProvider extends Disposable {
 		this.client.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[]): void {
+	public diagnosticsReceived(
+		diagnosticsKind: DiagnosticKind,
+		file: vscode.Uri,
+		diagnostics: (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[],
+		ranges: vscode.Range[] | undefined): void {
 		if (diagnosticsKind !== DiagnosticKind.Syntax && !this.client.hasCapabilityForResource(file, ClientCapability.Semantic)) {
 			return;
 		}
@@ -174,7 +179,7 @@ export default class LanguageProvider extends Disposable {
 				}
 			}
 			return true;
-		}));
+		}), ranges);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {

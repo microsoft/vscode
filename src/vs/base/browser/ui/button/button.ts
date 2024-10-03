@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from 'vs/base/browser/dom';
-import { sanitize } from 'vs/base/browser/dompurify/dompurify';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { Color } from 'vs/base/common/color';
-import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { IMarkdownString, isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./button';
-import { localize } from 'vs/nls';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
-import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { IContextMenuProvider } from '../../contextmenu.js';
+import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from '../../dom.js';
+import { sanitize } from '../../dompurify/dompurify.js';
+import { StandardKeyboardEvent } from '../../keyboardEvent.js';
+import { renderMarkdown, renderStringAsPlaintext } from '../../markdownRenderer.js';
+import { Gesture, EventType as TouchEventType } from '../../touch.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { renderLabelWithIcons } from '../iconLabel/iconLabels.js';
+import { Action, IAction, IActionRunner } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { Color } from '../../../common/color.js';
+import { Event as BaseEvent, Emitter } from '../../../common/event.js';
+import { IMarkdownString, isMarkdownString, markdownStringEqual } from '../../../common/htmlContent.js';
+import { KeyCode } from '../../../common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import './button.css';
+import { localize } from '../../../../nls.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { IActionProvider } from '../dropdown/dropdown.js';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -63,6 +64,7 @@ export interface IButton extends IDisposable {
 	set label(value: string | IMarkdownString);
 	set icon(value: ThemeIcon);
 	set enabled(value: boolean);
+	set checked(value: boolean);
 
 	focus(): void;
 	hasFocus(): boolean;
@@ -79,7 +81,7 @@ export class Button extends Disposable implements IButton {
 	protected _label: string | IMarkdownString = '';
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
-	private _hover: IUpdatableHover | undefined;
+	private _hover: IManagedHover | undefined;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -303,9 +305,23 @@ export class Button extends Disposable implements IButton {
 		return !this._element.classList.contains('disabled');
 	}
 
-	private setTitle(title: string) {
+	set checked(value: boolean) {
+		if (value) {
+			this._element.classList.add('checked');
+			this._element.setAttribute('aria-checked', 'true');
+		} else {
+			this._element.classList.remove('checked');
+			this._element.setAttribute('aria-checked', 'false');
+		}
+	}
+
+	get checked() {
+		return this._element.classList.contains('checked');
+	}
+
+	setTitle(title: string) {
 		if (!this._hover && title !== '') {
-			this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
+			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._element, title));
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
@@ -322,7 +338,7 @@ export class Button extends Disposable implements IButton {
 
 export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly contextMenuProvider: IContextMenuProvider;
-	readonly actions: readonly IAction[];
+	readonly actions: readonly IAction[] | IActionProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly addPrimaryActionToDropdown?: boolean;
 }
@@ -346,6 +362,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.element.classList.add('monaco-button-dropdown');
 		container.appendChild(this.element);
 
+		if (!options.hoverDelegate) {
+			options = { ...options, hoverDelegate: this._register(createInstantHoverDelegate()) };
+		}
+
 		this.button = this._register(new Button(this.element, options));
 		this._register(this.button.onDidClick(e => this._onDidClick.fire(e)));
 		this.action = this._register(new Action('primaryAction', renderStringAsPlaintext(this.button.label), undefined, true, async () => this._onDidClick.fire(undefined)));
@@ -368,16 +388,16 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.separatorContainer.style.backgroundColor = buttonBackground ?? '';
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
-		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
+		this.dropdownButton = this._register(new Button(this.element, { ...options, title: localize("button dropdown more actions", 'More Actions...'), supportIcons: true }));
 		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
 		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
+			const actions = Array.isArray(options.actions) ? options.actions : (options.actions as IActionProvider).getActions();
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
-				getActions: () => options.addPrimaryActionToDropdown === false ? [...options.actions] : [this.action, ...options.actions],
+				getActions: () => options.addPrimaryActionToDropdown === false ? [...actions] : [this.action, ...actions],
 				actionRunner: options.actionRunner,
 				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
 			});
@@ -408,6 +428,14 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 
 	get enabled(): boolean {
 		return this.button.enabled;
+	}
+
+	set checked(value: boolean) {
+		this.button.checked = value;
+	}
+
+	get checked() {
+		return this.button.checked;
 	}
 
 	focus(): void {
@@ -458,6 +486,14 @@ export class ButtonWithDescription implements IButtonWithDescription {
 
 	set enabled(enabled: boolean) {
 		this._button.enabled = enabled;
+	}
+
+	set checked(value: boolean) {
+		this._button.checked = value;
+	}
+
+	get checked(): boolean {
+		return this._button.checked;
 	}
 
 	focus(): void {
