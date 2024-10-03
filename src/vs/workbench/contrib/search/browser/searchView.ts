@@ -1008,7 +1008,7 @@ export class SearchView extends ViewPane {
 		const navigator = viewer.navigate();
 		let node = navigator.first();
 		do {
-			if (node && !viewer.isCollapsed(node) && (this.viewModel.hasAIResults || node.id() !== AI_TEXT_SEARCH_RESULT_ID)) {
+			if (node && !viewer.isCollapsed(node) && (this.shouldShowAIResults() && !(node instanceof TextSearchResult))) {
 				// ignore the ai text search result id
 				return true;
 			}
