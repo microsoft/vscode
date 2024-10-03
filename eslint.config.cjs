@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-//@ts-check
 const fs = require('fs');
 const path = require('path');
 const tseslint = require('typescript-eslint');
@@ -16,61 +15,11 @@ const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 	.filter(line => line && !line.startsWith('#'));
 
 module.exports = tseslint.config(
+	// Global ignores
 	{
-		// Global ignores
 		ignores,
 	},
-	{
-		files: [
-			'**/*.ts',
-		],
-		languageOptions: {
-			parser: tseslint.parser,
-		},
-		plugins: {
-			'@stylistic/ts': require('@stylistic/eslint-plugin-ts'),
-			'@typescript-eslint': tseslint.plugin,
-			'local': require('eslint-plugin-local'),
-			'jsdoc': require('eslint-plugin-jsdoc'),
-		},
-		rules: {
-			'@stylistic/ts/semi': 'warn',
-			'@stylistic/ts/member-delimiter-style': 'warn',
-			'local/code-no-unused-expressions': [
-				'warn',
-				{
-					'allowTernary': true
-				}
-			],
-			'jsdoc/no-types': 'warn',
-			'local/code-no-static-self-ref': 'warn'
-		}
-	},
-	{
-		files: [
-			'src/**/*.ts',
-		],
-		languageOptions: {
-			parser: tseslint.parser,
-			parserOptions: {
-				project: path.join(__dirname, 'src', 'tsconfig.json'),
-			}
-		},
-		plugins: {
-			'@typescript-eslint': tseslint.plugin,
-		},
-		rules: {
-			'@typescript-eslint/naming-convention': [
-				'warn',
-				{
-					'selector': 'class',
-					'format': [
-						'PascalCase'
-					]
-				}
-			]
-		}
-	},
+	// All files (JS and TS)
 	{
 		languageOptions: {
 			parser: tseslint.parser,
@@ -166,6 +115,60 @@ module.exports = tseslint.config(
 			]
 		},
 	},
+	// TS specific rules
+	{
+		files: [
+			'**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@stylistic/ts': require('@stylistic/eslint-plugin-ts'),
+			'@typescript-eslint': tseslint.plugin,
+			'local': require('eslint-plugin-local'),
+			'jsdoc': require('eslint-plugin-jsdoc'),
+		},
+		rules: {
+			'@stylistic/ts/semi': 'warn',
+			'@stylistic/ts/member-delimiter-style': 'warn',
+			'local/code-no-unused-expressions': [
+				'warn',
+				{
+					'allowTernary': true
+				}
+			],
+			'jsdoc/no-types': 'warn',
+			'local/code-no-static-self-ref': 'warn'
+		}
+	},
+	// vscode TS specific rules
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+			parserOptions: {
+				project: path.join(__dirname, 'src', 'tsconfig.json'),
+			}
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'@typescript-eslint/naming-convention': [
+				'warn',
+				{
+					'selector': 'class',
+					'format': [
+						'PascalCase'
+					]
+				}
+			]
+		}
+	},
+	// Test specific rules
 	{
 		files: [
 			'**/*.test.ts'
@@ -195,6 +198,7 @@ module.exports = tseslint.config(
 			]
 		}
 	},
+	// vscode tests specific rules
 	{
 		files: [
 			'src/vs/**/*.test.ts'
@@ -235,6 +239,7 @@ module.exports = tseslint.config(
 			]
 		}
 	},
+	// vscode API
 	{
 		files: [
 			'**/vscode.d.ts',
@@ -313,6 +318,7 @@ module.exports = tseslint.config(
 			]
 		}
 	},
+	// vscode.d.ts
 	{
 		files: [
 			'**/vscode.d.ts'
