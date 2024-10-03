@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -47,6 +47,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
+
+	private _targetWindowId: number = -1;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -179,7 +181,12 @@ export class NativeEditContext extends AbstractEditContext {
 	// TODO: added as a workaround fix for https://github.com/microsoft/vscode/issues/229825
 	// When this issue will be fixed the following should be removed.
 	public setEditContextOnDomNode(): void {
-		this.domNode.domNode.editContext = this._editContext;
+		const targetWindow = getWindow(this.domNode.domNode);
+		const targetWindowId = getWindowId(targetWindow);
+		if (this._targetWindowId !== targetWindowId) {
+			this.domNode.domNode.editContext = this._editContext;
+			this._targetWindowId = targetWindowId;
+		}
 	}
 
 	// --- Private methods ---
