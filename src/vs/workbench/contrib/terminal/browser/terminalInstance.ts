@@ -914,7 +914,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this.xterm?.refresh();
 
-		setTimeout(() => this._initDragAndDrop(container));
+		setTimeout(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._initDragAndDrop(container);
+		}, 0);
 	}
 
 	/**
