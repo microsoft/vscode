@@ -676,13 +676,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const fontFamily = this._generateFontFamily();
 
-		// styleSheets.push(`
-		// .notebook-editor {
-		// 	--notebook-cell-output-font-size: ${outputFontSize}px;
-		// 	--notebook-cell-input-preview-font-size: ${fontSize}px;
-		// 	--notebook-cell-input-preview-font-family: ${fontFamily};
-		// }
-		// `);
+		styleSheets.push(`
+		.notebook-editor {
+			--notebook-cell-output-font-size: ${outputFontSize}px;
+			--notebook-cell-input-preview-font-size: ${fontSize}px;
+			--notebook-cell-input-preview-font-family: ${fontFamily};
+		}
+		`);
 
 		if (compactView) {
 			styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row div.cell.code { margin-left: ${getCellEditorContainerLeftMargin}px; }`);
