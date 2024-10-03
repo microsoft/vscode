@@ -212,6 +212,7 @@ class WordHighlighter {
 
 	private readonly textModelService: ITextModelService;
 	private readonly codeEditorService: ICodeEditorService;
+	private readonly configurationService: IConfigurationService;
 
 	private occurrencesHighlightEnablement: string;
 	private occurrencesHighlightDelay: number;
@@ -220,8 +221,6 @@ class WordHighlighter {
 	private workerRequest: IOccurenceAtPositionRequest | null;
 	private workerRequestCompleted: boolean = false;
 	private workerRequestValue: ResourceMap<DocumentHighlight[]> = new ResourceMap();
-
-	private prevCursorLine: number;
 
 	private lastCursorPositionChangeTime: number = 0;
 	private renderDecorationsTimer: any = -1;
@@ -241,7 +240,7 @@ class WordHighlighter {
 		contextKeyService: IContextKeyService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		this.editor = editor;
 		this.providers = providers;
@@ -249,11 +248,12 @@ class WordHighlighter {
 
 		this.codeEditorService = codeEditorService;
 		this.textModelService = textModelService;
+		this.configurationService = configurationService;
 
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlightEnablement = this.editor.getOption(EditorOption.occurrencesHighlight);
-		this.occurrencesHighlightDelay = this.configurationService.getValue<number>('editor.experimental.occurrencesHighlightDelay');
+		this.occurrencesHighlightDelay = this.configurationService.getValue<number>('editor.occurrencesHighlightDelay');
 		this.model = this.editor.getModel();
 
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
@@ -268,21 +268,7 @@ class WordHighlighter {
 				return;
 			}
 
-			if (this.occurrencesHighlightDelay !== 250) {
-				if (e.source === 'mouse') {
-					this._onPositionChanged(e);
-				} else if (e.source === 'keyboard') {
-					if (e.position.lineNumber !== this.prevCursorLine) { // prevents running semantic requests as you hold up/down arrows
-						this.prevCursorLine = e.position.lineNumber;
-						this.runDelayer.trigger(() => { this._onPositionChanged(e); });
-					} else {
-						this._onPositionChanged(e);
-					}
-				}
-			} else {
-				this.runDelayer.trigger(() => { this._onPositionChanged(e); });
-			}
-
+			this.runDelayer.trigger(() => { this._onPositionChanged(e); });
 		}));
 		this.toUnhook.add(editor.onDidFocusEditorText((e) => {
 			if (this.occurrencesHighlightEnablement === 'off') {
@@ -329,8 +315,8 @@ class WordHighlighter {
 			}
 		}));
 		this.toUnhook.add(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectsConfiguration('editor.experimental.occurrencesHighlightDelay')) {
-				const newDelay = configurationService.getValue<number>('editor.experimental.occurrencesHighlightDelay');
+			if (e.affectsConfiguration('editor.occurrencesHighlightDelay')) {
+				const newDelay = configurationService.getValue<number>('editor.occurrencesHighlightDelay');
 				if (this.occurrencesHighlightDelay !== newDelay) {
 					this.occurrencesHighlightDelay = newDelay;
 				}
@@ -357,8 +343,6 @@ class WordHighlighter {
 
 		this.lastCursorPositionChangeTime = 0;
 		this.renderDecorationsTimer = -1;
-
-		this.prevCursorLine = -1;
 
 		// if there is a query already, highlight off that query
 		if (WordHighlighter.query) {

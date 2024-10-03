@@ -3623,6 +3623,7 @@ declare namespace monaco.editor {
 		 * Controls delay for occurrences highlighting
 		 * Defaults to 250.
 		 * Minimum value is 0
+		 * Maximum value is 2000
 		 */
 		occurrencesHighlightDelay?: number;
 		/**
