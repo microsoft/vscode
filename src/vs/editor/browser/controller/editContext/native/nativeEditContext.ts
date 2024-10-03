@@ -27,6 +27,8 @@ import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { CharacterBoundsUpdateEvent, IEditContext, TextFormatUpdateEvent, TextUpdateEvent } from './editContext.js';
+import { EditContext } from './editContextFactory.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -38,7 +40,7 @@ enum CompositionClassName {
 export class NativeEditContext extends AbstractEditContext {
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
-	private readonly _editContext: EditContext;
+	private readonly _editContext: IEditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 
 	// Overflow guard container
@@ -77,7 +79,8 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
-		this._editContext = new EditContext();
+		const window = getWindow(this.domNode.domNode);
+		this._editContext = EditContext.create(window);
 		this.setEditContextOnDomNode();
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
