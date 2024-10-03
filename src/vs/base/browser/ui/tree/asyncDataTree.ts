@@ -1044,7 +1044,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			await Event.toPromise(this._onDidRender.event);
 		}
 
-		if (node !== this.root && !node.refreshPromise && !this.tree.isCollapsed(node)) {
+		if (node !== this.root && !node.refreshPromise && !recursive && !this.tree.isCollapsed(node)) {
 			return false;
 		}
 
