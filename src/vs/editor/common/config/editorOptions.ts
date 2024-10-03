@@ -574,6 +574,12 @@ export interface IEditorOptions {
 	 */
 	occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 	/**
+	 * Controls delay for occurrences highlighting
+	 * Defaults to 250.
+	 * Minimum value is 0
+	 */
+	occurrencesHighlightDelay?: number;
+	/**
 	 * Show code lens
 	 * Defaults to true.
 	 */
@@ -5436,6 +5442,7 @@ export const enum EditorOption {
 	multiCursorPaste,
 	multiCursorLimit,
 	occurrencesHighlight,
+	occurrencesHighlightDelay,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -5968,6 +5975,14 @@ export const EditorOptions = {
 				nls.localize('occurrencesHighlight.multiFile', "Experimental: Highlights occurrences across all valid open files.")
 			],
 			markdownDescription: nls.localize('occurrencesHighlight', "Controls whether occurrences should be highlighted across open files.")
+		}
+	)),
+	occurrencesHighlightDelay: register(new EditorIntOption(
+		EditorOption.occurrencesHighlightDelay, 'occurrencesHighlightDelay',
+		250, 0, 2000,
+		{
+			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
+			tags: ['experimental']
 		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(

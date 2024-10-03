@@ -14,6 +14,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { matchesScheme, Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -212,12 +213,15 @@ class WordHighlighter {
 	private readonly textModelService: ITextModelService;
 	private readonly codeEditorService: ICodeEditorService;
 
-	private occurrencesHighlight: string;
+	private occurrencesHighlightEnablement: string;
+	private occurrencesHighlightDelay: number;
 
 	private workerRequestTokenId: number = 0;
 	private workerRequest: IOccurenceAtPositionRequest | null;
 	private workerRequestCompleted: boolean = false;
 	private workerRequestValue: ResourceMap<DocumentHighlight[]> = new ResourceMap();
+
+	private prevCursorLine: number;
 
 	private lastCursorPositionChangeTime: number = 0;
 	private renderDecorationsTimer: any = -1;
@@ -225,7 +229,7 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	private readonly runDelayer: Delayer<void> = this.toUnhook.add(new Delayer<void>(25));
+	private readonly runDelayer: Delayer<void> = this.toUnhook.add(new Delayer<void>(50));
 
 	private static storedDecorationIDs: ResourceMap<string[]> = new ResourceMap();
 	private static query: IWordHighlighterQuery | null = null;
@@ -237,6 +241,7 @@ class WordHighlighter {
 		contextKeyService: IContextKeyService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.editor = editor;
 		this.providers = providers;
@@ -247,7 +252,8 @@ class WordHighlighter {
 
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
-		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
+		this.occurrencesHighlightEnablement = this.editor.getOption(EditorOption.occurrencesHighlight);
+		this.occurrencesHighlightDelay = this.configurationService.getValue<number>('editor.experimental.occurrencesHighlightDelay');
 		this.model = this.editor.getModel();
 
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
@@ -256,16 +262,30 @@ class WordHighlighter {
 				return;
 			}
 
-			if (this.occurrencesHighlight === 'off') {
+			if (this.occurrencesHighlightEnablement === 'off') {
 				// Early exit if nothing needs to be done!
 				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
 				return;
 			}
 
-			this.runDelayer.trigger(() => { this._onPositionChanged(e); });
+			if (this.occurrencesHighlightDelay !== 250) {
+				if (e.source === 'mouse') {
+					this._onPositionChanged(e);
+				} else if (e.source === 'keyboard') {
+					if (e.position.lineNumber !== this.prevCursorLine) { // prevents running semantic requests as you hold up/down arrows
+						this.prevCursorLine = e.position.lineNumber;
+						this.runDelayer.trigger(() => { this._onPositionChanged(e); });
+					} else {
+						this._onPositionChanged(e);
+					}
+				}
+			} else {
+				this.runDelayer.trigger(() => { this._onPositionChanged(e); });
+			}
+
 		}));
 		this.toUnhook.add(editor.onDidFocusEditorText((e) => {
-			if (this.occurrencesHighlight === 'off') {
+			if (this.occurrencesHighlightEnablement === 'off') {
 				// Early exit if nothing needs to be done
 				return;
 			}
@@ -287,10 +307,10 @@ class WordHighlighter {
 			}
 		}));
 		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
-			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
-			if (this.occurrencesHighlight !== newValue) {
-				this.occurrencesHighlight = newValue;
-				switch (newValue) {
+			const newEnablement = this.editor.getOption(EditorOption.occurrencesHighlight);
+			if (this.occurrencesHighlightEnablement !== newEnablement) {
+				this.occurrencesHighlightEnablement = newEnablement;
+				switch (newEnablement) {
 					case 'off':
 						this._stopAll();
 						break;
@@ -303,8 +323,16 @@ class WordHighlighter {
 						}
 						break;
 					default:
-						console.warn('Unknown occurrencesHighlight setting value:', newValue);
+						console.warn('Unknown occurrencesHighlight setting value:', newEnablement);
 						break;
+				}
+			}
+		}));
+		this.toUnhook.add(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.experimental.occurrencesHighlightDelay')) {
+				const newDelay = configurationService.getValue<number>('editor.experimental.occurrencesHighlightDelay');
+				if (this.occurrencesHighlightDelay !== newDelay) {
+					this.occurrencesHighlightDelay = newDelay;
 				}
 			}
 		}));
@@ -330,6 +358,8 @@ class WordHighlighter {
 		this.lastCursorPositionChangeTime = 0;
 		this.renderDecorationsTimer = -1;
 
+		this.prevCursorLine = -1;
+
 		// if there is a query already, highlight off that query
 		if (WordHighlighter.query) {
 			this._run();
@@ -341,7 +371,7 @@ class WordHighlighter {
 	}
 
 	public restore(): void {
-		if (this.occurrencesHighlight === 'off') {
+		if (this.occurrencesHighlightEnablement === 'off') {
 			return;
 		}
 
@@ -355,7 +385,7 @@ class WordHighlighter {
 	}
 
 	public stop(): void {
-		if (this.occurrencesHighlight === 'off') {
+		if (this.occurrencesHighlightEnablement === 'off') {
 			return;
 		}
 
@@ -523,7 +553,7 @@ class WordHighlighter {
 	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
 
 		// disabled
-		if (this.occurrencesHighlight === 'off') {
+		if (this.occurrencesHighlightEnablement === 'off') {
 			this._stopAll();
 			return;
 		}
@@ -596,7 +626,7 @@ class WordHighlighter {
 		}
 
 		// multi-doc OFF
-		if (this.occurrencesHighlight === 'singleFile') {
+		if (this.occurrencesHighlightEnablement === 'singleFile') {
 			return [];
 		}
 
@@ -732,7 +762,7 @@ class WordHighlighter {
 
 	private _beginRenderDecorations(noDelay?: boolean): void {
 		const currentTime = (new Date()).getTime();
-		const minimumRenderTime = this.lastCursorPositionChangeTime + (noDelay ? 0 : 250);
+		const minimumRenderTime = this.lastCursorPositionChangeTime + (noDelay ? 0 : this.occurrencesHighlightDelay);
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
@@ -814,12 +844,13 @@ export class WordHighlighterContribution extends Disposable implements IEditorCo
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ITextModelService textModelService: ITextModelService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 		this._wordHighlighter = null;
 		const createWordHighlighterIfPossible = () => {
 			if (editor.hasModel() && !editor.getModel().isTooLargeForTokenization()) {
-				this._wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, languageFeaturesService.multiDocumentHighlightProvider, contextKeyService, textModelService, codeEditorService);
+				this._wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, languageFeaturesService.multiDocumentHighlightProvider, contextKeyService, textModelService, codeEditorService, configurationService);
 			}
 		};
 		this._register(editor.onDidChangeModel((e) => {
