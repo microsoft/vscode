@@ -308,6 +308,27 @@ suite('Event', function () {
 		assert.strictEqual(lastCount, 1);
 	});
 
+	test('onDidAddListener', () => {
+		let count = 0;
+		const a = ds.add(new Emitter({
+			onDidAddListener() { count += 1; }
+		}));
+
+		assert.strictEqual(count, 0);
+
+		let subscription = ds.add(a.event(function () { }));
+		assert.strictEqual(count, 1);
+
+		subscription.dispose();
+		assert.strictEqual(count, 1);
+
+		subscription = ds.add(a.event(function () { }));
+		assert.strictEqual(count, 2);
+
+		subscription.dispose();
+		assert.strictEqual(count, 2);
+	});
+
 	test('onWillRemoveListener', () => {
 		let count = 0;
 		const a = ds.add(new Emitter({
