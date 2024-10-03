@@ -337,7 +337,7 @@ export class SwcTranspiler implements ITranspiler {
 			if (isAmd) {
 				options = SwcTranspiler._swcrcAmd;
 			}
-		} else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS) {
+		} else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS || this._cmdLine.options.module === ts.ModuleKind.Node16) {
 			options = SwcTranspiler._swcrcCommonJS;
 		}
 
