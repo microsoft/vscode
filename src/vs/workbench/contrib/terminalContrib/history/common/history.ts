@@ -83,7 +83,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 	constructor(
 		private readonly _storageDataKey: string,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 
