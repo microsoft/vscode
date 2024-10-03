@@ -299,6 +299,8 @@ export class ESBuildTranspiler implements ITranspiler {
 
 	onOutfile?: ((file: Vinyl) => void) | undefined;
 
+	private readonly _transformOpts: esbuild.TransformOptions;
+
 	constructor(
 		private readonly _logFn: (topic: string, message: string) => void,
 		private readonly _onError: (err: any) => void,
@@ -307,6 +309,29 @@ export class ESBuildTranspiler implements ITranspiler {
 	) {
 		_logFn('Transpile', `will use ESBuild to transpile source files`);
 		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+
+		const isExtension = configFilePath.includes('extensions');
+
+		this._transformOpts = {
+			target: ['es2022'],
+			format: isExtension ? 'cjs' : 'esm',
+			platform: isExtension ? 'node' : undefined,
+			loader: 'ts',
+			sourcemap: 'inline',
+			tsconfigRaw: JSON.stringify({
+				compilerOptions: {
+					...this._cmdLine.options,
+					...{
+						module: isExtension ? ts.ModuleKind.CommonJS : undefined
+					} satisfies ts.CompilerOptions
+				}
+			}),
+			supported: {
+				'class-static-blocks': false, // SEE https://github.com/evanw/esbuild/issues/3823,
+				'dynamic-import': !isExtension, // see https://github.com/evanw/esbuild/issues/1281
+				'class-field': !isExtension
+			}
+		};
 	}
 
 	async join(): Promise<void> {
@@ -321,21 +346,13 @@ export class ESBuildTranspiler implements ITranspiler {
 		}
 		const t1 = Date.now();
 		this._jobs.push(esbuild.transform(file.contents, {
-			target: ['es2022'],
-			format: this._cmdLine.options.module === ts.ModuleKind.CommonJS ? 'cjs' : 'esm',
-			loader: 'ts',
-			sourcemap: 'inline',
-			tsconfigRaw: JSON.stringify({
-				compilerOptions: this._cmdLine.options
-			}),
-			supported: {
-				'class-static-blocks': false // SEE https://github.com/evanw/esbuild/issues/3823
-			}
+			...this._transformOpts,
+			sourcefile: file.path,
 		}).then(result => {
 
 			// check if output of a DTS-files isn't just "empty" and iff so
 			// skip this file
-			if (file.path.endsWith('.d.ts') || _isDefaultEmpty(result.code)) {
+			if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
 				return;
 			}
 

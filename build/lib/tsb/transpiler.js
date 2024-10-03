@@ -232,12 +232,34 @@ class ESBuildTranspiler {
     _outputFileNames;
     _jobs = [];
     onOutfile;
+    _transformOpts;
     constructor(_logFn, _onError, configFilePath, _cmdLine) {
         this._logFn = _logFn;
         this._onError = _onError;
         this._cmdLine = _cmdLine;
         _logFn('Transpile', `will use ESBuild to transpile source files`);
         this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+        const isExtension = configFilePath.includes('extensions');
+        this._transformOpts = {
+            target: ['es2022'],
+            format: isExtension ? 'cjs' : 'esm',
+            platform: isExtension ? 'node' : undefined,
+            loader: 'ts',
+            sourcemap: 'inline',
+            tsconfigRaw: JSON.stringify({
+                compilerOptions: {
+                    ...this._cmdLine.options,
+                    ...{
+                        module: isExtension ? ts.ModuleKind.CommonJS : undefined
+                    }
+                }
+            }),
+            supported: {
+                'class-static-blocks': false, // SEE https://github.com/evanw/esbuild/issues/3823,
+                'dynamic-import': !isExtension, // see https://github.com/evanw/esbuild/issues/1281
+                'class-field': !isExtension
+            }
+        };
     }
     async join() {
         const jobs = this._jobs.slice();
@@ -250,20 +272,12 @@ class ESBuildTranspiler {
         }
         const t1 = Date.now();
         this._jobs.push(esbuild.transform(file.contents, {
-            target: ['es2022'],
-            format: this._cmdLine.options.module === ts.ModuleKind.CommonJS ? 'cjs' : 'esm',
-            loader: 'ts',
-            sourcemap: 'inline',
-            tsconfigRaw: JSON.stringify({
-                compilerOptions: this._cmdLine.options
-            }),
-            supported: {
-                'class-static-blocks': false // SEE https://github.com/evanw/esbuild/issues/3823
-            }
+            ...this._transformOpts,
+            sourcefile: file.path,
         }).then(result => {
             // check if output of a DTS-files isn't just "empty" and iff so
             // skip this file
-            if (file.path.endsWith('.d.ts') || _isDefaultEmpty(result.code)) {
+            if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
                 return;
             }
             const outBase = this._cmdLine.options.outDir ?? file.base;
