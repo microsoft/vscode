@@ -50,7 +50,7 @@ export class PagedScreenReaderStrategy {
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean, useLineFeed: boolean): ScreenReaderContentState {
+	public static fromEditorSelection(model: ISimpleModel, selection: Range, linesPerPage: number, trimLongText: boolean): ScreenReaderContentState {
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
 		const LIMIT_CHARS = 500;
@@ -62,34 +62,33 @@ export class PagedScreenReaderStrategy {
 		const selectionEndPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionEndPage, linesPerPage);
 
 		let pretextRange = selectionStartPageRange.intersectRanges(new Range(1, 1, selection.startLineNumber, selection.startColumn))!;
-		const endOfLinePreference = useLineFeed ? EndOfLinePreference.LF : EndOfLinePreference.TextDefined;
-		if (trimLongText && model.getValueLengthInRange(pretextRange, endOfLinePreference) > LIMIT_CHARS) {
+		if (trimLongText && model.getValueLengthInRange(pretextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
 			const pretextStart = model.modifyPosition(pretextRange.getEndPosition(), -LIMIT_CHARS);
 			pretextRange = Range.fromPositions(pretextStart, pretextRange.getEndPosition());
 		}
-		const pretext = model.getValueInRange(pretextRange, endOfLinePreference);
+		const pretext = model.getValueInRange(pretextRange, EndOfLinePreference.LF);
 
 		const lastLine = model.getLineCount();
 		const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 		let posttextRange = selectionEndPageRange.intersectRanges(new Range(selection.endLineNumber, selection.endColumn, lastLine, lastLineMaxColumn))!;
-		if (trimLongText && model.getValueLengthInRange(posttextRange, endOfLinePreference) > LIMIT_CHARS) {
+		if (trimLongText && model.getValueLengthInRange(posttextRange, EndOfLinePreference.LF) > LIMIT_CHARS) {
 			const posttextEnd = model.modifyPosition(posttextRange.getStartPosition(), LIMIT_CHARS);
 			posttextRange = Range.fromPositions(posttextRange.getStartPosition(), posttextEnd);
 		}
-		const posttext = model.getValueInRange(posttextRange, endOfLinePreference);
+		const posttext = model.getValueInRange(posttextRange, EndOfLinePreference.LF);
 
 
 		let text: string;
 		if (selectionStartPage === selectionEndPage || selectionStartPage + 1 === selectionEndPage) {
 			// take full selection
-			text = model.getValueInRange(selection, endOfLinePreference);
+			text = model.getValueInRange(selection, EndOfLinePreference.LF);
 		} else {
 			const selectionRange1 = selectionStartPageRange.intersectRanges(selection)!;
 			const selectionRange2 = selectionEndPageRange.intersectRanges(selection)!;
 			text = (
-				model.getValueInRange(selectionRange1, endOfLinePreference)
+				model.getValueInRange(selectionRange1, EndOfLinePreference.LF)
 				+ String.fromCharCode(8230)
-				+ model.getValueInRange(selectionRange2, endOfLinePreference)
+				+ model.getValueInRange(selectionRange2, EndOfLinePreference.LF)
 			);
 		}
 		if (trimLongText && text.length > 2 * LIMIT_CHARS) {

@@ -984,7 +984,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const inputPartHeight = this.inputPart.inputPartHeight;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 
-		const listHeight = height - inputPartHeight;
+		const listHeight = Math.max(0, height - inputPartHeight);
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
@@ -998,7 +998,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			revealLastElement(this.tree);
 		}
 
-		this.listContainer.style.height = `${height - inputPartHeight}px`;
+		this.listContainer.style.height = `${listHeight}px`;
 
 		this._onDidChangeHeight.fire(height);
 	}

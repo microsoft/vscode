@@ -566,12 +566,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-actions-group {
 	display: flex;
 	flex-direction: row;
+	flex-wrap: wrap;
 	gap: 6px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close {
-	width: 22px;
-	height: 22px;
+	width: 17px;
+	height: 17px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -598,6 +599,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button,
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
+	overflow: hidden;
+	text-wrap: nowrap;
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
