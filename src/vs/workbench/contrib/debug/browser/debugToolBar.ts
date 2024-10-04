@@ -5,14 +5,19 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { ActionBar, ActionsOrientation, IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { Action, IAction, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
 import * as arrays from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import * as errors from '../../../../base/common/errors.js';
 import { DisposableStore, dispose, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Platform, platform } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/debugToolBar.css';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
 import { ICommandAction, ICommandActionTitle } from '../../../../platform/action/common/action.js';
@@ -27,21 +32,15 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { TitleBarSetting } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
+import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from '../common/debug.js';
 import { FocusSessionActionViewItem } from './debugActionViewItems.js';
 import { debugToolBarBackground, debugToolBarBorder } from './debugColors.js';
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from './debugCommands.js';
 import * as icons from './debugIcons.js';
-import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from '../common/debug.js';
-import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
-import { clamp } from '../../../../base/common/numbers.js';
-import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
-import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Platform, platform } from '../../../../base/common/platform.js';
-import { TitleBarSetting } from '../../../../platform/window/common/window.js';
+import './media/debugToolBar.css';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -64,9 +63,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 	private readonly trackPixelRatioListener = this._register(new MutableDisposable());
 
-	/** Note: changes to this setting require a restarts, so no need to listen to it. */
-	private readonly customTitleBar = this.configurationService.getValue(TitleBarSetting.TITLE_BAR_STYLE) === 'custom';
-
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -82,7 +78,23 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super(themeService);
 
 		this.$el = dom.$('div.debug-toolbar');
-		this.$el.style.top = `${layoutService.mainContainerOffset.top}px`;
+
+		// Note: changes to this setting require a restart, so no need to listen to it.
+		const customTitleBar = this.configurationService.getValue(TitleBarSetting.TITLE_BAR_STYLE) === 'custom';
+
+		// Do not allow the widget to overflow or underflow window controls.
+		// Use CSS calculations to avoid having to force layout with `.clientWidth`
+		const controlsOnLeft = customTitleBar && platform === Platform.Mac;
+		const controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
+		this.$el.style.transform = `translate(
+			min(
+				max(${controlsOnLeft ? '60px' : '0px'}, calc(-50% + var(--x-position))),
+				calc(100vw - 100% - ${controlsOnRight ? '100px' : '0px'})
+			),
+			var(--y-position)
+		)`;
+
+
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 
@@ -163,22 +175,27 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
-				const widgetWidth = this.$el.clientWidth;
-				this.setCoordinates(0.5 * activeWindow.innerWidth - 0.5 * widgetWidth, this.yDefault);
+				this.setCoordinates(0.5 * activeWindow.innerWidth, this.yDefault);
 				this.storePosition();
 			}
 		}));
 
-		this._register(dom.addDisposableGenericMouseDownListener(this.dragArea, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseDownListener(this.dragArea, (e: MouseEvent) => {
 			this.dragArea.classList.add('dragged');
 			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
+			const originEvent = new StandardMouseEvent(activeWindow, e);
+
+			const originX = this.getCurrentXPosition();
+			const originY = this.getCurrentYPosition();
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
-				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - 14);
+				this.setCoordinates(
+					originX + mouseMoveEvent.posx - originEvent.posx,
+					originY + mouseMoveEvent.posy - originEvent.posy,
+				);
 			});
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
@@ -193,17 +210,14 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.setCoordinates()));
 
 		const resizeListener = this._register(new MutableDisposable());
-		const nextFrameScheduler = this._register(new RunOnceScheduler(() => {
-			const thisWindow = dom.getWindow(this.layoutService.activeContainer);
-			this.setCoordinates(this.getCurrentXPercent() * thisWindow.innerWidth);
-		}, 30));
-
 		const registerResizeListener = () => {
 			const thisWindow = dom.getWindow(this.layoutService.activeContainer);
 			resizeListener.value = this._register(dom.addDisposableListener(
 				thisWindow,
 				dom.EventType.RESIZE,
-				() => nextFrameScheduler.schedule(),
+				// This looks like a no-op, but `getStoredXPosition` retrieves the
+				// position based on the current window size, so it repositions the toolbar
+				() => this.setCoordinates(),
 			));
 		};
 
@@ -224,13 +238,20 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		registerResizeListener();
 	}
 
+	private getCurrentXPosition(): number {
+		return parseInt(this.$el.style.getPropertyValue('--x-position'));
+	}
+
+	private getCurrentYPosition(): number {
+		return parseInt(this.$el.style.getPropertyValue('--y-position'));
+	}
+
 	private storePosition(): void {
 		const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
 
-		const rect = this.$el.getBoundingClientRect();
-		const y = rect.top;
-		const x = rect.left / activeWindow.innerWidth;
+		const x = this.getCurrentXPosition() / activeWindow.innerWidth;
+		const y = this.getCurrentYPosition();
 		if (isMainWindow) {
 			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, x, StorageScope.PROFILE, StorageTarget.MACHINE);
 			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, y, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -260,16 +281,24 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private getCurrentXPercent() {
+	/** Gets the stored X position of the middle of the toolbar based on the current window width */
+	private getStoredXPosition() {
 		const currentWindow = dom.getWindow(this.layoutService.activeContainer);
 		const isMainWindow = currentWindow === mainWindow;
-		const positionPercentage = isMainWindow
+		const storedPercentage = isMainWindow
 			? Number(this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE))
 			: this.auxWindowCoordinates.get(currentWindow)?.x;
+		const percentage = storedPercentage !== undefined && !isNaN(storedPercentage) ? storedPercentage : 0.5;
+		return percentage * currentWindow.innerWidth;
+	}
 
-		return positionPercentage !== undefined && !isNaN(positionPercentage)
-			? positionPercentage
-			: 0.5 - (this.$el.clientWidth / currentWindow.innerWidth / 2);
+	private getStoredYPosition() {
+		const currentWindow = dom.getWindow(this.layoutService.activeContainer);
+		const isMainWindow = currentWindow === mainWindow;
+		const storedY = isMainWindow
+			? this.storageService.getNumber(DEBUG_TOOLBAR_Y_KEY, StorageScope.PROFILE)
+			: this.auxWindowCoordinates.get(currentWindow)?.y;
+		return storedY ?? this.yDefault;
 	}
 
 	private setCoordinates(x?: number, y?: number): void {
@@ -277,33 +306,13 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			return;
 		}
 
-		const widgetWidth = this.$el.clientWidth;
-		const currentWindow = dom.getWindow(this.layoutService.activeContainer);
-		const isMainWindow = currentWindow === mainWindow;
+		x ??= this.getStoredXPosition();
+		y ??= this.getStoredYPosition();
 
-		if (x === undefined) {
-			x = this.getCurrentXPercent() * currentWindow.innerWidth;
-		}
-
-		// Do not allow the widget to overflow or underflow window controls.
-		const controlsOnLeft = this.customTitleBar && platform === Platform.Mac;
-		const controlsOnRight = this.customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
-		x = clamp(x, controlsOnLeft ? 60 : 0, currentWindow.innerWidth - widgetWidth - (controlsOnRight ? 100 : 0));
-		this.$el.style.left = `${x}px`;
-
-		if (y === undefined) {
-			y = isMainWindow
-				? this.storageService.getNumber(DEBUG_TOOLBAR_Y_KEY, StorageScope.PROFILE)
-				: this.auxWindowCoordinates.get(currentWindow)?.y;
-		}
-
-		this.setYCoordinate(y ?? this.yDefault);
-	}
-
-	private setYCoordinate(y: number): void {
 		const [yMin, yMax] = this.yRange;
 		y = Math.max(yMin, Math.min(y, yMax));
-		this.$el.style.top = `${y}px`;
+		this.$el.style.setProperty('--x-position', `${x}px`);
+		this.$el.style.setProperty('--y-position', `${y}px`);
 	}
 
 	private get yDefault() {
