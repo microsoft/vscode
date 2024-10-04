@@ -100,7 +100,7 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
-			if (e.inputType === 'insertParagraph') {
+			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
@@ -245,6 +245,7 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _onType(viewController: ViewController, typeInput: ITypeData): void {
+		console.log('typeInput : ', typeInput);
 		if (typeInput.replacePrevCharCnt || typeInput.replaceNextCharCnt || typeInput.positionDelta) {
 			viewController.compositionType(typeInput.text, typeInput.replacePrevCharCnt, typeInput.replaceNextCharCnt, typeInput.positionDelta);
 		} else {
