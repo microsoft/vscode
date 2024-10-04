@@ -210,7 +210,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			this._removeAccountPreference(extensionId, providerId, scopes);
 		}
 
-		const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, sessions);
+		const matchingAccountPreferenceSession = this._getAccountPreference(extensionId, providerId, scopes, sessions)
+			// If account was specified, grab the first session since all sessions will be using that account (will be undefined if there are no sessions)
+			?? options.account
+			? sessions[0]
+			: undefined;
 
 		// Check if the sessions we have are valid
 		if (!options.forceNewSession && sessions.length) {
@@ -262,7 +266,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		// For the silent flows, if we have a session but we don't have a session preference, we'll return the first one that is valid.
-		if (!matchingAccountPreferenceSession) {
+		if (!matchingAccountPreferenceSession && !this.authenticationExtensionsService.getAccountPreference(extensionId, providerId)) {
 			const validSession = sessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
 			if (validSession) {
 				return validSession;

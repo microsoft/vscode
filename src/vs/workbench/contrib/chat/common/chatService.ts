@@ -20,6 +20,7 @@ import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ICh
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolConfirmationMessages } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -97,6 +98,7 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
+	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
@@ -191,6 +193,27 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatToolInvocation {
+	/** Presence of this property says that confirmation is required */
+	confirmationMessages?: IToolConfirmationMessages;
+	confirmed: DeferredPromise<boolean>;
+	/** A 3-way: undefined=don't know yet. */
+	isConfirmed: boolean | undefined;
+	invocationMessage: string;
+
+	complete(): void;
+	kind: 'toolInvocation';
+}
+
+/**
+ * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
+ */
+export interface IChatToolInvocationSerialized {
+	invocationMessage: string;
+	isConfirmed: boolean;
+	kind: 'toolInvocationSerialized';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -208,7 +231,9 @@ export type IChatProgress =
 	| IChatTextEdit
 	| IChatMoveMessage
 	| IChatResponseCodeblockUriPart
-	| IChatConfirmation;
+	| IChatConfirmation
+	| IChatToolInvocation
+	| IChatToolInvocationSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';

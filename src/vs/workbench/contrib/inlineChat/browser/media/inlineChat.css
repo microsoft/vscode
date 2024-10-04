@@ -73,6 +73,10 @@
 	display: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .chat-footer-toolbar {
+	display: none;
+}
+
 
 /* status */
 

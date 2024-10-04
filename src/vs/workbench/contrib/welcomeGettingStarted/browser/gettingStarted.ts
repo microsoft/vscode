@@ -902,7 +902,7 @@ export class GettingStartedPage extends EditorPane {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
-					this.setSlide('details');
+					this.setSlide('details', true /* firstLaunch */);
 					return;
 				}
 			}
@@ -1542,7 +1542,7 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private setSlide(toEnable: 'details' | 'categories') {
+	private setSlide(toEnable: 'details' | 'categories', firstLaunch: boolean = false) {
 		const slideManager = assertIsDefined(this.container.querySelector('.gettingStarted'));
 		if (toEnable === 'categories') {
 			slideManager.classList.remove('showDetails');
@@ -1554,8 +1554,12 @@ export class GettingStartedPage extends EditorPane {
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
-			const showGoBackButton = this.editorInput.showWelcome || this.prevWalkthrough;
-			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = showGoBackButton ? 'block' : 'none';
+			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
+			prevButton!.style.display = this.editorInput.showWelcome || this.prevWalkthrough ? 'block' : 'none';
+
+			const moreTextElement = prevButton!.querySelector('.moreText');
+			moreTextElement!.textContent = firstLaunch ? localize('welcome', "Welcome") : localize('goBack', "Go Back");
+
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);

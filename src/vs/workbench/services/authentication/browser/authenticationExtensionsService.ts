@@ -42,12 +42,12 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	readonly onDidChangeAccountPreference = this._onDidAccountPreferenceChange.event;
 
 	private _inheritAuthAccountPreferenceParentToChildren: Record<string, string[]> = this._productService.inheritAuthAccountPreference || {};
-	private _inheritAuthAccountPreferenceChildToParent: { [extensionId: string]: string } = Object.entries(this._inheritAuthAccountPreferenceParentToChildren).reduce((acc, [parent, children]) => {
+	private _inheritAuthAccountPreferenceChildToParent = Object.entries(this._inheritAuthAccountPreferenceParentToChildren).reduce<{ [extensionId: string]: string }>((acc, [parent, children]) => {
 		children.forEach((child: string) => {
 			acc[child] = parent;
 		});
 		return acc;
-	}, {} as { [extensionId: string]: string });
+	}, {});
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,

@@ -8,7 +8,8 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { basename, dirname } from '../../../../base/common/resources.js';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../browser/parts/views/viewPane.js';
-import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
+import { append, $, Dimension, trackFocus, clearNode, isPointerEvent, isActiveElement } from '../../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext } from '../common/scm.js';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from '../../../browser/labels.js';
@@ -949,6 +950,7 @@ export const ContextKeys = {
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
+	SCMHistoryItemCount: new RawContextKey<number>('scmHistoryItemCount', 0),
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
@@ -1743,7 +1745,6 @@ class SCMInputWidget {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
@@ -1832,7 +1833,7 @@ class SCMInputWidget {
 		this.toolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction && this.toolbar.dropdownActions.length > 1) {
-					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, this.toolbar.dropdownAction, this.toolbar.dropdownActions, '', this.contextMenuService, { actionRunner: this.toolbar.actionRunner, hoverDelegate: options.hoverDelegate });
+					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, this.toolbar.dropdownAction, this.toolbar.dropdownActions, '', { actionRunner: this.toolbar.actionRunner, hoverDelegate: options.hoverDelegate });
 				}
 
 				return createActionViewItem(instantiationService, action, options);
@@ -2449,7 +2450,12 @@ export class SCMViewPane extends ViewPane {
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren(repository)));
+			repositoryDisposables.add(autorun(reader => {
+				/** @description action button */
+				repository.provider.actionButton.read(reader);
+				this.updateChildren(repository);
+			}));
+
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
@@ -2835,7 +2841,7 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 			const children: TreeElement[] = [];
 
 			inputOrElement = isSCMRepository(inputOrElement) ? inputOrElement : this.scmViewService.visibleRepositories[0];
-			const actionButton = inputOrElement.provider.actionButton;
+			const actionButton = inputOrElement.provider.actionButton.get();
 			const resourceGroups = inputOrElement.provider.groups;
 
 			// SCM Input
@@ -2994,13 +3000,13 @@ export class SCMActionButton implements IDisposable {
 			});
 		} else {
 			// Button
-			this.button = new Button(this.container, { supportIcons: true, supportShortLabel: !!button.description, title: button.command.tooltip, ...defaultButtonStyles });
+			this.button = new Button(this.container, { supportIcons: true, supportShortLabel: !!button.command.shortTitle, title: button.command.tooltip, ...defaultButtonStyles });
 		}
 
 		this.button.enabled = button.enabled;
 		this.button.label = button.command.title;
-		if (this.button instanceof Button && button.description) {
-			this.button.labelShort = button.description;
+		if (this.button instanceof Button && button.command.shortTitle) {
+			this.button.labelShort = button.command.shortTitle;
 		}
 		this.button.onDidClick(async () => await this.executeCommand(button.command.id, ...(button.command.arguments || [])), null, this.disposables.value);
 

@@ -250,12 +250,6 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		return this._channel.call(RemoteTerminalChannelRequest.FreePortKillProcess, [port]);
 	}
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
-	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
-	}
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call(RemoteTerminalChannelRequest.GetDefaultSystemShell, [osOverride]);
 	}
@@ -318,4 +312,15 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	serializeTerminalState(ids: number[]): Promise<string> {
 		return this._channel.call(RemoteTerminalChannelRequest.SerializeTerminalState, [ids]);
 	}
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
+	}
+	uninstallAllAutoReplies(): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
+	}
+
+	// #endregion
 }

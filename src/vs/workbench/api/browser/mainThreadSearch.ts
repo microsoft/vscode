@@ -110,6 +110,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 	private readonly _registrations = new DisposableStore();
 	private readonly _searches = new Map<number, SearchOperation>();
+	private cachedAIName: string | undefined;
 
 	constructor(
 		searchService: ISearchService,
@@ -119,6 +120,13 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		private readonly _proxy: ExtHostSearchShape
 	) {
 		this._registrations.add(searchService.registerSearchResultProvider(this._scheme, type, this));
+	}
+
+	async getAIName(): Promise<string | undefined> {
+		if (this.cachedAIName === undefined) {
+			this.cachedAIName = await this._proxy.$getAIName(this._handle);
+		}
+		return this.cachedAIName;
 	}
 
 	dispose(): void {

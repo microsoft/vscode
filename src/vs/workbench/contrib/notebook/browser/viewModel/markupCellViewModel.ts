@@ -178,7 +178,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			0 : this.viewContext.notebookOptions.getLayoutConfiguration().markdownFoldHintHeight;
 	}
 
-	updateOptions(e: NotebookOptionsChangeEvent) {
+	override updateOptions(e: NotebookOptionsChangeEvent) {
+		super.updateOptions(e);
 		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
 			this._updateTotalHeight(this._computeTotalHeight());
 		}

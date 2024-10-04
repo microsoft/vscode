@@ -191,7 +191,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
 
 		const env = objects.mixin(processEnv, {
-			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
+			VSCODE_ESM_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: true
 		});
 

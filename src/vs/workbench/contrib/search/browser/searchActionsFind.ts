@@ -99,8 +99,8 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 		});
 	}
 
-	override run(accessor: any) {
-		expandSelectSubtree(accessor);
+	override async run(accessor: any) {
+		return expandSelectSubtree(accessor);
 	}
 });
 
@@ -298,13 +298,13 @@ registerAction2(class FindInWorkspaceAction extends Action2 {
 });
 
 //#region Helpers
-function expandSelectSubtree(accessor: ServicesAccessor) {
+async function expandSelectSubtree(accessor: ServicesAccessor) {
 	const viewsService = accessor.get(IViewsService);
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const viewer = searchView.getControl();
 		const selected = viewer.getFocus()[0];
-		viewer.expand(selected, true);
+		await viewer.expand(selected, true);
 	}
 }
 

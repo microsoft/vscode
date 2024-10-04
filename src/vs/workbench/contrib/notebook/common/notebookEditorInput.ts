@@ -293,7 +293,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 		if (!this.editorModelReference) {
 			const scratchpad = this.capabilities & EditorInputCapabilities.Scratchpad ? true : false;
-			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType, { limits: this.ensureLimits(_options), scratchpad });
+			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType, { limits: this.ensureLimits(_options), scratchpad, viewType: this.editorId });
 			if (this.editorModelReference) {
 				// Re-entrant, double resolve happened. Dispose the addition references and proceed
 				// with the truth.
@@ -356,7 +356,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
-			return this.editorId === otherInput.editorId && isEqual(this.resource, otherInput.resource);
+			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
 		}
 		return false;
 	}
