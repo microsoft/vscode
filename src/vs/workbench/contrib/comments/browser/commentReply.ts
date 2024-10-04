@@ -31,6 +31,7 @@ import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { Position } from '../../../../editor/common/core/position.js';
 
 let INMEM_MODEL_ID = 0;
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
@@ -57,7 +58,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		private _contextKeyService: IContextKeyService,
 		private _commentMenus: CommentMenus,
 		private _commentOptions: languages.CommentOptions | undefined,
-		private _pendingComment: string | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
 		private _parentThread: ICommentThreadWidget,
 		focus: boolean,
 		private _actionRunDelegate: (() => void) | null,
@@ -96,10 +97,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		const model = await this.textModelService.createModelReference(resource);
-		model.object.textEditorModel.setValue(this._pendingComment || '');
+		model.object.textEditorModel.setValue(this._pendingComment?.body || '');
 
 		this._register(model);
 		this.commentEditor.setModel(model.object.textEditorModel);
+		if (this._pendingComment) {
+			this.commentEditor.setPosition(this._pendingComment.cursor);
+		}
 		this.calculateEditorHeight();
 
 		this._register(model.object.textEditorModel.onDidChangeContent(() => {
@@ -157,20 +161,21 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 	}
 
-	public getPendingComment(): string | undefined {
+	public getPendingComment(): languages.PendingComment | undefined {
 		const model = this.commentEditor.getModel();
 
 		if (model && model.getValueLength() > 0) { // checking length is cheap
-			return model.getValue();
+			return { body: model.getValue(), cursor: this.commentEditor.getPosition() ?? new Position(1, 1) };
 		}
 
 		return undefined;
 	}
 
-	public setPendingComment(comment: string) {
-		this._pendingComment = comment;
+	public setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
 		this.expandReplyArea();
-		this.commentEditor.setValue(comment);
+		this.commentEditor.setValue(pending.body);
+		this.commentEditor.setPosition(pending.cursor);
 	}
 
 	public layout(widthInPixel: number) {
@@ -254,7 +259,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 				commentEditor.setValue(input.value);
 
 				if (input.value === '') {
-					this._pendingComment = '';
+					this._pendingComment = { body: '', cursor: new Position(1, 1) };
 					commentForm.classList.remove('expand');
 					commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
@@ -339,7 +344,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 			domNode.style.outline = '';
 		}
 		this.commentEditor.setValue('');
-		this._pendingComment = '';
+		this._pendingComment = { body: '', cursor: new Position(1, 1) };
 		this.form.classList.remove('expand');
 		this._error.textContent = '';
 		this._error.classList.add('hidden');
