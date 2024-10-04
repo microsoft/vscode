@@ -45,10 +45,10 @@ export interface IChatEditingSession {
 }
 
 export const enum WorkingSetEntryState {
-	Attached,
-	Edited,
+	Modified,
 	Accepted,
-	Rejected
+	Rejected,
+	Attached,
 }
 
 export interface IModifiedFileEntry {

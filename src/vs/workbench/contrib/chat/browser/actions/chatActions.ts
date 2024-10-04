@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
@@ -11,41 +12,32 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { clearChatEditor } from './chatClear.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
+import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
-import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { toAction } from '../../../../../base/common/actions.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
-import { Position } from '../../../../../editor/common/core/position.js';
-import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-
-export interface IChatViewTitleActionContext {
-	chatView: ChatViewPane;
-}
-
-export function isChatViewTitleActionContext(obj: unknown): obj is IChatViewTitleActionContext {
-	return obj instanceof Object && 'chatView' in obj;
-}
+import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';

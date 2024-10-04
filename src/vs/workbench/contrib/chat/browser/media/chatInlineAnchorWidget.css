@@ -10,6 +10,8 @@
 	padding: 1px 3px;
 	text-wrap: nowrap;
 	width: fit-content;
+	font-weight: normal;
+	text-decoration: none;
 }
 
 .chat-inline-anchor-widget .icon-label {

@@ -14,7 +14,6 @@ import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
-import { ChatContextAttachments } from './chatWidget.js';
 
 abstract class WorkingSetAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
@@ -66,13 +65,13 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 		const resourceSet = new ResourceSet(uris);
 		const newContext = [];
 
-		for (const context of chatWidget.input.attachedContext) {
+		for (const context of chatWidget.input.attachmentModel.attachments) {
 			if (!URI.isUri(context.value) || !context.isFile || !resourceSet.has(context.value)) {
 				newContext.push(context);
 			}
 		}
 
-		chatWidget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(true, ...newContext);
+		chatWidget.attachmentModel.clearAndSetContext(...newContext);
 	}
 });
 
@@ -84,7 +83,7 @@ registerAction2(class OpenFileAction extends WorkingSetAction {
 			icon: Codicon.goToFile,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -110,7 +109,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 2,
 				group: 'navigation'
 			}],
@@ -135,7 +134,7 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Edited),
+				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 1,
 				group: 'navigation'
 			}],

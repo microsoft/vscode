@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as cssJs from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
@@ -1258,7 +1259,7 @@ class TerminalEditorStyle extends Themable {
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
 					`.monaco-workbench .terminal-tab.${iconClasses[0]}::before` +
-					`{content: ''; background-image: ${dom.asCSSUrl(uri)};}`
+					`{content: ''; background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
 			if (ThemeIcon.isThemeIcon(icon)) {
@@ -1269,7 +1270,7 @@ class TerminalEditorStyle extends Themable {
 					if (def) {
 						css += (
 							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
+							`{content: '${def.fontCharacter}' !important; font-family: ${cssJs.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
 						);
 					}
 				}

@@ -35,17 +35,17 @@ export async function showRunRecentQuickPick(
 	terminalInRunCommandPicker: IContextKey<boolean>,
 	type: 'command' | 'cwd',
 	filterMode?: 'fuzzy' | 'contiguous',
-	value?: string
+	value?: string,
 ): Promise<void> {
 	if (!instance.xterm) {
 		return;
 	}
 
+	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const editorService = accessor.get(IEditorService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
-	const accessibleViewService = accessor.get(IAccessibleViewService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -149,7 +149,7 @@ export async function showRunRecentQuickPick(
 		if (previousSessionItems.length > 0) {
 			items.push(
 				{ type: 'separator', label: terminalStrings.previousSessionCategory },
-				...previousSessionItems
+				...previousSessionItems,
 			);
 		}
 
@@ -167,7 +167,7 @@ export async function showRunRecentQuickPick(
 		if (dedupedShellFileItems.length > 0) {
 			items.push(
 				{ type: 'separator', label: localize('shellFileHistoryCategory', '{0} history', instance.shellType) },
-				...dedupedShellFileItems
+				...dedupedShellFileItems,
 			);
 		}
 	} else {
@@ -199,7 +199,7 @@ export async function showRunRecentQuickPick(
 		if (previousSessionItems.length > 0) {
 			items.push(
 				{ type: 'separator', label: terminalStrings.previousSessionCategory },
-				...previousSessionItems
+				...previousSessionItems,
 			);
 		}
 	}
@@ -330,7 +330,7 @@ class TerminalOutputProvider extends Disposable implements ITextModelContentProv
 
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService
+		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
 		this._register(textModelResolverService.registerTextModelContentProvider(TerminalOutputProvider.scheme, this));
