@@ -20,7 +20,6 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED } from '../../common/chatContextKeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { ChatContextAttachments } from '../chatWidget.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
@@ -142,7 +141,7 @@ export function registerNewChatActions() {
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
 					widget.clear();
-					widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(true, ...[]);
+					widget.attachmentModel.clear();
 					widget.focusInput();
 				}
 			} else {
@@ -157,7 +156,7 @@ export function registerNewChatActions() {
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
-				widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(true, ...[]);
+				widget.attachmentModel.clear();
 				widget.focusInput();
 			}
 		}

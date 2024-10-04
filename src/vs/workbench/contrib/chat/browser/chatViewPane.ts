@@ -245,8 +245,9 @@ export class ChatViewPane extends ViewPane {
 
 	private updateViewState(viewState?: IChatViewState): void {
 		const newViewState = viewState ?? this._widget.getViewState();
-		this.viewState.inputValue = newViewState.inputValue;
-		this.viewState.inputState = newViewState.inputState;
-		this.viewState.selectedLanguageModelId = newViewState.selectedLanguageModelId;
+		for (const [key, value] of Object.entries(newViewState)) {
+			// Assign all props to the memento so they get saved
+			(this.viewState as any)[key] = value;
+		}
 	}
 }
