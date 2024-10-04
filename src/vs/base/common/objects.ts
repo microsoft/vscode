@@ -215,7 +215,7 @@ export function distinct(base: obj, target: obj): obj {
 	return result;
 }
 
-export function getCaseInsensitive(target: obj, key: string): any {
+export function getCaseInsensitive(target: obj, key: string): unknown {
 	const lowercaseKey = key.toLowerCase();
 	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
 	return equivalentKey ? target[equivalentKey] : target[key];
@@ -258,6 +258,7 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		};
 	};
 
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const result = {} as T;
 	for (const methodName of methodNames) {
 		(<any>result)[methodName] = createProxyMethod(methodName);

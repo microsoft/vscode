@@ -11,10 +11,8 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { registerTerminalContribution } from '../../../terminal/browser/terminalExtensions.js';
+import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ITerminalProcessInfo, ITerminalProcessManager } from '../../../terminal/common/terminal.js';
-import { TerminalWidgetManager } from '../../../terminal/browser/widgets/widgetManager.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
 import { localize2 } from '../../../../../nls.js';
 import { isNumber } from '../../../../../base/common/types.js';
@@ -37,9 +35,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 	private readonly _listener = this._register(new MutableDisposable());
 
 	constructor(
-		instance: ITerminalInstance | IDetachedTerminalInstance,
-		processManager: ITerminalProcessManager | ITerminalProcessInfo,
-		widgetManager: TerminalWidgetManager,
+		_ctx: ITerminalContributionContext | IDetachedCompatibleTerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();

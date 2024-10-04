@@ -17,6 +17,11 @@ import { PositionAffinity } from '../../../common/model.js';
 import { IPosition, Position } from '../../../common/core/position.js';
 import { IViewModel } from '../../../common/viewModel.js';
 
+/**
+ * This view part is responsible for rendering the content widgets, which are
+ * used for rendering elements that are associated to an editor position,
+ * such as suggestions or the parameter hints.
+ */
 export class ViewContentWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;

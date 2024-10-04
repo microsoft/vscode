@@ -5,9 +5,6 @@
 
 import { IMarkProperties, IMarker, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker } from '../capabilities.js';
 import { ITerminalOutputMatcher, ITerminalOutputMatch } from '../../terminal.js';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
 
 export interface ITerminalCommandProperties {

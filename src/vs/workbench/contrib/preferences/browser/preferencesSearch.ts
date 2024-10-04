@@ -360,7 +360,6 @@ class AiRelatedInformationSearchKeysProvider {
 }
 
 class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
-	private static readonly AI_RELATED_INFORMATION_THRESHOLD = 0.73;
 	private static readonly AI_RELATED_INFORMATION_MAX_PICKS = 5;
 
 	private readonly _keysProvider: AiRelatedInformationSearchKeysProvider;
@@ -399,7 +398,7 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 		relatedInformation.sort((a, b) => b.weight - a.weight);
 
 		for (const info of relatedInformation) {
-			if (info.weight < AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_THRESHOLD || filterMatches.length === AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
+			if (filterMatches.length === AiRelatedInformationSearchProvider.AI_RELATED_INFORMATION_MAX_PICKS) {
 				break;
 			}
 			const pick = info.setting;

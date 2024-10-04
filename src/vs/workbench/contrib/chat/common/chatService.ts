@@ -14,11 +14,13 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { Command, Location, TextEdit } from '../../../../editor/common/languages.js';
 import { FileType } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolConfirmationMessages } from './languageModelToolsService.js';
 
 export interface IChatRequest {
 	message: string;
@@ -96,7 +98,8 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
-	inlineReference: URI | Location;
+	resolveId?: string;
+	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
 }
@@ -153,6 +156,11 @@ export interface IChatAgentVulnerabilityDetails {
 	description: string;
 }
 
+export interface IChatResponseCodeblockUriPart {
+	kind: 'codeblockUri';
+	uri: URI;
+}
+
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
 	vulnerabilities: IChatAgentVulnerabilityDetails[];
@@ -185,6 +193,27 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export interface IChatToolInvocation {
+	/** Presence of this property says that confirmation is required */
+	confirmationMessages?: IToolConfirmationMessages;
+	confirmed: DeferredPromise<boolean>;
+	/** A 3-way: undefined=don't know yet. */
+	isConfirmed: boolean | undefined;
+	invocationMessage: string;
+
+	complete(): void;
+	kind: 'toolInvocation';
+}
+
+/**
+ * This is a IChatToolInvocation that has been serialized, like after window reload, so it is no longer an active tool invocation.
+ */
+export interface IChatToolInvocationSerialized {
+	invocationMessage: string;
+	isConfirmed: boolean;
+	kind: 'toolInvocationSerialized';
+}
+
 export type IChatProgress =
 	| IChatMarkdownContent
 	| IChatAgentMarkdownContentWithVulnerability
@@ -201,7 +230,10 @@ export type IChatProgress =
 	| IChatWarningMessage
 	| IChatTextEdit
 	| IChatMoveMessage
-	| IChatConfirmation;
+	| IChatResponseCodeblockUriPart
+	| IChatConfirmation
+	| IChatToolInvocation
+	| IChatToolInvocationSerialized;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -255,9 +287,17 @@ export interface IChatInsertAction {
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
-	userAction?: string;
-	codeMapper?: string;
 }
+
+export interface IChatApplyAction {
+	kind: 'apply';
+	codeBlockIndex: number;
+	totalCharacters: number;
+	newFile?: boolean;
+	codeMapper?: string;
+	editsProposed: boolean;
+}
+
 
 export interface IChatTerminalAction {
 	kind: 'runInTerminal';
@@ -284,7 +324,7 @@ export interface IChatInlineChatCodeAction {
 	action: 'accepted' | 'discarded';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
@@ -359,6 +399,7 @@ export interface IChatTerminalLocationData {
 export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
 
 export interface IChatSendRequestOptions {
+	userSelectedModelId?: string;
 	location?: ChatAgentLocation;
 	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;

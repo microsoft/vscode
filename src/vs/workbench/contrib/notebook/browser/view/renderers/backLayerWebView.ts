@@ -497,7 +497,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				id: renderer.id,
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
-				messaging: renderer.messaging !== RendererMessagingSpec.Never,
+				messaging: renderer.messaging !== RendererMessagingSpec.Never && !!this.rendererMessaging,
 				isBuiltin: renderer.isBuiltin
 			};
 		});
@@ -569,7 +569,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		return [
-			dirname(FileAccess.asFileUri('vs/loader.js')), // TODO@esm this file will not exist in the future
+			dirname(FileAccess.asFileUri('vs/nls.js')),
 		];
 	}
 

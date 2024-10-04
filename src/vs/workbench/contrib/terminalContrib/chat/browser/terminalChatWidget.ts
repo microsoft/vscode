@@ -17,6 +17,7 @@ import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.j
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
+import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -42,19 +43,19 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(this._contextKeyService);
-		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(this._contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
 		_terminalElement.appendChild(this._container);
 
-		this._inlineChatWidget = this._instantiationService.createInstance(
+		this._inlineChatWidget = instantiationService.createInstance(
 			InlineChatWidget,
 			{
 				location: ChatAgentLocation.Terminal,
@@ -76,6 +77,7 @@ export class TerminalChatWidget extends Disposable {
 						}
 					}
 				},
+				secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				chatWidgetViewOptions: {
 					rendererOptions: { editableCodeBlock: true },
 					menus: {
@@ -84,7 +86,7 @@ export class TerminalChatWidget extends Disposable {
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
 					}
 				}
-			}
+			},
 		);
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
@@ -102,12 +104,7 @@ export class TerminalChatWidget extends Disposable {
 
 		this._focusTracker = this._register(trackFocus(this._container));
 		this._register(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this._register(this._focusTracker.onDidBlur(() => {
-			this._focusedContextKey.set(false);
-			if (!this.inlineChatWidget.responseContent) {
-				this.hide();
-			}
-		}));
+		this._register(this._focusTracker.onDidBlur(() => this._focusedContextKey.set(false)));
 
 		this.hide();
 	}

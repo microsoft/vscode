@@ -101,7 +101,6 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
-	private static readonly _MAX_LABEL_LEN = 43;
 	private static readonly _whitespaceData = {};
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
@@ -271,6 +270,12 @@ export class InlayHintsController implements IEditorContribution {
 			cursor.value = disposableTimeout(() => scheduler.schedule(0), delay);
 
 			scheduler.schedule();
+		}));
+
+		this._sessionDisposables.add(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.inlayHints)) {
+				scheduler.schedule();
+			}
 		}));
 
 		// mouse gestures
@@ -537,6 +542,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		//
 		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
+		const maxLength = this._editor.getOption(EditorOption.inlayHints).maximumLength;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -551,7 +557,7 @@ export class InlayHintsController implements IEditorContribution {
 				currentLineInfo = { line: item.anchor.range.startLineNumber, totalLen: 0 };
 			}
 
-			if (currentLineInfo.totalLen > InlayHintsController._MAX_LABEL_LEN) {
+			if (maxLength && currentLineInfo.totalLen > maxLength) {
 				continue;
 			}
 
@@ -599,7 +605,7 @@ export class InlayHintsController implements IEditorContribution {
 				let textlabel = part.label;
 				currentLineInfo.totalLen += textlabel.length;
 				let tooLong = false;
-				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
+				const over = maxLength !== 0 ? (currentLineInfo.totalLen - maxLength) : 0;
 				if (over > 0) {
 					textlabel = textlabel.slice(0, -over) + '…';
 					tooLong = true;
@@ -607,12 +613,14 @@ export class InlayHintsController implements IEditorContribution {
 
 				itemActualLength += textlabel.length;
 
-				const overFixedLength = itemFixedLength !== undefined ? (itemActualLength - itemFixedLength) : 0;
-				if (overFixedLength > 0) {
-					// longer than fixed length, trim
-					itemActualLength -= overFixedLength;
-					textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
-					tooLong = true;
+				if (itemFixedLength !== undefined) {
+					const overFixedLength = itemActualLength - itemFixedLength;
+					if (overFixedLength >= 0) {
+						// longer than fixed length, trim
+						itemActualLength -= overFixedLength;
+						textlabel = textlabel.slice(0, -(1 + overFixedLength)) + '…';
+						tooLong = true;
+					}
 				}
 
 				if (padding) {

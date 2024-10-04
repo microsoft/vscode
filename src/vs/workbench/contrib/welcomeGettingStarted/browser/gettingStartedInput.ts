@@ -14,7 +14,7 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
 export interface GettingStartedEditorOptions extends IEditorOptions {
-	selectedCategory?: string; selectedStep?: string; showTelemetryNotice?: boolean;
+	selectedCategory?: string; selectedStep?: string; showTelemetryNotice?: boolean; showWelcome?: boolean;
 }
 
 export class GettingStartedInput extends EditorInput {
@@ -62,6 +62,7 @@ export class GettingStartedInput extends EditorInput {
 		this.selectedCategory = options.selectedCategory;
 		this.selectedStep = options.selectedStep;
 		this.showTelemetryNotice = !!options.showTelemetryNotice;
+		this.showWelcome = options.showWelcome ?? true;
 	}
 
 	override getName() {
@@ -71,4 +72,5 @@ export class GettingStartedInput extends EditorInput {
 	selectedCategory: string | undefined;
 	selectedStep: string | undefined;
 	showTelemetryNotice: boolean;
+	showWelcome: boolean;
 }

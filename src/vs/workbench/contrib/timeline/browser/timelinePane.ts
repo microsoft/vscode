@@ -6,6 +6,7 @@
 import './media/timelinePane.css';
 import { localize, localize2 } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as css from '../../../../base/browser/cssValue.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { fromNow } from '../../../../base/common/date.js';
@@ -1186,7 +1187,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		if (iconUrl) {
 			template.icon.className = 'custom-view-tree-node-item-icon';
-			template.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
+			template.icon.style.backgroundImage = css.asCSSUrl(iconUrl);
 			template.icon.style.color = '';
 		} else if (item.themeIcon) {
 			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;

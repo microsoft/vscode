@@ -48,7 +48,7 @@ export interface IUserDataProfileManagementService {
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
-
+	getDefaultProfileToUse(): IUserDataProfile;
 }
 
 export interface IUserDataProfileTemplate {

@@ -73,9 +73,6 @@ if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
-// VSCODE_GLOBALS: node_modules
-globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
-
 // VSCODE_GLOBALS: package/product.json
 globalThis._VSCODE_PRODUCT_JSON = require('../../../product.json');
 globalThis._VSCODE_PACKAGE_JSON = require('../../../package.json');
@@ -183,7 +180,7 @@ function loadTestModules(opts) {
 /** @type Mocha.Test */
 let currentTest;
 
-function loadTests(opts) {
+async function loadTests(opts) {
 
 	//#region Unexpected Output
 
@@ -196,6 +193,8 @@ function loadTests(opts) {
 		_allowedTestOutput.push(/Creating new snapshot in/);
 		_allowedTestOutput.push(/Deleting [0-9]+ old snapshots/);
 	}
+
+	const perTestCoverage = opts['per-test-coverage'] ? await PerTestCoverage.init() : undefined;
 
 	const _allowedTestsWithOutput = new Set([
 		'creates a snapshot', // self-testing
@@ -286,7 +285,12 @@ function loadTests(opts) {
 			});
 		});
 
+		setup(async () => {
+			await perTestCoverage?.startTest();
+		});
+
 		teardown(async () => {
+			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
 
 			// should not have unexpected output
 			if (_testsWithUnexpectedOutput && !opts.dev) {
@@ -448,3 +452,21 @@ ipcRenderer.on('run', async (_e, opts) => {
 		ipcRenderer.send('error', err);
 	}
 });
+
+class PerTestCoverage {
+	static async init() {
+		await ipcRenderer.invoke('startCoverage');
+		return new PerTestCoverage();
+	}
+
+	async startTest() {
+		if (!this.didInit) {
+			this.didInit = true;
+			await ipcRenderer.invoke('snapshotCoverage');
+		}
+	}
+
+	async finishTest(file, fullTitle) {
+		await ipcRenderer.invoke('snapshotCoverage', { file, fullTitle });
+	}
+}

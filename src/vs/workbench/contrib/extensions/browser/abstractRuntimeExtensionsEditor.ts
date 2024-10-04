@@ -13,13 +13,12 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { fromNow } from '../../../../base/common/date.js';
-import { memoize } from '../../../../base/common/decorators.js';
 import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import './media/runtimeExtensionsEditor.css';
 import * as nls from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Action2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -35,9 +34,6 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { errorIcon, warningIcon } from './extensionsIcons.js';
-import { IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
-import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -45,6 +41,10 @@ import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegi
 import { DefaultIconPath, EnablementState } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { LocalWebWorkerRunningLocation } from '../../../services/extensions/common/extensionRunningLocation.js';
 import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from '../../../services/extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../common/extensions.js';
+import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
+import { errorIcon, warningIcon } from './extensionsIcons.js';
+import './media/runtimeExtensionsEditor.css';
 
 interface IExtensionProfileInformation {
 	/**
@@ -81,7 +81,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -93,6 +93,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IMenuService private readonly _menuService: IMenuService,
 	) {
 		super(AbstractRuntimeExtensionsEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -496,25 +497,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			}
 			actions.push(new Separator());
 
-			const profileAction = this._createProfileAction();
-			if (profileAction) {
-				actions.push(profileAction);
-			}
-			const saveExtensionHostProfileAction = this.saveExtensionHostProfileAction;
-			if (saveExtensionHostProfileAction) {
-				actions.push(saveExtensionHostProfileAction);
-			}
+
+			const menuActions = this._menuService.getMenuActions(MenuId.ExtensionEditorContextMenu, this.contextKeyService);
+			createAndFillInContextMenuActions(menuActions, { primary: [], secondary: actions });
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions
 			});
 		});
-	}
-
-	@memoize
-	private get saveExtensionHostProfileAction(): IAction | null {
-		return this._createSaveExtensionHostProfileAction();
 	}
 
 	public layout(dimension: Dimension): void {
@@ -525,8 +516,6 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 	protected abstract _getUnresponsiveProfile(extensionId: ExtensionIdentifier): IExtensionHostProfile | undefined;
 	protected abstract _createSlowExtensionAction(element: IRuntimeExtension): Action | null;
 	protected abstract _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null;
-	protected abstract _createSaveExtensionHostProfileAction(): Action | null;
-	protected abstract _createProfileAction(): Action | null;
 }
 
 export class ShowRuntimeExtensionsAction extends Action2 {

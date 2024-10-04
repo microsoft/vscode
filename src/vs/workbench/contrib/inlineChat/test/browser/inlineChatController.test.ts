@@ -35,7 +35,7 @@ import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameServ
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { InlineChatController, State } from '../../browser/inlineChatController.js';
 import { Session } from '../../browser/inlineChatSession.js';
-import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys } from '../../common/inlineChat.js';
+import { CTX_INLINE_CHAT_RESPONSE_TYPE, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
@@ -65,6 +65,8 @@ import { IInlineChatSavingService } from '../../browser/inlineChatSavingService.
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
+import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 
 suite('InteractiveChatController', function () {
 
@@ -156,6 +158,9 @@ suite('InteractiveChatController', function () {
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
+			[IChatEditingService, new class extends mock<IChatEditingService>() {
+				override onDidCreateEditingSession: Event<IChatEditingSession> = Event.None;
+			}],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop
@@ -186,7 +191,8 @@ suite('InteractiveChatController', function () {
 			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
 				override listNotebookEditors() { return []; }
 			}],
-			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()]
+			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
+			[ILanguageModelsService, new SyncDescriptor(LanguageModelsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
@@ -201,6 +207,8 @@ suite('InteractiveChatController', function () {
 		chatAgentService = instaService.get(IChatAgentService);
 
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
+
+		store.add(instaService.get(ILanguageModelsService) as LanguageModelsService);
 
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
 		model.setEOL(EndOfLineSequence.LF);
@@ -908,5 +916,41 @@ suite('InteractiveChatController', function () {
 			assert.strictEqual(model.getValue(), 'one'); // undone
 			assert.ok(values.has('twoone')); // we had but the change got undone
 		});
+	});
+
+	test('Inline chat "discard" button does not always appear if response is stopped #228030', async function () {
+
+		model.setValue('World');
+
+		const deferred = new DeferredPromise<void>();
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'Hello-Hello' }] });
+				await deferred.p;
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		ctrl.run({ message: 'Hello', autoSend: true });
+
+
+		assert.strictEqual(await p, undefined);
+
+		const p2 = ctrl.awaitStates([State.WAIT_FOR_INPUT]);
+		chatService.cancelCurrentRequestForSession(ctrl.chatWidget.viewModel!.model.sessionId);
+		assert.strictEqual(await p2, undefined);
+
+
+		const value = contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_RESPONSE_TYPE.key);
+		assert.notStrictEqual(value, InlineChatResponseType.None);
 	});
 });

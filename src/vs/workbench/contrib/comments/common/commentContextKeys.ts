@@ -18,6 +18,14 @@ export namespace CommentContextKeys {
 	});
 
 	/**
+	 * A context key that is set when the active cursor is in the range of an existing comment.
+	 */
+	export const activeCursorHasComment = new RawContextKey<boolean>('activeCursorHasComment', false, {
+		description: nls.localize('hasComment', "Whether the position at the active cursor has a comment"),
+		type: 'boolean'
+	});
+
+	/**
 	 * A context key that is set when the active editor has commenting ranges.
 	 */
 	export const activeEditorHasCommentingRange = new RawContextKey<boolean>('activeEditorHasCommentingRange', false, {

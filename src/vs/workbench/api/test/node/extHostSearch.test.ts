@@ -263,6 +263,28 @@ suite('ExtHostSearch', () => {
 			assert(!results.length);
 		});
 
+		test('session cancellation should work', async () => {
+			let numSessionCancelled = 0;
+			const disposables: (vscode.Disposable | undefined)[] = [];
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+
+					disposables.push(options.session?.onCancellationRequested(() => {
+						numSessionCancelled++;
+					}));
+
+					return Promise.resolve([]);
+				}
+			});
+
+
+			await runFileSearch({ ...getSimpleQuery(), cacheKey: '1' }, true);
+			await runFileSearch({ ...getSimpleQuery(), cacheKey: '2' }, true);
+			extHostSearch.$clearCache('1');
+			assert.strictEqual(numSessionCancelled, 1);
+			disposables.forEach(d => d?.dispose());
+		});
+
 		test('provider returns null', async () => {
 			await registerTestFileSearchProvider({
 				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
@@ -701,6 +723,24 @@ suite('ExtHostSearch', () => {
 
 			const { results } = await runFileSearch(query);
 			compareURIs(results, reportedResults);
+		});
+		test('if onlyFileScheme is set, do not call custom schemes', async () => {
+			let fancySchemeCalled = false;
+			await registerTestFileSearchProvider({
+				provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, token: vscode.CancellationToken): Promise<URI[]> {
+					fancySchemeCalled = true;
+					return Promise.resolve([]);
+				}
+			}, fancyScheme);
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+				filePattern: '',
+				folderQueries: []
+			};
+
+			await runFileSearch(query);
+			assert(!fancySchemeCalled);
 		});
 	});
 

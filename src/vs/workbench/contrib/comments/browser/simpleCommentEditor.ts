@@ -36,8 +36,8 @@ import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js'
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
-import { MarginHoverController } from '../../../../editor/contrib/hover/browser/marginHoverController.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
 export const MIN_EDITOR_HEIGHT = 5 * 18;
@@ -80,7 +80,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 					LinkDetector.ID,
 					MessageController.ID,
 					ContentHoverController.ID,
-					MarginHoverController.ID,
+					GlyphHoverController.ID,
 					SelectionClipboardContributionID,
 					InlineCompletionsController.ID,
 					CodeActionController.ID,
@@ -108,6 +108,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 
 	protected _getActions(): Iterable<EditorAction> {
 		return EditorExtensionsRegistry.getEditorActions();
+	}
+
+	public override updateOptions(newOptions: Readonly<IEditorOptions> | undefined): void {
+		const withLineNumberRemoved: Readonly<IEditorOptions> = { ...newOptions, lineNumbers: 'off' };
+		super.updateOptions(withLineNumberRemoved);
 	}
 
 	public static getEditorOptions(configurationService: IConfigurationService): IEditorOptions {
