@@ -104,8 +104,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
-				// this._context.viewModel.model.getEOL()
-				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
+				this._onType(viewController, { text: this._context.viewModel.model.getEOL(), replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
 
@@ -205,10 +204,6 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext.updateText(0, Number.MAX_SAFE_INTEGER, editContextState.text);
 		this._editContext.updateSelection(editContextState.selectionStartOffset, editContextState.selectionEndOffset);
 		this._textStartPositionWithinEditor = editContextState.textStartPositionWithinEditor;
-
-		console.log('this._editContext.text : ', this._editContext.text);
-		console.log('this._editContext.selectionStart : ', this._editContext.selectionStart);
-		console.log('this._editContext.selectionEnd : ', this._editContext.selectionEnd);
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
@@ -412,7 +407,6 @@ export class NativeEditContext extends AbstractEditContext {
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
-			console.log('selectionchange');
 			const options = this._context.configuration.options;
 			const accessibilitySupportEnabled = options.get(EditorOption.accessibilitySupport);
 			if (!this.isFocused() || accessibilitySupportEnabled !== AccessibilitySupport.Enabled) {
@@ -432,39 +426,22 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			const range = activeDocumentSelection.getRangeAt(0);
-			const primaryState = this._context.viewModel.getPrimaryCursorState();
-			console.log('primaryState.modelState.selection : ', primaryState.modelState.selection);
-
 			const model = this._context.viewModel.model;
 			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(screenReaderContentState.startPositionWithinEditor);
-			console.log('offsetOfStartOfScreenReaderContent : ', offsetOfStartOfScreenReaderContent);
-			console.log('range : ', range);
-			console.log('range.startOffset : ', range.startOffset);
-			console.log('range.endOffset : ', range.endOffset);
-
 			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
 			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
-
 			const modelUsesCRLF = this._context.viewModel.model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
 			if (modelUsesCRLF) {
 				const screenReaderContentText = screenReaderContentState.value;
 				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
 				const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
 				const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);
-				console.log('positionOfStartWithinText.lineNumber : ', positionOfStartWithinText.lineNumber);
-				console.log('positionOfEndWithinText.lineNumber : ', positionOfEndWithinText.lineNumber);
-
 				offsetOfSelectionStart += positionOfStartWithinText.lineNumber - 1;
 				offsetOfSelectionEnd += positionOfEndWithinText.lineNumber - 1;
 			}
-
-			console.log('offsetOfSelectionStart : ', offsetOfSelectionStart);
-			console.log('offsetOfSelectionEnd : ', offsetOfSelectionEnd);
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
-			// If the model uses CRLF then need to update the selection so that it the selection positions are correct
-			console.log('newSelection : ', newSelection);
 			viewController.setSelection(newSelection);
 		});
 	}
