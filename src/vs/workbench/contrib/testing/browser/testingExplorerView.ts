@@ -1562,7 +1562,8 @@ const getActionableElementActions = (
 	contextKeys.push(['view', Testing.ExplorerViewId]);
 	if (test) {
 		const ctrl = testService.getTestController(test.controllerId);
-		const supportsCr = !!ctrl && profiles.getControllerProfiles(ctrl.id).some(p => p.supportsContinuousRun);
+		const supportsCr = !!ctrl && profiles.getControllerProfiles(ctrl.id).some(p =>
+			p.supportsContinuousRun && canUseProfileWithTest(p, test));
 		contextKeys.push([
 			TestingContextKeys.canRefreshTests.key,
 			ctrl && !!(ctrl.capabilities.get() & TestControllerCapability.Refresh) && TestId.isRoot(test.item.extId),
