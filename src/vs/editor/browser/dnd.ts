@@ -28,6 +28,7 @@ export function toVSDataTransfer(dataTransfer: DataTransfer) {
 }
 
 function createFileDataTransferItemFromFile(file: File): IDataTransferItem {
+	// TODO: Change these as well to webUtils
 	const uri = (file as FileAdditionalNativeProperties).path ? URI.parse((file as FileAdditionalNativeProperties).path!) : undefined;
 	return createFileDataTransferItem(file.name, uri, async () => {
 		return new Uint8Array(await file.arrayBuffer());
@@ -55,6 +56,7 @@ export function toExternalVSDataTransfer(sourceDataTransfer: DataTransfer, overw
 			for (const item of sourceDataTransfer.items) {
 				const file = item.getAsFile();
 				if (file) {
+					// TODO: Change this as well to webUtils
 					const path = (file as FileAdditionalNativeProperties).path;
 					try {
 						if (path) {

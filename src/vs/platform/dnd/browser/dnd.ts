@@ -27,6 +27,7 @@ import { Registry } from '../../registry/common/platform.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 
 
+// TODO: Remove if using webUtils
 export interface FileAdditionalNativeProperties {
 	/**
 	 * The real path to the file on the users filesystem. Only available on electron.
