@@ -74,6 +74,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const decidedEntries = entries.filter(entry => entry.state.read(reader) !== WorkingSetEntryState.Modified);
 			return decidedEntries.map(entry => entry.entryId);
 		}));
+		this._register(bindContextKey(inChatEditingSessionContextKey, contextKeyService, (reader) => {
+			return this._currentSessionObs.read(reader) !== null;
+		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
 				void this._currentSessionObs.get()?.stop();
@@ -347,7 +350,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private _entries: ModifiedFileEntry[] = [];
 
 	private _workingSetObs = observableValue<readonly URI[]>(this, []);
-	private _workingSet: URI[] = [];
+	private _workingSet = new ResourceSet();
 	get workingSet() {
 		this._assertNotDisposed();
 		return this._workingSetObs;
@@ -390,23 +393,16 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	remove(...uris: URI[]): void {
 		this._assertNotDisposed();
 
-		const workingSetSize = this._workingSet.length;
-
-		const urisToRemove = new ResourceSet(uris);
-		const newWorkingSet = [];
-		for (const resource of this._workingSet) {
-			if (urisToRemove.has(resource)) {
-				continue;
-			}
-			newWorkingSet.push(resource);
+		let didRemoveUris = false;
+		for (const uri of uris) {
+			didRemoveUris = didRemoveUris || this._workingSet.delete(uri);
 		}
 
-		this._workingSet = newWorkingSet;
-		if (this._workingSet.length === workingSetSize) {
+		if (!didRemoveUris) {
 			return; // noop
 		}
 
-		this._workingSetObs.set(this._workingSet, undefined);
+		this._workingSetObs.set([...this._workingSet.values()], undefined);
 		this._onDidChange.fire();
 	}
 
@@ -534,9 +530,11 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	addFileToWorkingSet(resource: URI) {
-		this._workingSet = [...this._workingSet, resource];
-		this._workingSetObs.set(this._workingSet, undefined);
-		this._onDidChange.fire();
+		if (!this._workingSet.has(resource)) {
+			this._workingSet.add(resource);
+			this._workingSetObs.set([...this._workingSet.values()], undefined);
+			this._onDidChange.fire();
+		}
 	}
 
 	private async _acceptStreamingEditsStart(): Promise<void> {
