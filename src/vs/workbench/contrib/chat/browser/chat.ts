@@ -12,16 +12,16 @@ import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatViewPane } from './chatViewPane.js';
-import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
-import { ICodeBlockActionContext } from './codeBlockPart.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { ChatViewPane } from './chatViewPane.js';
+import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
+import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -88,6 +88,7 @@ export interface IChatCodeBlockInfo {
 	readonly element: ChatTreeItem;
 	readonly uri: URI | undefined;
 	codemapperUri: URI | undefined;
+	readonly isStreaming: boolean;
 	focus(): void;
 	getContent(): string;
 }
@@ -105,7 +106,7 @@ export interface IChatListItemRendererOptions {
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
-	readonly collapseCodeBlocks?: boolean;
+	readonly renderCodeBlockPills?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 }
 
