@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { equalsIgnoreCase } from '../../../../base/common/strings.js';
@@ -237,7 +237,7 @@ export interface IChatAgentService {
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
-export class ChatAgentService implements IChatAgentService {
+export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	public static readonly AGENT_LEADER = '@';
 
@@ -248,6 +248,7 @@ export class ChatAgentService implements IChatAgentService {
 	private readonly _onDidChangeAgents = new Emitter<IChatAgent | undefined>();
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
 
+	private readonly _agentsContextKeys = new Set<string>();
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
 	private readonly _editingAgentRegistered: IContextKey<boolean>;
@@ -255,21 +256,21 @@ export class ChatAgentService implements IChatAgentService {
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
+		super();
 		this._hasDefaultAgent = CONTEXT_CHAT_ENABLED.bindTo(this.contextKeyService);
 		this._defaultAgentRegistered = CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
 		this._editingAgentRegistered = CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
+		this._register(contextKeyService.onDidChangeContext((e) => {
+			if (e.affectsSome(this._agentsContextKeys)) {
+				this._updateContextKeys();
+			}
+		}));
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
 		const existingAgent = this.getAgent(id);
 		if (existingAgent) {
 			throw new Error(`Agent already registered: ${JSON.stringify(id)}`);
-		}
-
-		if (data.isDefault && data.locations.includes(ChatAgentLocation.EditingSession)) {
-			this._editingAgentRegistered.set(true);
-		} else if (data.isDefault) {
-			this._defaultAgentRegistered.set(true);
 		}
 
 		const that = this;
@@ -282,17 +283,43 @@ export class ChatAgentService implements IChatAgentService {
 		};
 		const entry = { data };
 		this._agents.set(id, entry);
+		this._updateAgentsContextKeys();
+		this._updateContextKeys();
 		this._onDidChangeAgents.fire(undefined);
+
 		return toDisposable(() => {
 			this._agents.delete(id);
-			if (data.isDefault && data.locations.includes(ChatAgentLocation.EditingSession)) {
-				this._editingAgentRegistered.set(false);
-			} else if (data.isDefault) {
-				this._defaultAgentRegistered.set(false);
-			}
-
+			this._updateAgentsContextKeys();
+			this._updateContextKeys();
 			this._onDidChangeAgents.fire(undefined);
 		});
+	}
+
+	private _updateAgentsContextKeys(): void {
+		// Update the set of context keys used by all agents
+		this._agentsContextKeys.clear();
+		for (const agent of this._agents.values()) {
+			if (agent.data.when) {
+				const expr = ContextKeyExpr.deserialize(agent.data.when);
+				for (const key of expr?.keys() || []) {
+					this._agentsContextKeys.add(key);
+				}
+			}
+		}
+	}
+
+	private _updateContextKeys(): void {
+		let editingAgentRegistered = false;
+		let defaultAgentRegistered = false;
+		for (const agent of this.getAgents()) {
+			if (agent.isDefault && agent.locations.includes(ChatAgentLocation.EditingSession)) {
+				editingAgentRegistered = true;
+			} else if (agent.isDefault) {
+				defaultAgentRegistered = true;
+			}
+		}
+		this._editingAgentRegistered.set(editingAgentRegistered);
+		this._defaultAgentRegistered.set(defaultAgentRegistered);
 	}
 
 	registerAgentImplementation(id: string, agentImpl: IChatAgentImplementation): IDisposable {
