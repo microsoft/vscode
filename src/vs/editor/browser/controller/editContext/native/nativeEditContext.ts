@@ -12,7 +12,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
+import { EndOfLinePreference, EndOfLineSequence, IModelDeltaDecoration } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
 import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
@@ -28,6 +28,7 @@ import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
+import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -103,7 +104,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
-				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
+				this._onType(viewController, { text: this._context.viewModel.model.getEOL(), replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
 
@@ -406,7 +407,13 @@ export class NativeEditContext extends AbstractEditContext {
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
-			if (!this.isFocused()) {
+			const options = this._context.configuration.options;
+			const accessibilitySupportEnabled = options.get(EditorOption.accessibilitySupport);
+			if (!this.isFocused() || accessibilitySupportEnabled !== AccessibilitySupport.Enabled) {
+				return;
+			}
+			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
+			if (!screenReaderContentState) {
 				return;
 			}
 			const activeDocument = getActiveWindow().document;
@@ -419,14 +426,19 @@ export class NativeEditContext extends AbstractEditContext {
 				return;
 			}
 			const range = activeDocumentSelection.getRangeAt(0);
-			const startPositionOfScreenReaderContentWithinEditor = this._screenReaderSupport.startPositionOfScreenReaderContentWithinEditor();
-			if (!startPositionOfScreenReaderContentWithinEditor) {
-				return;
-			}
 			const model = this._context.viewModel.model;
-			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(startPositionOfScreenReaderContentWithinEditor);
-			const offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
-			const offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
+			const offsetOfStartOfScreenReaderContent = model.getOffsetAt(screenReaderContentState.startPositionWithinEditor);
+			let offsetOfSelectionStart = range.startOffset + offsetOfStartOfScreenReaderContent;
+			let offsetOfSelectionEnd = range.endOffset + offsetOfStartOfScreenReaderContent;
+			const modelUsesCRLF = this._context.viewModel.model.getEndOfLineSequence() === EndOfLineSequence.CRLF;
+			if (modelUsesCRLF) {
+				const screenReaderContentText = screenReaderContentState.value;
+				const offsetTransformer = new PositionOffsetTransformer(screenReaderContentText);
+				const positionOfStartWithinText = offsetTransformer.getPosition(range.startOffset);
+				const positionOfEndWithinText = offsetTransformer.getPosition(range.endOffset);
+				offsetOfSelectionStart += positionOfStartWithinText.lineNumber - 1;
+				offsetOfSelectionEnd += positionOfEndWithinText.lineNumber - 1;
+			}
 			const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 			const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
 			const newSelection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
