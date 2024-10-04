@@ -7,9 +7,11 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -56,7 +58,7 @@ export class InlineAnchorWidget extends Disposable {
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly data: ContentRefData,
-		options: { handleClick?: (uri: URI) => void } = {},
+		options: { handleClick?: (uri: URI) => void; inProgress?: boolean } = {},
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
@@ -160,6 +162,11 @@ export class InlineAnchorWidget extends Disposable {
 					anchorId: anchorId.value
 				});
 			}));
+		}
+
+		if (options.inProgress) {
+			const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
+			iconClasses = ThemeIcon.asClassNameArray(codicon);
 		}
 
 		const iconEl = dom.$('span.icon');

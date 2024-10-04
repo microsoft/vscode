@@ -69,7 +69,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let codeBlockIndex = codeBlockStartIndex;
 		const result = this._register(renderer.render(markdown, {
 			fillInIncompleteTokens,
-			codeBlockRendererSync: (languageId, text) => {
+			codeBlockRendererSync: (languageId, text, raw) => {
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
@@ -124,7 +124,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					orderedDisposablesList.push(ref);
 					return ref.object.element;
 				} else {
-					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, undefined);
+					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, undefined, raw);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
@@ -164,10 +164,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(codemapperUri: URI | undefined, anchor: HTMLElement | undefined): IDisposableReference<{ object?: InlineAnchorWidget; element: HTMLElement }> {
+	private renderCodeBlockPill(codemapperUri: URI | undefined, anchor: HTMLElement | undefined, rawMarkdown?: string): IDisposableReference<{ object?: InlineAnchorWidget; element: HTMLElement }> {
 		const fileWidgetAnchor = anchor ?? $('.chat-codeblock');
+		const isCodeBlockComplete = !rawMarkdown || rawMarkdown?.endsWith('```');
 		if (codemapperUri) {
-			const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
+			const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codemapperUri }, { inProgress: !isCodeBlockComplete, handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
 			this._register(this.chatMarkdownAnchorService.register(inlineAnchor));
 			return {
 				object: { object: inlineAnchor, element: fileWidgetAnchor },
