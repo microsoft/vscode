@@ -68,10 +68,11 @@ import { ChatEditingSessionState, IChatEditingSession, WorkingSetEntryState } fr
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
-import { IChatHistoryEntry, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
 import { IChatWidget } from './chat.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingActions.js';
@@ -92,26 +93,6 @@ interface IChatInputPartOptions {
 	};
 	editorOverflowWidgetsDomNode?: HTMLElement;
 }
-
-// TODO: @justschen
-// class ChatInputContentProvider extends Disposable implements ITextModelContentProvider {
-// 	constructor(
-// 		textModelService: ITextModelService,
-// 		private readonly modelService: IModelService,
-// 		private readonly languageService: ILanguageService,
-// 	) {
-// 		super();
-// 		this._register(textModelService.registerTextModelContentProvider(ChatInputPart.INPUT_SCHEME, this));
-// 	}
-
-// 	async provideTextContent(resource: URI): Promise<ITextModel | null> {
-// 		const existing = this.modelService.getModel(resource);
-// 		if (existing) {
-// 			return existing;
-// 		}
-// 		return this.modelService.createModel('', this.languageService.createById('chatSessionInput'), resource);
-// 	}
-// }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
@@ -135,12 +116,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _onDidAcceptFollowup = this._register(new Emitter<{ followup: IChatFollowup; response: IChatResponseViewModel | undefined }>());
 	readonly onDidAcceptFollowup = this._onDidAcceptFollowup.event;
 
-	public get attachedContext(): ReadonlySet<IChatRequestVariableEntry> {
-		return this._attachedContext;
+	private readonly _attachmentModel: ChatAttachmentModel;
+	public get attachmentModel(): ChatAttachmentModel {
+		return this._attachmentModel;
 	}
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
-	private readonly _attachedContext = new Set<IChatRequestVariableEntry>();
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
@@ -182,7 +163,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private history: HistoryNavigator2<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
-	private inHistoryNavigation = false;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
@@ -218,11 +198,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return edits;
 	}
 
+	private readonly getInputState: () => IChatInputState;
+
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
 		private readonly location: ChatAgentLocation,
 		private readonly options: IChatInputPartOptions,
-		private readonly getInputState: () => any,
+		getContribsInputState: () => any,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -239,7 +221,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	) {
 		super();
 
-
+		this._attachmentModel = this._register(new ChatAttachmentModel());
+		this.getInputState = (): IChatInputState => {
+			// Get input state from widget contribs, merge with attachments
+			return {
+				...getContribsInputState(),
+				chatContextAttachments: this._attachmentModel.attachments,
+			};
+		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
 		this.inputEditorHasText = CONTEXT_CHAT_INPUT_HAS_TEXT.bindTo(contextKeyService);
@@ -295,29 +284,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	updateState(inputState: Object): void {
-		if (this.inHistoryNavigation) {
-			return;
-		}
-
-		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
-
-		if (this.history.isAtEnd()) {
-			// The last history entry should always be the current input value
-			this.history.replaceLast(newEntry);
-		} else {
-			// Added a reference while in the middle of history navigation, it's a new entry
-			this.history.replaceLast(newEntry);
-			this.history.resetCursor();
-		}
-	}
-
 	initForNewChatModel(state: IChatViewState): void {
 		this.history = this.loadHistory();
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
 			state: state.inputState ?? this.getInputState()
 		});
+		const attachments = state.inputState?.chatContextAttachments ?? [];
+		this._attachmentModel.clearAndSetContext(...attachments);
 
 		if (state.inputValue) {
 			this.setValue(state.inputValue, false);
@@ -342,7 +316,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				});
 			}
 		}
-
 	}
 
 	logInputHistory(): void {
@@ -390,11 +363,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const historyEntry = previous ?
 			this.history.previous() : this.history.next();
 
-		aria.status(historyEntry.text);
+		const historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+		this._attachmentModel.clearAndSetContext(...historyAttachments);
 
-		this.inHistoryNavigation = true;
+		aria.status(historyEntry.text);
 		this.setValue(historyEntry.text, true);
-		this.inHistoryNavigation = false;
 
 		this._onDidLoadInputState.fire(historyEntry.state);
 
@@ -455,7 +428,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
-		this._attachedContext.clear();
+		this.attachmentModel.clear();
 		this._onDidLoadInputState.fire({});
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
@@ -476,28 +449,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.setValue('');
 		this._inputEditorElement.appendChild(domNode);
 		this._inputEditor.focus();
-	}
-
-	attachContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]): void {
-		const removed = [];
-		if (overwrite) {
-			removed.push(...Array.from(this._attachedContext));
-			this._attachedContext.clear();
-		}
-
-		if (contentReferences.length > 0) {
-			for (const reference of contentReferences) {
-				this._attachedContext.add(reference);
-			}
-		}
-
-		if (removed.length > 0 || contentReferences.length > 0) {
-			this.initAttachedContext(this.attachedContextContainer);
-
-			if (!overwrite) {
-				this._onDidChangeContext.fire({ removed, added: contentReferences });
-			}
-		}
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
@@ -540,6 +491,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
+		this._register(this._attachmentModel.onDidChangeContext(() => this.initAttachedContext(this.attachedContextContainer)));
 		this.renderChatEditingSessionState(null, undefined, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -710,11 +662,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
-		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
-		if (!this.attachedContext.size) {
+		dom.setVisibility(Boolean(this.attachmentModel.size), this.attachedContextContainer);
+		if (!this.attachmentModel.size) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
-		[...this.attachedContext.values()].forEach(async (attachment, index) => {
+		this.attachmentModel.attachments.forEach(async (attachment, index) => {
 			if (attachment.isFile && this.location === ChatAgentLocation.EditingSession) {
 				return;
 			}
@@ -802,14 +754,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 
 		// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
-		if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {
+		if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachmentModel.size - 1)) {
 			clearButton.focus();
 		}
 
 		this.attachedContextDisposables.add(clearButton);
 		clearButton.icon = Codicon.close;
 		const disp = clearButton.onDidClick((e) => {
-			this._attachedContext.delete(attachment);
+			this._attachmentModel.delete(attachment.id);
 			disp.dispose();
 
 			// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
@@ -820,7 +772,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 
-			if (this._attachedContext.size === 0) {
+			if (this._attachmentModel.size === 0) {
 				this.focus();
 			}
 
@@ -876,7 +828,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'reference',
 			};
 		}) ?? [];
-		for (const attachment of this._attachedContext) {
+		for (const attachment of this.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value) && !modifiedFiles.has(attachment.value)) {
 				entries.unshift({
 					reference: attachment.value,
@@ -927,7 +879,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		button.label = localize('chatAddFiles', 'Add Files...');
 		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget });
+			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') });
 		}));
 		dom.append(actionsContainer, button.element);
 
@@ -942,7 +894,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (!this._chatEditsProgress && chatEditingSession.state.get() === ChatEditingSessionState.StreamingEdits) {
+		if (!this._chatEditsProgress && (chatEditingSession.state.get() === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress)) {
 			this._chatEditsProgress = new ProgressBar(innerContainer);
 			this._chatEditsProgress.infinite().show(500);
 		}
@@ -1099,6 +1051,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) + 4 /*gap*/ : 0,
 		};
+	}
+
+	getViewState(): IChatInputState {
+		return this.getInputState();
 	}
 
 	saveState(): void {

@@ -53,18 +53,24 @@ function optimizeESMTask(opts) {
             };
             const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
             banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
-            const boilerplateTrimmer = {
-                name: 'boilerplate-trimmer',
+            const contentsMapper = {
+                name: 'contents-mapper',
                 setup(build) {
-                    build.onLoad({ filter: /\.js$/ }, async (args) => {
-                        const contents = await fs.promises.readFile(args.path, 'utf-8');
-                        const newContents = bundle.removeAllTSBoilerplate(contents);
+                    build.onLoad({ filter: /\.js$/ }, async ({ path }) => {
+                        // TS Boilerplate
+                        const contents = await fs.promises.readFile(path, 'utf-8');
+                        let newContents = bundle.removeAllTSBoilerplate(contents);
+                        // File Content Mapper
+                        const mapper = opts.fileContentMapper?.(path);
+                        if (mapper) {
+                            newContents = mapper(newContents);
+                        }
                         return { contents: newContents };
                     });
                 }
             };
-            const overrideExternalPlugin = {
-                name: 'override-external',
+            const externalOverride = {
+                name: 'external-override',
                 setup(build) {
                     // We inline selected modules that are we depend on on startup without
                     // a conditional `await import(...)` by hooking into the resolution.
@@ -80,7 +86,7 @@ function optimizeESMTask(opts) {
                 platform: 'neutral', // makes esm
                 format: 'esm',
                 sourcemap: 'external',
-                plugins: [boilerplateTrimmer, overrideExternalPlugin],
+                plugins: [contentsMapper, externalOverride],
                 target: ['es2022'],
                 loader: {
                     '.ttf': 'file',
@@ -101,23 +107,12 @@ function optimizeESMTask(opts) {
                 metafile: true, // enables res.metafile
             }).then(res => {
                 for (const file of res.outputFiles) {
-                    let contents = file.contents;
                     let sourceMapFile = undefined;
                     if (file.path.endsWith('.js')) {
-                        if (opts.fileContentMapper) {
-                            // UGLY the fileContentMapper is per file but at this point we have all files
-                            // bundled already. So, we call the mapper for the same contents but each file
-                            // that has been included in the bundle...
-                            let newText = file.text;
-                            for (const input of Object.keys(res.metafile.inputs)) {
-                                newText = opts.fileContentMapper(newText, input);
-                            }
-                            contents = Buffer.from(newText);
-                        }
                         sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
                     }
                     const fileProps = {
-                        contents: Buffer.from(contents),
+                        contents: Buffer.from(file.contents),
                         sourceMap: sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined, // support gulp-sourcemaps
                         path: file.path,
                         base: path.join(REPO_ROOT_PATH, opts.src)

@@ -2001,11 +2001,16 @@ export interface Comment {
 }
 
 export interface PendingCommentThread {
-	body: string;
 	range: IRange | undefined;
 	uri: URI;
 	uniqueOwner: string;
 	isReply: boolean;
+	comment: PendingComment;
+}
+
+export interface PendingComment {
+	body: string;
+	cursor: IPosition;
 }
 
 /**

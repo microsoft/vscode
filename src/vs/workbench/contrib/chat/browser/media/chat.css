@@ -518,6 +518,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 2px;
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-container .monaco-list .monaco-list-row .monaco-icon-name-container.modified {
+	font-weight: bold;
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
 	display: flex;
 	flex-direction: row;
