@@ -23,6 +23,9 @@ import { ByteSize, IFileService } from '../../files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { extractSelection } from '../../opener/common/opener.js';
 import { Registry } from '../../registry/common/platform.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IHostService } from '../../../workbench/services/host/browser/host.js';
+
 
 export interface FileAdditionalNativeProperties {
 	/**
@@ -56,7 +59,7 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	allowWorkspaceOpen?: boolean;
 }
 
-export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
+export function extractEditorsDropData(e: DragEvent, hostService: IHostService): Array<IDraggedResourceEditorInput> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
@@ -84,9 +87,9 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		if (e.dataTransfer?.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file && (file as FileAdditionalNativeProperties).path /* Electron only */) {
+				if (file && hostService.getPathForFile(file)) {
 					try {
-						editors.push({ resource: URI.file((file as FileAdditionalNativeProperties).path!), isExternal: true, allowWorkspaceOpen: true });
+						editors.push({ resource: URI.file(hostService.getPathForFile(file)!), isExternal: true, allowWorkspaceOpen: true });
 					} catch (error) {
 						// Invalid URI
 					}
@@ -140,7 +143,8 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 }
 
 export async function extractEditorsAndFilesDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
-	const editors = extractEditorsDropData(e);
+	const hostService = accessor.get(IHostService);
+	const editors = extractEditorsDropData(e, hostService);
 
 	// Web: Check for file transfer
 	if (e.dataTransfer && isWeb && containsDragType(e, DataTransfers.FILES)) {

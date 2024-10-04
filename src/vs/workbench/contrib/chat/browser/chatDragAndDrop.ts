@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { IChatWidgetStyles } from './chatWidget.js';
@@ -35,7 +36,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -169,7 +171,7 @@ export class ChatDragAndDrop extends Themable {
 			return [];
 		}
 
-		const data = extractEditorsDropData(e);
+		const data = extractEditorsDropData(e, this.hostService);
 		return coalesce(data.map(editorInput => {
 			return this.resolveAttachContext(editorInput);
 		}));
