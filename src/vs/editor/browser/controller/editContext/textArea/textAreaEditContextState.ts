@@ -72,6 +72,10 @@ export class TextAreaState {
 		if (_debugComposition) {
 			console.log(`writeToTextArea ${reason}: ${this.toString()}`);
 		}
+		console.log('writeToTextArea');
+		console.log('this.value : ', this.value);
+		console.log('this.selectionStart : ', this.selectionStart);
+		console.log('this.selectionEnd : ', this.selectionEnd);
 		textArea.setValue(reason, this.value);
 		if (select) {
 			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);

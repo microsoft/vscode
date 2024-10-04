@@ -8,7 +8,7 @@ import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { EditorOption } from '../../../../common/config/editorOptions.js';
+import { EditorOption, EditorOptions } from '../../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../../common/config/fontInfo.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -58,7 +58,13 @@ export class ScreenReaderSupport {
 		this._fontInfo = options.get(EditorOption.fontInfo);
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-		this._accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
+		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
+			// If a screen reader is attached and the default value is not set we should automatically increase the page size to 500 for a better experience
+			this._accessibilityPageSize = 500;
+		} else {
+			this._accessibilityPageSize = accessibilityPageSize;
+		}
 	}
 
 	private _updateDomAttributes(): void {
@@ -112,17 +118,21 @@ export class ScreenReaderSupport {
 			return;
 		}
 		this._screenReaderContentState = this._getScreenReaderContentState();
+		console.log('this._screenReaderContentState : ', this._screenReaderContentState);
 		if (!this._screenReaderContentState) {
 			return;
 		}
+		console.log('this._screenReaderContentState.value : ', this._screenReaderContentState.value);
+		console.log('this._screenReaderContentState.selectionStart : ', this._screenReaderContentState.selectionStart);
+		console.log('this._screenReaderContentState.selectionEnd : ', this._screenReaderContentState.selectionEnd);
 		if (this._domNode.domNode.textContent !== this._screenReaderContentState.value) {
 			this._domNode.domNode.textContent = this._screenReaderContentState.value;
 		}
 		this._setSelectionOfScreenReaderContent(this._screenReaderContentState.selectionStart, this._screenReaderContentState.selectionEnd);
 	}
 
-	public startPositionOfScreenReaderContentWithinEditor(): Position | undefined {
-		return this._screenReaderContentState?.startPositionWithinEditor;
+	public get screenReaderContentState(): ScreenReaderContentState | undefined {
+		return this._screenReaderContentState;
 	}
 
 	private _getScreenReaderContentState(): ScreenReaderContentState | undefined {
@@ -146,10 +156,12 @@ export class ScreenReaderSupport {
 				return this._context.viewModel.modifyPosition(position, offset);
 			}
 		};
-		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown, false);
+		console.log('this._accessibilityPageSize : ', this._accessibilityPageSize);
+		return PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._primarySelection, this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
 	}
 
 	private _setSelectionOfScreenReaderContent(selectionOffsetStart: number, selectionOffsetEnd: number): void {
+		console.log('_setSelectionOfScreenReaderContent');
 		const activeDocument = getActiveWindow().document;
 		const activeDocumentSelection = activeDocument.getSelection();
 		if (!activeDocumentSelection) {
@@ -162,6 +174,7 @@ export class ScreenReaderSupport {
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
+		console.log('range : ', range);
 		activeDocumentSelection.removeAllRanges();
 		activeDocumentSelection.addRange(range);
 	}
