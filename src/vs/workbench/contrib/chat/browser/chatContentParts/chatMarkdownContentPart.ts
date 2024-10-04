@@ -59,7 +59,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		renderer: MarkdownRenderer,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
-		rendererOptions: IChatListItemRendererOptions,
+		private readonly rendererOptions: IChatListItemRendererOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -198,8 +198,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && (other.content.value === this.markdown.value
-			|| this.codeblocks[this.codeblocks.length - 1].isStreaming && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
+		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.value
+			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {
