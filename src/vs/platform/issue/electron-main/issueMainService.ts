@@ -22,7 +22,6 @@ import { IIPCObjectUrl, IProtocolMainService } from '../../protocol/electron-mai
 import { zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState } from '../../window/electron-main/window.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
-import { isESM } from '../../../base/common/amd.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 
 interface IBrowserWindowOptions {
@@ -93,7 +92,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
+					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {
@@ -204,7 +203,7 @@ export class IssueMainService implements IIssueMainService {
 	}
 
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
-		const window = new BrowserWindow({
+		const windowOptions: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 			fullscreen: false,
 			skipTaskbar: false,
 			resizable: true,
@@ -227,7 +226,8 @@ export class IssueMainService implements IIssueMainService {
 			},
 			alwaysOnTop: options.alwaysOnTop,
 			experimentalDarkMode: true
-		} as BrowserWindowConstructorOptions & { experimentalDarkMode: boolean });
+		};
+		const window = new BrowserWindow(windowOptions);
 
 		window.setMenuBarVisibility(false);
 

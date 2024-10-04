@@ -130,14 +130,14 @@ class Snapper {
 		return result;
 	}
 
-	private _themedTokenizeTreeSitter(tokens: IToken[]): IThemedToken[] {
+	private _themedTokenizeTreeSitter(tokens: IToken[], languageId: string): IThemedToken[] {
 		const colorMap = TokenizationRegistry.getColorMap();
 		const result: IThemedToken[] = Array(tokens.length);
 		const colorThemeData = this.themeService.getColorTheme() as ColorThemeData;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const token = tokens[i];
 			const scopes = token.t.split(' ');
-			const metadata = findMetadata(colorThemeData, scopes[scopes.length - 1]);
+			const metadata = findMetadata(colorThemeData, scopes, this.languageService.languageIdCodec.encodeLanguageId(languageId));
 			const color = TokenMetadata.getForeground(metadata);
 
 			result[i] = {
@@ -218,7 +218,7 @@ class Snapper {
 		return result;
 	}
 
-	private async _getTreeSitterThemesResult(tokens: IToken[]): Promise<IThemesResult> {
+	private async _getTreeSitterThemesResult(tokens: IToken[], languageId: string): Promise<IThemesResult> {
 		const currentTheme = this.themeService.getColorTheme();
 
 		const getThemeName = (id: string) => {
@@ -241,7 +241,7 @@ class Snapper {
 				const themeName = getThemeName(themeId);
 				result[themeName!] = {
 					document: new ThemeDocument(this.themeService.getColorTheme()),
-					tokens: this._themedTokenizeTreeSitter(tokens)
+					tokens: this._themedTokenizeTreeSitter(tokens, languageId)
 				};
 			}
 		}
@@ -333,7 +333,7 @@ class Snapper {
 				return [];
 			}
 			const result = (await this._treeSitterTokenize(tree, languageId)).filter(t => t.c.length > 0);
-			const themeTokens = await this._getTreeSitterThemesResult(result);
+			const themeTokens = await this._getTreeSitterThemesResult(result, languageId);
 			this._enrichResult(result, themeTokens);
 			return result;
 		}

@@ -18,10 +18,8 @@ import { CLIServer } from './extHostCLIServer.js';
 import { realpathSync } from '../../../base/node/extpath.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-// ESM-uncomment-end
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -46,7 +44,6 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			return originalLookup.call(this, applyAlternatives(request), parent);
 		};
 
-		// ESM-uncomment-begin
 		const originalResolveFilename = node_module._resolveFilename;
 		node_module._resolveFilename = function resolveFilename(request: string, parent: unknown, isMain: boolean, options?: { paths?: string[] }) {
 			if (request === 'vsda' && Array.isArray(options?.paths) && options.paths.length === 0) {
@@ -58,7 +55,6 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			}
 			return originalResolveFilename.call(this, request, parent, isMain, options);
 		};
-		// ESM-uncomment-end
 
 		const applyAlternatives = (request: string) => {
 			for (const alternativeModuleName of that._alternatives) {
@@ -127,7 +123,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = <T>(require.__$__nodeRequire ?? require /* TODO@esm drop the first */)(module.fsPath);
+			r = <T>(require)(module.fsPath);
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);

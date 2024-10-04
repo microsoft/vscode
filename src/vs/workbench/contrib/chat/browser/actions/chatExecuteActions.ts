@@ -50,7 +50,7 @@ export class SubmitAction extends Action2 {
 				},
 				{
 					id: MenuId.ChatExecute,
-					order: 2,
+					order: 4,
 					when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 					group: 'navigation',
 				},
@@ -73,7 +73,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 		id: ChatModelPickerActionId,
 		title: localize2('chat.pickModel.label', "Pick Model"),
 	},
-	order: 1,
+	order: 3,
 	group: 'navigation',
 	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
 });
@@ -167,7 +167,7 @@ export class CancelAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
-				order: 2,
+				order: 4,
 				group: 'navigation',
 			},
 			keybinding: {

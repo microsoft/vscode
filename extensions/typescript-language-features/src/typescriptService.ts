@@ -80,6 +80,7 @@ interface StandardTsServerRequests {
 	// @ts-expect-error until ts5.7
 	'copilotRelated': [Proto.FileRequestArgs, Proto.CopilotRelatedResponse];
 	'getPasteEdits': [Proto.GetPasteEditsRequestArgs, Proto.GetPasteEditsResponse];
+	'preparePasteEdits': [Proto.PreparePasteEditsRequestArgs, Proto.PreparePasteEditsResponse];
 }
 
 interface NoResponseTsServerRequests {

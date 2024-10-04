@@ -632,7 +632,7 @@ export namespace WorkspaceEdit {
 					}
 
 					// file operation
-					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+					result.edits.push({
 						oldResource: entry.from,
 						newResource: entry.to,
 						options: { ...entry.options, contents },
@@ -641,14 +641,14 @@ export namespace WorkspaceEdit {
 
 				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
-					result.edits.push(<languages.IWorkspaceTextEdit>{
+					result.edits.push({
 						resource: entry.uri,
 						textEdit: TextEdit.from(entry.edit),
 						versionId: !toCreate.has(entry.uri) ? versionInfo?.getTextDocumentVersion(entry.uri) : undefined,
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Snippet) {
-					result.edits.push(<languages.IWorkspaceTextEdit>{
+					result.edits.push({
 						resource: entry.uri,
 						textEdit: {
 							range: Range.from(entry.range),
@@ -661,17 +661,16 @@ export namespace WorkspaceEdit {
 
 				} else if (entry._type === types.FileEditType.Cell) {
 					// cell edit
-					result.edits.push(<notebooks.IWorkspaceNotebookCellEdit>{
+					result.edits.push({
 						metadata: entry.metadata,
 						resource: entry.uri,
 						cellEdit: entry.edit,
-						notebookMetadata: entry.notebookMetadata,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri)
 					});
 
 				} else if (entry._type === types.FileEditType.CellReplace) {
 					// cell replace
-					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+					result.edits.push({
 						metadata: entry.metadata,
 						resource: entry.uri,
 						notebookVersionId: versionInfo?.getNotebookDocumentVersion(entry.uri),
@@ -1605,10 +1604,10 @@ export namespace LanguageSelector {
 			return selector;
 		} else {
 			const filter = selector as vscode.DocumentFilter; // TODO: microsoft/TypeScript#42768
-			return <languageSelector.LanguageFilter>{
+			return {
 				language: filter.language,
 				scheme: filter.scheme,
-				pattern: GlobPattern.from(filter.pattern),
+				pattern: GlobPattern.from(filter.pattern) ?? undefined,
 				exclusive: filter.exclusive,
 				notebookType: filter.notebookType
 			};
@@ -1629,7 +1628,7 @@ export namespace MappedEditsContext {
 		);
 	}
 
-	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
+	export function from(extContext: vscode.MappedEditsContext): Dto<languages.MappedEditsContext> {
 		return {
 			documents: extContext.documents.map((subArray) =>
 				subArray.map(DocumentContextItem.from)
@@ -1643,6 +1642,7 @@ export namespace MappedEditsContext {
 					{
 						type: 'response',
 						message: item.message,
+						result: item.result ? ChatAgentResult.from(item.result) : undefined,
 						references: item.references?.map(DocumentContextItem.from)
 					}
 			))
@@ -1663,11 +1663,19 @@ export namespace DocumentContextItem {
 		);
 	}
 
-	export function from(item: vscode.DocumentContextItem): languages.DocumentContextItem {
+	export function from(item: vscode.DocumentContextItem): Dto<languages.DocumentContextItem> {
 		return {
-			uri: URI.from(item.uri),
+			uri: item.uri,
 			version: item.version,
 			ranges: item.ranges.map(r => Range.from(r)),
+		};
+	}
+
+	export function to(item: Dto<languages.DocumentContextItem>): vscode.DocumentContextItem {
+		return {
+			uri: URI.revive(item.uri),
+			version: item.version,
+			ranges: item.ranges.map(r => Range.to(r)),
 		};
 	}
 }
@@ -2498,7 +2506,7 @@ export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
 		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
-		const isSymbolInformation = (x: any): x is vscode.SymbolInformation => x instanceof types.SymbolInformation;
+		const isSymbolInformation = (thing: object): thing is vscode.SymbolInformation => 'name' in thing;
 
 		return {
 			kind: 'inlineReference',
@@ -2759,6 +2767,7 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
 			case ChatAgentLocation.Panel: return types.ChatLocation.Panel;
 			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
+			case ChatAgentLocation.EditingSession: return types.ChatLocation.EditingSession;
 		}
 	}
 
@@ -2768,6 +2777,7 @@ export namespace ChatLocation {
 			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
 			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
 			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+			case types.ChatLocation.EditingSession: return ChatAgentLocation.EditingSession;
 		}
 	}
 }
@@ -2785,7 +2795,7 @@ export namespace ChatPromptReference {
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 			value: isUriComponents(value) ? URI.revive(value) :
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
-					Location.to(revive(value)) : value,
+					Location.to(revive(value)) : variable.isImage ? new types.ChatReferenceBinaryData('image/*', () => Promise.resolve(new Uint8Array(Object.values(value)))) : value,
 			modelDescription: variable.modelDescription
 		};
 	}
@@ -2823,6 +2833,13 @@ export namespace ChatAgentCompletionItem {
 
 export namespace ChatAgentResult {
 	export function to(result: IChatAgentResult): vscode.ChatResult {
+		return {
+			errorDetails: result.errorDetails,
+			metadata: result.metadata,
+			nextQuestion: result.nextQuestion,
+		};
+	}
+	export function from(result: vscode.ChatResult): Dto<IChatAgentResult> {
 		return {
 			errorDetails: result.errorDetails,
 			metadata: result.metadata,
@@ -2909,10 +2926,11 @@ export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
 			id: item.id,
-			modelDescription: item.modelDescription,
+			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
 			displayName: item.displayName,
 			supportedContentTypes: item.supportedContentTypes,
+			tags: item.tags ?? [],
 		};
 	}
 }
