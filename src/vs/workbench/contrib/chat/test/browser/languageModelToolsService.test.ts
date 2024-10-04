@@ -49,8 +49,6 @@ suite('LanguageModelToolsService', () => {
 
 		const toolImpl: IToolImpl = {
 			invoke: async () => ({ 'text/plain': 'result' }),
-			provideToolInvocationMessage: async () => 'test',
-			provideToolConfirmationMessages: async () => ({ title: 'test', message: 'test' }),
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
@@ -104,9 +102,7 @@ suite('LanguageModelToolsService', () => {
 				assert.strictEqual(invocation.toolId, 'testTool');
 				assert.deepStrictEqual(invocation.parameters, { a: 1 });
 				return { 'text/plain': 'result' };
-			},
-			provideToolInvocationMessage: async () => 'test',
-			provideToolConfirmationMessages: async () => ({ title: 'test', message: 'test' }),
+			}
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));

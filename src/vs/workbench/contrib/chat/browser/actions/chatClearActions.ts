@@ -12,14 +12,15 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { CHAT_CATEGORY, isChatViewTitleActionContext } from './chatActions.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EDITING_ENABLED } from '../../common/chatContextKeys.js';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED } from '../../common/chatContextKeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
@@ -81,14 +82,17 @@ export function registerNewChatActions() {
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+			const widgetService = accessor.get(IChatWidgetService);
 			if (isChatViewTitleActionContext(context)) {
+				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
-				context.chatView.widget.clear();
-				context.chatView.widget.focusInput();
+				if (widget) {
+					widget.clear();
+					widget.focusInput();
+				}
 			} else {
 				// Is running from f1 or keybinding
-				const widgetService = accessor.get(IChatWidgetService);
 				const viewsService = accessor.get(IViewsService);
 
 				let widget = widgetService.lastFocusedWidget;
@@ -130,14 +134,18 @@ export function registerNewChatActions() {
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+			const widgetService = accessor.get(IChatWidgetService);
 			if (isChatViewTitleActionContext(context)) {
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
-				context.chatView.widget.clear();
-				context.chatView.widget.focusInput();
+				const widget = widgetService.getWidgetBySessionId(context.sessionId);
+				if (widget) {
+					widget.clear();
+					widget.attachmentModel.clear();
+					widget.focusInput();
+				}
 			} else {
 				// Is running from f1 or keybinding
-				const widgetService = accessor.get(IChatWidgetService);
 				const viewsService = accessor.get(IViewsService);
 
 				let widget = widgetService.lastFocusedWidget;
@@ -148,6 +156,7 @@ export function registerNewChatActions() {
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
+				widget.attachmentModel.clear();
 				widget.focusInput();
 			}
 		}
@@ -164,7 +173,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_ENABLED),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
 					group: 'navigation',
 					order: 1
 				}]

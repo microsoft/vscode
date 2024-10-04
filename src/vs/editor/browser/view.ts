@@ -456,6 +456,10 @@ export class View extends ViewEventHandler {
 			throw new BugIndicatingError();
 		}
 		if (this._renderAnimationFrame === null) {
+			// TODO: workaround fix for https://github.com/microsoft/vscode/issues/229825
+			if (this._editContext instanceof NativeEditContext) {
+				this._editContext.setEditContextOnDomNode();
+			}
 			const rendering = this._createCoordinatedRendering();
 			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
 				window: dom.getWindow(this.domNode?.domNode),

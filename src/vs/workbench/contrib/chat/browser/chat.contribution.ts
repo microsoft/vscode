@@ -37,7 +37,7 @@ import { ILanguageModelStatsService, LanguageModelStatsService } from '../common
 import { ILanguageModelToolsService, LanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
-import { ChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
+import { PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ChatCommandCenterRendering, registerChatActions } from './actions/chatActions.js';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from './actions/chatClearActions.js';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
@@ -52,6 +52,7 @@ import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
+import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { ChatEditingService } from './chatEditingService.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
@@ -64,7 +65,7 @@ import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
-import './contrib/chatContextAttachments.js';
+import './chatAttachmentModel.js';
 import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
@@ -106,12 +107,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
-			default: false
-		},
-		'chat.experimental.implicitContext': {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.implicitContext', "Controls whether a checkbox is shown to allow the user to determine which implicit context is included with a chat participant's prompt."),
-			deprecated: true,
 			default: false
 		},
 		'chat.experimental.variables.editor': {
@@ -178,7 +173,8 @@ class ChatResolverContribution extends Disposable {
 }
 
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
-AccessibleViewRegistry.register(new ChatAccessibilityHelp());
+AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
+AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
 
 class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
@@ -315,3 +311,4 @@ registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
+registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);

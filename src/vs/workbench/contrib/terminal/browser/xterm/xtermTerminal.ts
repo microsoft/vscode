@@ -122,8 +122,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
 
-	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
+	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestCopyAsHtml = this._register(new Emitter<{ command: ITerminalCommand }>());
+	readonly onDidRequestCopyAsHtml = this._onDidRequestCopyAsHtml.event;
 	private readonly _onDidRequestRefreshDimensions = this._register(new Emitter<void>());
 	readonly onDidRequestRefreshDimensions = this._onDidRequestRefreshDimensions.event;
 	private readonly _onDidChangeFindResults = this._register(new Emitter<{ resultIndex: number; resultCount: number }>());
@@ -259,10 +261,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
+		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(options.shellIntegrationNonce ?? '', options.disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._xtermAddonLoader.importAddon('clipboard').then(ClipboardAddon => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
 				async readText(type: ClipboardSelectionType): Promise<string> {
 					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
@@ -467,6 +473,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _getSearchAddon(): Promise<SearchAddonType> {
 		if (!this._searchAddonPromise) {
 			this._searchAddonPromise = this._xtermAddonLoader.importAddon('search').then((AddonCtor) => {
+				if (this._store.isDisposed) {
+					return Promise.reject('Could not create search addon, terminal is disposed');
+				}
 				this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
 				this.raw.loadAddon(this._searchAddon);
 				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {

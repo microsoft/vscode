@@ -110,7 +110,6 @@ export const enum TerminalSettingId {
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
-	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
@@ -332,8 +331,6 @@ export interface IPtyService {
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
 
-	installAutoReply(match: string, reply: string): Promise<void>;
-	uninstallAllAutoReplies(): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
@@ -359,6 +356,13 @@ export interface IPtyService {
 
 	// TODO: Make mandatory and remove impl from pty host service
 	refreshIgnoreProcessNames?(names: string[]): Promise<void>;
+
+	// #region Pty service contribution RPC calls
+
+	installAutoReply(match: string, reply: string): Promise<void>;
+	uninstallAllAutoReplies(): Promise<void>;
+
+	// #endregion
 }
 export const IPtyService = createDecorator<IPtyService>('ptyService');
 

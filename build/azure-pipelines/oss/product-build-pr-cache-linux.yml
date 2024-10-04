@@ -43,8 +43,11 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
-    displayName: Install build dependencies
+  - script: |
+      set -e
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
+    displayName: Setup system services
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |

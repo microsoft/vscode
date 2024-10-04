@@ -98,6 +98,7 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
+	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';

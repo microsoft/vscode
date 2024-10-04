@@ -82,7 +82,7 @@ jobs:
         run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: npm run test-browser-no-install --browser chromium
+        run: npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
@@ -162,7 +162,7 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -238,7 +238,7 @@ jobs:
         run: npm run test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: DISPLAY=:10 npm run test-browser-no-install --browser chromium
+        run: DISPLAY=:10 npm run test-browser-no-install -- --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
