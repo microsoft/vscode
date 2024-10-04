@@ -5,8 +5,8 @@
 		"dbaeumer.vscode-eslint",
 		"editorconfig.editorconfig",
 		"github.vscode-pull-request-github",
-		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.extension-test-runner",
-		"jrieken.vscode-pr-pinger"
+		"jrieken.vscode-pr-pinger",
+		"codespaces-contrib.codeswing"
 	]
 }
