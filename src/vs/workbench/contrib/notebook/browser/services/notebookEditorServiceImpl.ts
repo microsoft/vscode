@@ -106,11 +106,11 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		const interactiveWindowOpen = InteractiveWindowOpen.bindTo(contextKeyService);
 		this._disposables.add(editorService.onDidEditorsChange(e => {
 			if (e.event.kind === GroupModelChangeKind.EDITOR_OPEN && !interactiveWindowOpen.get()) {
-				if (editorService.editors.find(editor => editor.editorId === 'interactive')) {
+				if (editorService.editors.find(editor => isCompositeNotebookEditorInput(editor))) {
 					interactiveWindowOpen.set(true);
 				}
 			} else if (e.event.kind === GroupModelChangeKind.EDITOR_CLOSE && interactiveWindowOpen.get()) {
-				if (!editorService.editors.find(editor => editor.editorId === 'interactive')) {
+				if (!editorService.editors.find(editor => isCompositeNotebookEditorInput(editor))) {
 					interactiveWindowOpen.set(false);
 				}
 			}

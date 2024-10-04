@@ -2,7 +2,7 @@
 	"root": true,
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
-		"ecmaVersion": 6,
+		"ecmaVersion": 2022,
 		"sourceType": "module"
 	},
 	"plugins": [
@@ -92,9 +92,14 @@
 					"common",
 					"browser"
 				],
-				"electron-main": [
+				"electron-utility": [
 					"common",
 					"node"
+				],
+				"electron-main": [
+					"common",
+					"node",
+					"electron-utility"
 				]
 			}
 		],
@@ -613,10 +618,62 @@
 		},
 		{
 			"files": [
+				"src/**/electron-utility/**/*.ts"
+			],
+			"rules": {
+				"no-restricted-imports": [
+					"warn",
+					{
+						"paths": [
+							{
+								"name": "electron",
+								"importNames": [
+									"app",
+									"autoUpdater",
+									"BaseWindow",
+									"BrowserWindow",
+									"contentTracing",
+									"desktopCapturer",
+									"dialog",
+									"globalShortcut",
+									"inAppPurchase",
+									"ipcMain",
+									"Menu",
+									"MenuItem",
+									"MessageChannelMain",
+									"MessagePortMain",
+									"nativeTheme",
+									"netLog",
+									"Notification",
+									"powerMonitor",
+									"powerSaveBlocker",
+									"protocol",
+									"pushNotifications",
+									"safeStorage",
+									"screen",
+									"session",
+									"ShareMenu",
+									"TouchBar",
+									"Tray",
+									"utilityProcess",
+									"View",
+									"webContents",
+									"webFrameMain",
+									"webContentsView",
+									"default"
+								],
+								"message": "Only net and system-preferences are allowed to be imported from electron"
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {
-				"local/code-no-look-behind-regex": "warn",
 				"local/code-import-patterns": [
 					"warn",
 					{
@@ -624,13 +681,12 @@
 						// - browser
 						// - electron-sandbox
 						"when": "hasBrowser",
-						"allow": [
-							"vs/css!./**/*"
-						]
+						"allow": []
 					},
 					{
 						// imports that are allowed in all files of layers:
 						// - node
+						// - electron-utility
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -649,7 +705,6 @@
 							"cookie",
 							"crypto",
 							"dns",
-							"electron",
 							"events",
 							"fs",
 							"fs/promises",
@@ -689,11 +744,18 @@
 						]
 					},
 					{
+						// imports that are allowed in all files of layers:
+						// - electron-utility
+						// - electron-main
+						"when": "hasElectron",
+						"allow": [
+							"electron"
+						]
+					},
+					{
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
-							"vs/css.build",
-							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -748,7 +810,8 @@
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
 							"@microsoft/1ds-core-js", // node module allowed even in /common/
-							"@microsoft/1ds-post-js" // node module allowed even in /common/
+							"@microsoft/1ds-post-js", // node module allowed even in /common/
+							"@xterm/headless" // node module allowed even in /common/
 						]
 					},
 					{
@@ -779,7 +842,8 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/standalone/~"
+							"vs/editor/standalone/~",
+							"@vscode/tree-sitter-wasm" // type import
 						]
 					},
 					{
@@ -865,6 +929,7 @@
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
 							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							"@vscode/tree-sitter-wasm", // type import
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"
@@ -882,7 +947,10 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribChatExports*",
+							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
+							"@vscode/tree-sitter-wasm", // type import
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"
@@ -923,7 +991,8 @@
 							{
 								"when": "hasBrowser",
 								"pattern": "vscode-textmate"
-							} // node module allowed even in /browser/
+							}, // node module allowed even in /browser/
+							"@xterm/headless" // node module allowed even in /common/ and /browser/
 						]
 					},
 					{
@@ -937,11 +1006,11 @@
 							"vs/code/~",
 							{
 								"when": "hasBrowser",
-								"pattern": "vs/workbench/workbench.web.main"
+								"pattern": "vs/workbench/workbench.web.main.js"
 							},
 							{
 								"when": "hasBrowser",
-								"pattern": "vs/workbench/workbench.web.main.js"
+								"pattern": "vs/workbench/workbench.web.main.internal.js"
 							},
 							{
 								"when": "hasBrowser",
@@ -974,6 +1043,21 @@
 						]
 					},
 					{
+						"target": "src/vs/workbench/contrib/terminal/terminalContribChatExports.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/terminalContrib/*/~"
+						]
+					},
+					{
+						"target": "src/vs/workbench/contrib/terminal/terminalContribExports.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/platform/*/~",
+							"vs/workbench/contrib/terminalContrib/*/~"
+						]
+					},
+					{
 						"target": "src/vs/workbench/workbench.common.main.ts",
 						"layer": "browser",
 						"restrictions": [
@@ -982,13 +1066,11 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/terminal.all",
 							"vs/workbench/contrib/terminal/terminal.all.js"
 						]
 					},
@@ -1001,13 +1083,28 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
+							"vs/workbench/workbench.common.main.js"
+						]
+					},
+					{
+						"target": "src/vs/workbench/workbench.web.main.internal.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/editor/editor.all.js",
+							"vs/workbench/~",
+							"vs/workbench/api/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
 							"vs/workbench/workbench.common.main.js"
 						]
 					},
@@ -1020,13 +1117,11 @@
 							"vs/platform/*/~",
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
-							"vs/editor/editor.all",
 							"vs/editor/editor.all.js",
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/workbench.common.main",
 							"vs/workbench/workbench.common.main.js"
 						]
 					},
@@ -1037,7 +1132,13 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
+						"target": "src/vs/nls.ts",
+						"restrictions": [
+							"vs/*"
+						]
+					},
+					{
+						"target": "src/vs/{monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{
@@ -1045,8 +1146,18 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,cli.js,main.js,server-cli.js,server-main.js,bootstrap-cli.js,bootstrap-server.js}",
+						"target": "src/bootstrap-window.ts",
 						"restrictions": []
+					},
+					{
+						"target": "src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}",
+						"restrictions": [
+							"vs/**/common/*",
+							"vs/**/node/*",
+							"vs/nls.js",
+							"src/*.js",
+							"*" // node.js
+						]
 					}
 				]
 			}
@@ -1113,6 +1224,15 @@
 					{
 						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
 							"**/*"
+						]
+					}
+				],
+				"local/code-limited-top-functions": [
+					"error",
+					{
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"webviewPreloads",
+							"preloadsScriptStr"
 						]
 					}
 				]

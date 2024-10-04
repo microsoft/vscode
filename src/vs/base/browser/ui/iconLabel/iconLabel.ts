@@ -5,6 +5,7 @@
 
 import './iconlabel.css';
 import * as dom from '../../dom.js';
+import * as css from '../../cssValue.js';
 import { HighlightedLabel } from '../highlightedlabel/highlightedLabel.js';
 import { IHoverDelegate } from '../hover/hoverDelegate.js';
 import { IMatch } from '../../../common/filters.js';
@@ -165,7 +166,7 @@ export class IconLabel extends Disposable {
 			} else {
 				iconNode = existingIconNode;
 			}
-			iconNode.style.backgroundImage = dom.asCSSUrl(options?.iconPath);
+			iconNode.style.backgroundImage = css.asCSSUrl(options?.iconPath);
 		} else if (existingIconNode) {
 			existingIconNode.remove();
 		}

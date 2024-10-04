@@ -9,18 +9,16 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { joinPath } from '../../../base/common/resources.js';
 import * as semver from '../../../base/common/semver/semver.js';
-import { isBoolean } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { Promises as FSPromises } from '../../../base/node/pfs.js';
 import { buffer, CorruptZipMessage } from '../../../base/node/zip.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { ExtensionVerificationStatus, toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
-import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
+import { toExtensionManagementError } from '../common/abstractExtensionManagementService.js';
+import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignatureVerificationCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from '../common/extensionManagement.js';
 import { ExtensionKey, groupByExtension } from '../common/extensionManagementUtil.js';
 import { fromExtractError } from './extensionManagementUtil.js';
-import { ExtensionSignatureVerificationError, ExtensionSignatureVerificationCode, IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
+import { IExtensionSignatureVerificationService } from './extensionSignatureVerificationService.js';
 import { TargetPlatform } from '../../extensions/common/extensions.js';
 import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
@@ -49,7 +47,6 @@ export class ExtensionsDownloader extends Disposable {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
@@ -60,42 +57,39 @@ export class ExtensionsDownloader extends Disposable {
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
 		await this.cleanUpPromise;
 
 		const location = await this.downloadVSIX(extension, operation);
 
-		let verificationStatus: ExtensionVerificationStatus = false;
+		if (!verifySignature || !extension.isSigned) {
+			return { location, verificationStatus: undefined };
+		}
 
-		if (verifySignature && this.shouldVerifySignature(extension)) {
-
-			let signatureArchiveLocation;
-			try {
-				signatureArchiveLocation = await this.downloadSignatureArchive(extension);
-			} catch (error) {
+		let signatureArchiveLocation;
+		try {
+			signatureArchiveLocation = await this.downloadSignatureArchive(extension);
+			const verificationStatus = (await this.extensionSignatureVerificationService.verify(extension.identifier.id, extension.version, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform))?.code;
+			if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
 				try {
-					// Delete the downloaded VSIX if signature archive download fails
+					// Delete the downloaded vsix if VSIX or signature archive is invalid
 					await this.delete(location);
 				} catch (error) {
 					this.logService.error(error);
 				}
-				throw error;
+				throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
 			}
-
+			return { location, verificationStatus };
+		} catch (error) {
 			try {
-				verificationStatus = await this.extensionSignatureVerificationService.verify(extension, location.fsPath, signatureArchiveLocation.fsPath, clientTargetPlatform);
+				// Delete the downloaded VSIX if signature archive download fails
+				await this.delete(location);
 			} catch (error) {
-				verificationStatus = (error as ExtensionSignatureVerificationError).code;
-				if (verificationStatus === ExtensionSignatureVerificationCode.PackageIsInvalidZip || verificationStatus === ExtensionSignatureVerificationCode.SignatureArchiveIsInvalidZip) {
-					try {
-						// Delete the downloaded vsix if VSIX or signature archive is invalid
-						await this.delete(location);
-					} catch (error) {
-						this.logService.error(error);
-					}
-					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
-				}
-			} finally {
+				this.logService.error(error);
+			}
+			throw error;
+		} finally {
+			if (signatureArchiveLocation) {
 				try {
 					// Delete signature archive always
 					await this.delete(signatureArchiveLocation);
@@ -104,18 +98,6 @@ export class ExtensionsDownloader extends Disposable {
 				}
 			}
 		}
-
-		return { location, verificationStatus };
-	}
-
-	private shouldVerifySignature(extension: IGalleryExtension): boolean {
-		if (!extension.isSigned) {
-			this.logService.info(`Extension is not signed: ${extension.identifier.id}`);
-			return false;
-		}
-
-		const value = this.configurationService.getValue('extensions.verifySignature');
-		return isBoolean(value) ? value : true;
 	}
 
 	private async downloadVSIX(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {

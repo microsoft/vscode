@@ -181,6 +181,7 @@ import { EnvironmentVariableService } from '../../contrib/terminal/common/enviro
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../platform/hover/test/browser/nullHoverService.js';
+import { IActionViewItemService, NullActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -257,7 +258,10 @@ export function workbenchInstantiationService(
 	},
 	disposables: Pick<DisposableStore, 'add'> = new DisposableStore()
 ): TestInstantiationService {
-	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([ILifecycleService, disposables.add(new TestLifecycleService())])));
+	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+		[ILifecycleService, disposables.add(new TestLifecycleService())],
+		[IActionViewItemService, new SyncDescriptor(NullActionViewItemService)],
+	)));
 
 	instantiationService.stub(IProductService, TestProductService);
 	instantiationService.stub(IEditorWorkerService, new TestEditorWorkerService());
@@ -795,6 +799,7 @@ export class TestViewsService implements IViewsService {
 
 	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>().event;
 	isViewContainerVisible(id: string): boolean { return true; }
+	isViewContainerActive(id: string): boolean { return true; }
 	getVisibleViewContainer(): ViewContainer | null { return null; }
 	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> { return Promise.resolve(null); }
 	closeViewContainer(id: string): void { }
@@ -1967,13 +1972,14 @@ export class TestWorkspacesService implements IWorkspacesService {
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
 	onDidCreateInstance = Event.None;
+	onDidRegisterBackend = Event.None;
 	declare readonly _serviceBrand: undefined;
 
 	convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
-	didRegisterBackend(remoteAuthority?: string): void { throw new Error('Method not implemented.'); }
+	didRegisterBackend(backend: ITerminalBackend): void { throw new Error('Method not implemented.'); }
 	getRegisteredBackends(): IterableIterator<ITerminalBackend> { throw new Error('Method not implemented.'); }
 }
 
@@ -2175,6 +2181,8 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	onProfileAwareDidInstallExtensions = Event.None;
 	onProfileAwareUninstallExtension = Event.None;
 	onProfileAwareDidUninstallExtension = Event.None;
+	onDidProfileAwareUninstallExtensions = Event.None;
+	onProfileAwareDidUpdateExtensionMetadata = Event.None;
 	onDidChangeProfile = Event.None;
 	onDidEnableExtensions = Event.None;
 	installVSIX(location: URI, manifest: Readonly<IRelaxedExtensionManifest>, installOptions?: InstallOptions | undefined): Promise<ILocalExtension> {

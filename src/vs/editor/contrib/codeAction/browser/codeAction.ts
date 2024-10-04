@@ -27,6 +27,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 
+
+
 export const codeActionCommandId = 'editor.action.codeAction';
 export const quickFixCommandId = 'editor.action.quickFix';
 export const autoFixCommandId = 'editor.action.autoFix';
@@ -247,7 +249,8 @@ export enum ApplyCodeActionReason {
 	OnSave = 'onSave',
 	FromProblemsView = 'fromProblemsView',
 	FromCodeActions = 'fromCodeActions',
-	FromAILightbulb = 'fromAILightbulb' // direct invocation when clicking on the AI lightbulb
+	FromAILightbulb = 'fromAILightbulb', // direct invocation when clicking on the AI lightbulb
+	FromProblemsHover = 'fromProblemsHover'
 }
 
 export async function applyCodeAction(

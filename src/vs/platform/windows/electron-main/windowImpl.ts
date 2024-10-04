@@ -42,9 +42,7 @@ import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.j
 import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
-import { firstOrDefault } from '../../../base/common/arrays.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isESM } from '../../../base/common/amd.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -915,7 +913,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 
 				// Delegate to windows service
-				const window = firstOrDefault(await this.windowsMainService.open({
+				const window = (await this.windowsMainService.open({
 					context: OpenContext.API,
 					userEnv: this._config.userEnv,
 					cli: {
@@ -926,7 +924,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 					forceEmpty,
 					forceNewWindow: true,
 					remoteAuthority: this.remoteAuthority
-				}));
+				})).at(0);
 				window?.focus();
 			}
 		} finally {
@@ -1037,7 +1035,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;

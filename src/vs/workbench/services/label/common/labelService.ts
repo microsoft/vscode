@@ -26,7 +26,6 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -252,7 +251,7 @@ export class LabelService extends Disposable implements ILabelService {
 				// scheme that is workspace contained.
 
 				const workspace = this.contextService.getWorkspace();
-				const firstFolder = firstOrDefault(workspace.folders);
+				const firstFolder = workspace.folders.at(0);
 				if (firstFolder && resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
 					folder = this.contextService.getWorkspaceFolder(firstFolder.uri.with({ path: resource.path }));
 				}

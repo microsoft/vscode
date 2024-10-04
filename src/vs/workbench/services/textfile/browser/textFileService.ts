@@ -43,7 +43,6 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../.
 import { Emitter } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { listErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
@@ -657,7 +656,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return untitledName; // preserve extension if it is compatible with the mode
 		}
 
-		const primaryExtension = firstOrDefault(extensions);
+		const primaryExtension = extensions.at(0);
 		if (primaryExtension) {
 			if (untitledExtension) {
 				return `${untitledName.substring(0, untitledName.indexOf(untitledExtension))}${primaryExtension}`;
@@ -671,7 +670,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			return untitledName; // preserve name if it is compatible with the mode
 		}
 
-		return firstOrDefault(filenames) ?? untitledName;
+		return filenames.at(0) ?? untitledName;
 	}
 
 	//#endregion

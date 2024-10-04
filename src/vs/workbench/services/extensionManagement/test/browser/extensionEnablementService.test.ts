@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from '../../common/extensionManagement.js';
 import { ExtensionEnablementService } from '../../browser/extensionEnablementService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -954,13 +954,33 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(remoteWorkspaceExtension), EnablementState.EnabledGlobally);
 	});
 
-	test('test canChangeEnablement return true when extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled by workspace trust', async () => {
 		installed.push(...[aLocalExtension2('pub.a', { main: 'hello.js', capabilities: { untrustedWorkspaces: { supported: false, description: '' } } }), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'], capabilities: { untrustedWorkspaces: { supported: true } } })]);
 		instantiationService.stub(IWorkspaceTrustManagementService, <Partial<IWorkspaceTrustManagementService>>{ isWorkspaceTrusted() { return false; } });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
 
-		assert.ok(testObject.canChangeEnablement(installed[1]));
+		assert.deepEqual(testObject.canChangeEnablement(installed[1]), false);
+	});
+
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled globally', async () => {
+		installed.push(...[aLocalExtension2('pub.a', {}), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		await testObject.setEnablement([installed[0]], EnablementState.DisabledGlobally);
+
+		assert.deepEqual(testObject.canChangeEnablement(installed[1]), false);
+	});
+
+	test('test canChangeEnablement return false when extension is disabled by dependency if it has a dependency that is disabled workspace', async () => {
+		installed.push(...[aLocalExtension2('pub.a', {}), aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		await testObject.setEnablement([installed[0]], EnablementState.DisabledWorkspace);
+
+		assert.deepEqual(testObject.canChangeEnablement(installed[1]), false);
 	});
 
 	test('test extension is not disabled by dependency even if it has a dependency that is disabled when installed extensions are not set', async () => {
@@ -977,6 +997,112 @@ suite('ExtensionEnablementService Test', () => {
 		await testObject.setEnablement([installed[0]], EnablementState.DisabledGlobally);
 
 		assert.deepStrictEqual(testObject.getEnablementStates(installed), [EnablementState.DisabledGlobally, EnablementState.DisabledByExtensionDependency]);
+	});
+
+	test('test extension is not disabled when it has a missing dependency', async () => {
+		const target = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
+		installed.push(target);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is not disabled when it has a dependency in another server', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', {}, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is enabled when it has a dependency in another server which is disabled', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', {}, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is enabled when it has a dependency in another server which is disabled and with no exports and no main and no browser entrypoints', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', { api: 'none' }, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.EnabledGlobally);
+	});
+
+	test('test extension is disabled by dependency when it has a dependency in another server  which is disabled and with no exports and has main entry point', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'], extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', { api: 'none', main: 'main.js' }, { location: URI.file(`pub.b`).with({ scheme: Schemas.vscodeRemote }) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is disabled by dependency when it has a dependency in another server  which is disabled and with no exports and has browser entry point', async () => {
+		instantiationService.stub(IExtensionManagementServerService, aMultiExtensionManagementServerService(instantiationService));
+		const target = aLocalExtension2('pub.a', { extensionDependencies: ['pub.b'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
+		const depdencyOnAnotherServer = aLocalExtension2('pub.b', { api: 'none', browser: 'browser.js', extensionKind: 'ui' }, { location: URI.file(`pub.b`) });
+		installed.push(...[target, depdencyOnAnotherServer]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+		await testObject.setEnablement([depdencyOnAnotherServer], EnablementState.DisabledGlobally);
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is disabled by invalidity', async () => {
+		const target = aLocalExtension2('pub.b', {}, { isValid: false });
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByInvalidExtension);
+	});
+
+	test('test extension is disabled by dependency when it has a dependency that is invalid', async () => {
+		const target = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
+		installed.push(...[target, aLocalExtension2('pub.a', {}, { isValid: false })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(target), EnablementState.DisabledByExtensionDependency);
+	});
+
+	test('test extension is enabled when its dependency becomes valid', async () => {
+		const extension = aLocalExtension2('pub.b', { extensionDependencies: ['pub.a'] });
+		installed.push(...[extension, aLocalExtension2('pub.a', {}, { isValid: false })]);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await (<TestExtensionEnablementService>testObject).waitUntilInitialized();
+
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.DisabledByExtensionDependency);
+
+		const target = sinon.spy();
+		disposableStore.add(testObject.onEnablementChanged(target));
+
+		const validExtension = aLocalExtension2('pub.a');
+		didInstallEvent.fire([{
+			identifier: validExtension.identifier,
+			operation: InstallOperation.Install,
+			source: validExtension.location,
+			profileLocation: validExtension.location,
+			local: validExtension,
+		}]);
+
+		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
+		assert.deepStrictEqual((<IExtension>target.args[0][0][0]).identifier, { id: 'pub.b' });
 	});
 
 	test('test override workspace to trusted when getting extensions enablements', async () => {
@@ -1080,7 +1206,8 @@ function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}
 		location: URI.file(`pub.${name}`),
 		galleryIdentifier: { id, uuid: undefined },
 		type: ExtensionType.User,
-		...properties
+		...properties,
+		isValid: properties.isValid ?? true,
 	};
 	properties.isBuiltin = properties.type === ExtensionType.System;
 	return <ILocalExtension>Object.create({ manifest, ...properties });

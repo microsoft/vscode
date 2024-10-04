@@ -23,6 +23,7 @@ import { ExtensionHostKind } from '../../../services/extensions/common/extension
 import { IExtensionHostProfile, IExtensionService, ProfileSession } from '../../../services/extensions/common/extensions.js';
 import { ExtensionHostProfiler } from '../../../services/extensions/electron-sandbox/extensionHostProfiler.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class ExtensionHostProfileService extends Disposable implements IExtensionHostProfileService {
 
@@ -42,6 +43,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 	private profilingStatusBarIndicator: IStatusbarEntryAccessor | undefined;
 	private readonly profilingStatusBarIndicatorLabelUpdater = this._register(new MutableDisposable());
 
+	public lastProfileSavedTo: URI | undefined;
 	public get state() { return this._state; }
 	public get lastProfile() { return this._profile; }
 
@@ -166,6 +168,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 	private _setLastProfile(profile: IExtensionHostProfile) {
 		this._profile = profile;
+		this.lastProfileSavedTo = undefined;
 		this._onDidChangeLastProfile.fire(undefined);
 	}
 

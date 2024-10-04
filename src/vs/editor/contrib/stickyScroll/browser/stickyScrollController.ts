@@ -572,7 +572,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
+							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						}
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {

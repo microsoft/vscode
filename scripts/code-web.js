@@ -74,10 +74,7 @@ async function main() {
 		openSystemBrowser = true;
 	}
 
-	if (!fs.existsSync(path.join(APP_ROOT, 'src2')) && !fs.existsSync(path.join(APP_ROOT, 'out-build', 'amd'))) {
-		serverArgs.push('--esm');
-	}
-
+	serverArgs.push('--esm'); // TODO@esm this should be the default
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
 	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground') && v !== '--no-playground'));
