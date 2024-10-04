@@ -53,7 +53,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		private readonly markdown: IMarkdownString,
 		context: IChatContentPartRenderContext,
 		private readonly editorPool: EditorPool,
-		private readonly codeBlockPillPool: CollapsedCodeBlockPool,
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
 		renderer: MarkdownRenderer,
@@ -62,7 +61,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		private readonly rendererOptions: IChatListItemRendererOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -173,12 +172,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	private renderCodeBlockPill(codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
-		const ref = this.codeBlockPillPool.get();
-		const codeBlock = ref.object;
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri, !isCodeBlockComplete);
 		}
-		return ref;
+		return {
+			object: codeBlock,
+			isStale: () => false,
+			dispose: () => codeBlock.dispose()
+		};
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, text: string, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
@@ -199,7 +201,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
 		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.value
-			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
+			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {
@@ -248,37 +250,6 @@ export class EditorPool extends Disposable {
 			isStale: () => stale,
 			dispose: () => {
 				codeBlock.reset();
-				stale = true;
-				this._pool.release(codeBlock);
-			}
-		};
-	}
-}
-
-export class CollapsedCodeBlockPool extends Disposable {
-
-	private readonly _pool: ResourcePool<CollapsedCodeBlock>;
-
-	public inUse(): Iterable<CollapsedCodeBlock> {
-		return this._pool.inUse;
-	}
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CollapsedCodeBlock);
-		}));
-	}
-
-	get(): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this._pool.get();
-		let stale = false;
-		return {
-			object: codeBlock,
-			isStale: () => stale,
-			dispose: () => {
 				stale = true;
 				this._pool.release(codeBlock);
 			}
