@@ -236,7 +236,7 @@ async function expandAll(accessor: ServicesAccessor) {
  * Recursively expand all nodes in the search results tree that are a child of `element`
  * If `element` is not provided, it is the root node.
  */
-async function forcedExpandRecursively(
+export async function forcedExpandRecursively(
 	viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch, void>,
 	element: RenderableMatch | undefined
 ) {
