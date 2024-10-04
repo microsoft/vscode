@@ -36,7 +36,7 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
 	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
 
-	RET=true
+	RET=''
 	if [ -e '/usr/share/debconf/confmodule' ]; then
 		. /usr/share/debconf/confmodule
 		db_get @@NAME@@/add-microsoft-repo || true
@@ -44,7 +44,7 @@ if [ "@@NAME@@" != "code-oss" ]; then
 
 	# Determine whether to write the Microsoft repository source list
 	WRITE_SOURCE='no'
-	if [ "$RET" = false ]; then
+	if [ "$RET" = 'false' ]; then
 		# The user specified in debconf not to add the Microsoft repository
 		WRITE_SOURCE='no'
 	elif [ -f "$CODE_SOURCE_PART_DEB822" ]; then
@@ -59,8 +59,8 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
 		# The user is already on the new repository
 		WRITE_SOURCE='no'
-	elif [ "$RET" = true ]; then
-		# User explicitly wants to add the Microsoft repository
+	elif [ "$RET" = 'true' ]; then
+		# The user specified in debconf to add the Microsoft repository
 		WRITE_SOURCE='yes'
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
 		# Source list does not exist and we're not running on Raspberry Pi OS
