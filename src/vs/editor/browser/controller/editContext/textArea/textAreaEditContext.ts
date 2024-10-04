@@ -283,7 +283,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 				}
 
 				const screenReaderContentState = PagedScreenReaderStrategy.fromEditorSelection(simpleModel, this._selections[0], this._accessibilityPageSize, this._accessibilitySupport === AccessibilitySupport.Unknown);
-				console.log('screenReaderContentState : ', screenReaderContentState);
 				return TextAreaState.fromScreenReaderContentState(screenReaderContentState);
 			},
 
