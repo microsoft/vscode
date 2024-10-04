@@ -50,20 +50,13 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 
 	private handleConfigChange(e: IConfigurationChangeEvent) {
 		if (e.affectsConfiguration(NotebookSetting.notebookVariablesView)) {
-			if (!this.configurationService.getValue(NotebookSetting.notebookVariablesView)) {
-				this.viewEnabled.set(false);
-			} else if (this.initialized) {
-				this.viewEnabled.set(true);
-			} else {
-				this.handleInitEvent();
-			}
+			this.handleInitEvent();
 		}
 	}
 
 	private handleInitEvent(notebook?: URI) {
-		if (this.configurationService.getValue(NotebookSetting.notebookVariablesView)
-			&& (!!notebook || this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook')) {
-
+		const enabled = this.editorService.activeEditorPane?.getId() === 'workbench.editor.repl' || this.configurationService.getValue(NotebookSetting.notebookVariablesView);
+		if (enabled && (!!notebook || this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook')) {
 			if (this.hasVariableProvider(notebook) && !this.initialized && this.initializeView()) {
 				this.viewEnabled.set(true);
 				this.initialized = true;
@@ -87,7 +80,7 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 			const viewDescriptor = {
 				id: 'NOTEBOOK_VARIABLES', name: nls.localize2('notebookVariables', "Notebook Variables"),
 				containerIcon: variablesViewIcon, ctorDescriptor: new SyncDescriptor(NotebookVariablesView),
-				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: true, when: NOTEBOOK_VARIABLE_VIEW_ENABLED,
+				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: false, when: NOTEBOOK_VARIABLE_VIEW_ENABLED,
 			};
 
 			viewsRegistry.registerViews([viewDescriptor], debugViewContainer);

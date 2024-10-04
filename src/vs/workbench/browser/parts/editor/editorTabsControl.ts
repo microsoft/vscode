@@ -47,6 +47,8 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -145,7 +147,14 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	) {
 		super(themeService);
 
-		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		this.renderDropdownAsChildElement = false;
+
+		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
+
+		const container = this.create(parent);
+
+		// Context Keys
+		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(container));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this.contextMenuContextKeyService],
 		)));
@@ -162,16 +171,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
-
-		this.renderDropdownAsChildElement = false;
-
-		this.tabsHoverDelegate = getDefaultHoverDelegate('mouse');
-
-		this.create(parent);
 	}
 
-	protected create(parent: HTMLElement): void {
+	protected create(parent: HTMLElement): HTMLElement {
 		this.updateTabHeight();
+		return parent;
 	}
 
 	private get editorActionsEnabled(): boolean {
@@ -452,8 +456,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return this.groupsView.partOptions.tabHeight !== 'compact' ? EditorTabsControl.EDITOR_TAB_HEIGHT.normal : EditorTabsControl.EDITOR_TAB_HEIGHT.compact;
 	}
 
-	protected getHoverTitle(editor: EditorInput): string {
-		return editor.getTitle(Verbosity.LONG);
+	protected getHoverTitle(editor: EditorInput): string | IManagedHoverTooltipMarkdownString {
+		const title = editor.getTitle(Verbosity.LONG);
+		if (!this.tabsModel.isPinned(editor)) {
+			return {
+				markdown: new MarkdownString('', { supportThemeIcons: true, isTrusted: true }).
+					appendText(title).
+					appendMarkdown(' (_preview_ [$(gear)](command:workbench.action.openSettings?%5B%22workbench.editor.enablePreview%22%5D "Configure Preview Mode"))'),
+				markdownNotSupportedFallback: title + ' (preview)'
+			};
+		}
+		return title;
 	}
 
 	protected getHoverDelegate(): IHoverDelegate {

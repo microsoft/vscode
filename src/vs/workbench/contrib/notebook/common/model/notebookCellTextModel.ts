@@ -11,8 +11,7 @@ import * as UUID from '../../../../../base/common/uuid.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import * as model from '../../../../../editor/common/model.js';
 import { PieceTreeTextBuffer } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
-import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { createTextBuffer, TextModel } from '../../../../../editor/common/model/textModel.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { NotebookCellOutputTextModel } from './notebookCellOutputTextModel.js';
@@ -20,6 +19,7 @@ import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutp
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { toFormattedString } from '../../../../../base/common/jsonFormatter.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -28,8 +28,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
 	readonly onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
-	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	readonly onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }>());
+	readonly onDidChangeContent: Event<'content' | 'language' | 'mime' | { type: 'model'; event: IModelContentChangedEvent }> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
 	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
@@ -113,12 +113,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._textBuffer;
 		}
 
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this._source);
-		const bufferFactory = builder.finish(true);
-		const { textBuffer, disposable } = bufferFactory.create(model.DefaultEndOfLine.LF);
-		this._textBuffer = textBuffer;
-		this._register(disposable);
+		this._textBuffer = this._register(createTextBuffer(this._source, model.DefaultEndOfLine.LF).textBuffer);
 
 		this._register(this._textBuffer.onDidChangeContent(() => {
 			this._hash = null;
@@ -159,13 +154,14 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			// Listen to language changes on the model
 			this._textModelDisposables.add(this._textModel.onDidChangeLanguage((e) => this.setRegisteredLanguage(this._languageService, e.newLanguage, this.language)));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
-			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
+			this._textModelDisposables.add(this._textModel.onDidChangeContent((e) => {
 				if (this._textModel) {
 					this._versionId = this._textModel.getVersionId();
 					this._alternativeId = this._textModel.getAlternativeVersionId();
 				}
 				this._textBufferHash = null;
 				this._onDidChangeContent.fire('content');
+				this._onDidChangeContent.fire({ type: 'model', event: e });
 			}));
 
 			this._textModel._overwriteVersionId(this._versionId);

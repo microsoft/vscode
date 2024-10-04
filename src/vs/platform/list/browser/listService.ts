@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet, isActiveElement, isKeyboardEvent } from '../../../base/browser/dom.js';
+import { isActiveElement, isKeyboardEvent } from '../../../base/browser/dom.js';
 import { IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
 import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IPagedListOptions, IPagedRenderer, PagedList } from '../../../base/browser/ui/list/listPaging.js';
-import { DefaultStyleController, IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from '../../../base/browser/ui/list/listWidget.js';
+import { IKeyboardNavigationEventFilter, IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, IMultipleSelectionController, isSelectionRangeChangeEvent, isSelectionSingleChangeEvent, List, TypeNavigationMode } from '../../../base/browser/ui/list/listWidget.js';
 import { ITableColumn, ITableRenderer, ITableVirtualDelegate } from '../../../base/browser/ui/table/table.js';
 import { ITableOptions, ITableOptionsUpdate, ITableStyles, Table } from '../../../base/browser/ui/table/tableWidget.js';
-import { TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides, TreeFindMatchType } from '../../../base/browser/ui/tree/abstractTree.js';
+import { IAbstractTreeOptions, IAbstractTreeOptionsUpdate, RenderIndentGuides, TreeFindMatchType, TreeFindMode } from '../../../base/browser/ui/tree/abstractTree.js';
 import { AsyncDataTree, CompressibleAsyncDataTree, IAsyncDataTreeOptions, IAsyncDataTreeOptionsUpdate, ICompressibleAsyncDataTreeOptions, ICompressibleAsyncDataTreeOptionsUpdate, ITreeCompressionDelegate } from '../../../base/browser/ui/tree/asyncDataTree.js';
 import { DataTree, IDataTreeOptions } from '../../../base/browser/ui/tree/dataTree.js';
 import { CompressibleObjectTree, ICompressibleObjectTreeOptions, ICompressibleObjectTreeOptionsUpdate, ICompressibleTreeRenderer, IObjectTreeOptions, ObjectTree } from '../../../base/browser/ui/tree/objectTree.js';
@@ -28,7 +28,7 @@ import { createDecorator, IInstantiationService, ServicesAccessor } from '../../
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ResultKind } from '../../keybinding/common/keybindingResolver.js';
 import { Registry } from '../../registry/common/platform.js';
-import { IStyleOverride, defaultFindWidgetStyles, defaultListStyles, getListStyles } from '../../theme/browser/defaultStyles.js';
+import { defaultFindWidgetStyles, defaultListStyles, getListStyles, IStyleOverride } from '../../theme/browser/defaultStyles.js';
 
 export type ListWidget = List<any> | PagedList<any> | ObjectTree<any, any> | DataTree<any, any, any> | AsyncDataTree<any, any, any> | Table<any>;
 export type WorkbenchListWidget = WorkbenchList<any> | WorkbenchPagedList<any> | WorkbenchObjectTree<any, any> | WorkbenchCompressibleObjectTree<any, any> | WorkbenchDataTree<any, any, any> | WorkbenchAsyncDataTree<any, any, any> | WorkbenchCompressibleAsyncDataTree<any, any, any> | WorkbenchTable<any>;
@@ -57,7 +57,6 @@ export class ListService implements IListService {
 	private readonly disposables = new DisposableStore();
 	private lists: IRegisteredList[] = [];
 	private _lastFocusedWidget: WorkbenchListWidget | undefined = undefined;
-	private _hasCreatedStyleController: boolean = false;
 
 	get lastFocusedList(): WorkbenchListWidget | undefined {
 		return this._lastFocusedWidget;
@@ -76,13 +75,6 @@ export class ListService implements IListService {
 	}
 
 	register(widget: WorkbenchListWidget, extraContextKeys?: (IContextKey<boolean>)[]): IDisposable {
-		if (!this._hasCreatedStyleController) {
-			this._hasCreatedStyleController = true;
-			// create a shared default tree style sheet for performance reasons
-			const styleController = new DefaultStyleController(createStyleSheet(), '');
-			styleController.style(defaultListStyles);
-		}
-
 		if (this.lists.some(l => l.widget === widget)) {
 			throw new Error('Cannot register the same widget multiple times');
 		}

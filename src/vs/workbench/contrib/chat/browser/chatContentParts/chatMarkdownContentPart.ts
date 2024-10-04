@@ -8,29 +8,35 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
-import { IDisposableReference, ResourcePool } from './chatCollections.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { IChatRendererDelegate } from '../chatListRenderer.js';
-import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
-import { ChatEditorOptions } from '../chatOptions.js';
-import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
+import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
+import { IChatRendererDelegate } from '../chatListRenderer.js';
+import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
+import { ChatEditorOptions } from '../chatOptions.js';
+import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import { IDisposableReference, ResourcePool } from './chatCollections.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 const $ = dom.$;
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
+	private static idPool = 0;
+	public readonly id = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
-	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | { object?: InlineAnchorWidget; element: HTMLElement }>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -49,7 +55,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
@@ -66,6 +74,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
 				let vulns: readonly IMarkdownVulnerability[] | undefined;
+				let codemapperUri: URI | undefined;
 				if (equalsIgnoreCase(languageId, localFileLanguageId)) {
 					try {
 						const parsedBody = parseLocalFileData(text);
@@ -75,36 +84,76 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						return $('div');
 					}
 				} else {
-					if (!isRequestVM(element) && !isResponseVM(element)) {
-						console.error('Trying to render code block in welcome', element.id, index);
-						return $('div');
-					}
-
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
 					vulns = modelEntry.vulns;
+					codemapperUri = modelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns }, text, currentWidth, rendererOptions.editableCodeBlock);
-				this.allRefs.push(ref);
+				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+				if (!rendererOptions.collapseCodeBlocks) {
+					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
+					this.allRefs.push(ref);
 
-				const info: IChatCodeBlockInfo = {
-					codeBlockIndex: index,
-					element,
-					focus() {
-						ref.object.focus();
-					},
-					uri: ref.object.uri
-				};
-				this.codeblocks.push(info);
-				orderedDisposablesList.push(ref);
-				return ref.object.element;
+					// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+					// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+					this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+
+					const ownerMarkdownPartId = this.id;
+					const info: IChatCodeBlockInfo = new class {
+						readonly ownerMarkdownPartId = ownerMarkdownPartId;
+						readonly codeBlockIndex = index;
+						readonly element = element;
+						codemapperUri = undefined; // will be set async
+						public get uri() {
+							// here we must do a getter because the ref.object is rendered
+							// async and the uri might be undefined when it's read immediately
+							return ref.object.uri;
+						}
+						public focus() {
+							ref.object.focus();
+						}
+						public getContent(): string {
+							return ref.object.editor.getValue();
+						}
+					}();
+					this.codeblocks.push(info);
+					orderedDisposablesList.push(ref);
+					return ref.object.element;
+				} else {
+					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, undefined);
+					if (isResponseVM(codeBlockInfo.element)) {
+						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
+						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
+							// Update the existing object's codemapperUri
+							this.codeblocks[codeBlockInfo.codeBlockIndex].codemapperUri = e.codemapperUri;
+							this._onDidChangeHeight.fire();
+						});
+					}
+					this.allRefs.push(ref);
+					const ownerMarkdownPartId = this.id;
+					const info: IChatCodeBlockInfo = new class {
+						readonly ownerMarkdownPartId = ownerMarkdownPartId;
+						readonly codeBlockIndex = index;
+						readonly element = element;
+						codemapperUri = undefined; // will be set async
+						public get uri() {
+							return undefined;
+						}
+						public focus() {
+							return ref.object.element.focus();
+						}
+						public getContent(): string {
+							return ''; // Not needed for collapsed code blocks
+						}
+					}();
+					this.codeblocks.push(info);
+					orderedDisposablesList.push(ref);
+					return ref.object.element;
+				}
 			},
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
@@ -115,11 +164,33 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
+	private renderCodeBlockPill(codemapperUri: URI | undefined, anchor: HTMLElement | undefined): IDisposableReference<{ object?: InlineAnchorWidget; element: HTMLElement }> {
+		const fileWidgetAnchor = anchor ?? $('.chat-codeblock');
+		if (codemapperUri) {
+			const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
+			this._register(this.chatMarkdownAnchorService.register(inlineAnchor));
+			return {
+				object: { object: inlineAnchor, element: fileWidgetAnchor },
+				isStale() { return false; },
+				dispose() { }
+			};
+		}
+		return {
+			object: { object: undefined, element: fileWidgetAnchor },
+			isStale() { return false; },
+			dispose() { }
+		};
+	}
+
 	private renderCodeBlock(data: ICodeBlockData, text: string, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
 		const ref = this.editorPool.get();
 		const editorInfo = ref.object;
 		if (isResponseVM(data.element)) {
-			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId });
+			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId }).then((e) => {
+				// Update the existing object's codemapperUri
+				this.codeblocks[data.codeBlockIndex].codemapperUri = e.codemapperUri;
+				this._onDidChangeHeight.fire();
+			});
 		}
 
 		editorInfo.render(data, currentWidth, editableCodeBlock);
@@ -132,7 +203,17 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	layout(width: number): void {
-		this.allRefs.forEach(ref => ref.object.layout(width));
+		this.allRefs.forEach((ref, index) => {
+			if (ref.object instanceof CodeBlockPart) {
+				ref.object.layout(width);
+			} else if (ref.object.element && !ref.object.object) {
+				const codeblockModel = this.codeblocks[index];
+				if (codeblockModel.codemapperUri) {
+					const pill = this.renderCodeBlockPill(codeblockModel.codemapperUri, ref.object.element);
+					this.allRefs[index] = pill;
+				}
+			}
+		});
 	}
 
 	addDisposable(disposable: IDisposable): void {

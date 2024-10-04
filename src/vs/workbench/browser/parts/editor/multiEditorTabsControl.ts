@@ -164,7 +164,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
 	}
 
-	protected override create(parent: HTMLElement): void {
+	protected override create(parent: HTMLElement): HTMLElement {
 		super.create(parent);
 
 		this.titleContainer = parent;
@@ -196,6 +196,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
+
+		return this.tabsAndActionsContainer;
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {

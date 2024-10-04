@@ -198,6 +198,16 @@ export class ExtHostSearch implements IExtHostSearch {
 
 	$enableExtensionHostSearch(): void { }
 
+	async $getAIName(handle: number): Promise<string | undefined> {
+		const provider = this._aiTextSearchProvider.get(handle);
+		if (!provider || !provider.provideAITextSearchResults) {
+			return undefined;
+		}
+
+		// if the provider is defined, but has no name, use default name
+		return provider.name ?? 'AI';
+	}
+
 	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProviderNew): TextSearchManager {
 		return new TextSearchManager({ query, provider }, {
 			readdir: resource => Promise.resolve([]),

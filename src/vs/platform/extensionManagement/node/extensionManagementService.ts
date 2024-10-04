@@ -26,12 +26,13 @@ import { extract, IFile, zip } from '../../../base/node/zip.js';
 import * as nls from '../../../nls.js';
 import { IDownloadService } from '../../download/common/download.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { AbstractExtensionManagementService, AbstractExtensionTask, ExtensionVerificationStatus, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
+import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
 	Metadata, InstallOptions,
 	IProductVersion,
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
+	ExtensionSignatureVerificationCode,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -50,6 +51,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { isLinux } from '../../../base/common/platform.js';
 
 export const INativeServerExtensionManagementService = refineServiceDecorator<IExtensionManagementService, INativeServerExtensionManagementService>(IExtensionManagementService);
 export interface INativeServerExtensionManagementService extends IExtensionManagementService {
@@ -59,7 +62,7 @@ export interface INativeServerExtensionManagementService extends IExtensionManag
 	markAsUninstalled(...extensions: IExtension[]): Promise<void>;
 }
 
-type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionVerificationStatus };
+type ExtractExtensionResult = { readonly local: ILocalExtension; readonly verificationStatus?: ExtensionSignatureVerificationCode };
 
 const DELETED_FOLDER_POSTFIX = '.vsctmp';
 
@@ -75,12 +78,13 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IDownloadService private downloadService: IDownloadService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService
@@ -246,7 +250,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	async download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {
-		const { location } = await this.extensionsDownloader.download(extension, operation, !donotVerifySignature);
+		const { location } = await this.downloadExtension(extension, operation, !donotVerifySignature);
 		return location;
 	}
 
@@ -292,7 +296,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
-		const { verificationStatus, location } = await this.extensionsDownloader.download(gallery, operation, !options.donotVerifySignature, options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT]);
+		const { verificationStatus, location } = await this.downloadExtension(gallery, operation, !options.donotVerifySignature, options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT]);
 		try {
 
 			if (token.isCancellationRequested) {
@@ -337,6 +341,42 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			}
 			throw toExtensionManagementError(error);
 		}
+	}
+
+	private async downloadExtension(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean, clientTargetPlatform?: TargetPlatform): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionSignatureVerificationCode | undefined }> {
+		if (verifySignature) {
+			const value = this.configurationService.getValue('extensions.verifySignature');
+			verifySignature = isBoolean(value) ? value : true;
+		}
+		const { location, verificationStatus } = await this.extensionsDownloader.download(extension, operation, verifySignature, clientTargetPlatform);
+
+		if (verificationStatus !== ExtensionSignatureVerificationCode.Success && verifySignature && this.environmentService.isBuilt && !isLinux) {
+			if (!extension.isSigned) {
+				throw new ExtensionManagementError(nls.localize('not signed', "Extension is not signed."), ExtensionManagementErrorCode.PackageNotSigned);
+			}
+
+			if (!verificationStatus) {
+				throw new ExtensionManagementError(nls.localize('signature verification not executed', "Signature verification was not executed."), ExtensionManagementErrorCode.SignatureVerificationInternal);
+			}
+
+			switch (verificationStatus) {
+				case ExtensionSignatureVerificationCode.PackageIntegrityCheckFailed:
+				case ExtensionSignatureVerificationCode.SignatureIsInvalid:
+				case ExtensionSignatureVerificationCode.SignatureManifestIsInvalid:
+				case ExtensionSignatureVerificationCode.SignatureIntegrityCheckFailed:
+				case ExtensionSignatureVerificationCode.EntryIsMissing:
+				case ExtensionSignatureVerificationCode.EntryIsTampered:
+				case ExtensionSignatureVerificationCode.Untrusted:
+				case ExtensionSignatureVerificationCode.CertificateRevoked:
+				case ExtensionSignatureVerificationCode.SignatureIsNotValid:
+				case ExtensionSignatureVerificationCode.SignatureArchiveHasTooManyEntries:
+					throw new ExtensionManagementError(nls.localize('signature verification failed', "Signature verification failed with '{0}' error.", verificationStatus), ExtensionManagementErrorCode.SignatureVerificationFailed);
+			}
+
+			throw new ExtensionManagementError(nls.localize('signature verification failed', "Signature verification failed with '{0}' error.", verificationStatus), ExtensionManagementErrorCode.SignatureVerificationInternal);
+		}
+
+		return { location, verificationStatus };
 	}
 
 	private async extractVSIX(extensionKey: ExtensionKey, location: URI, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
@@ -915,7 +955,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 	private _operation = InstallOperation.Install;
 	get operation() { return this.options.operation ?? this._operation; }
 
-	private _verificationStatus: ExtensionVerificationStatus | undefined;
+	private _verificationStatus: ExtensionSignatureVerificationCode | undefined;
 	get verificationStatus() { return this._verificationStatus; }
 
 	readonly identifier: IExtensionIdentifier;
