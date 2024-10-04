@@ -28,7 +28,7 @@ import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
-import { AccessibilitySupport } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -63,6 +63,7 @@ export class NativeEditContext extends AbstractEditContext {
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IClipboardService clipboardService: IClipboardService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(context);
 
@@ -407,9 +408,8 @@ export class NativeEditContext extends AbstractEditContext {
 		// system caret. This is reflected in Chrome as a `selectionchange` event and needs to be reflected within the editor.
 
 		return addDisposableListener(this.domNode.domNode.ownerDocument, 'selectionchange', () => {
-			const options = this._context.configuration.options;
-			const accessibilitySupportEnabled = options.get(EditorOption.accessibilitySupport);
-			if (!this.isFocused() || accessibilitySupportEnabled !== AccessibilitySupport.Enabled) {
+			const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+			if (!this.isFocused() || !isScreenReaderOptimized) {
 				return;
 			}
 			const screenReaderContentState = this._screenReaderSupport.screenReaderContentState;
