@@ -688,10 +688,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
-			if (numNeededWords <= 0) {
-				break;
-			}
-
 			if (part.kind === 'markdownContent') {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
 				if (wordCountResult.isFullString) {
@@ -702,6 +698,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;
+
+				if (numNeededWords <= 0) {
+					// No more markdown needed, but need to ensure that all following non-markdown parts are rendered
+					i++;
+					while (i < renderableResponse.length) {
+						const nextPart = renderableResponse[i];
+						if (nextPart.kind !== 'markdownContent') {
+							partsToRender.push(nextPart);
+						} else {
+							break;
+						}
+
+						i++;
+					}
+
+					// Collected all words and following non-markdown parts if needed, done
+					break;
+				}
 			} else {
 				partsToRender.push(part);
 			}
