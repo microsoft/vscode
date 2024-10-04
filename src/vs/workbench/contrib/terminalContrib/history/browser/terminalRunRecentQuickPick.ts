@@ -3,31 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
-import { isMacintosh, OperatingSystem } from '../../../../base/common/platform.js';
-import { ITextModel } from '../../../../editor/common/model.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { ITerminalCommand, TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { collapseTildePath } from '../../../../platform/terminal/common/terminalEnvironment.js';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ITerminalInstance } from './terminal.js';
-import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from './terminalIcons.js';
+import { Toggle } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { isMacintosh, OperatingSystem } from '../../../../../base/common/platform.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { collapseTildePath } from '../../../../../platform/terminal/common/terminalEnvironment.js';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
+import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from '../../../terminal/browser/terminalIcons.js';
+import { TerminalStorageKeys } from '../../../terminal/common/terminalStorageKeys.js';
+import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { fromNow } from '../../../../../base/common/date.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { showWithPinnedItems } from '../../../../../platform/quickinput/browser/quickPickPin.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../common/history.js';
-import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
-import { terminalStrings } from '../common/terminalStrings.js';
-import { URI } from '../../../../base/common/uri.js';
-import { fromNow } from '../../../../base/common/date.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { showWithPinnedItems } from '../../../../platform/quickinput/browser/quickPickPin.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { AccessibleViewProviderId, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -35,17 +35,17 @@ export async function showRunRecentQuickPick(
 	terminalInRunCommandPicker: IContextKey<boolean>,
 	type: 'command' | 'cwd',
 	filterMode?: 'fuzzy' | 'contiguous',
-	value?: string
+	value?: string,
 ): Promise<void> {
 	if (!instance.xterm) {
 		return;
 	}
 
+	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const editorService = accessor.get(IEditorService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const quickInputService = accessor.get(IQuickInputService);
 	const storageService = accessor.get(IStorageService);
-	const accessibleViewService = accessor.get(IAccessibleViewService);
 
 	const runRecentStorageKey = `${TerminalStorageKeys.PinnedRecentCommandsPrefix}.${instance.shellType}`;
 	let placeholder: string;
@@ -149,7 +149,7 @@ export async function showRunRecentQuickPick(
 		if (previousSessionItems.length > 0) {
 			items.push(
 				{ type: 'separator', label: terminalStrings.previousSessionCategory },
-				...previousSessionItems
+				...previousSessionItems,
 			);
 		}
 
@@ -167,7 +167,7 @@ export async function showRunRecentQuickPick(
 		if (dedupedShellFileItems.length > 0) {
 			items.push(
 				{ type: 'separator', label: localize('shellFileHistoryCategory', '{0} history', instance.shellType) },
-				...dedupedShellFileItems
+				...dedupedShellFileItems,
 			);
 		}
 	} else {
@@ -199,7 +199,7 @@ export async function showRunRecentQuickPick(
 		if (previousSessionItems.length > 0) {
 			items.push(
 				{ type: 'separator', label: terminalStrings.previousSessionCategory },
-				...previousSessionItems
+				...previousSessionItems,
 			);
 		}
 	}
@@ -330,7 +330,7 @@ class TerminalOutputProvider extends Disposable implements ITextModelContentProv
 
 	constructor(
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IModelService private readonly _modelService: IModelService
+		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
 		this._register(textModelResolverService.registerTextModelContentProvider(TerminalOutputProvider.scheme, this));

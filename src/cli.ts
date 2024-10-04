@@ -7,7 +7,7 @@ import './bootstrap-cli.js'; // this MUST come before other imports as it change
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { configurePortable } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
@@ -23,5 +23,8 @@ configurePortable(product);
 // Signal processes that we got launched as CLI
 process.env['VSCODE_CLI'] = '1';
 
-// Load CLI
-load('vs/code/node/cli');
+// Bootstrap ESM
+await bootstrapESM();
+
+// Load Server
+await import('./vs/code/node/cli.js');

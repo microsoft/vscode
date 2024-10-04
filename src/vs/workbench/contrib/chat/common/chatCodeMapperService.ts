@@ -169,6 +169,9 @@ function iterateLinesOrUris(responseModel: IChatResponseModel): Iterable<string 
 					yield part.uri;
 				}
 			}
+			if (lastIncompleteLine !== undefined) {
+				yield lastIncompleteLine;
+			}
 		}
 	};
 }

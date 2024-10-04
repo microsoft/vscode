@@ -159,7 +159,7 @@ export function register(selector: DocumentSelector, language: LanguageDescripti
 		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],
 			copyMimeTypes: [DocumentPasteProvider.metadataMimeType],
-			pasteMimeTypes: ['text/plain'],
+			pasteMimeTypes: [DocumentPasteProvider.metadataMimeType],
 		});
 	});
 }

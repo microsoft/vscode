@@ -39,9 +39,11 @@ import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatImageDropAndPaste } from './chatImagePaste.js';
 import { ChatInputPart } from './chatInputPart.js';
@@ -56,7 +58,6 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
-export type IChatInputState = Record<string, any>;
 export interface IChatViewState {
 	inputValue?: string;
 	inputState?: IChatInputState;
@@ -286,7 +287,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						currentEditSession = undefined;
 					}
 				}
-
 			}));
 		}
 
@@ -383,6 +383,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get contentHeight(): number {
 		return this.inputPart.contentHeight + this.tree.contentHeight;
+	}
+
+	get attachmentModel(): ChatAttachmentModel {
+		return this.inputPart.attachmentModel;
 	}
 
 	render(parent: HTMLElement): void {
@@ -546,7 +550,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderChatEditingSessionState(session: IChatEditingSession | null) {
-		this.inputPart.renderChatEditingSessionState(session);
+		this.inputPart.renderChatEditingSessionState(session, undefined, this);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -768,6 +772,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			this._onDidChangeContentHeight.fire();
 		}));
+		this._register(this.inputPart.attachmentModel.onDidChangeContext(() => {
+			if (this.chatEditingService.currentEditingSession && this.chatEditingService.currentEditingSession?.chatSessionId === this.viewModel?.sessionId) {
+				// TODO still needed? Do this inside input part and fire onDidChangeHeight?
+				this.renderChatEditingSessionState(this.chatEditingService.currentEditingSession);
+			}
+		}));
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			this.parsedChatRequest = undefined;
 			this.updateChatInputContext();
@@ -910,7 +920,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: [...this.inputPart.attachedContext.values()]
+				attachedContext: [...this.attachmentModel.attachments]
 			});
 
 			if (result) {
@@ -932,10 +942,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 		return undefined;
-	}
-
-	setContext(overwrite: boolean, ...contentReferences: IChatRequestVariableEntry[]) {
-		this.inputPart.attachContext(overwrite, ...contentReferences);
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
@@ -1108,8 +1114,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	getViewState(): IChatViewState {
 		return {
 			inputValue: this.getInput(),
-			inputState: this.collectInputState(),
-			selectedLanguageModelId: this.inputPart.currentLanguageModel
+			inputState: this.inputPart.getViewState(),
+			selectedLanguageModelId: this.inputPart.currentLanguageModel,
 		};
 	}
 

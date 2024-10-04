@@ -7,7 +7,7 @@ import './bootstrap-server.js'; // this MUST come before other imports as it cha
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { devInjectNodeModuleLookupPath } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';
 import { product } from './bootstrap-meta.js';
 
@@ -26,5 +26,8 @@ if (process.env['VSCODE_DEV']) {
 	delete process.env['VSCODE_DEV_INJECT_NODE_MODULE_LOOKUP_PATH'];
 }
 
-// Load Server CLI
-load('vs/server/node/server.cli');
+// Bootstrap ESM
+await bootstrapESM();
+
+// Load Server
+await import('./vs/server/node/server.cli');
