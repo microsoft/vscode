@@ -26,7 +26,7 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
-import { ChatContextAttachments, isQuickChat } from '../chatWidget.js';
+import { isQuickChat } from '../chatWidget.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -324,7 +324,7 @@ export class AttachContextAction extends Action2 {
 			}
 		}
 
-		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, ...toAttach);
+		widget.attachmentModel.addContext(...toAttach);
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
@@ -475,7 +475,7 @@ export class AttachContextAction extends Action2 {
 			additionPicks: quickPickItems,
 			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
 				// Avoid attaching the same context twice
-				const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
+				const attachedContext = widget.attachmentModel.getAttachmentIDs();
 
 				if ('kind' in item && item.kind === 'image') {
 					return !attachedContext.has(item.id);

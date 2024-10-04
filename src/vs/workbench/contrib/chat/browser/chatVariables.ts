@@ -19,7 +19,6 @@ import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariabl
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView } from './chat.js';
-import { ChatContextAttachments } from './chatWidget.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 interface IChatData {
@@ -176,7 +175,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isFile: true, isDynamic: true });
+			widget.attachmentModel.addContext({ value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isFile: true, isDynamic: true });
 			return;
 		}
 
@@ -185,6 +184,6 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { ...resolved.data, value });
+		widget.attachmentModel.addContext({ ...resolved.data, value });
 	}
 }
