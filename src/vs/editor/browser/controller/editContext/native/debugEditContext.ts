@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { EditContext } from './editContextFactory.js';
+
 const COLOR_FOR_CONTROL_BOUNDS = 'blue';
 const COLOR_FOR_SELECTION_BOUNDS = 'red';
 const COLOR_FOR_CHARACTER_BOUNDS = 'green';
 
-export class DebugEditContext implements IEditContext {
+export class DebugEditContext {
 	private _isDebugging = true;
 	private _controlBounds: DOMRect | null = null;
 	private _selectionBounds: DOMRect | null = null;
 	private _characterBounds: { rangeStart: number; characterBounds: DOMRect[] } | null = null;
 
-	private _editContext: IEditContext;
+	private _editContext: EditContext;
 
 	constructor(window: Window, options?: EditContextInit | undefined) {
-		this._editContext = new (window as any).EditContext(options);
+		this._editContext = EditContext.create(window, options);
 	}
 
 	get text(): DOMString {

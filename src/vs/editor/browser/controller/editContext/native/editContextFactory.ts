@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DebugEditContext } from './debugEditContext.js';
 
 export namespace EditContext {
 
@@ -21,14 +20,7 @@ export namespace EditContext {
 	/**
 	 * Create an edit context. Check that the EditContext is supported using the method {@link EditContext.supported}
 	 */
-	export function create(window: Window, options?: EditContextInit): IEditContext {
+	export function create(window: Window, options?: EditContextInit): EditContext {
 		return new (window as any).EditContext(options);
-	}
-
-	/**
-	 * Create a debug edit context. Check that the EditContext is supported using the method {@link EditContext.supported}
-	 */
-	export function createDebug(window: Window, options?: EditContextInit): IEditContext {
-		return new DebugEditContext(window, options);
 	}
 }

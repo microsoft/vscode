@@ -5,7 +5,7 @@
 
 type DOMString = string;
 
-interface IEditContext extends EventTarget {
+interface EditContext extends EventTarget {
 
 	updateText(rangeStart: number, rangeEnd: number, text: DOMString): void;
 	updateSelection(start: number, end: number): void;
@@ -119,5 +119,5 @@ interface CharacterBoundsUpdateEventInit extends EventInit {
 }
 
 interface HTMLElement {
-	editContext?: IEditContext;
+	editContext?: EditContext;
 }

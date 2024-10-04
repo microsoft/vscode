@@ -39,7 +39,7 @@ enum CompositionClassName {
 export class NativeEditContext extends AbstractEditContext {
 
 	public readonly domNode: FastDomNode<HTMLDivElement>;
-	private readonly _editContext: IEditContext;
+	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
 
 	// Overflow guard container
