@@ -487,7 +487,7 @@ export class InlineChatWidget {
 	}
 
 	reset() {
-		this._chatWidget.setContext(true);
+		this._chatWidget.attachmentModel.clear();
 		this._chatWidget.saveState();
 
 		reset(this._elements.statusLabel);

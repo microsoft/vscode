@@ -128,7 +128,7 @@ function buildDebPackage(arch) {
 	return async () => {
 		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
 		await exec('mkdir -p deb', { cwd });
-		await exec(`fakeroot dpkg-deb -b ${product.applicationName}-${debArch} deb`, { cwd });
+		await exec(`fakeroot dpkg-deb -Zxz -b ${product.applicationName}-${debArch} deb`, { cwd });
 	};
 }
 
