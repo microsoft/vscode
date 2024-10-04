@@ -40,6 +40,8 @@ import { CodeWindow, mainWindow } from '../../../../base/browser/window.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { Platform, platform } from '../../../../base/common/platform.js';
+import { TitleBarSetting } from '../../../../platform/window/common/window.js';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -61,6 +63,9 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private readonly auxWindowCoordinates = new WeakMap<CodeWindow, { x: number; y: number | undefined }>();
 
 	private readonly trackPixelRatioListener = this._register(new MutableDisposable());
+
+	/** Note: changes to this setting require a restarts, so no need to listen to it. */
+	private readonly customTitleBar = this.configurationService.getValue(TitleBarSetting.TITLE_BAR_STYLE) === 'custom';
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -188,10 +193,18 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.setCoordinates()));
 
 		const resizeListener = this._register(new MutableDisposable());
+		const nextFrameScheduler = this._register(new RunOnceScheduler(() => {
+			const thisWindow = dom.getWindow(this.layoutService.activeContainer);
+			this.setCoordinates(this.getCurrentXPercent() * thisWindow.innerWidth);
+		}, 30));
+
 		const registerResizeListener = () => {
+			const thisWindow = dom.getWindow(this.layoutService.activeContainer);
 			resizeListener.value = this._register(dom.addDisposableListener(
-				dom.getWindow(this.layoutService.activeContainer), dom.EventType.RESIZE, () => this.setCoordinates())
-			);
+				thisWindow,
+				dom.EventType.RESIZE,
+				() => nextFrameScheduler.schedule(),
+			));
 		};
 
 		this._register(this.layoutService.onDidChangeActiveContainer(async () => {
@@ -247,6 +260,18 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
+	private getCurrentXPercent() {
+		const currentWindow = dom.getWindow(this.layoutService.activeContainer);
+		const isMainWindow = currentWindow === mainWindow;
+		const positionPercentage = isMainWindow
+			? Number(this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE))
+			: this.auxWindowCoordinates.get(currentWindow)?.x;
+
+		return positionPercentage !== undefined && !isNaN(positionPercentage)
+			? positionPercentage
+			: 0.5 - (this.$el.clientWidth / currentWindow.innerWidth / 2);
+	}
+
 	private setCoordinates(x?: number, y?: number): void {
 		if (!this.isVisible) {
 			return;
@@ -257,15 +282,13 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		const isMainWindow = currentWindow === mainWindow;
 
 		if (x === undefined) {
-			const positionPercentage = isMainWindow
-				? Number(this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE))
-				: this.auxWindowCoordinates.get(currentWindow)?.x;
-			x = positionPercentage !== undefined && !isNaN(positionPercentage)
-				? positionPercentage * currentWindow.innerWidth
-				: (0.5 * currentWindow.innerWidth - 0.5 * widgetWidth);
+			x = this.getCurrentXPercent() * currentWindow.innerWidth;
 		}
 
-		x = clamp(x, 0, currentWindow.innerWidth - widgetWidth); // do not allow the widget to overflow on the right
+		// Do not allow the widget to overflow or underflow window controls.
+		const controlsOnLeft = this.customTitleBar && platform === Platform.Mac;
+		const controlsOnRight = this.customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
+		x = clamp(x, controlsOnLeft ? 60 : 0, currentWindow.innerWidth - widgetWidth - (controlsOnRight ? 100 : 0));
 		this.$el.style.left = `${x}px`;
 
 		if (y === undefined) {
