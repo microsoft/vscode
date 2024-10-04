@@ -20,10 +20,6 @@ export class ChatAttachmentModel extends Disposable {
 		return this._attachments.size;
 	}
 
-	constructor() {
-		super();
-	}
-
 	getAttachmentIDs() {
 		return new Set(this._attachments.keys());
 	}
