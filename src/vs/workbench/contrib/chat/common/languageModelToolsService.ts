@@ -239,9 +239,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		try {
-			return tool.impl.invoke(dto, countTokens, token);
+			return await tool.impl.invoke(dto, countTokens, token);
 		} finally {
-			toolInvocation?.complete();
+			toolInvocation?.isCompleteDeferred.complete();
 		}
 	}
 }
