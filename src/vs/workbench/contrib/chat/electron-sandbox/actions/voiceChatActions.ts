@@ -1014,12 +1014,6 @@ export class StopReadAloud extends Action2 {
 					when: ScopedChatSynthesisInProgress,
 					group: 'navigation',
 					order: -1
-				},
-				{
-					id: TerminalChatExecute,
-					when: ScopedChatSynthesisInProgress,
-					group: 'navigation',
-					order: -1
 				}
 			]
 		});
