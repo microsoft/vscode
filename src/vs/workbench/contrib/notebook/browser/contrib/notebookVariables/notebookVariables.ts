@@ -50,20 +50,13 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 
 	private handleConfigChange(e: IConfigurationChangeEvent) {
 		if (e.affectsConfiguration(NotebookSetting.notebookVariablesView)) {
-			if (!this.configurationService.getValue(NotebookSetting.notebookVariablesView)) {
-				this.viewEnabled.set(false);
-			} else if (this.initialized) {
-				this.viewEnabled.set(true);
-			} else {
-				this.handleInitEvent();
-			}
+			this.handleInitEvent();
 		}
 	}
 
 	private handleInitEvent(notebook?: URI) {
-		if (this.configurationService.getValue(NotebookSetting.notebookVariablesView)
-			&& (!!notebook || this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook')) {
-
+		const enabled = this.editorService.activeEditorPane?.getId() === 'workbench.editor.repl' || this.configurationService.getValue(NotebookSetting.notebookVariablesView);
+		if (enabled && (!!notebook || this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook')) {
 			if (this.hasVariableProvider(notebook) && !this.initialized && this.initializeView()) {
 				this.viewEnabled.set(true);
 				this.initialized = true;

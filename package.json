@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.95.0",
-  "distro": "1f05cd9b265f2477905f0b7688a66cfb2c6061f5",
+  "distro": "388bd7fe1d02a9631b51f2ab0d57300f0e028c47",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -74,11 +74,11 @@
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
-    "@vscode/policy-watcher": "^1.1.4",
+    "@vscode/policy-watcher": "^1.1.8",
     "@vscode/proxy-agent": "^0.22.0",
     "@vscode/ripgrep": "^1.15.9",
     "@vscode/spdlog": "^0.15.0",
-    "@vscode/sqlite3": "5.1.6-vscode",
+    "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/tree-sitter-wasm": "^0.0.4",
     "@vscode/vscode-languagedetection": "1.0.21",
@@ -153,7 +153,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "30.5.1",
+    "electron": "32.1.2",
     "eslint": "^9.11.1",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
@@ -223,7 +223,13 @@
     "yaserver": "^0.4.0"
   },
   "overrides": {
-    "node-gyp-build": "4.8.1"
+    "node-gyp-build": "4.8.1",
+    "kerberos@2.1.1": {
+      "node-addon-api": "7.1.0"
+    },
+    "@parcel/watcher@2.1.0": {
+      "node-addon-api": "7.1.0"
+    }
   },
   "repository": {
     "type": "git",

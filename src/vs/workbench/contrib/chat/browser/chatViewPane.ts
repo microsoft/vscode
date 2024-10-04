@@ -156,13 +156,14 @@ export class ChatViewPane extends ViewPane {
 				ChatWidget,
 				this.chatOptions.location,
 				{ viewId: this.id },
-				{ supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel },
+				{ renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel, supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel, rendererOptions: { collapseCodeBlocks: this.chatOptions.location === ChatAgentLocation.EditingSession } },
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: locationBasedColors.background,
 					overlayBackground: locationBasedColors.overlayBackground,
 					inputEditorBackground: locationBasedColors.background,
-					resultEditorBackground: editorBackground
+					resultEditorBackground: editorBackground,
+
 				}));
 			this._register(this.onDidChangeBodyVisibility(visible => {
 				this._widget.setVisible(visible);
@@ -244,8 +245,9 @@ export class ChatViewPane extends ViewPane {
 
 	private updateViewState(viewState?: IChatViewState): void {
 		const newViewState = viewState ?? this._widget.getViewState();
-		this.viewState.inputValue = newViewState.inputValue;
-		this.viewState.inputState = newViewState.inputState;
-		this.viewState.selectedLanguageModelId = newViewState.selectedLanguageModelId;
+		for (const [key, value] of Object.entries(newViewState)) {
+			// Assign all props to the memento so they get saved
+			(this.viewState as any)[key] = value;
+		}
 	}
 }

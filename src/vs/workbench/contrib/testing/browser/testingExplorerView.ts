@@ -27,7 +27,6 @@ import { fuzzyContains } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import './media/testing.css';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
@@ -54,16 +53,9 @@ import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
-import { ListProjection } from './explorerProjections/listProjection.js';
-import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
-import { TestingObjectTree } from './explorerProjections/testingObjectTree.js';
-import { ISerializedTestTreeCollapseState } from './explorerProjections/testingViewState.js';
-import { TreeProjection } from './explorerProjections/treeProjection.js';
-import * as icons from './icons.js';
-import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
-import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
+import { IActivityService, IconBadge, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { TestingConfigKeys, TestingCountBadge, getTestingConfiguration } from '../common/configuration.js';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, labelForTestInState } from '../common/constants.js';
 import { StoredValue } from '../common/storedValue.js';
@@ -78,9 +70,17 @@ import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
-import { IActivityService, IconBadge, NumberBadge } from '../../../services/activity/common/activity.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
+import { ListProjection } from './explorerProjections/listProjection.js';
+import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
+import { TestingObjectTree } from './explorerProjections/testingObjectTree.js';
+import { ISerializedTestTreeCollapseState } from './explorerProjections/testingViewState.js';
+import { TreeProjection } from './explorerProjections/treeProjection.js';
+import * as icons from './icons.js';
+import './media/testing.css';
+import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
+import { TestingExplorerFilter } from './testingExplorerFilter.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,
@@ -150,9 +150,11 @@ export class TestingExplorerView extends ViewPane {
 
 	/**
 	 * Gets include/exclude items in the tree, based either on visible tests
-	 * or a use selection.
+	 * or a use selection. If a profile is given, only tests in that profile
+	 * are collected. If a bitset is given, any test that can run in that
+	 * bitset is collected.
 	 */
-	public getTreeIncludeExclude(withinItems?: InternalTestItem[], profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
+	public getTreeIncludeExclude(profileOrBitset: ITestRunProfile | TestRunProfileBitset, withinItems?: InternalTestItem[], filterToType: 'visible' | 'selected' = 'visible') {
 		const projection = this.viewModel.projection.value;
 		if (!projection) {
 			return { include: [], exclude: [] };
@@ -162,6 +164,19 @@ export class TestingExplorerView extends ViewPane {
 		// have a majority of their items included too, and then apply exclusions.
 		const include = new Set<InternalTestItem>();
 		const exclude: InternalTestItem[] = [];
+
+		const runnableWithProfileOrBitset = new Map<InternalTestItem, boolean>();
+		const isRunnableWithProfileOrBitset = (item: InternalTestItem) => {
+			let value = runnableWithProfileOrBitset.get(item);
+			if (value === undefined) {
+				value = typeof profileOrBitset === 'number'
+					? !!this.testProfileService.getDefaultProfileForTest(profileOrBitset, item)
+					: canUseProfileWithTest(profileOrBitset, item);
+				runnableWithProfileOrBitset.set(item, value);
+			}
+			return value;
+		};
+
 
 		const attempt = (element: TestExplorerTreeElement, alreadyIncluded: boolean) => {
 			// sanity check hasElement since updates are debounced and they may exist
@@ -177,18 +192,25 @@ export class TestingExplorerView extends ViewPane {
 				return;
 			}
 
+			// Only count relevant children when deciding whether to include this node, #229120
+			const visibleRunnableChildren = inTree.children.filter(
+				c => c.visible
+					&& c.element instanceof TestItemTreeElement
+					&& isRunnableWithProfileOrBitset(c.element.test),
+			).length;
+
 			// If it's not already included but most of its children are, then add it
 			// if it can be run under the current profile (when specified)
 			if (
 				// If it's not already included...
 				!alreadyIncluded
 				// And it can be run using the current profile (if any)
-				&& (!profile || canUseProfileWithTest(profile, element.test))
+				&& isRunnableWithProfileOrBitset(element.test)
 				// And either it's a leaf node or most children are included, the  include it.
-				&& (inTree.children.length === 0 || inTree.visibleChildrenCount * 2 >= inTree.children.length)
+				&& (visibleRunnableChildren === 0 || visibleRunnableChildren * 2 >= inTree.children.length)
 				// And not if we're only showing a single of its children, since it
 				// probably fans out later. (Worse case we'll directly include its single child)
-				&& inTree.visibleChildrenCount !== 1
+				&& visibleRunnableChildren !== 1
 			) {
 				include.add(element.test);
 				alreadyIncluded = true;
@@ -229,7 +251,7 @@ export class TestingExplorerView extends ViewPane {
 				continue;
 			}
 
-			if (profile && !canUseProfileWithTest(profile, root)) {
+			if (typeof profileOrBitset === 'object' && !canUseProfileWithTest(profileOrBitset, root)) {
 				continue;
 			}
 
@@ -337,7 +359,7 @@ export class TestingExplorerView extends ViewPane {
 					undefined,
 					undefined,
 					() => {
-						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
+						const { include, exclude } = this.getTreeIncludeExclude(profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
 							group: profile.group,

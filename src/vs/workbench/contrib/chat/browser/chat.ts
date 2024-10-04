@@ -22,6 +22,7 @@ import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -105,6 +106,7 @@ export interface IChatListItemRendererOptions {
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
+	readonly collapseCodeBlocks?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 }
 
@@ -161,6 +163,7 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	readonly attachmentModel: ChatAttachmentModel;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
@@ -181,7 +184,6 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	setContext(overwrite: boolean, ...context: IChatRequestVariableEntry[]): void;
 	clear(): void;
 	getViewState(): IChatViewState;
 }

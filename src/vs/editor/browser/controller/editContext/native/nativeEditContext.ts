@@ -27,6 +27,7 @@ import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { EditContext } from './editContextFactory.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -77,7 +78,8 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
-		this._editContext = new EditContext();
+		const window = getWindow(this.domNode.domNode);
+		this._editContext = EditContext.create(window);
 		this.setEditContextOnDomNode();
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
@@ -100,7 +102,7 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
-			if (e.inputType === 'insertParagraph') {
+			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
