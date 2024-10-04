@@ -33,7 +33,7 @@ import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.j
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 
@@ -43,6 +43,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	private readonly _currentSessionObs = observableValue<ChatEditingSession | null>(this, null);
 	private readonly _currentSessionDisposeListener = this._register(new MutableDisposable());
+
+	private readonly _currentAutoApplyOperationObs = observableValue<CancellationTokenSource | null>(this, null);
+	get currentAutoApplyOperation(): CancellationTokenSource | null {
+		return this._currentAutoApplyOperationObs.get();
+	}
 
 	get currentEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
@@ -77,6 +82,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}));
 		this._register(bindContextKey(inChatEditingSessionContextKey, contextKeyService, (reader) => {
 			return this._currentSessionObs.read(reader) !== null;
+		}));
+		this._register(bindContextKey(applyingChatEditsContextKey, contextKeyService, (reader) => {
+			return this._currentAutoApplyOperationObs.read(reader) !== null;
 		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
@@ -208,6 +216,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		};
 		session.acceptStreamingEditsStart();
 		const cancellationTokenSource = new CancellationTokenSource();
+		this._currentAutoApplyOperationObs.set(cancellationTokenSource, undefined);
 		try {
 			if (editorPane) {
 				await editorPane?.showWhile(builder(stream, cancellationTokenSource.token));
@@ -223,6 +232,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		} finally {
 			cancellationTokenSource.dispose();
+			this._currentAutoApplyOperationObs.set(null, undefined);
 			session.resolve();
 		}
 	}
