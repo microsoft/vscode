@@ -129,7 +129,7 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - powershell: npm run gulp "transpile-client-swc" "transpile-extensions"
+    - powershell: npm run gulp "transpile-client-esbuild" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions

@@ -4,8 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SwcTranspiler = exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
-const swc = require("@swc/core");
+exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
 const esbuild = require("esbuild");
 const ts = require("typescript");
 const threads = require("node:worker_threads");
@@ -301,98 +300,4 @@ function _isDefaultEmpty(src) {
         .replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
         .trim().length === 0;
 }
-class SwcTranspiler {
-    _logFn;
-    _onError;
-    _cmdLine;
-    onOutfile;
-    _outputFileNames;
-    _jobs = [];
-    constructor(_logFn, _onError, configFilePath, _cmdLine) {
-        this._logFn = _logFn;
-        this._onError = _onError;
-        this._cmdLine = _cmdLine;
-        _logFn('Transpile', `will use SWC to transpile source files`);
-        this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
-    }
-    async join() {
-        const jobs = this._jobs.slice();
-        this._jobs.length = 0;
-        await Promise.allSettled(jobs);
-    }
-    transpile(file) {
-        if (this._cmdLine.options.noEmit) {
-            // not doing ANYTHING here
-            return;
-        }
-        const tsSrc = String(file.contents);
-        const t1 = Date.now();
-        let options = SwcTranspiler._swcrcEsm;
-        if (this._cmdLine.options.module === ts.ModuleKind.AMD) {
-            const isAmd = /\n(import|export)/m.test(tsSrc);
-            if (isAmd) {
-                options = SwcTranspiler._swcrcAmd;
-            }
-        }
-        else if (this._cmdLine.options.module === ts.ModuleKind.CommonJS || this._cmdLine.options.module === ts.ModuleKind.Node16) {
-            options = SwcTranspiler._swcrcCommonJS;
-        }
-        this._jobs.push(swc.transform(tsSrc, options).then(output => {
-            // check if output of a DTS-files isn't just "empty" and iff so
-            // skip this file
-            if (file.path.endsWith('.d.ts') && _isDefaultEmpty(output.code)) {
-                return;
-            }
-            const outBase = this._cmdLine.options.outDir ?? file.base;
-            const outPath = this._outputFileNames.getOutputFileName(file.path);
-            this.onOutfile(new Vinyl({
-                path: outPath,
-                base: outBase,
-                contents: Buffer.from(output.code),
-            }));
-            this._logFn('Transpile', `swc took ${Date.now() - t1}ms for ${file.path}`);
-        }).catch(err => {
-            this._onError(err);
-        }));
-    }
-    // --- .swcrc
-    static _swcrcAmd = {
-        exclude: '\.js$',
-        jsc: {
-            parser: {
-                syntax: 'typescript',
-                tsx: false,
-                decorators: true
-            },
-            target: 'es2022',
-            loose: false,
-            minify: {
-                compress: false,
-                mangle: false
-            },
-            transform: {
-                useDefineForClassFields: false,
-            },
-        },
-        module: {
-            type: 'amd',
-            noInterop: false
-        },
-        minify: false,
-    };
-    static _swcrcCommonJS = {
-        ...this._swcrcAmd,
-        module: {
-            type: 'commonjs',
-            importInterop: 'swc'
-        }
-    };
-    static _swcrcEsm = {
-        ...this._swcrcAmd,
-        module: {
-            type: 'es6'
-        }
-    };
-}
-exports.SwcTranspiler = SwcTranspiler;
 //# sourceMappingURL=transpiler.js.map
