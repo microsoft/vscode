@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from '../../../../base/browser/dom.js';
+import { Event } from '../../../../base/common/event.js';
+import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
-import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
-import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
-import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import './colors.js';
-import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
-import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
-import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Range } from '../../../common/core/range.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { DiffEditorWidget } from '../diffEditor/diffEditorWidget.js';
-import { Range } from '../../../common/core/range.js';
+import './colors.js';
+import { DiffEditorItemTemplate } from './diffEditorItemTemplate.js';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from './model.js';
+import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel.js';
+import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from './multiDiffEditorWidgetImpl.js';
+import { IWorkbenchUIElementFactory } from './workbenchUIElementFactory.js';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);

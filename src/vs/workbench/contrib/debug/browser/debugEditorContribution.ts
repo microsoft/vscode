@@ -37,7 +37,7 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from '../.
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../../editor/common/services/languageFeatureDebounce.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController2.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { HoverStartMode, HoverStartSource } from '../../../../editor/contrib/hover/browser/hoverOperation.js';
 import * as nls from '../../../../nls.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -564,7 +564,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
-	async addLaunchConfiguration(): Promise<any> {
+	async addLaunchConfiguration(): Promise<void> {
 		const model = this.editor.getModel();
 		if (!model) {
 			return;

@@ -12,9 +12,6 @@ import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalid
 import { ITerminalOutputMatcher } from '../terminal.js';
 import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
 import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 interface ITerminalDimensions {

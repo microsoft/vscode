@@ -152,6 +152,7 @@ function getRpmPackageArch(arch) {
 function prepareRpmPackage(arch) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const rpmArch = getRpmPackageArch(arch);
+	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
 
 	return function () {
 		const desktop = gulp.src('resources/linux/code.desktop', { base: '.' })
@@ -208,6 +209,7 @@ function prepareRpmPackage(arch) {
 					.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
 					.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 					.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
+					.pipe(replace('@@STRIP@@', stripBinary))
 					.pipe(rename('SPECS/' + product.applicationName + '.spec'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));

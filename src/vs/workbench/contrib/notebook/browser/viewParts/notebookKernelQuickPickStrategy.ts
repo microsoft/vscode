@@ -22,15 +22,13 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ViewContainerLocation } from '../../../../common/views.js';
-import { IExtension, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID as EXTENSION_VIEWLET_ID } from '../../../extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IActiveNotebookEditor, INotebookExtensionRecommendation, JUPYTER_EXTENSION_ID, KERNEL_RECOMMENDATIONS } from '../notebookBrowser.js';
 import { NotebookEditorWidget } from '../notebookEditorWidget.js';
 import { executingStateIcon, selectKernelIcon } from '../notebookIcons.js';
 import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
 import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelMatchResult, INotebookKernelService, ISourceAction } from '../../common/notebookKernelService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotebookTextModel } from '../../common/notebookCommon.js';
@@ -105,7 +103,6 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		protected readonly _quickInputService: IQuickInputService,
 		protected readonly _labelService: ILabelService,
 		protected readonly _logService: ILogService,
-		protected readonly _paneCompositePartService: IPaneCompositePartService,
 		protected readonly _extensionWorkbenchService: IExtensionsWorkbenchService,
 		protected readonly _extensionService: IExtensionService,
 		protected readonly _commandService: ICommandService
@@ -255,7 +252,6 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 		// actions
 		if (isSearchMarketplacePick(pick)) {
 			await this._showKernelExtension(
-				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
 				editor.textModel.viewType,
@@ -264,7 +260,6 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			// suggestedExtension must be defined for this option to be shown, but still check to make TS happy
 		} else if (isInstallExtensionPick(pick)) {
 			await this._showKernelExtension(
-				this._paneCompositePartService,
 				this._extensionWorkbenchService,
 				this._extensionService,
 				editor.textModel.viewType,
@@ -284,7 +279,6 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	}
 
 	protected async _showKernelExtension(
-		paneCompositePartService: IPaneCompositePartService,
 		extensionWorkbenchService: IExtensionsWorkbenchService,
 		extensionService: IExtensionService,
 		viewType: string,
@@ -337,10 +331,8 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			return;
 		}
 
-		const viewlet = await paneCompositePartService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
 		const pascalCased = viewType.split(/[^a-z0-9]/ig).map(uppercaseFirstLetter).join('');
-		view?.search(`@tag:notebookKernel${pascalCased}`);
+		await extensionWorkbenchService.openSearch(`@tag:notebookKernel${pascalCased}`);
 	}
 
 	private async _showInstallKernelExtensionRecommendation(
@@ -441,7 +433,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		@IQuickInputService _quickInputService: IQuickInputService,
 		@ILabelService _labelService: ILabelService,
 		@ILogService _logService: ILogService,
-		@IPaneCompositePartService _paneCompositePartService: IPaneCompositePartService,
 		@IExtensionsWorkbenchService _extensionWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService _extensionService: IExtensionService,
 		@ICommandService _commandService: ICommandService,
@@ -455,7 +446,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			_quickInputService,
 			_labelService,
 			_logService,
-			_paneCompositePartService,
 			_extensionWorkbenchService,
 			_extensionService,
 			_commandService,
@@ -617,7 +607,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				}
 			} else if (isSearchMarketplacePick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
-					this._paneCompositePartService,
 					this._extensionWorkbenchService,
 					this._extensionService,
 					editor.textModel.viewType,
@@ -626,7 +615,6 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				return true;
 			} else if (isInstallExtensionPick(selectedKernelPickItem)) {
 				await this._showKernelExtension(
-					this._paneCompositePartService,
 					this._extensionWorkbenchService,
 					this._extensionService,
 					editor.textModel.viewType,

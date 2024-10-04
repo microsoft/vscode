@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../base/browser/dom.js';
-import { CompareResult, lastOrDefault } from '../../../../../base/common/arrays.js';
+import { CompareResult } from '../../../../../base/common/arrays.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ICodeEditor, IViewZoneChangeAccessor } from '../../../../../editor/browser/editorBrowser.js';
@@ -82,7 +82,7 @@ export class ViewZoneComputer {
 
 			}
 
-			const lastResultDiff = lastOrDefault(m.rights)!;
+			const lastResultDiff = m.rights.at(-1)!;
 			if (lastResultDiff) {
 				lastBaseResultDiff = lastResultDiff;
 			}

@@ -115,6 +115,15 @@ const editorConfiguration: IConfigurationNode = {
 			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
 			tags: ['experimental']
 		},
+		'editor.experimental.preferTreeSitter': {
+			type: 'array',
+			items: {
+				type: 'string',
+				enum: ['typescript']
+			},
+			default: [],
+			markdownDescription: nls.localize('editor.experimental.preferTreeSitter', "Controls whether tree sitter parsing should be turned on for specific languages. This will take precedence over `editor.experimental.treeSitterTelemetry` for the specified languages."),
+		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
 			default: null, // We want to distinguish the empty array from not configured.

@@ -19,5 +19,18 @@ declare module '../../../../node_modules/typescript/lib/typescript' {
 		interface Response {
 			readonly _serverType?: ServerType;
 		}
+
+		//#region PreparePasteEdits
+		interface PreparePasteEditsRequest extends FileRequest {
+			command: 'preparePasteEdits';
+			arguments: PreparePasteEditsRequestArgs;
+		}
+		interface PreparePasteEditsRequestArgs extends FileRequestArgs {
+			copiedTextSpan: TextSpan[];
+		}
+		interface PreparePasteEditsResponse extends Response {
+			body: boolean;
+		}
+		//#endregion
 	}
 }

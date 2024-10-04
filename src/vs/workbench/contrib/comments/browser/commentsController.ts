@@ -368,6 +368,34 @@ class CommentingRangeDecorator {
 	}
 }
 
+/**
+* Navigate to the next or previous comment in the current thread.
+* @param type
+*/
+export function moveToNextCommentInThread(commentInfo: { thread: languages.CommentThread<IRange>; comment?: languages.Comment } | undefined, type: 'next' | 'previous') {
+	if (!commentInfo?.comment || !commentInfo?.thread?.comments) {
+		return;
+	}
+	const currentIndex = commentInfo.thread.comments?.indexOf(commentInfo.comment);
+	if (currentIndex === undefined || currentIndex < 0) {
+		return;
+	}
+	if (type === 'previous' && currentIndex === 0) {
+		return;
+	}
+	if (type === 'next' && currentIndex === commentInfo.thread.comments.length - 1) {
+		return;
+	}
+	const comment = commentInfo.thread.comments?.[type === 'previous' ? currentIndex - 1 : currentIndex + 1];
+	if (!comment) {
+		return;
+	}
+	return {
+		...commentInfo,
+		comment,
+	};
+}
+
 export function revealCommentThread(commentService: ICommentService, editorService: IEditorService, uriIdentityService: IUriIdentityService,
 	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
 	if (!commentThread.resource) {
@@ -441,6 +469,7 @@ export class CommentController implements IEditorContribution {
 	private _inProcessContinueOnComments: Map<string, languages.PendingCommentThread[]> = new Map();
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
+	private _activeCursorHasComment: IContextKey<boolean>;
 	private _activeEditorHasCommentingRange: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
 
@@ -464,6 +493,7 @@ export class CommentController implements IEditorContribution {
 		this._pendingEditsCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = CommentContextKeys.activeCursorHasCommentingRange.bindTo(contextKeyService);
+		this._activeCursorHasComment = CommentContextKeys.activeCursorHasComment.bindTo(contextKeyService);
 		this._activeEditorHasCommentingRange = CommentContextKeys.activeEditorHasCommentingRange.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
@@ -605,7 +635,11 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorChangeCursorPosition(e: Position | null) {
-		const decorations = e ? this.editor?.getDecorationsInRange(Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber })) : undefined;
+		if (!e) {
+			return;
+		}
+		const range = Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber });
+		const decorations = this.editor?.getDecorationsInRange(range);
 		let hasCommentingRange = false;
 		if (decorations) {
 			for (const decoration of decorations) {
@@ -619,6 +653,7 @@ export class CommentController implements IEditorContribution {
 			}
 		}
 		this._activeCursorHasCommentingRange.set(hasCommentingRange);
+		this._activeCursorHasComment.set(this.getCommentsAtLine(range).length > 0);
 	}
 
 	private isEditorInlineOriginal(testEditor: ICodeEditor): boolean {
@@ -723,11 +758,11 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public nextCommentThread(): void {
-		this._findNearestCommentThread();
+	public nextCommentThread(focusThread: boolean): void {
+		this._findNearestCommentThread(focusThread);
 	}
 
-	private _findNearestCommentThread(reverse?: boolean): void {
+	private _findNearestCommentThread(focusThread: boolean, reverse?: boolean): void {
 		if (!this._commentWidgets.length || !this.editor?.hasModel()) {
 			return;
 		}
@@ -783,18 +818,15 @@ export class CommentController implements IEditorContribution {
 			return false;
 		});
 
-		let nextWidget: ReviewZoneWidget;
-		if (idx === this._commentWidgets.length) {
-			nextWidget = this._commentWidgets[0];
-		} else {
-			nextWidget = sortedWidgets[idx];
+		const nextWidget: ReviewZoneWidget | undefined = sortedWidgets[idx];
+		if (nextWidget !== undefined) {
+			this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
+			nextWidget.reveal(undefined, focusThread ? CommentWidgetFocus.Widget : CommentWidgetFocus.None);
 		}
-		this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
-		nextWidget.reveal(undefined, CommentWidgetFocus.Widget);
 	}
 
-	public previousCommentThread(): void {
-		this._findNearestCommentThread(true);
+	public previousCommentThread(focusThread: boolean): void {
+		this._findNearestCommentThread(focusThread, true);
 	}
 
 	private _findNearestCommentingRange(reverse?: boolean): void {
@@ -1089,13 +1121,17 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
+	public getCommentsAtLine(commentRange: Range | undefined): ReviewZoneWidget[] {
+		return this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
+	}
+
 	public async addOrToggleCommentAtLine(commentRange: Range | undefined, e: IEditorMouseEvent | undefined): Promise<void> {
 		// If an add is already in progress, queue the next add and process it after the current one finishes to
 		// prevent empty comment threads from being added to the same line.
 		if (!this._addInProgress) {
 			this._addInProgress = true;
 			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
-			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
+			const existingCommentsAtLine = this.getCommentsAtLine(commentRange);
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
 				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand(true));

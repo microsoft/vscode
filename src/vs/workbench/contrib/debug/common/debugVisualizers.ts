@@ -10,7 +10,7 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE, MainThreadDebugVisualization, IDebugVisualization, IDebugVisualizationContext, IExpression, IExpressionContainer, IDebugVisualizationTreeItem } from './debug.js';
+import { CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE, MainThreadDebugVisualization, IDebugVisualization, IDebugVisualizationContext, IExpression, IExpressionContainer, IDebugVisualizationTreeItem, IDebugSession } from './debug.js';
 import { getContextForVariable } from './debugContext.js';
 import { Scope, Variable, VisualizedExpression } from './debugModel.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -84,7 +84,7 @@ export interface IDebugVisualizerService {
 	/**
 	 * Gets children for a visualized tree node.
 	 */
-	getVisualizedChildren(treeId: string, treeElementId: number): Promise<IExpression[]>;
+	getVisualizedChildren(session: IDebugSession | undefined, treeId: string, treeElementId: number): Promise<IExpression[]>;
 
 	/**
 	 * Gets children for a visualized tree node.
@@ -202,7 +202,7 @@ export class DebugVisualizerService implements IDebugVisualizerService {
 				return;
 			}
 
-			return new VisualizedExpression(this, treeId, treeItem, expr);
+			return new VisualizedExpression(expr.getSession(), this, treeId, treeItem, expr);
 		} catch (e) {
 			this.logService.warn('Failed to get visualized node', e);
 			return;
@@ -210,9 +210,10 @@ export class DebugVisualizerService implements IDebugVisualizerService {
 	}
 
 	/** @inheritdoc */
-	public async getVisualizedChildren(treeId: string, treeElementId: number): Promise<IExpression[]> {
-		const children = await this.trees.get(treeId)?.getChildren(treeElementId) || [];
-		return children.map(c => new VisualizedExpression(this, treeId, c, undefined));
+	public async getVisualizedChildren(session: IDebugSession | undefined, treeId: string, treeElementId: number): Promise<IExpression[]> {
+		const node = this.trees.get(treeId);
+		const children = await node?.getChildren(treeElementId) || [];
+		return children.map(c => new VisualizedExpression(session, this, treeId, c, undefined));
 	}
 
 	/** @inheritdoc */
