@@ -88,7 +88,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		const controlsOnRight = customTitleBar && (platform === Platform.Windows || platform === Platform.Linux);
 		this.$el.style.transform = `translate(
 			min(
-				max(${controlsOnLeft ? '60px' : '0px'}, calc(-50% + var(--x-position))),
+				max(${controlsOnLeft ? '60px' : '0px'}, calc(-50% + (100vw * var(--x-position)))),
 				calc(100vw - 100% - ${controlsOnRight ? '100px' : '0px'})
 			),
 			var(--y-position)
@@ -172,10 +172,9 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		this._register(dom.addDisposableGenericMouseUpListener(this.dragArea, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(dom.getWindow(this.dragArea), event);
-			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
-				this.setCoordinates(0.5 * activeWindow.innerWidth, this.yDefault);
+				this.setCoordinates(0.5, this.yDefault);
 				this.storePosition();
 			}
 		}));
@@ -185,7 +184,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
-			const originX = this.getCurrentXPosition();
+			const originX = this.getCurrentXPercent();
 			const originY = this.getCurrentYPosition();
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
@@ -193,7 +192,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				this.setCoordinates(
-					originX + mouseMoveEvent.posx - originEvent.posx,
+					originX + (mouseMoveEvent.posx - originEvent.posx) / activeWindow.innerWidth,
 					originY + mouseMoveEvent.posy - originEvent.posy,
 				);
 			});
@@ -209,18 +208,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => this.setCoordinates()));
 
-		const resizeListener = this._register(new MutableDisposable());
-		const registerResizeListener = () => {
-			const thisWindow = dom.getWindow(this.layoutService.activeContainer);
-			resizeListener.value = this._register(dom.addDisposableListener(
-				thisWindow,
-				dom.EventType.RESIZE,
-				// This looks like a no-op, but `getStoredXPosition` retrieves the
-				// position based on the current window size, so it repositions the toolbar
-				() => this.setCoordinates(),
-			));
-		};
-
 		this._register(this.layoutService.onDidChangeActiveContainer(async () => {
 			this._yRange = undefined;
 
@@ -231,15 +218,11 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				this.doShowInActiveContainer();
 				this.setCoordinates();
 			}
-
-			registerResizeListener();
 		}));
-
-		registerResizeListener();
 	}
 
-	private getCurrentXPosition(): number {
-		return parseInt(this.$el.style.getPropertyValue('--x-position'));
+	private getCurrentXPercent(): number {
+		return Number(this.$el.style.getPropertyValue('--x-position'));
 	}
 
 	private getCurrentYPosition(): number {
@@ -250,7 +233,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		const activeWindow = dom.getWindow(this.layoutService.activeContainer);
 		const isMainWindow = this.layoutService.activeContainer === this.layoutService.mainContainer;
 
-		const x = this.getCurrentXPosition() / activeWindow.innerWidth;
+		const x = this.getCurrentXPercent();
 		const y = this.getCurrentYPosition();
 		if (isMainWindow) {
 			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, x, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -288,8 +271,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		const storedPercentage = isMainWindow
 			? Number(this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE))
 			: this.auxWindowCoordinates.get(currentWindow)?.x;
-		const percentage = storedPercentage !== undefined && !isNaN(storedPercentage) ? storedPercentage : 0.5;
-		return percentage * currentWindow.innerWidth;
+		return storedPercentage !== undefined && !isNaN(storedPercentage) ? storedPercentage : 0.5;
 	}
 
 	private getStoredYPosition() {
@@ -311,7 +293,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		const [yMin, yMax] = this.yRange;
 		y = Math.max(yMin, Math.min(y, yMax));
-		this.$el.style.setProperty('--x-position', `${x}px`);
+		this.$el.style.setProperty('--x-position', `${x}`);
 		this.$el.style.setProperty('--y-position', `${y}px`);
 	}
 
