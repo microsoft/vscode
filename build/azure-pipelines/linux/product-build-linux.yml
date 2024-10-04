@@ -305,6 +305,11 @@ steps:
     - script:  |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        file_output=$(file $(ls .build/linux/deb/*/deb/*.deb))
+        if [[ "$file_output" != *"data compression xz"* ]]; then
+          echo "Error: unknown compression. $file_output"
+          exit 1
+        fi
         echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*/deb/*.deb)"
       displayName: Build deb package
 
