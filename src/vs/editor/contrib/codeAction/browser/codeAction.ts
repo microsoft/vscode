@@ -126,9 +126,8 @@ export async function getCodeActions(
 		try {
 			const codeActionsPromise = Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token));
 
-			raceTimeout(codeActionsPromise, 1250, () => progress.report(provider));
+			const providedCodeActions = await raceTimeout(codeActionsPromise, 1250, () => progress.report(provider));
 
-			const providedCodeActions = await codeActionsPromise;
 			if (providedCodeActions) {
 				disposables.add(providedCodeActions);
 			}
