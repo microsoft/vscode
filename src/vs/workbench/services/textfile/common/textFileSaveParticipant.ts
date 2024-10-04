@@ -38,6 +38,10 @@ export class TextFileSaveParticipant extends Disposable {
 
 		const cts = new CancellationTokenSource(token);
 
+		progress.report({
+			message: localize('saveParticipants1', "Running Code Actions and Formatters...")
+		});
+
 		await this.progressService.withProgress({
 			priority: NotificationPriority.URGENT,
 			location: ProgressLocation.Notification,
