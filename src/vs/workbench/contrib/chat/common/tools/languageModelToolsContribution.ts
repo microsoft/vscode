@@ -21,6 +21,7 @@ interface IRawToolContribution {
 	name?: string;
 	icon?: string | { light: string; dark: string };
 	when?: string;
+	tags?: string[];
 	displayName?: string;
 	userDescription?: string;
 	modelDescription: string;
@@ -110,7 +111,13 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 				requiresConfirmation: {
 					description: localize('requiresConfirmation', "Whether this tool requires user confirmation before being executed."),
-					type: 'boolean'
+				},
+				tags: {
+					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
 				}
 			}
 		}

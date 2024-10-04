@@ -25,14 +25,14 @@ import type { ITerminalContributionContext } from '../../../terminal/browser/ter
 import { TerminalChatContextKeys } from './terminalChat.js';
 
 const enum Message {
-	NONE = 0,
-	ACCEPT_SESSION = 1 << 0,
-	CANCEL_SESSION = 1 << 1,
-	PAUSE_SESSION = 1 << 2,
-	CANCEL_REQUEST = 1 << 3,
-	CANCEL_INPUT = 1 << 4,
-	ACCEPT_INPUT = 1 << 5,
-	RERUN_INPUT = 1 << 6,
+	None = 0,
+	AcceptSession = 1 << 0,
+	CancelSession = 1 << 1,
+	PauseSession = 1 << 2,
+	CancelRequest = 1 << 3,
+	CancelInput = 1 << 4,
+	AcceptInput = 1 << 5,
+	ReturnInput = 1 << 6,
 }
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
@@ -79,7 +79,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		return this._lastResponseContent;
 	}
 
-	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
+	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.AcceptInput, this._store);
 	get onDidHide() { return this.terminalChatWidget?.onDidHide ?? Event.None; }
 
 	private _terminalAgentName = 'terminal';
@@ -100,13 +100,13 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
-		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IChatCodeBlockContextProviderService chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
-		@IViewsService private readonly _viewsService: IViewsService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super();
 
@@ -114,7 +114,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 
-		this._register(this._chatCodeBlockContextProviderService.registerProvider({
+		this._register(chatCodeBlockContextProviderService.registerProvider({
 			getCodeBlockContext: (editor) => {
 				if (!editor || !this._terminalChatWidget?.hasValue || !this.hasFocus()) {
 					return;

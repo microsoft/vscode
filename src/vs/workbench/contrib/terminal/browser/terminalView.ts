@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import * as dom from '../../../../base/browser/dom.js';
+import * as cssJs from '../../../../base/browser/cssValue.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -618,7 +619,7 @@ class TerminalThemeIconStyle extends Themable {
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
 					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon` +
-					`{background-image: ${dom.asCSSUrl(uri)};}`
+					`{background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
 		}

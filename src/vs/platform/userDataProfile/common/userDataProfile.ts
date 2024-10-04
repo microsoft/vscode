@@ -109,7 +109,6 @@ export interface IUserDataProfilesService {
 
 	readonly onDidResetWorkspaces: Event<void>;
 
-	isEnabled(): boolean;
 	createNamedProfile(name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
 	createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
 	createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile>;
@@ -190,7 +189,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 
 	readonly _serviceBrand: undefined;
 
-	protected enabled: boolean = true;
 	readonly profilesHome: URI;
 	private readonly profilesCacheHome: URI;
 
@@ -231,34 +229,21 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		this._profilesObject = undefined;
 	}
 
-	setEnablement(enabled: boolean): void {
-		if (this.enabled !== enabled) {
-			this._profilesObject = undefined;
-			this.enabled = enabled;
-		}
-	}
-
-	isEnabled(): boolean {
-		return this.enabled;
-	}
-
 	protected _profilesObject: UserDataProfilesObject | undefined;
 	protected get profilesObject(): UserDataProfilesObject {
 		if (!this._profilesObject) {
 			const defaultProfile = this.createDefaultProfile();
 			const profiles: Array<Mutable<IUserDataProfile>> = [defaultProfile];
-			if (this.enabled) {
-				try {
-					for (const storedProfile of this.getStoredProfiles()) {
-						if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
-							this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
-							continue;
-						}
-						profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { shortName: storedProfile.shortName, icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
+			try {
+				for (const storedProfile of this.getStoredProfiles()) {
+					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
+						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
+						continue;
 					}
-				} catch (error) {
-					this.logService.error(error);
+					profiles.push(toUserDataProfile(basename(storedProfile.location), storedProfile.name, storedProfile.location, this.profilesCacheHome, { shortName: storedProfile.shortName, icon: storedProfile.icon, useDefaultFlags: storedProfile.useDefaultFlags }, defaultProfile));
 				}
+			} catch (error) {
+				this.logService.error(error);
 			}
 			const emptyWindows = new Map<string, IUserDataProfile>();
 			if (profiles.length) {
@@ -315,10 +300,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async createProfile(id: string, name: string, options?: IUserDataProfileOptions, workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
-		if (!this.enabled) {
-			throw new Error(`Profiles are disabled in the current environment.`);
-		}
-
 		const profile = await this.doCreateProfile(id, name, options, workspaceIdentifier);
 
 		return profile;
@@ -369,10 +350,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async updateProfile(profile: IUserDataProfile, options: IUserDataProfileUpdateOptions): Promise<IUserDataProfile> {
-		if (!this.enabled) {
-			throw new Error(`Profiles are disabled in the current environment.`);
-		}
-
 		const profilesToUpdate: IUserDataProfile[] = [];
 		for (const existing of this.profiles) {
 			let profileToUpdate: Mutable<IUserDataProfile> | undefined;
@@ -423,9 +400,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async removeProfile(profileToRemove: IUserDataProfile): Promise<void> {
-		if (!this.enabled) {
-			throw new Error(`Profiles are disabled in the current environment.`);
-		}
 		if (profileToRemove.isDefault) {
 			throw new Error('Cannot remove default profile');
 		}
@@ -460,10 +434,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async setProfileForWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, profileToSet: IUserDataProfile): Promise<void> {
-		if (!this.enabled) {
-			throw new Error(`Profiles are disabled in the current environment.`);
-		}
-
 		const profile = this.profiles.find(p => p.id === profileToSet.id);
 		if (!profile) {
 			throw new Error(`Profile '${profileToSet.name}' does not exist`);
@@ -483,10 +453,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	unsetWorkspace(workspaceIdentifier: IAnyWorkspaceIdentifier, transient: boolean = false): void {
-		if (!this.enabled) {
-			throw new Error(`Profiles are disabled in the current environment.`);
-		}
-
 		const workspace = this.getWorkspace(workspaceIdentifier);
 		if (URI.isUri(workspace)) {
 			const currentlyAssociatedProfile = this.getProfileForWorkspace(workspaceIdentifier);
@@ -510,9 +476,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async cleanUp(): Promise<void> {
-		if (!this.enabled) {
-			return;
-		}
 		if (await this.fileService.exists(this.profilesHome)) {
 			const stat = await this.fileService.resolve(this.profilesHome);
 			await Promise.all((stat.children || [])
@@ -522,9 +485,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	}
 
 	async cleanUpTransientProfiles(): Promise<void> {
-		if (!this.enabled) {
-			return;
-		}
 		const unAssociatedTransientProfiles = this.transientProfilesObject.profiles.filter(p => !this.isProfileAssociatedToWorkspace(p));
 		await Promise.allSettled(unAssociatedTransientProfiles.map(p => this.removeProfile(p)));
 	}

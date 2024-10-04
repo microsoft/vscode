@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';

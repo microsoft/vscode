@@ -30,6 +30,7 @@ import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { isChatViewTitleActionContext } from '../../contrib/chat/common/chatActions.js';
 
 class ChatAgentResponseStream {
 
@@ -315,6 +316,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
+
+		_commands.registerArgumentProcessor({
+			processArgument: (arg) => {
+				// Don't send this argument to extension commands
+				if (isChatViewTitleActionContext(arg)) {
+					return null;
+				}
+
+				return arg;
+			}
+		});
 	}
 
 	transferActiveChat(newWorkspace: vscode.Uri): void {
