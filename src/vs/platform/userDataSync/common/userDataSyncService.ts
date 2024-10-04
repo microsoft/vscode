@@ -515,10 +515,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				return isUndefined(result) ? null : result;
 			}
 
-			if (this.userDataProfilesService.isEnabled()) {
-				return null;
-			}
-
 			const userDataProfileManifestSynchronizer = disposables.add(this.instantiationService.createInstance(UserDataProfilesManifestSynchroniser, profile, undefined));
 			const manifest = await this.userDataSyncStoreService.manifest(null);
 			const syncProfiles = (await userDataProfileManifestSynchronizer.getRemoteSyncedProfiles(manifest?.latest ?? null)) || [];
@@ -648,7 +644,6 @@ class ProfileSynchronizer extends Disposable {
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
@@ -679,9 +674,6 @@ class ProfileSynchronizer extends Disposable {
 		}
 		if (syncResource === SyncResource.Profiles) {
 			if (!this.profile.isDefault) {
-				return;
-			}
-			if (!this.userDataProfilesService.isEnabled()) {
 				return;
 			}
 		}

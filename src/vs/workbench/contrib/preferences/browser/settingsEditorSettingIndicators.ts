@@ -70,8 +70,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly defaultOverrideIndicator: SettingIndicator;
 	private readonly allIndicators: SettingIndicator[];
 
-	private readonly profilesEnabled: boolean;
-
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
 	private focusedIndex = 0;
 
@@ -81,12 +79,9 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService private readonly commandService: ICommandService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.setting-indicators-container'));
 		this.indicatorsContainerElement.style.display = 'inline';
-
-		this.profilesEnabled = this.userDataProfilesService.isEnabled();
 
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
@@ -338,7 +333,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				}, focus);
 			};
 			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
-		} else if (this.profilesEnabled && element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+		} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
@@ -538,7 +533,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
-	} else if (userDataProfilesService.isEnabled() && element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {
 		// Add other overrides text
