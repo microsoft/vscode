@@ -208,11 +208,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	async acceptInput(isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
 		assertType(this._terminalChatWidget);
-		this._messages.fire(Message.AcceptInput);
 		if (!this._model.value) {
 			await this.reveal();
 		}
 		assertType(this._model.value);
+		this._messages.fire(Message.AcceptInput);
 		const lastInput = this._terminalChatWidget.value.inlineChatWidget.value;
 		if (!lastInput) {
 			return;
