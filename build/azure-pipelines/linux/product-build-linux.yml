@@ -275,7 +275,7 @@ steps:
         displayName: Check GLIBC and GLIBCXX dependencies in server archive
 
   - ${{ else }}:
-    - script: npm run gulp "transpile-client-swc" "transpile-extensions"
+    - script: npm run gulp "transpile-client-esbuild" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions

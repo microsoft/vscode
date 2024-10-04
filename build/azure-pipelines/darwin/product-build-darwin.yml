@@ -161,7 +161,7 @@ steps:
       displayName: Build server (web)
 
   - ${{ else }}:
-      - script: npm run gulp transpile-client-swc transpile-extensions
+      - script: npm run gulp transpile-client-esbuild transpile-extensions
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
