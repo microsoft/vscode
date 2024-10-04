@@ -1315,7 +1315,8 @@ export default tseslint.config(
 	// Terminal
 	{
 		files: [
-			'src/vs/workbench/contrib/terminal/**/*.ts'
+			'src/vs/workbench/contrib/terminal/**/*.ts',
+			'src/vs/workbench/contrib/terminalContrib/**/*.ts',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
