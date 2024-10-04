@@ -492,7 +492,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
 		this._register(this._attachmentModel.onDidChangeContext(() => this.initAttachedContext(this.attachedContextContainer)));
-		this.renderChatEditingSessionState(null, undefined, widget);
+		this.renderChatEditingSessionState(null, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -799,10 +799,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		hoverElement.appendChild(img);
 	}
 
-	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, initialState?: boolean, chatWidget?: IChatWidget) {
-		dom.setVisibility(Boolean(chatEditingSession) || Boolean(initialState), this.chatEditingSessionWidgetContainer);
+	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
+		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession && !initialState) {
+		if (!chatEditingSession) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
@@ -811,7 +811,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (this._chatEditList && chatEditingSession?.state.get() === ChatEditingSessionState.Idle) {
+		const currentChatEditingState = chatEditingSession.state.get();
+		if (this._chatEditList && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial && !chatWidget?.viewModel?.requestInProgress)) {
 			this._chatEditsProgress?.stop();
 			this._chatEditsProgress?.dispose();
 			this._chatEditsProgress = undefined;
@@ -894,7 +895,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (!this._chatEditsProgress && (chatEditingSession.state.get() === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress)) {
+		if (!this._chatEditsProgress && (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress)) {
 			this._chatEditsProgress = new ProgressBar(innerContainer);
 			this._chatEditsProgress.infinite().show(500);
 		}

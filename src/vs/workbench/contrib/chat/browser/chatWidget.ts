@@ -550,7 +550,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async renderChatEditingSessionState(session: IChatEditingSession | null) {
-		this.inputPart.renderChatEditingSessionState(session, undefined, this);
+		this.inputPart.renderChatEditingSessionState(session, this);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -815,6 +815,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (events.some(e => e?.kind === 'addRequest') && this.visible) {
 				revealLastElement(this.tree);
 				this.focusInput();
+			}
+
+			if (this.chatEditingService.currentEditingSession && this.chatEditingService.currentEditingSession?.chatSessionId === this.viewModel?.sessionId) {
+				this.renderChatEditingSessionState(this.chatEditingService.currentEditingSession);
 			}
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
