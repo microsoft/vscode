@@ -1349,7 +1349,7 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
 				id: MenuId.ChatInput,
-				when: HasSpeechProvider.negate(),
+				when: ContextKeyExpr.and(HasSpeechProvider.negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal).negate()),
 				group: 'navigation',
 				order: 3
 			}, {
