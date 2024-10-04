@@ -60,7 +60,7 @@ function npmInstall(dir, opts) {
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
-		run(npm, [command], opts);
+		run(npm, command.split(' '), opts);
 	}
 }
 
