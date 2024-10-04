@@ -7,7 +7,7 @@ import { findLast } from '../../../../base/common/arraysFind.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
@@ -23,8 +23,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from './chatContextKeys.js';
-import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from './chatContextKeys.js';
+import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
 
@@ -32,7 +32,7 @@ import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDeta
 
 export interface IChatAgentHistoryEntry {
 	request: IChatAgentRequest;
-	response: ReadonlyArray<IChatProgressResponseContent | IChatTaskDto>;
+	response: ReadonlyArray<IChatProgressHistoryResponseContent | IChatTaskDto>;
 	result: IChatAgentResult;
 }
 
@@ -40,7 +40,8 @@ export enum ChatAgentLocation {
 	Panel = 'panel',
 	Terminal = 'terminal',
 	Notebook = 'notebook',
-	Editor = 'editor'
+	Editor = 'editor',
+	EditingSession = 'editing-session',
 }
 
 export namespace ChatAgentLocation {
@@ -50,6 +51,7 @@ export namespace ChatAgentLocation {
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
 			case 'editor': return ChatAgentLocation.Editor;
+			case 'editing-session': return ChatAgentLocation.EditingSession;
 		}
 		return ChatAgentLocation.Panel;
 	}
@@ -60,6 +62,7 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
+	supportsModelPicker?: boolean;
 	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
@@ -77,10 +80,23 @@ export interface IChatAgentData {
 	supportsToolReferences?: boolean;
 }
 
+export interface IChatWelcomeMessageContent {
+	icon: ThemeIcon;
+	title: string;
+	message: IMarkdownString;
+}
+
+export function isChatWelcomeMessageContent(obj: any): obj is IChatWelcomeMessageContent {
+	return obj &&
+		ThemeIcon.isThemeIcon(obj.icon) &&
+		typeof obj.title === 'string' &&
+		isMarkdownString(obj.message);
+}
+
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
-	provideWelcomeMessage?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined>;
+	provideWelcomeMessage?(token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined>;
 	provideChatTitle?: (history: IChatAgentHistoryEntry[], token: CancellationToken) => Promise<string | undefined>;
 	provideSampleQuestions?(location: ChatAgentLocation, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 }
@@ -146,6 +162,7 @@ export interface IChatAgentRequest {
 	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
+	userSelectedModelId?: string;
 }
 
 export interface IChatQuestion {
@@ -233,12 +250,14 @@ export class ChatAgentService implements IChatAgentService {
 
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
+	private readonly _editingAgentRegistered: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		this._hasDefaultAgent = CONTEXT_CHAT_ENABLED.bindTo(this.contextKeyService);
 		this._defaultAgentRegistered = CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
+		this._editingAgentRegistered = CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
 	}
 
 	registerAgent(id: string, data: IChatAgentData): IDisposable {
@@ -247,7 +266,9 @@ export class ChatAgentService implements IChatAgentService {
 			throw new Error(`Agent already registered: ${JSON.stringify(id)}`);
 		}
 
-		if (data.isDefault) {
+		if (data.isDefault && data.locations.includes(ChatAgentLocation.EditingSession)) {
+			this._editingAgentRegistered.set(true);
+		} else if (data.isDefault) {
 			this._defaultAgentRegistered.set(true);
 		}
 
@@ -264,7 +285,9 @@ export class ChatAgentService implements IChatAgentService {
 		this._onDidChangeAgents.fire(undefined);
 		return toDisposable(() => {
 			this._agents.delete(id);
-			if (data.isDefault) {
+			if (data.isDefault && data.locations.includes(ChatAgentLocation.EditingSession)) {
+				this._editingAgentRegistered.set(false);
+			} else if (data.isDefault) {
 				this._defaultAgentRegistered.set(false);
 			}
 
@@ -520,9 +543,9 @@ export class MergedChatAgent implements IChatAgent {
 		return [];
 	}
 
-	provideWelcomeMessage(location: ChatAgentLocation, token: CancellationToken): ProviderResult<(string | IMarkdownString)[] | undefined> {
+	provideWelcomeMessage(token: CancellationToken): ProviderResult<IChatWelcomeMessageContent | undefined> {
 		if (this.impl.provideWelcomeMessage) {
-			return this.impl.provideWelcomeMessage(location, token);
+			return this.impl.provideWelcomeMessage(token);
 		}
 
 		return undefined;

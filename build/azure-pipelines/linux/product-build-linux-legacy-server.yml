@@ -5,9 +5,6 @@ parameters:
     type: boolean
   - name: VSCODE_ARCH
     type: string
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - task: NodeTool@0
@@ -86,6 +83,28 @@ steps:
         imageName: vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
         containerCommand: uname
 
+  - ${{ if or(eq(parameters.VSCODE_ARCH, 'arm64'), eq(parameters.VSCODE_ARCH, 'armhf')) }}:
+    - script: |
+        set -e
+        includes=$(cat << 'EOF'
+        {
+          "target_defaults": {
+            "conditions": [
+              ["OS=='linux'", {
+                'cflags_cc!': [ '-std=gnu++20' ],
+                'cflags_cc': [ '-std=gnu++2a' ],
+              }]
+            ]
+          }
+        }
+        EOF
+        )
+        if [ ! -d "$HOME/.gyp" ]; then
+          mkdir -p "$HOME/.gyp"
+        fi
+        echo "$includes" > "$HOME/.gyp/include.gypi"
+      displayName: Override gnu target for arm64 and arm
+
   - script: |
       set -e
 
@@ -104,7 +123,7 @@ steps:
       set -e
 
       export VSCODE_SYSROOT_PREFIX='-glibc-2.17'
-      source ./build/azure-pipelines/linux/setup-env.sh --only-remote
+      source ./build/azure-pipelines/linux/setup-env.sh --skip-sysroot
 
       for i in {1..5}; do # try 5 times
         npm ci && break
@@ -206,7 +225,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: false
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: false
-        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

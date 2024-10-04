@@ -7,9 +7,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IUserActivityService } from './userActivityService.js';
 
 class UserActivityRegistry {
-	private todo: { new(s: IUserActivityService, ...args: any[]): any }[] = [];
+	private todo: { new(s: IUserActivityService, ...args: any[]): unknown }[] = [];
 
-	public add = (ctor: { new(s: IUserActivityService, ...args: any[]): any }) => {
+	public add = (ctor: { new(s: IUserActivityService, ...args: any[]): unknown }) => {
 		this.todo.push(ctor);
 	};
 

@@ -7,7 +7,8 @@ import './media/paneviewlet.css';
 import * as nls from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { asCssVariable, foreground } from '../../../../platform/theme/common/colorRegistry.js';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from '../../../../base/browser/dom.js';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, Dimension, reset } from '../../../../base/browser/dom.js';
+import { asCssValueWithDefault, asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, IActionRunner } from '../../../../base/common/actions.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -838,12 +839,13 @@ export abstract class ViewAction<T extends IView> extends Action2 {
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): unknown {
 		const view = accessor.get(IViewsService).getActiveViewWithId(this.desc.viewId);
 		if (view) {
 			return this.runInView(accessor, <T>view, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): any;
+	abstract runInView(accessor: ServicesAccessor, view: T, ...args: any[]): unknown;
 }

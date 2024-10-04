@@ -10,7 +10,6 @@ import * as File from 'vinyl';
 import * as sm from 'source-map';
 import * as path from 'path';
 import * as sort from 'gulp-sort';
-import { isAMD } from './amd';
 
 declare class FileSourceMap extends File {
 	public sourceMap: sm.RawSourceMap;
@@ -43,7 +42,7 @@ function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.N
 }
 
 function clone<T extends object>(object: T): T {
-	const result = <T>{};
+	const result = {} as any as T;
 	for (const id in object) {
 		result[id] = object[id];
 	}
@@ -232,24 +231,14 @@ module _nls {
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
 			.map(n => <ts.ImportEqualsDeclaration>n)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => {
-				if (!isAMD()) {
-					return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`);
-				}
-				return (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls'`);
-			});
+			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`));
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
 			.map(n => <ts.ImportDeclaration>n)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
-			.filter(d => {
-				if (!isAMD()) {
-					return d.moduleSpecifier.getText().endsWith(`/nls.js'`);
-				}
-				return d.moduleSpecifier.getText().endsWith(`/nls'`);
-			})
+			.filter(d => d.moduleSpecifier.getText().endsWith(`/nls.js'`))
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
 
 		// `nls.localize(...)` calls

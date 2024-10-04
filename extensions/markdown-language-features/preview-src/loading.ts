@@ -5,15 +5,15 @@
 import { MessagePoster } from './messaging';
 
 export class StyleLoadingMonitor {
-	private unloadedStyles: string[] = [];
-	private finishedLoading: boolean = false;
+	private _unloadedStyles: string[] = [];
+	private _finishedLoading: boolean = false;
 
-	private poster?: MessagePoster;
+	private _poster?: MessagePoster;
 
 	constructor() {
 		const onStyleLoadError = (event: any) => {
 			const source = event.target.dataset.source;
-			this.unloadedStyles.push(source);
+			this._unloadedStyles.push(source);
 		};
 
 		window.addEventListener('DOMContentLoaded', () => {
@@ -25,18 +25,18 @@ export class StyleLoadingMonitor {
 		});
 
 		window.addEventListener('load', () => {
-			if (!this.unloadedStyles.length) {
+			if (!this._unloadedStyles.length) {
 				return;
 			}
-			this.finishedLoading = true;
-			this.poster?.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
+			this._finishedLoading = true;
+			this._poster?.postMessage('previewStyleLoadError', { unloadedStyles: this._unloadedStyles });
 		});
 	}
 
 	public setPoster(poster: MessagePoster): void {
-		this.poster = poster;
-		if (this.finishedLoading) {
-			poster.postMessage('previewStyleLoadError', { unloadedStyles: this.unloadedStyles });
+		this._poster = poster;
+		if (this._finishedLoading) {
+			poster.postMessage('previewStyleLoadError', { unloadedStyles: this._unloadedStyles });
 		}
 	}
 }

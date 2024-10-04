@@ -11,10 +11,12 @@ import { ITreeSitterParserService } from '../services/treeSitterParserService.js
 import { IModelContentChangedEvent } from '../textModelEvents.js';
 import { AbstractTokens } from './tokens.js';
 import { ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
+import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _tokenizationSupport: ITreeSitterTokenizationSupport | null = null;
 	private _lastLanguageId: string | undefined;
+	private readonly _tokensChangedListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	constructor(private readonly _treeSitterService: ITreeSitterParserService,
 		languageIdCodec: ILanguageIdCodec,
@@ -30,6 +32,11 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (!this._tokenizationSupport || this._lastLanguageId !== newLanguage) {
 			this._lastLanguageId = newLanguage;
 			this._tokenizationSupport = TreeSitterTokenizationRegistry.get(newLanguage);
+			this._tokensChangedListener.value = this._tokenizationSupport?.onDidChangeTokens((e) => {
+				if (e.textModel === this._textModel) {
+					this._onDidChangeTokens.fire(e.changes);
+				}
+			});
 		}
 	}
 
