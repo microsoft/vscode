@@ -8,7 +8,6 @@ exports.optimizeTask = optimizeTask;
 exports.minifyTask = minifyTask;
 const es = require("event-stream");
 const gulp = require("gulp");
-const concat = require("gulp-concat");
 const filter = require("gulp-filter");
 const path = require("path");
 const fs = require("fs");
@@ -62,7 +61,7 @@ function optimizeESMTask(opts) {
                         // File Content Mapper
                         const mapper = opts.fileContentMapper?.(path);
                         if (mapper) {
-                            newContents = mapper(newContents);
+                            newContents = await mapper(newContents);
                         }
                         return { contents: newContents };
                     });
@@ -144,22 +143,9 @@ function optimizeESMTask(opts) {
         includeContent: true
     }));
 }
-function optimizeManualTask(options) {
-    const concatenations = options.map(opt => {
-        return gulp
-            .src(opt.src)
-            .pipe(concat(opt.out));
-    });
-    return es.merge(...concatenations);
-}
 function optimizeTask(opts) {
     return function () {
-        const optimizers = [];
-        optimizers.push(optimizeESMTask(opts.esm));
-        if (opts.manual) {
-            optimizers.push(optimizeManualTask(opts.manual));
-        }
-        return es.merge(...optimizers).pipe(gulp.dest(opts.out));
+        return optimizeESMTask(opts.esm).pipe(gulp.dest(opts.out));
     };
 }
 function minifyTask(src, sourceMapBaseUrl) {

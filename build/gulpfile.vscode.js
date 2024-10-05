@@ -119,13 +119,6 @@ const vscodeResources = [
 	'!**/test/**'
 ];
 
-// Do not change the order of these files! They will
-// be inlined into the target window file in this order
-// and they depend on each other in this way.
-const windowBootstrapFiles = [
-	'out-build/bootstrap-window.js'
-];
-
 const bootstrapEntryPoints = [
 	'out-build/main.js',
 	'out-build/cli.js',
@@ -147,14 +140,22 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 					...vscodeEntryPoints,
 					...bootstrapEntryPoints
 				],
-				resources: vscodeResources
-			},
-			manual: [
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
-				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.js'], out: 'vs/workbench/contrib/issue/electron-sandbox/issueReporter.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
-			]
+				resources: vscodeResources,
+				fileContentMapper: filePath => {
+					if (
+						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
+						// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop
+						filePath.endsWith('vs/workbench/contrib/issue/electron-sandbox/issueReporter.js') ||
+						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')
+					) {
+						return async content => {
+							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
+							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
+						};
+					}
+					return undefined;
+				}
+			}
 		}
 	)
 ));

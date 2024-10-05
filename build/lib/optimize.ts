@@ -5,7 +5,6 @@
 
 import * as es from 'event-stream';
 import * as gulp from 'gulp';
-import * as concat from 'gulp-concat';
 import * as filter from 'gulp-filter';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -33,7 +32,7 @@ export interface IOptimizeESMTaskOpts {
 	/**
 	 * File contents interceptor for a given path.
 	 */
-	fileContentMapper?: (path: string) => ((contents: string) => string) | undefined;
+	fileContentMapper?: (path: string) => ((contents: string) => Promise<string> | string) | undefined;
 }
 
 const DEFAULT_FILE_HEADER = [
@@ -92,7 +91,7 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 						// File Content Mapper
 						const mapper = opts.fileContentMapper?.(path);
 						if (mapper) {
-							newContents = mapper(newContents);
+							newContents = await mapper(newContents);
 						}
 
 						return { contents: newContents };
@@ -192,28 +191,6 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IOptimizeManualTaskOpts {
-	/**
-	 * The paths to consider for concatenation. The entries
-	 * will be concatenated in the order they are provided.
-	 */
-	src: string[];
-	/**
-	 * Destination target to concatenate the entryPoints into.
-	 */
-	out: string;
-}
-
-function optimizeManualTask(options: IOptimizeManualTaskOpts[]): NodeJS.ReadWriteStream {
-	const concatenations = options.map(opt => {
-		return gulp
-			.src(opt.src)
-			.pipe(concat(opt.out));
-	});
-
-	return es.merge(...concatenations);
-}
-
 export interface IOptimizeTaskOpts {
 	/**
 	 * Destination folder for the optimized files.
@@ -223,22 +200,11 @@ export interface IOptimizeTaskOpts {
 	 * Optimize ESM modules (using esbuild).
 	*/
 	esm: IOptimizeESMTaskOpts;
-	/**
-	 * Optimize manually by concatenating files.
-	 */
-	manual?: IOptimizeManualTaskOpts[];
 }
 
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
-		const optimizers: NodeJS.ReadWriteStream[] = [];
-		optimizers.push(optimizeESMTask(opts.esm));
-
-		if (opts.manual) {
-			optimizers.push(optimizeManualTask(opts.manual));
-		}
-
-		return es.merge(...optimizers).pipe(gulp.dest(opts.out));
+		return optimizeESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};
 }
 
