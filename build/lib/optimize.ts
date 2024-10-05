@@ -16,7 +16,7 @@ import * as sourcemaps from 'gulp-sourcemaps';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-export interface IOptimizeESMTaskOpts {
+export interface IBundleESMTaskOpts {
 	/**
 	 * The folder to read files from.
 	 */
@@ -41,7 +41,7 @@ const DEFAULT_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
+function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 
@@ -191,20 +191,20 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IOptimizeTaskOpts {
+export interface IBundleESMTaskOpts {
 	/**
-	 * Destination folder for the optimized files.
+	 * Destination folder for the bundled files.
 	 */
 	out: string;
 	/**
-	 * Optimize ESM modules (using esbuild).
+	 * Bundle and minify ESM modules (using esbuild).
 	*/
-	esm: IOptimizeESMTaskOpts;
+	esm: IBundleESMTaskOpts;
 }
 
-export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
+export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
-		return optimizeESMTask(opts.esm).pipe(gulp.dest(opts.out));
+		return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};
 }
 

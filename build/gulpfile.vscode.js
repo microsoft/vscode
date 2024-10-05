@@ -125,13 +125,13 @@ const bootstrapEntryPoints = [
 	'out-build/bootstrap-fork.js'
 ];
 
-const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
+const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
 	// import statements based on the passed in entry points.
 	// In addition, concat window related bootstrap files into
 	// a single file.
-	optimize.optimizeTask(
+	optimize.bundleTask(
 		{
 			out: 'out-vscode',
 			esm: {
@@ -159,11 +159,11 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 		}
 	)
 ));
-gulp.task(optimizeVSCodeTask);
+gulp.task(bundleVSCodeTask);
 
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	optimizeVSCodeTask,
+	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
@@ -506,7 +506,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 			compileBuildTask,
 			compileExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
-			minified ? minifyVSCodeTask : optimizeVSCodeTask,
+			minified ? minifyVSCodeTask : bundleVSCodeTask,
 			vscodeTaskCI
 		));
 		gulp.task(vscodeTask);

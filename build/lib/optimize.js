@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.optimizeTask = optimizeTask;
+exports.bundleTask = bundleTask;
 exports.minifyTask = minifyTask;
 const es = require("event-stream");
 const gulp = require("gulp");
@@ -22,7 +22,7 @@ const DEFAULT_FILE_HEADER = [
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
     ' *--------------------------------------------------------*/'
 ].join('\n');
-function optimizeESMTask(opts) {
+function bundleESMTask(opts) {
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
     const entryPoints = opts.entryPoints.map(entryPoint => {
@@ -143,9 +143,9 @@ function optimizeESMTask(opts) {
         includeContent: true
     }));
 }
-function optimizeTask(opts) {
+function bundleTask(opts) {
     return function () {
-        return optimizeESMTask(opts.esm).pipe(gulp.dest(opts.out));
+        return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
     };
 }
 function minifyTask(src, sourceMapBaseUrl) {

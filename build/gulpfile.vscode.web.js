@@ -113,9 +113,9 @@ const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 };
 exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
-const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
+const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
-	optimize.optimizeTask(
+	optimize.bundleTask(
 		{
 			out: 'out-vscode-web',
 			esm: {
@@ -129,7 +129,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 ));
 
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
-	optimizeVSCodeWebTask,
+	bundleVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
 	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 ));
@@ -216,7 +216,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 
 	const vscodeWebTaskCI = task.define(`vscode-web${dashed(minified)}-ci`, task.series(
 		compileWebExtensionsBuildTask,
-		minified ? minifyVSCodeWebTask : optimizeVSCodeWebTask,
+		minified ? minifyVSCodeWebTask : bundleVSCodeWebTask,
 		util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 		packageTask(sourceFolderName, destinationFolderName)
 	));
