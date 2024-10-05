@@ -2,7 +2,7 @@
 	"root": true,
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
-		"ecmaVersion": 6,
+		"ecmaVersion": 2022,
 		"sourceType": "module"
 	},
 	"plugins": [
@@ -756,7 +756,6 @@
 						// imports that are allowed in all /test/ files
 						"when": "test",
 						"allow": [
-							"vs/css.build.js",
 							"assert",
 							"sinon",
 							"sinon-test"
@@ -948,6 +947,7 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminalContribChatExports*",
 							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							"@vscode/tree-sitter-wasm", // type import
@@ -979,7 +979,6 @@
 							// Only allow terminalContrib to import from itself, this works because
 							// terminalContrib is one extra folder deep
 							"vs/workbench/contrib/terminalContrib/*/~",
-							"vs/workbench/contrib/terminal/terminalContribExports*",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -1044,9 +1043,17 @@
 						]
 					},
 					{
+						"target": "src/vs/workbench/contrib/terminal/terminalContribChatExports.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/terminalContrib/*/~"
+						]
+					},
+					{
 						"target": "src/vs/workbench/contrib/terminal/terminalContribExports.ts",
 						"layer": "browser",
 						"restrictions": [
+							"vs/platform/*/~",
 							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
@@ -1125,7 +1132,13 @@
 						]
 					},
 					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.messages.ts}",
+						"target": "src/vs/nls.ts",
+						"restrictions": [
+							"vs/*"
+						]
+					},
+					{
+						"target": "src/vs/{monaco.d.ts,nls.ts,nls.messages.ts}",
 						"restrictions": []
 					},
 					{
@@ -1133,8 +1146,18 @@
 						"restrictions": []
 					},
 					{
-						"target": "src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-node.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-window.ts,cli.ts,main.ts,server-cli.ts,server-main.ts,bootstrap-server.ts}",
+						"target": "src/bootstrap-window.ts",
 						"restrictions": []
+					},
+					{
+						"target": "src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}",
+						"restrictions": [
+							"vs/**/common/*",
+							"vs/**/node/*",
+							"vs/nls.js",
+							"src/*.js",
+							"*" // node.js
+						]
 					}
 				]
 			}

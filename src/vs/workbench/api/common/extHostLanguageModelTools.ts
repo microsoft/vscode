@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { raceCancellation } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -10,14 +11,13 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IPreparedToolInvocation, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { IToolConfirmationMessages, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
-import type * as vscode from 'vscode';
 
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
-	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool }>();
+	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool<Object> }>();
 	private readonly _proxy: MainThreadLanguageModelToolsShape;
 	private readonly _tokenCountFuncs = new Map</* call ID */string, (text: string, token?: vscode.CancellationToken) => Thenable<number>>();
 
@@ -43,7 +43,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		if (!options.requestedContentTypes?.length) {
 			throw new Error('LanguageModelToolInvocationOptions.requestedContentTypes is required to be set');
 		}
@@ -86,7 +86,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedContentTypes: dto.requestedContentTypes };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedContentTypes: dto.requestedContentTypes };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -121,41 +121,31 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return extensionResult;
 	}
 
-	async $provideToolConfirmationMessages(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IToolConfirmationMessages | undefined> {
+	async $prepareToolInvocation(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		if (!item.tool.provideToolConfirmationMessages) {
+		if (!item.tool.prepareToolInvocation) {
 			return undefined;
 		}
 
-		const result = await item.tool.provideToolConfirmationMessages({ participantName, parameters }, token);
+		const result = await item.tool.prepareToolInvocation({ participantName, parameters }, token);
 		if (!result) {
 			return undefined;
 		}
 
 		return {
-			title: result.title,
-			message: typeof result.message === 'string' ? result.message : typeConvert.MarkdownString.from(result.message),
+			confirmationMessages: result.confirmationMessages ? {
+				title: result.confirmationMessages.title,
+				message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
+			} : undefined,
+			invocationMessage: result.invocationMessage
 		};
 	}
 
-	async $provideToolInvocationMessage(toolId: string, parameters: any, token: CancellationToken): Promise<string | undefined> {
-		const item = this._registeredTools.get(toolId);
-		if (!item) {
-			throw new Error(`Unknown tool ${toolId}`);
-		}
-
-		if (!item.tool.provideToolInvocationMessage) {
-			return undefined;
-		}
-
-		return await item.tool.provideToolInvocationMessage(parameters, token);
-	}
-
-	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {
+	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool<any>): IDisposable {
 		this._registeredTools.set(id, { extension, tool });
 		this._proxy.$registerTool(id);
 

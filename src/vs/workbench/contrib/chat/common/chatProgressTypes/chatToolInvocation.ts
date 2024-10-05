@@ -15,6 +15,11 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._isComplete;
 	}
 
+	private _isCompleteDeferred = new DeferredPromise<void>();
+	public get isCompleteDeferred(): DeferredPromise<void> {
+		return this._isCompleteDeferred;
+	}
+
 	private _isCanceled: boolean | undefined;
 	public get isCanceled(): boolean | undefined {
 		return this._isCanceled;
@@ -44,16 +49,13 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this._confirmationMessages = undefined;
 			if (!confirmed) {
 				// Spinner -> check
-				this.complete();
+				this._isCompleteDeferred.complete();
 			}
 		});
-	}
 
-	complete(): void {
-		if (this._isComplete) {
-			throw new Error('Invocation is already complete.');
-		}
-		this._isComplete = true;
+		this._isCompleteDeferred.p.then(() => {
+			this._isComplete = true;
+		});
 	}
 
 	public get confirmationMessages(): IToolConfirmationMessages | undefined {
@@ -64,7 +66,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return {
 			kind: 'toolInvocationSerialized',
 			invocationMessage: this.invocationMessage,
-			isConfirmed: this._isConfirmed ?? false
+			isConfirmed: this._isConfirmed ?? false,
+			isComplete: this._isComplete,
 		};
 	}
 }

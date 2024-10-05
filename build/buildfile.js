@@ -9,16 +9,9 @@
  * @returns {import('./lib/bundle').IEntryPoint}
  */
 function createModuleDescription(name, exclude) {
-
-	let excludes = ['vs/css'];
-	if (Array.isArray(exclude) && exclude.length > 0) {
-		excludes = excludes.concat(exclude);
-	}
-
 	return {
 		name,
-		include: [],
-		exclude: excludes
+		exclude
 	};
 }
 
@@ -26,20 +19,17 @@ function createModuleDescription(name, exclude) {
  * @param {string} name
  */
 function createEditorWorkerModuleDescription(name) {
-	const description = createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
-	description.name = `${description.name}.esm`;
-
-	return description;
+	return createModuleDescription(name, ['vs/base/common/worker/simpleWorker', 'vs/editor/common/services/editorSimpleWorker']);
 }
 
-exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorker');
-exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker');
-exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker');
-exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker');
-exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch');
-exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker');
-exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer');
-exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker');
+exports.workerEditor = createEditorWorkerModuleDescription('vs/editor/common/services/editorSimpleWorkerMain');
+exports.workerExtensionHost = createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorkerMain');
+exports.workerNotebook = createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorkerMain');
+exports.workerLanguageDetection = createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorkerMain');
+exports.workerLocalFileSearch = createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearchMain');
+exports.workerProfileAnalysis = createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorkerMain');
+exports.workerOutputLinks = createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputerMain');
+exports.workerBackgroundTokenization = createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain');
 
 exports.workbenchDesktop = [
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
@@ -59,13 +49,21 @@ exports.keyboardMaps = [
 ];
 
 exports.code = [
-	createModuleDescription('vs/code/electron-main/main'),
-	createModuleDescription('vs/code/node/cli'),
-	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
+	// 'vs/code/electron-main/main' is not included here because it comes in via ./src/main.js
+	// 'vs/code/node/cli' is not included here because it comes in via ./src/cli.js
+	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');
+
+exports.codeServer = [
+	// 'vs/server/node/server.main' is not included here because it gets inlined via ./src/server-main.js
+	// 'vs/server/node/server.cli' is not included here because it gets inlined via ./src/server-cli.js
+	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
+	createModuleDescription('vs/platform/terminal/node/ptyHostMain')
+];
 
 exports.entrypoint = createModuleDescription;

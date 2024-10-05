@@ -275,8 +275,6 @@ export const referenceGeneratedDepsByArch = {
 		'libpango-1.0.so.0()(64bit)',
 		'libpthread.so.0()(64bit)',
 		'libpthread.so.0(GLIBC_2.17)(64bit)',
-		'librt.so.1()(64bit)',
-		'librt.so.1(GLIBC_2.17)(64bit)',
 		'libsmime3.so()(64bit)',
 		'libsmime3.so(NSS_3.10)(64bit)',
 		'libsmime3.so(NSS_3.2)(64bit)',

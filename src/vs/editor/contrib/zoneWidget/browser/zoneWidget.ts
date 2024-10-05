@@ -356,7 +356,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._positionMarkerId.clear();
 	}
 
-	private _decoratingElementsHeight(): number {
+	protected _decoratingElementsHeight(): number {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		let result = 0;
 

@@ -65,28 +65,34 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 			lines.push(message);
 		}
 	}();
-	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionManagementCLI, logger);
+	const childInstantiationService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService]));
+	try {
+		const cliService = childInstantiationService.createInstance(RemoteExtensionManagementCLI, logger);
 
-	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
-	} else {
-		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
-		if (Array.isArray(args.install) && args.install.length) {
-			try {
-				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force);
-			} catch (e) {
-				lines.push(e.message);
+		if (args.list) {
+			await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
+		} else {
+			const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
+			if (Array.isArray(args.install) && args.install.length) {
+				try {
+					await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force);
+				} catch (e) {
+					lines.push(e.message);
+				}
+			}
+			if (Array.isArray(args.uninstall) && args.uninstall.length) {
+				try {
+					await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined);
+				} catch (e) {
+					lines.push(e.message);
+				}
 			}
 		}
-		if (Array.isArray(args.uninstall) && args.uninstall.length) {
-			try {
-				await cliService.uninstallExtensions(revive(args.uninstall), !!args.force, undefined);
-			} catch (e) {
-				lines.push(e.message);
-			}
-		}
+		return lines.join('\n');
+	} finally {
+		childInstantiationService.dispose();
 	}
-	return lines.join('\n');
+
 });
 
 class RemoteExtensionManagementCLI extends ExtensionManagementCLI {

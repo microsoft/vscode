@@ -804,17 +804,28 @@ abstract class AbstractElementRenderer extends Disposable {
 				this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.originalDocument.uri, this.cell.original.handle, Schemas.vscodeNotebookCellMetadata)),
 				this.textModelService.createModelReference(CellUri.generateCellPropertyUri(this.cell.modifiedDocument.uri, this.cell.modified.handle, Schemas.vscodeNotebookCellMetadata))
 			]);
+
+			if (this._isDisposed) {
+				originalMetadataModel.dispose();
+				modifiedMetadataModel.dispose();
+				return;
+			}
+
 			this._metadataEditorDisposeStore.add(originalMetadataModel);
 			this._metadataEditorDisposeStore.add(modifiedMetadataModel);
 			const vm = this._metadataEditor.createViewModel({
 				original: originalMetadataModel.object.textEditorModel,
 				modified: modifiedMetadataModel.object.textEditorModel
 			});
+			this._metadataEditor.setModel(vm);
 			// Reduces flicker (compute this before setting the model)
 			// Else when the model is set, the height of the editor will be x, after diff is computed, then height will be y.
 			// & that results in flicker.
 			await vm.waitForDiff();
-			this._metadataEditor.setModel(vm);
+
+			if (this._isDisposed) {
+				return;
+			}
 
 			this.cell.metadataHeight = this._metadataEditor.getContentHeight();
 

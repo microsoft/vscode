@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "=>",
-		"t": "keyword.operator storage.type",
+		"t": "storage.type",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",

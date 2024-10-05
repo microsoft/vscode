@@ -508,8 +508,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inherit;
 }
 
+.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar.modified::after {
+	content: "E";
+	padding-right: 4px;
+	color: var(--vscode-chat-editedFileForeground);
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .monaco-list .monaco-list-row .monaco-icon-name-container.modified {
+	font-weight: bold;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
@@ -528,16 +538,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions,
 .interactive-session .chat-editing-session .chat-editing-session-actions {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
 	gap: 6px;
 	align-items: center;
-	justify-content: end;
+	justify-content: space-between;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
+.interactive-session .chat-editing-session .monaco-button {
 	height: 17px;
 	width: fit-content;
 	padding: 2px 6px;
@@ -547,13 +558,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-button-foreground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close {
-	width: 22px;
-	height: 22px;
+.interactive-session .chat-editing-session .chat-editing-session-actions-group {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close {
+	width: 17px;
+	height: 17px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -566,18 +585,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close:hover {
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary {
 	background-color: var(--vscode-button-secondaryBackground);
 	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-secondaryForeground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button,
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
+	overflow: hidden;
+	text-wrap: nowrap;
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
@@ -735,15 +762,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 4px;
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
-	cursor: pointer;
+	overflow: hidden;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
 	display: flex;
 	align-items: center;
+	margin-top: -2px;
+	margin-right: -4px;
+	padding-right: 4px;
+	padding-left: 2px;
+	height: calc(100% + 4px);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
+	cursor: pointer;
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {

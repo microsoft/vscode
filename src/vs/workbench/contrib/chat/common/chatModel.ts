@@ -320,7 +320,11 @@ export class Response extends Disposable implements IResponse {
 
 	private _updateRepr(quiet?: boolean) {
 		const inlineRefToRepr = (part: IChatContentInlineReference) =>
-			'uri' in part.inlineReference ? basename(part.inlineReference.uri) : 'name' in part.inlineReference ? part.inlineReference.name : basename(part.inlineReference);
+			'uri' in part.inlineReference
+				? basename(part.inlineReference.uri)
+				: 'name' in part.inlineReference
+					? part.inlineReference.name
+					: basename(part.inlineReference);
 
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {

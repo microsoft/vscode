@@ -98,6 +98,7 @@ export interface IChatCodeCitation {
 }
 
 export interface IChatContentInlineReference {
+	resolveId?: string;
 	inlineReference: URI | Location | IWorkspaceSymbol;
 	name?: string;
 	kind: 'inlineReference';
@@ -200,7 +201,8 @@ export interface IChatToolInvocation {
 	isConfirmed: boolean | undefined;
 	invocationMessage: string;
 
-	complete(): void;
+	isComplete: boolean;
+	isCompleteDeferred: DeferredPromise<void>;
 	kind: 'toolInvocation';
 }
 
@@ -210,6 +212,7 @@ export interface IChatToolInvocation {
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string;
 	isConfirmed: boolean;
+	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
 }
 

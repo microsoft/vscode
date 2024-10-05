@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sha1Hex } from '../../../../base/browser/hash.js';
 import { IFileService, IFileStatResult, IFileStat } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -15,6 +14,7 @@ import { IWorkspaceTagsService, Tags } from '../common/workspaceTags.js';
 import { getHashedRemotesFromConfig } from './workspaceTags.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { MavenArtifactIdRegex, MavenDependenciesRegex, MavenDependencyRegex, GradleDependencyCompactRegex, GradleDependencyLooseRegex, MavenGroupIdRegex, JavaLibrariesToLookFor } from '../common/javaWorkspaceTags.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 const MetaModulesToLookFor = [
 	// Azure packages
@@ -447,7 +447,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 	async getTelemetryWorkspaceId(workspace: IWorkspace, state: WorkbenchState): Promise<string | undefined> {
 		function createHash(uri: URI): Promise<string> {
-			return sha1Hex(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
+			return hashAsync(uri.scheme === Schemas.file ? uri.fsPath : uri.toString());
 		}
 
 		let workspaceId: string | undefined;
