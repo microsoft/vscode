@@ -104,6 +104,7 @@ function bundleESMTask(opts) {
                 outdir: path.join(REPO_ROOT_PATH, opts.src),
                 write: false, // enables res.outputFiles
                 metafile: true, // enables res.metafile
+                // minify: NOT enabled because we have a separate minify task that takes care of the TSLib banner as well
             }).then(res => {
                 for (const file of res.outputFiles) {
                     let sourceMapFile = undefined;
