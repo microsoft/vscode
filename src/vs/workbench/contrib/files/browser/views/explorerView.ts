@@ -555,6 +555,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
+		const rootsSupportFindProvider = this.explorerService.roots.every(root => root.resource.scheme === 'file');
+
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource, this.filter), {
 			compressionEnabled: isCompressionEnabled(),
@@ -602,7 +604,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			findResultsProvider: this.instantiationService.createInstance(ExplorerFindProvider),
+			findResultsProvider: rootsSupportFindProvider ? this.instantiationService.createInstance(ExplorerFindProvider) : undefined,
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
