@@ -125,48 +125,44 @@ const bootstrapEntryPoints = [
 	'out-build/bootstrap-fork.js'
 ];
 
-const bundleVscodeTaskSeries = function (minify) {
-	return task.series(
-		util.rimraf('out-vscode'),
-		// Optimize: bundles source files automatically based on
-		// import statements based on the passed in entry points.
-		// In addition, concat window related bootstrap files into
-		// a single file.
-		optimize.bundleTask(
-			{
-				out: 'out-vscode',
-				esm: {
-					src: 'out-build',
-					entryPoints: [
-						...vscodeEntryPoints,
-						...bootstrapEntryPoints
-					],
-					resources: vscodeResources,
-					minify,
-					fileContentMapper: filePath => {
-						if (
-							filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
-							// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop
-							filePath.endsWith('vs/workbench/contrib/issue/electron-sandbox/issueReporter.js') ||
-							filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
-							return async (content) => {
-								const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
-								return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
-							};
-						}
-						return undefined;
+const bundleVSCodeTask = task.define('bundle-vscode', task.series(
+	util.rimraf('out-vscode'),
+	// Optimize: bundles source files automatically based on
+	// import statements based on the passed in entry points.
+	// In addition, concat window related bootstrap files into
+	// a single file.
+	optimize.bundleTask(
+		{
+			out: 'out-vscode',
+			esm: {
+				src: 'out-build',
+				entryPoints: [
+					...vscodeEntryPoints,
+					...bootstrapEntryPoints
+				],
+				resources: vscodeResources,
+				fileContentMapper: filePath => {
+					if (
+						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
+						// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop
+						filePath.endsWith('vs/workbench/contrib/issue/electron-sandbox/issueReporter.js') ||
+						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
+						return async (content) => {
+							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
+							return `${bootstrapWindowContent}\n${content}`; // prepend bootstrap-window.js content to entry points that are Electron windows
+						};
 					}
+					return undefined;
 				}
 			}
-		)
-	);
-};
-const bundleVSCodeTask = task.define('bundle-vscode', bundleVscodeTaskSeries(false));
+		}
+	)
+));
 gulp.task(bundleVSCodeTask);
 
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
-	bundleVscodeTaskSeries(true),
+	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
 	optimize.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));

@@ -433,30 +433,26 @@ function tweakProductForServerWeb(product) {
 }
 
 ['reh', 'reh-web'].forEach(type => {
-	const bundleTaskSeries = function (minify) {
-		return task.series(
-			util.rimraf(`out-vscode-${type}`),
-			optimize.bundleTask(
-				{
-					out: `out-vscode-${type}`,
-					esm: {
-						src: 'out-build',
-						entryPoints: [
-							...(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
-							...bootstrapEntryPoints
-						],
-						resources: type === 'reh' ? serverResources : serverWithWebResources,
-						minify,
-						fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-					}
+	const bundleTask = task.define(`optimize-vscode-${type}`, task.series(
+		util.rimraf(`out-vscode-${type}`),
+		optimize.bundleTask(
+			{
+				out: `out-vscode-${type}`,
+				esm: {
+					src: 'out-build',
+					entryPoints: [
+						...(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+						...bootstrapEntryPoints
+					],
+					resources: type === 'reh' ? serverResources : serverWithWebResources,
+					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
 				}
-			)
-		);
-	};
-	const bundleTask = task.define(`bundle-vscode-${type}`, bundleTaskSeries(false));
+			}
+		)
+	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
-		bundleTaskSeries(true),
+		bundleTask,
 		util.rimraf(`out-vscode-${type}-min`),
 		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
