@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,6 +21,7 @@ export interface IChatEditingService {
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
+	readonly currentAutoApplyOperation: CancellationTokenSource | null;
 
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
 	addFileToWorkingSet(resource: URI): Promise<void>;
@@ -76,3 +78,4 @@ export const chatEditingWidgetFileStateContextKey = new RawContextKey<WorkingSet
 export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>('decidedChatEditingResource', []);
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
+export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
