@@ -123,6 +123,8 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 				key: 'searchFolderMatch.aiText.label',
 				comment: ['This is displayed before the AI text search results, where {0} will be in the place of the AI name (ie: Copilot)']
 			}, '{0} Results', aiName);
+
+			// todo: make icon extension-contributed.
 			templateData.label.setLabel(`$(${Codicon.copilot.id}) ${localizedLabel}`);
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
