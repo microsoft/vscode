@@ -30,6 +30,10 @@ export interface IBundleESMTaskOpts {
 	 */
 	resources?: string[];
 	/**
+	 * Whether to minify the output.
+	 */
+	minify?: boolean;
+	/**
 	 * File contents interceptor for a given path.
 	 */
 	fileContentMapper?: (path: string) => ((contents: string) => Promise<string> | string) | undefined;
@@ -112,7 +116,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 
 			const task = esbuild.build({
 				bundle: true,
-				minify: true,
+				minify: opts.minify,
 				external: entryPoint.exclude,
 				packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 				platform: 'neutral', // makes esm
@@ -146,9 +150,11 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 					if (file.path.endsWith('.js')) {
 						sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
 
-						const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
-						if (unicodeMatch) {
-							throw new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${file.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`);
+						if (opts.minify) {
+							const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
+							if (unicodeMatch) {
+								throw new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${file.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`);
+							}
 						}
 					}
 

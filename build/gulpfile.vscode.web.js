@@ -113,23 +113,27 @@ const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 };
 exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
-const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
-	util.rimraf('out-vscode-web'),
-	optimize.bundleTask(
-		{
-			out: 'out-vscode-web',
-			esm: {
-				src: 'out-build',
-				entryPoints: vscodeWebEntryPoints,
-				resources: vscodeWebResources,
-				fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+const bundleVscodeWebTaskSeries = function(minify) {
+	return task.series(
+		util.rimraf('out-vscode-web'),
+		optimize.bundleTask(
+			{
+				out: 'out-vscode-web',
+				esm: {
+					src: 'out-build',
+					entryPoints: vscodeWebEntryPoints,
+					resources: vscodeWebResources,
+					minify,
+					fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
+				}
 			}
-		}
-	)
-));
+		)
+	);
+};
+const bundleVSCodeWebTask = task.define('bundle-vscode-web', bundleVscodeWebTaskSeries(false));
 
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
-	bundleVSCodeWebTask,
+	bundleVscodeWebTaskSeries(true),
 	util.rimraf('out-vscode-web-min'),
 	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 ));
