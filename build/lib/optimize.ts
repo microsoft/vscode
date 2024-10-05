@@ -12,7 +12,6 @@ import * as fs from 'fs';
 import * as pump from 'pump';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
-import { gulpPostcss } from './postcss';
 import * as esbuild from 'esbuild';
 import * as sourcemaps from 'gulp-sourcemaps';
 
@@ -114,6 +113,7 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 
 			const task = esbuild.build({
 				bundle: true,
+				minify: true,
 				external: entryPoint.exclude,
 				packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
 				platform: 'neutral', // makes esm
@@ -141,15 +141,20 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 
 			}).then(res => {
 				for (const file of res.outputFiles) {
+					const contents = Buffer.from(file.contents);
 
 					let sourceMapFile: esbuild.OutputFile | undefined = undefined;
-
 					if (file.path.endsWith('.js')) {
 						sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
+
+						const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
+						if (unicodeMatch) {
+							throw new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${file.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`);
+						}
 					}
 
 					const fileProps = {
-						contents: Buffer.from(file.contents),
+						contents,
 						sourceMap: sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined, // support gulp-sourcemaps
 						path: file.path,
 						base: path.join(REPO_ROOT_PATH, opts.src)
@@ -241,49 +246,16 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 	const sourceMappingURL = sourceMapBaseUrl ? ((f: any) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
 
 	return cb => {
-		const cssnano = require('cssnano') as typeof import('cssnano');
 		const svgmin = require('gulp-svgmin') as typeof import('gulp-svgmin');
 
-		const jsFilter = filter('**/*.js', { restore: true });
-		const cssFilter = filter('**/*.css', { restore: true });
 		const svgFilter = filter('**/*.svg', { restore: true });
 
 		pump(
 			gulp.src([src + '/**', '!' + src + '/**/*.map']),
-			jsFilter,
-			sourcemaps.init({ loadMaps: true }),
-			es.map((f: any, cb) => {
-				esbuild.build({
-					entryPoints: [f.path],
-					minify: true,
-					sourcemap: 'external',
-					outdir: '.',
-					platform: 'node',
-					target: ['es2022'],
-					write: false
-				}).then(res => {
-					const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path))!;
-					const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path))!;
-
-					const contents = Buffer.from(jsFile.contents);
-					const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
-					if (unicodeMatch) {
-						cb(new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${f.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`));
-					} else {
-						f.contents = contents;
-						f.sourceMap = JSON.parse(sourceMapFile.text);
-
-						cb(undefined, f);
-					}
-				}, cb);
-			}),
-			jsFilter.restore,
-			cssFilter,
-			gulpPostcss([cssnano({ preset: 'default' })]),
-			cssFilter.restore,
 			svgFilter,
 			svgmin(),
 			svgFilter.restore,
+			sourcemaps.init({ loadMaps: true }),
 			sourcemaps.write('./', {
 				sourceMappingURL,
 				sourceRoot: undefined,

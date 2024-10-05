@@ -15,7 +15,6 @@ const fs = require("fs");
 const pump = require("pump");
 const VinylFile = require("vinyl");
 const bundle = require("./bundle");
-const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
@@ -81,6 +80,7 @@ function optimizeESMTask(opts) {
             };
             const task = esbuild.build({
                 bundle: true,
+                minify: true,
                 external: entryPoint.exclude,
                 packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
                 platform: 'neutral', // makes esm
@@ -107,12 +107,17 @@ function optimizeESMTask(opts) {
                 metafile: true, // enables res.metafile
             }).then(res => {
                 for (const file of res.outputFiles) {
+                    const contents = Buffer.from(file.contents);
                     let sourceMapFile = undefined;
                     if (file.path.endsWith('.js')) {
                         sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
+                        const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
+                        if (unicodeMatch) {
+                            throw new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${file.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`);
+                        }
                     }
                     const fileProps = {
-                        contents: Buffer.from(file.contents),
+                        contents,
                         sourceMap: sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined, // support gulp-sourcemaps
                         path: file.path,
                         base: path.join(REPO_ROOT_PATH, opts.src)
@@ -160,35 +165,9 @@ function optimizeTask(opts) {
 function minifyTask(src, sourceMapBaseUrl) {
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
     return cb => {
-        const cssnano = require('cssnano');
         const svgmin = require('gulp-svgmin');
-        const jsFilter = filter('**/*.js', { restore: true });
-        const cssFilter = filter('**/*.css', { restore: true });
         const svgFilter = filter('**/*.svg', { restore: true });
-        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, sourcemaps.init({ loadMaps: true }), es.map((f, cb) => {
-            esbuild.build({
-                entryPoints: [f.path],
-                minify: true,
-                sourcemap: 'external',
-                outdir: '.',
-                platform: 'node',
-                target: ['es2022'],
-                write: false
-            }).then(res => {
-                const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));
-                const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path));
-                const contents = Buffer.from(jsFile.contents);
-                const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
-                if (unicodeMatch) {
-                    cb(new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${f.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`));
-                }
-                else {
-                    f.contents = contents;
-                    f.sourceMap = JSON.parse(sourceMapFile.text);
-                    cb(undefined, f);
-                }
-            }, cb);
-        }), jsFilter.restore, cssFilter, (0, postcss_1.gulpPostcss)([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, sourcemaps.write('./', {
+        pump(gulp.src([src + '/**', '!' + src + '/**/*.map']), svgFilter, svgmin(), svgFilter.restore, sourcemaps.init({ loadMaps: true }), sourcemaps.write('./', {
             sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,
