@@ -59,7 +59,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatListItemRendererOptions,
-		isResponseComplete: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -75,7 +74,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const result = this._register(renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = isResponseComplete || !raw || raw?.endsWith('```');
+				const isCodeBlockComplete = !raw || raw?.endsWith('```');
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
