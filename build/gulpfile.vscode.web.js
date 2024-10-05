@@ -113,7 +113,7 @@ const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 };
 exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
-const bundleVSCodeWebTask = task.define('optimize-vscode-web', task.series(
+const bundleVSCodeWebTask = task.define('bundle-vscode-web', task.series(
 	util.rimraf('out-vscode-web'),
 	optimize.bundleTask(
 		{

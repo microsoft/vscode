@@ -433,7 +433,7 @@ function tweakProductForServerWeb(product) {
 }
 
 ['reh', 'reh-web'].forEach(type => {
-	const bundleTask = task.define(`optimize-vscode-${type}`, task.series(
+	const bundleTask = task.define(`bundle-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
 		optimize.bundleTask(
 			{
