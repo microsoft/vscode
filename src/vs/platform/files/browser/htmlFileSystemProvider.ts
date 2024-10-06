@@ -17,7 +17,7 @@ import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/s
 import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, IFileChange, FileChangeType } from '../common/files.js';
 import { FileSystemObserverRecord, WebFileSystemAccess, WebFileSystemObserver } from './webFileSystemAccess.js';
 import { IndexedDB } from '../../../base/browser/indexedDB.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
 
 export class HTMLFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
@@ -293,7 +293,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		const disposables = new DisposableStore();
 
-		this.doWatch(resource, opts, disposables).catch(error => this.logService.error(`FileSystemObserver error: ${error} (path: ${resource})`));
+		this.doWatch(resource, opts, disposables).catch(error => this.logService.error(`[File Watcher ('FileSystemObserver')] Error: ${error} (${resource})`));
 
 		return disposables;
 	}
@@ -315,6 +315,10 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
 			const events: IFileChange[] = [];
 			for (const record of records) {
+				if (this.logService.getLevel() === LogLevel.Trace) {
+					this.logService.trace(`[File Watcher ('FileSystemObserver')] [${record.type}] ${joinPath(resource, ...record.relativePathComponents)}`);
+				}
+
 				switch (record.type) {
 					case 'appeared':
 						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.ADDED });
@@ -326,7 +330,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.UPDATED });
 						break;
 					case 'errored':
-						this.logService.trace(`FileSystemObserver errored: Disposing observer (path: ${resource})`);
+						this.logService.trace(`[File Watcher ('FileSystemObserver')] errored, disposing observer (${resource})`);
 						disposables.dispose();
 				}
 			}
