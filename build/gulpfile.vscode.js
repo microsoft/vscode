@@ -153,7 +153,12 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 						};
 					}
 					return undefined;
-				}
+				},
+				skipTSBoilerplateRemoval: entryPoint =>
+					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
+					// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop
+					entryPoint === 'vs/workbench/contrib/issue/electron-sandbox/issueReporter' ||
+					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
 			}
 		}
 	)

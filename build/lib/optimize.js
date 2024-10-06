@@ -45,20 +45,29 @@ function bundleESMTask(opts) {
             console.log(`[bundle] '${entryPoint.name}'`);
             // support for 'dest' via esbuild#in/out
             const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
-            // boilerplate massage
+            // banner contents
             const banner = {
                 js: DEFAULT_FILE_HEADER,
                 css: DEFAULT_FILE_HEADER
             };
-            const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
-            banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+            // TS Boilerplate
+            if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+                const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
+                banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+            }
             const contentsMapper = {
                 name: 'contents-mapper',
                 setup(build) {
                     build.onLoad({ filter: /\.js$/ }, async ({ path }) => {
-                        // TS Boilerplate
                         const contents = await fs.promises.readFile(path, 'utf-8');
-                        let newContents = bundle.removeAllTSBoilerplate(contents);
+                        // TS Boilerplate
+                        let newContents;
+                        if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+                            newContents = bundle.removeAllTSBoilerplate(contents);
+                        }
+                        else {
+                            newContents = contents;
+                        }
                         // File Content Mapper
                         const mapper = opts.fileContentMapper?.(path);
                         if (mapper) {

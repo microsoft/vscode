@@ -34,6 +34,12 @@ export interface IBundleESMTaskOpts {
 	 * File contents interceptor for a given path.
 	 */
 	fileContentMapper?: (path: string) => ((contents: string) => Promise<string> | string) | undefined;
+	/**
+	 * Allows to skip the removal of TS boilerplate. Use this when
+	 * the entry point is small and the overhead of removing the
+	 * boilerplate makes the file larger in the end.
+	 */
+	skipTSBoilerplateRemoval?: (entryPointName: string) => boolean;
 }
 
 const DEFAULT_FILE_HEADER = [
@@ -50,6 +56,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		if (typeof entryPoint === 'string') {
 			return { name: path.parse(entryPoint).name };
 		}
+
 		return entryPoint;
 	});
 
@@ -61,33 +68,40 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 	}
 
 	const bundleAsync = async () => {
-
 		const files: VinylFile[] = [];
 		const tasks: Promise<any>[] = [];
 
 		for (const entryPoint of entryPoints) {
-
 			console.log(`[bundle] '${entryPoint.name}'`);
 
 			// support for 'dest' via esbuild#in/out
 			const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
 
-			// boilerplate massage
+			// banner contents
 			const banner = {
 				js: DEFAULT_FILE_HEADER,
 				css: DEFAULT_FILE_HEADER
 			};
-			const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
-			banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+
+			// TS Boilerplate
+			if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+				const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
+				banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+			}
 
 			const contentsMapper: esbuild.Plugin = {
 				name: 'contents-mapper',
 				setup(build) {
 					build.onLoad({ filter: /\.js$/ }, async ({ path }) => {
+						const contents = await fs.promises.readFile(path, 'utf-8');
 
 						// TS Boilerplate
-						const contents = await fs.promises.readFile(path, 'utf-8');
-						let newContents = bundle.removeAllTSBoilerplate(contents);
+						let newContents: string;
+						if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+							newContents = bundle.removeAllTSBoilerplate(contents);
+						} else {
+							newContents = contents;
+						}
 
 						// File Content Mapper
 						const mapper = opts.fileContentMapper?.(path);
@@ -140,9 +154,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 				// minify: NOT enabled because we have a separate minify task that takes care of the TSLib banner as well
 			}).then(res => {
 				for (const file of res.outputFiles) {
-
 					let sourceMapFile: esbuild.OutputFile | undefined = undefined;
-
 					if (file.path.endsWith('.js')) {
 						sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
 					}
