@@ -7,24 +7,23 @@ import { localize } from '../../../nls.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { basename, extname, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
-import { extUri, extUriIgnorePathCase } from '../../../base/common/resources.js';
+import { extUri, extUriIgnorePathCase, joinPath } from '../../../base/common/resources.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../base/common/stream.js';
-import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
-import { WebFileSystemAccess } from './webFileSystemAccess.js';
+import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, IFileChange, FileChangeType } from '../common/files.js';
+import { FileSystemObserverRecord, WebFileSystemAccess, WebFileSystemObserver } from './webFileSystemAccess.js';
 import { IndexedDB } from '../../../base/browser/indexedDB.js';
 import { ILogService } from '../../log/common/log.js';
 
-export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
+export class HTMLFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
 	//#region Events (unsupported)
 
 	readonly onDidChangeCapabilities = Event.None;
-	readonly onDidChangeFile = Event.None;
 
 	//#endregion
 
@@ -54,7 +53,9 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		private indexedDB: IndexedDB | undefined,
 		private readonly store: string,
 		private logService: ILogService
-	) { }
+	) {
+		super();
+	}
 
 	//#region File Metadata Resolving
 
@@ -286,8 +287,54 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#region File Watching (unsupported)
 
+	private readonly _onDidChangeFileEmitter = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile = this._onDidChangeFileEmitter.event;
+
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
-		return Disposable.None;
+		const disposables = new DisposableStore();
+
+		this.doWatch(resource, opts, disposables).catch(error => this.logService.error(error));
+
+		return disposables;
+	}
+
+	private async doWatch(resource: URI, opts: IWatchOptions, disposables: DisposableStore): Promise<void> {
+		const handle = await this.getHandle(resource);
+		if (!handle || disposables.isDisposed || !WebFileSystemObserver.supported(globalThis)) {
+			return;
+		}
+
+		const observer = new (globalThis as any).FileSystemObserver((records: FileSystemObserverRecord[]) => {
+			if (disposables.isDisposed) {
+				return;
+			}
+
+			const events: IFileChange[] = [];
+			for (const record of records) {
+				switch (record.type) {
+					case 'appeared':
+						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.ADDED });
+						break;
+					case 'disappeared':
+						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.DELETED });
+						break;
+					case 'modified':
+						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.UPDATED });
+						break;
+				}
+			}
+
+			if (events.length) {
+				this._onDidChangeFileEmitter.fire(events);
+			}
+		});
+		await observer.observe(handle, opts.recursive ? { recursive: true } : undefined);
+
+		if (disposables.isDisposed) {
+			observer.disconnect();
+		} else {
+			disposables.add(toDisposable(() => observer.disconnect()));
+		}
 	}
 
 	//#endregion
