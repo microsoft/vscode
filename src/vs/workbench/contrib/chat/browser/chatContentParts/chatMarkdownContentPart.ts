@@ -32,9 +32,9 @@ import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import '../media/chatCodeBlockPill.css';
 
 const $ = dom.$;
 
@@ -59,7 +59,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatListItemRendererOptions,
-		isResponseComplete: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -75,7 +74,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const result = this._register(renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = isResponseComplete || !raw || raw?.endsWith('```');
+				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
