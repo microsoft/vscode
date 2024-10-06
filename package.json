@@ -146,7 +146,7 @@
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
-    "cookie": "^0.4.0",
+    "cookie": "^0.7.0",
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.9.1",
     "cssnano": "^6.0.3",
