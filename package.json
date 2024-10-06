@@ -165,7 +165,6 @@
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
-    "gulp-concat": "^2.6.1",
     "gulp-filter": "^5.1.0",
     "gulp-flatmap": "^1.0.2",
     "gulp-gunzip": "^1.0.0",
