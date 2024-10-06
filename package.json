@@ -197,7 +197,7 @@
     "os-browserify": "^0.3.0",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
-    "postcss": "^8.4.40",
+    "postcss": "^8.4.41",
     "postcss-nesting": "^12.0.2",
     "pump": "^1.0.1",
     "rcedit": "^1.1.0",
@@ -216,7 +216,7 @@
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
-    "xml2js": "^0.6.1",
+    "xml2js": "^0.6.2",
     "yaserver": "^0.4.0"
   },
   "overrides": {
