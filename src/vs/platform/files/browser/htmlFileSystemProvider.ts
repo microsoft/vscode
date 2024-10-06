@@ -293,14 +293,18 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
 		const disposables = new DisposableStore();
 
-		this.doWatch(resource, opts, disposables).catch(error => this.logService.error(error));
+		this.doWatch(resource, opts, disposables).catch(error => this.logService.error(`FileSystemObserver error: ${error} (path: ${resource})`));
 
 		return disposables;
 	}
 
 	private async doWatch(resource: URI, opts: IWatchOptions, disposables: DisposableStore): Promise<void> {
+		if (!WebFileSystemObserver.supported(globalThis)) {
+			return;
+		}
+
 		const handle = await this.getHandle(resource);
-		if (!handle || disposables.isDisposed || !WebFileSystemObserver.supported(globalThis)) {
+		if (!handle || disposables.isDisposed) {
 			return;
 		}
 
@@ -321,6 +325,9 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 					case 'modified':
 						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.UPDATED });
 						break;
+					case 'errored':
+						this.logService.trace(`FileSystemObserver errored: Disposing observer (path: ${resource})`);
+						disposables.dispose();
 				}
 			}
 
@@ -328,12 +335,15 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 				this._onDidChangeFileEmitter.fire(events);
 			}
 		});
-		await observer.observe(handle, opts.recursive ? { recursive: true } : undefined);
 
-		if (disposables.isDisposed) {
-			observer.disconnect();
-		} else {
-			disposables.add(toDisposable(() => observer.disconnect()));
+		try {
+			await observer.observe(handle, opts.recursive ? { recursive: true } : undefined);
+		} finally {
+			if (disposables.isDisposed) {
+				observer.disconnect();
+			} else {
+				disposables.add(toDisposable(() => observer.disconnect()));
+			}
 		}
 	}
 

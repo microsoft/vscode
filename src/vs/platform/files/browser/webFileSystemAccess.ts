@@ -36,6 +36,7 @@ export namespace WebFileSystemAccess {
 	}
 }
 
+// TODO@bpasero adopt official types of FileSystemObserver
 export namespace WebFileSystemObserver {
 
 	export function supported(obj: any & Window): boolean {
@@ -44,10 +45,10 @@ export namespace WebFileSystemObserver {
 }
 
 export interface FileSystemObserver {
-	new(callback: (records: FileSystemObserverRecord[]) => void): FileSystemObserver;
+	new(callback: (records: FileSystemObserverRecord[], observer: FileSystemObserver) => void): FileSystemObserver;
 
-	observe(handle: FileSystemHandle): void;
-	observe(handle: FileSystemDirectoryHandle, options?: { recursive: boolean }): void;
+	observe(handle: FileSystemHandle): Promise<void>;
+	observe(handle: FileSystemDirectoryHandle, options?: { recursive: boolean }): Promise<void>;
 
 	unobserve(handle: FileSystemHandle): void;
 	disconnect(): void;
@@ -79,4 +80,9 @@ export interface FileSystemObserverRecord {
 	 * "errored": The observation is no longer valid. In this case, you may want to stop observing the file system.
 	 */
 	readonly type: 'appeared' | 'disappeared' | 'modified' | 'moved' | 'unknown' | 'errored';
+
+	/**
+	 * The former location of a moved handle. Available only when the type is "moved".
+	 */
+	readonly relativePathMovedFrom?: string[];
 }
