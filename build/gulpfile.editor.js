@@ -89,7 +89,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 // Disable NLS task to remove english strings to preserve backwards compatibility when we removed the `vs/nls!` AMD plugin.
 const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true, preserveEnglish: true }));
 
-const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(
+const bundleEditorAMDTask = task.define('bundle-editor-amd', optimize.bundleTask(
 	{
 		out: 'out-editor',
 		esm: {
@@ -359,7 +359,7 @@ gulp.task('editor-distro',
 		task.parallel(
 			task.series(
 				compileEditorAMDTask,
-				optimizeEditorAMDTask,
+				bundleEditorAMDTask,
 				minifyEditorAMDTask
 			),
 			task.series(
