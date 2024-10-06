@@ -188,6 +188,14 @@ steps:
         chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
       displayName: Make CLI executable
 
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+      displayName: Verify arch of Mach-O objects
+
     # Setting hardened entitlements is a requirement for:
     # * Apple notarization
     # * Running tests on Big Sur (because Big Sur has additional security precautions)
