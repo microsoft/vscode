@@ -17,6 +17,8 @@ const bundle = require("./bundle");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
@@ -42,7 +44,7 @@ function bundleESMTask(opts) {
         const files = [];
         const tasks = [];
         for (const entryPoint of entryPoints) {
-            console.log(`[bundle] '${entryPoint.name}'`);
+            fancyLog(`Bundled entry point: ${ansiColors.yellow(entryPoint.name)}...`);
             // support for 'dest' via esbuild#in/out
             const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
             // banner contents
