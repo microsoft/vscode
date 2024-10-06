@@ -33,7 +33,7 @@ import { TerminalChatController } from '../../terminal/terminalContribChatExport
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
-import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
@@ -120,9 +120,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _onDidAcceptInput = this._register(new Emitter<void>());
 	readonly onDidAcceptInput = this._onDidAcceptInput.event;
-
-	private _onDidChangeContext = this._register(new Emitter<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>());
-	readonly onDidChangeContext = this._onDidChangeContext.event;
 
 	private _onDidHide = this._register(new Emitter<void>());
 	readonly onDidHide = this._onDidHide.event;
@@ -723,7 +720,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			});
 		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(this.inputPart.onDidChangeContext((e) => this._onDidChangeContext.fire(e)));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
 				return;
