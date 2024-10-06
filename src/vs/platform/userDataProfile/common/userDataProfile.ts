@@ -165,12 +165,20 @@ export type UserDataProfilesObject = {
 	emptyWindows: Map<string, IUserDataProfile>;
 };
 
-export type StoredUserDataProfile = {
+export interface ICustomUserDataProfileInfo {
+	isDefault?: false;
 	name: string;
 	location: URI;
 	icon?: string;
 	useDefaultFlags?: UseDefaultProfileFlags;
-};
+}
+
+export interface IDefaultUserDataProfileInfo {
+	isDefault: true;
+	icon: string;
+}
+
+export type StoredUserDataProfile = ICustomUserDataProfileInfo | IDefaultUserDataProfileInfo;
 
 export type StoredProfileAssociations = {
 	workspaces?: IStringDictionary<string>;
@@ -227,10 +235,15 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 	protected _profilesObject: UserDataProfilesObject | undefined;
 	protected get profilesObject(): UserDataProfilesObject {
 		if (!this._profilesObject) {
-			const defaultProfile = this.createDefaultProfile();
+			let defaultProfile: Mutable<IUserDataProfile> = toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome, this.profilesCacheHome);
+			defaultProfile = { ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true };
 			const profiles: Array<Mutable<IUserDataProfile>> = [defaultProfile];
 			try {
 				for (const storedProfile of this.getStoredProfiles()) {
+					if (storedProfile.isDefault) {
+						defaultProfile.icon = storedProfile.icon;
+						continue;
+					}
 					if (!storedProfile.name || !isString(storedProfile.name) || !storedProfile.location) {
 						this.logService.warn('Skipping the invalid stored profile', storedProfile.location || storedProfile.name);
 						continue;
@@ -270,11 +283,6 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			this._profilesObject = { profiles, emptyWindows };
 		}
 		return this._profilesObject;
-	}
-
-	private createDefaultProfile() {
-		const defaultProfile = toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome, this.profilesCacheHome);
-		return { ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true };
 	}
 
 	async createTransientProfile(workspaceIdentifier?: IAnyWorkspaceIdentifier): Promise<IUserDataProfile> {
@@ -350,16 +358,19 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			let profileToUpdate: Mutable<IUserDataProfile> | undefined;
 
 			if (profile.id === existing.id) {
-				if (!existing.isDefault) {
+				if (existing.isDefault) {
+					if (options.workspaces || options.icon !== undefined) {
+						profileToUpdate = existing;
+						profileToUpdate.icon = options.icon === null ? undefined : options.icon ?? existing.icon;
+						profileToUpdate.workspaces = options.workspaces;
+					}
+				} else {
 					profileToUpdate = toUserDataProfile(existing.id, options.name ?? existing.name, existing.location, this.profilesCacheHome, {
 						icon: options.icon === null ? undefined : options.icon ?? existing.icon,
 						transient: options.transient ?? existing.isTransient,
 						useDefaultFlags: options.useDefaultFlags ?? existing.useDefaultFlags,
 						workspaces: options.workspaces ?? existing.workspaces,
 					}, this.defaultProfile);
-				} else if (options.workspaces) {
-					profileToUpdate = existing;
-					profileToUpdate.workspaces = options.workspaces;
 				}
 			}
 
@@ -598,7 +609,11 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 			if (profile.isTransient) {
 				continue;
 			}
-			if (!profile.isDefault) {
+			if (profile.isDefault) {
+				if (profile.icon) {
+					storedProfiles.push({ isDefault: true, icon: profile.icon });
+				}
+			} else {
 				storedProfiles.push({ location: profile.location, name: profile.name, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 			}
 			if (profile.workspaces) {

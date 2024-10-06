@@ -137,8 +137,8 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		if (!this.userDataProfilesService.profiles.some(p => p.id === profile.id)) {
 			throw new Error(`Profile ${profile.name} does not exist`);
 		}
-		if (profile.isDefault) {
-			throw new Error(localize('cannotRenameDefaultProfile', "Cannot rename the default profile"));
+		if (profile.isDefault && (updateOptions.name || updateOptions.transient || updateOptions.useDefaultFlags)) {
+			throw new Error(localize('cannotRenameDefaultProfile', "Cannot update the default profile"));
 		}
 		const updatedProfile = await this.userDataProfilesService.updateProfile(profile, updateOptions);
 		this.telemetryService.publicLog2<ProfileManagementActionExecutedEvent, ProfileManagementActionExecutedClassification>('profileManagementActionExecuted', { id: 'updateProfile' });

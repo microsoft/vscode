@@ -350,4 +350,17 @@ suite('UserDataProfileService (Common)', () => {
 		assert.deepStrictEqual(testObject.profiles[3].id, profile2.id);
 	});
 
+	test('update default profile icon', async () => {
+		await testObject.updateProfile(testObject.defaultProfile, { icon: 'icon' });
+
+		assert.deepStrictEqual(testObject.defaultProfile.icon, 'icon');
+	});
+
+	test('reset default profile icon', async () => {
+		await testObject.updateProfile(testObject.defaultProfile, { icon: 'icon' });
+		await testObject.updateProfile(testObject.defaultProfile, { icon: null });
+
+		assert.deepStrictEqual(testObject.defaultProfile.icon, undefined);
+	});
+
 });

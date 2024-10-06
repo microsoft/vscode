@@ -45,6 +45,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { DEFAULT_ICON } from '../../../services/userDataProfile/common/userDataProfileIcons.js';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -378,9 +379,9 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			: undefined;
 
 		return await this.userDataProfileManagementService.updateProfile(profile, {
-			name: this.name,
-			icon: this.icon,
-			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags,
+			name: profile.isDefault ? undefined : this.name,
+			icon: this.icon === DEFAULT_ICON.id ? null : this.icon,
+			useDefaultFlags: profile.isDefault ? undefined : (profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags),
 			workspaces: this.workspaces
 		});
 	}

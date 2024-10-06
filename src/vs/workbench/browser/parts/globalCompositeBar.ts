@@ -589,7 +589,7 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		clearNode(this.profileBadgeContent);
 		hide(this.profileBadge);
 
-		if (this.userDataProfileService.currentProfile.isDefault) {
+		if (this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.icon) {
 			return;
 		}
 

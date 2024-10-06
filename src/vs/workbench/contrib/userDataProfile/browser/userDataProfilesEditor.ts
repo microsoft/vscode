@@ -459,11 +459,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 				templateData.label.textContent = element.name;
 			}
 			if (e.icon) {
-				if (element.icon) {
-					templateData.icon.className = ThemeIcon.asClassName(ThemeIcon.fromId(element.icon));
-				} else {
-					templateData.icon.className = 'hide';
-				}
+				templateData.icon.className = ThemeIcon.asClassName(element.icon ? ThemeIcon.fromId(element.icon) : DEFAULT_ICON);
 			}
 			if (e.active) {
 				templateData.description.classList.toggle('hide', !element.active);
@@ -1019,18 +1015,12 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 		append(iconContainer, $('.profile-label-element', undefined, localize('icon-label', "Icon")));
 		const iconValueContainer = append(iconContainer, $('.profile-icon-container'));
 		const iconElement = append(iconValueContainer, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "Profile Icon") }));
-		const iconHover = disposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, iconElement, ''));
+		disposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, iconElement, localize('changeIcon', "Click to change icon")));
 
 		const iconSelectBox = disposables.add(this.instantiationService.createInstance(WorkbenchIconSelectBox, { icons: ICONS, inputBoxStyles: defaultInputBoxStyles }));
 		let hoverWidget: IHoverWidget | undefined;
 		const showIconSelectBox = () => {
-			if (profileElement?.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault) {
-				return;
-			}
 			if (profileElement?.root.disabled) {
-				return;
-			}
-			if (profileElement?.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault) {
 				return;
 			}
 			iconSelectBox.clearInput();
@@ -1083,13 +1073,6 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 		append(iconValueContainer, $('.profile-description-element', undefined, localize('icon-description', "Profile icon to be shown in the activity bar")));
 
 		const renderIcon = (profileElement: ProfileTreeElement) => {
-			if (profileElement?.root instanceof UserDataProfileElement && profileElement.root.profile.isDefault) {
-				iconValueContainer.classList.add('disabled');
-				iconHover.update(localize('defaultProfileIcon', "Icon cannot be changed for the default profile"));
-			} else {
-				iconHover.update(localize('changeIcon', "Click to change icon"));
-				iconValueContainer.classList.remove('disabled');
-			}
 			if (profileElement.root.icon) {
 				iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(profileElement.root.icon));
 			} else {
