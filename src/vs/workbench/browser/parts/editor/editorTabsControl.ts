@@ -165,10 +165,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.contextMenuContextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.contextMenuContextKeyService);
-
-		this.renderDropdownAsChildElement = false;
-
-		this.create(parent);
 	}
 
 	protected create(parent: HTMLElement): HTMLElement {
