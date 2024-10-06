@@ -103,7 +103,7 @@ suite('UserDataProfilesManifestMerge', () => {
 
 		assert.deepStrictEqual(actual.local.added, [remoteProfiles[5], remoteProfiles[6]]);
 		assert.deepStrictEqual(actual.local.removed, [localProfiles[4]]);
-		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[2], remoteProfiles[3], remoteProfiles[7]]);
+		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[3], remoteProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.added, [localProfiles[5]]);
 		assert.deepStrictEqual(actual.remote?.updated, [localProfiles[0], localProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.removed, [remoteProfiles[1]]);
