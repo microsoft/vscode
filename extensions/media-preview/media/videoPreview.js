@@ -23,13 +23,23 @@
 
 	const settings = getSettings();
 
+	function sanitizeUrl(url) {
+		try {
+			const parsedUrl = new URL(url, window.location.origin);
+			return parsedUrl.href;
+		} catch (e) {
+			console.error('Invalid URL:', url);
+			return '';
+		}
+	}
+
 	// State
 	let hasLoadedMedia = false;
 
 	// Elements
 	const video = document.createElement('video');
 	if (settings.src !== null) {
-		video.src = settings.src;
+		video.src = sanitizeUrl(settings.src);
 	}
 	video.playsInline = true;
 	video.controls = true;
