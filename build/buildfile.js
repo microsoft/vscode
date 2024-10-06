@@ -53,7 +53,11 @@ exports.code = [
 	// 'vs/code/node/cli' is not included here because it comes in via ./src/cli.js
 	createModuleDescription('vs/code/node/cliProcessMain'),
 	createModuleDescription('vs/code/electron-utility/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
+	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain'),
+	createModuleDescription('vs/code/electron-sandbox/workbench/workbench'),
+	// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
+	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporter'),
+	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorer')
 ];
 
 exports.codeWeb = createModuleDescription('vs/code/browser/workbench/workbench');
