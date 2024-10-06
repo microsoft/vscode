@@ -14,6 +14,8 @@ import * as bundle from './bundle';
 import { gulpPostcss } from './postcss';
 import * as esbuild from 'esbuild';
 import * as sourcemaps from 'gulp-sourcemaps';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
@@ -72,7 +74,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		const tasks: Promise<any>[] = [];
 
 		for (const entryPoint of entryPoints) {
-			console.log(`[bundle] '${entryPoint.name}'`);
+			fancyLog(`Bundled entry point: ${ansiColors.yellow(entryPoint.name)}...`);
 
 			// support for 'dest' via esbuild#in/out
 			const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
