@@ -23,7 +23,7 @@ suite('ChatWordCounter', () => {
 				['hello', 1, 'hello'],
 				['hello world', 0, ''],
 				['here\'s, some.   punctuation?', 3, 'here\'s, some.   punctuation?'],
-				['| markdown | _table_ | header |', 3, '| markdown | _table_ | header'],
+				['| markdown | _table_ | header |', 3, '| markdown | _table_ | header |'],
 				['| --- | --- | --- |', 1, '| ---'],
 				['| --- | --- | --- |', 3, '| --- | --- | ---'],
 				[' \t some \n whitespace     \n\n\nhere   ', 3, ' \t some \n whitespace     \n\n\nhere'],
