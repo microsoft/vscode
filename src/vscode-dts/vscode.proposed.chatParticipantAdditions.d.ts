@@ -358,9 +358,16 @@ declare module 'vscode' {
 		accepted: boolean;
 	}
 
+	export interface ChatEditingSessionAction {
+		kind: 'chatEditingSessionAction';
+		uri: Uri;
+		hasRemainingEdits: boolean;
+		outcome: 'accepted' | 'rejected';
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
 	}
 
 	export interface ChatPromptReference {
