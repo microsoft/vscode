@@ -8,6 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +20,10 @@ export interface IChatEditingService {
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
+	/**
+	 * emitted when a session is created, changed or disposed
+	 */
+	readonly onDidChangeEditingSession: Event<void>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
 	readonly currentAutoApplyOperation: CancellationTokenSource | null;
@@ -26,6 +31,7 @@ export interface IChatEditingService {
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
 	addFileToWorkingSet(resource: URI): Promise<void>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
+	getEditingSession(resource: URI): IChatEditingSession | null;
 }
 
 export interface IChatEditingSession {
@@ -55,6 +61,7 @@ export const enum WorkingSetEntryState {
 
 export interface IModifiedFileEntry {
 	readonly originalURI: URI;
+	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
