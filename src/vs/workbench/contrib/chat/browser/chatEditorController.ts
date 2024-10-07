@@ -8,6 +8,7 @@ import { Constants } from '../../../../base/common/uint.js';
 import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
@@ -36,6 +37,9 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	private _update(): void {
 		this._sessionStore.clear();
 		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (this._editor.getOption(EditorOption.inDiffEditor)) {
 			return;
 		}
 		const model = this._editor.getModel();
