@@ -308,8 +308,10 @@ export class AttachContextAction extends Action2 {
 							id: this._getFileContextId({ resource: editor.resource }),
 							value: editor.resource,
 							name: labelService.getUriBasenameLabel(editor.resource),
-							isFile: true
+							isFile: true,
+							isDynamic: true
 						});
+						chatEditingService?.addFileToWorkingSet(editor.resource);
 					}
 				}
 			} else if (isISearchResultsQuickPickItem(pick)) {
@@ -319,8 +321,10 @@ export class AttachContextAction extends Action2 {
 						id: this._getFileContextId({ resource: result.resource }),
 						value: result.resource,
 						name: labelService.getUriBasenameLabel(result.resource),
-						isFile: true
+						isFile: true,
+						isDynamic: true
 					});
+					chatEditingService?.addFileToWorkingSet(result.resource);
 				}
 			} else {
 				// Anything else is an attachment
