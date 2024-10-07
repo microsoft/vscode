@@ -388,7 +388,7 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 				templateData.label.setFile(uri, {
 					fileKind: FileKind.FILE,
 					// Should not have this live-updating data on a historical reference
-					fileDecorations: { badges: false, colors: false },
+					fileDecorations: undefined,
 					range: 'range' in reference ? reference.range : undefined,
 					title: data.options?.status?.description ?? data.title
 				});
@@ -410,8 +410,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (templateData.actionBarContainer) {
 				if (data.state === WorkingSetEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
 					templateData.actionBarContainer.classList.add('modified');
+					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 				} else if (data.state !== WorkingSetEntryState.Modified) {
 					templateData.actionBarContainer.classList.remove('modified');
+					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 				}
 			}
 			if (templateData.toolbar) {

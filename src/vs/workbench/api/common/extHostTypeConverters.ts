@@ -2926,10 +2926,11 @@ export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
 			id: item.id,
-			modelDescription: item.modelDescription,
+			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
 			displayName: item.displayName,
 			supportedContentTypes: item.supportedContentTypes,
+			tags: item.tags ?? [],
 		};
 	}
 }

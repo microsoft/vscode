@@ -65,6 +65,7 @@ import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidgetService } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
+import './chatAttachmentModel.js';
 import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
@@ -106,12 +107,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
-			default: false
-		},
-		'chat.experimental.implicitContext': {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.implicitContext', "Controls whether a checkbox is shown to allow the user to determine which implicit context is included with a chat participant's prompt."),
-			deprecated: true,
 			default: false
 		},
 		'chat.experimental.variables.editor': {

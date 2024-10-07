@@ -18,8 +18,8 @@ export class TerminalChatEnabler {
 	private readonly _store = new DisposableStore();
 
 	constructor(
+		@IChatAgentService chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IChatAgentService chatAgentService: IChatAgentService
 	) {
 		this._ctxHasProvider = TerminalChatContextKeys.hasChatAgent.bindTo(contextKeyService);
 		this._store.add(chatAgentService.onDidChangeAgents(() => {

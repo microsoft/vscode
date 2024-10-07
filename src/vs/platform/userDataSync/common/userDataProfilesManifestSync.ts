@@ -67,9 +67,6 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean): Promise<IUserDataProfilesManifestResourcePreview[]> {
-		if (!this.userDataProfilesService.isEnabled()) {
-			throw new UserDataSyncError('Cannot sync profiles because they are disabled', UserDataSyncErrorCode.LocalError);
-		}
 		const remoteProfiles: ISyncUserDataProfile[] | null = remoteUserData.syncData ? parseUserDataProfilesManifest(remoteUserData.syncData) : null;
 		const lastSyncProfiles: ISyncUserDataProfile[] | null = lastSyncUserData?.syncData ? parseUserDataProfilesManifest(lastSyncUserData.syncData) : null;
 		const localProfiles = this.getLocalUserDataProfiles();

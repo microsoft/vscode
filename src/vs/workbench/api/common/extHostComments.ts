@@ -196,6 +196,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
+		async $updateCommentThread(commentControllerHandle: number, commentThreadHandle: number, changes: CommentThreadChanges) {
+			const commentController = this._commentControllers.get(commentControllerHandle);
+
+			commentController?.$updateCommentThread(commentThreadHandle, changes);
+		}
+
 		async $provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
@@ -718,6 +724,20 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			const thread = this._threads.get(threadHandle);
 			if (thread) {
 				thread.range = extHostTypeConverter.Range.to(range);
+			}
+		}
+
+		$updateCommentThread(threadHandle: number, changes: CommentThreadChanges): void {
+			const thread = this._threads.get(threadHandle);
+			if (!thread) {
+				return;
+			}
+
+			const modified = (value: keyof CommentThreadChanges): boolean =>
+				Object.prototype.hasOwnProperty.call(changes, value);
+
+			if (modified('collapseState')) {
+				thread.collapsibleState = convertToCollapsibleState(changes.collapseState);
 			}
 		}
 

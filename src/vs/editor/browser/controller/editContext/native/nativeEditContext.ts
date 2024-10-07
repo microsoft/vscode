@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getActiveWindow } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -27,6 +27,7 @@ import { Position } from '../../../../common/core/position.js';
 import { IVisibleRangeProvider } from '../textArea/textAreaEditContext.js';
 import { PositionOffsetTransformer } from '../../../../common/core/positionToOffset.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { EditContext } from './editContextFactory.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -47,6 +48,8 @@ export class NativeEditContext extends AbstractEditContext {
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	private _textStartPositionWithinEditor: Position = new Position(1, 1);
+
+	private _targetWindowId: number = -1;
 
 	private readonly _focusTracker: FocusTracker;
 
@@ -75,7 +78,8 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
 
-		this._editContext = new EditContext();
+		const window = getWindow(this.domNode.domNode);
+		this._editContext = EditContext.create(window);
 		this.setEditContextOnDomNode();
 
 		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context);
@@ -98,7 +102,7 @@ export class NativeEditContext extends AbstractEditContext {
 			viewController.emitKeyDown(standardKeyboardEvent);
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
-			if (e.inputType === 'insertParagraph') {
+			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
@@ -179,7 +183,12 @@ export class NativeEditContext extends AbstractEditContext {
 	// TODO: added as a workaround fix for https://github.com/microsoft/vscode/issues/229825
 	// When this issue will be fixed the following should be removed.
 	public setEditContextOnDomNode(): void {
-		this.domNode.domNode.editContext = this._editContext;
+		const targetWindow = getWindow(this.domNode.domNode);
+		const targetWindowId = getWindowId(targetWindow);
+		if (this._targetWindowId !== targetWindowId) {
+			this.domNode.domNode.editContext = this._editContext;
+			this._targetWindowId = targetWindowId;
+		}
 	}
 
 	// --- Private methods ---

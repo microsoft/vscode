@@ -32,14 +32,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	constructor(
 		private _instance: ITerminalInstance | IDetachedTerminalInstance,
-		@IContextViewService _contextViewService: IContextViewService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IContextMenuService _contextMenuService: IContextMenuService,
-		@IClipboardService _clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super({
 			showCommonFindToggles: true,
@@ -55,14 +55,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			closeWidgetActionId: TerminalFindCommandId.FindHide,
 			type: 'Terminal',
 			matchesLimit: XtermTerminalConstants.SearchHighlightLimit
-		}, _contextViewService, _contextKeyService, hoverService, keybindingService);
+		}, contextViewService, contextKeyService, hoverService, keybindingService);
 
 		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();
 		}));
-		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);
-		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(this._contextKeyService);
-		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(this._contextKeyService);
+		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(contextKeyService);
+		this._findWidgetFocused = TerminalContextKeys.findFocus.bindTo(contextKeyService);
+		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(contextKeyService);
 		const innerDom = this.getDomNode().firstChild;
 		if (innerDom) {
 			this._register(dom.addDisposableListener(innerDom, 'mousedown', (event) => {
@@ -74,15 +74,15 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 		const findInputDomNode = this.getFindInputDomNode();
 		this._register(dom.addDisposableListener(findInputDomNode, 'contextmenu', (event) => {
-			openContextMenu(dom.getWindow(findInputDomNode), event, _clipboardService, _contextMenuService);
+			openContextMenu(dom.getWindow(findInputDomNode), event, clipboardService, contextMenuService);
 			event.stopPropagation();
 		}));
-		this._register(this._themeService.onDidColorThemeChange(() => {
+		this._register(themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
 				this.find(true, true);
 			}
 		}));
-		this._register(this._configurationService.onDidChangeConfiguration((e) => {
+		this._register(configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('workbench.colorCustomizations') && this.isVisible()) {
 				this.find(true, true);
 			}
