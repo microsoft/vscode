@@ -19,6 +19,8 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
 	private readonly saveParticipants = new LinkedList<IStoredFileWorkingCopySaveParticipant>();
 
+	get length(): number { return this.saveParticipants.size; }
+
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
