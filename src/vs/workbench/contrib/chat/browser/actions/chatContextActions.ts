@@ -20,7 +20,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -30,6 +30,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
+import { SearchContext } from '../../../search/common/constants.js';
+import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -41,6 +43,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { imageToHash, isImage } from '../chatImagePaste.js';
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
+import { SearchView } from '../../../search/browser/searchView.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -51,7 +54,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem;
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -85,6 +88,12 @@ function isIOpenEditorsQuickPickItem(obj: unknown): obj is IOpenEditorsQuickPick
 		typeof obj === 'object'
 		&& (obj as IOpenEditorsQuickPickItem).id === 'open-editors');
 }
+
+function isISearchResultsQuickPickItem(obj: unknown): obj is ISearchResultsQuickPickItem {
+	return (
+		typeof obj === 'object'
+		&& (obj as ISearchResultsQuickPickItem).kind === 'search-results');
+	}
 
 interface IImageQuickPickItem extends IQuickPickItem {
 	kind: 'image';
@@ -123,6 +132,12 @@ interface IQuickAccessQuickPickItem extends IQuickPickItem {
 interface IOpenEditorsQuickPickItem extends IQuickPickItem {
 	kind: 'open-editors';
 	id: 'open-editors';
+	icon?: ThemeIcon;
+}
+
+interface ISearchResultsQuickPickItem extends IQuickPickItem {
+	kind: 'search-results';
+	id: string;
 	icon?: ThemeIcon;
 }
 
@@ -243,7 +258,7 @@ export class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, chatEditingService: IChatEditingService | undefined, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -296,6 +311,16 @@ export class AttachContextAction extends Action2 {
 							isFile: true
 						});
 					}
+				}
+			} else if (isISearchResultsQuickPickItem(pick)) {
+				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
+				for (const result of searchView.model.searchResult.matches()) {
+					toAttach.push({
+						id: this._getFileContextId({ resource: result.resource }),
+						value: result.resource,
+						name: labelService.getUriBasenameLabel(result.resource),
+						isFile: true
+					});
 				}
 			} else {
 				// Anything else is an attachment
@@ -363,6 +388,8 @@ export class AttachContextAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const labelService = accessor.get(ILabelService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const viewsService = accessor.get(IViewsService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -467,13 +494,23 @@ export class AttachContextAction extends Action2 {
 					}
 				});
 			}
-		} else if (context.showFilesOnly && editorService.count > 0) {
-			quickPickItems.push({
-				kind: 'open-editors',
-				id: 'open-editors',
-				label: localize('chatContext.editors', 'Open Editors'),
-				iconClass: ThemeIcon.asClassName(Codicon.files),
-			});
+		} else if (context.showFilesOnly) {
+			if (editorService.count > 0) {
+				quickPickItems.push({
+					kind: 'open-editors',
+					id: 'open-editors',
+					label: localize('chatContext.editors', 'Open Editors'),
+					iconClass: ThemeIcon.asClassName(Codicon.files),
+				});
+			}
+			if (SearchContext.HasSearchResults.getValue(contextKeyService)) {
+				quickPickItems.push({
+					kind: 'search-results',
+					id: 'search-results',
+					label: localize('chatContext.searchResults', 'Search Results'),
+					iconClass: ThemeIcon.asClassName(Codicon.search),
+				});
+			}
 		}
 
 		function extractTextFromIconLabel(label: string | undefined): string {
@@ -490,19 +527,19 @@ export class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, editorService, labelService, chatEditingService, '', context?.placeholder);
+		}), clipboardService, editorService, labelService, viewsService, chatEditingService, '', context?.placeholder);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, chatEditingService: IChatEditingService | undefined, query: string = '', placeholder?: string) {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, query: string = '', placeholder?: string) {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			handleAccept: (item: IChatContextQuickPickItem) => {
 				if ('prefix' in item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, chatEditingService, item.prefix, placeholder);
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, item.prefix, placeholder);
 				} else {
 					if (!clipboardService) {
 						return;
 					}
-					this._attachContext(widget, commandService, clipboardService, editorService, labelService, chatEditingService, item);
+					this._attachContext(widget, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, item);
 					if (isQuickChat(widget)) {
 						quickChatService.open();
 					}
