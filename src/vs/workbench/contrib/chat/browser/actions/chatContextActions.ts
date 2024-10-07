@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableGenericMouseMoveListener, addDisposableListener } from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -46,6 +48,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
 	registerAction2(AttachFileAction);
 	registerAction2(AttachSelectionAction);
+	registerAction2(ScreenshotContextAction);
 }
 
 /**
@@ -557,5 +560,132 @@ export class AttachContextAction extends Action2 {
 			placeholder: placeholder ?? localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions,
 		});
+	}
+}
+
+export class ScreenshotContextAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.screenshot';
+
+	// used to enable/disable the keybinding and defined menu containment
+	private static _cdt = ContextKeyExpr.or(
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel)),
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor), ContextKeyExpr.equals('config.chat.experimental.variables.editor', true)),
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Notebook), ContextKeyExpr.equals('config.chat.experimental.variables.notebook', true)),
+		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal), ContextKeyExpr.equals('config.chat.experimental.variables.terminal', true)),
+	);
+
+	constructor() {
+		super({
+			id: ScreenshotContextAction.ID,
+			title: localize2('workbench.action.chat.attachContext.label', "Add context"),
+			icon: Codicon.add,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.or(ScreenshotContextAction._cdt, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
+			keybinding: {
+				when: CONTEXT_IN_CHAT_INPUT,
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ScreenshotContextAction._cdt)),
+					id: MenuId.ChatInput,
+					group: 'navigation',
+					order: 2
+				},
+				{
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), ScreenshotContextAction._cdt),
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 1
+				},
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const store = new DisposableStore();
+		console.log('g\'day');
+		const div = document.createElement('div');
+		const style = div.style;
+		style.backgroundColor = '#0002';
+		style.position = 'absolute';
+		style.left = '0';
+		style.top = '0';
+		style.bottom = '0';
+		style.right = '0';
+		style.zIndex = '1';
+		style.cursor = 'crosshair';
+		document.body.append(div);
+
+		const border = document.createElement('div');
+		border.style.outline = '3px solid red';
+		border.style.position = 'absolute';
+		border.style.display = 'none';
+		border.style.zIndex = '2';
+		border.style.transition = 'all 0.05s';
+		border.style.pointerEvents = 'none';
+		document.body.append(border);
+
+		store.add(toDisposable(() => {
+			div.remove();
+			border.remove();
+		}));
+
+		const supportedElements: { selector: string, name: string }[] = [
+			{ selector: '.interactive-session .monaco-list-row', name: 'Chat message' },
+
+			{ selector: '.terminal', name: 'Terminal' },
+			{ selector: '.panel .action-item', name: 'Panel action item' },
+
+			{ selector: '.view-line span[class^=mtk]', name: 'View line word/symbol' },
+			{ selector: '.view-line', name: 'View line' },
+
+			{ selector: '.composite-bar .action-item', name: 'Activity bar item' },
+			{ selector: '.composite-bar', name: 'Activity bar' },
+			// { className: 'monaco-list', name: 'list' },
+			// { className: 'monaco-tree', name: 'tree' },
+		];
+
+		let targetElement: Element | undefined;
+		let targetElementName: string | undefined;
+
+		store.add(addDisposableListener(div, 'mousemove', e => {
+			targetElement = undefined;
+			targetElementName = undefined;
+
+			const elements = document.elementsFromPoint(e.clientX, e.clientY);
+			for (const element of elements) {
+				for (const supportedElement of supportedElements) {
+					if (element.matches(supportedElement.selector)) {
+						targetElement = element;
+						targetElementName = supportedElement.name;
+						break;
+					}
+				}
+				if (targetElement) {
+					break;
+				}
+			}
+			console.log('targetElement', targetElement);
+			if (targetElement) {
+				border.style.display = 'block';
+				const bbox = targetElement.getBoundingClientRect();
+				border.style.left = `${bbox.left}px`;
+				border.style.top = `${bbox.top}px`;
+				border.style.width = `${bbox.width}px`;
+				border.style.height = `${bbox.height}px`;
+			} else {
+				border.style.display = 'none';
+			}
+		}));
+		store.add(addDisposableListener(div, 'click', e => {
+			if (targetElementName) {
+				console.log(`Gather context on ${targetElementName}`);
+			}
+			// TODO: Do the thing
+			store.dispose();
+		}));
 	}
 }
