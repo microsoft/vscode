@@ -433,7 +433,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IChatWidgetService	chatWidgetService: IChatWidgetService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
