@@ -686,8 +686,7 @@ class WordHighlighter {
 				return;
 			}
 			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
-			const queryModel = queryModelRef.object.textEditorModel;
-			this.workerRequest = this.computeWithModel(queryModel, WordHighlighter.query.modelInfo.selection, otherModelsToHighlight);
+			this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, otherModelsToHighlight);
 
 			this.workerRequest?.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -696,6 +695,7 @@ class WordHighlighter {
 					this._beginRenderDecorations();
 				}
 			}, onUnexpectedError);
+			queryModelRef.dispose();
 		} else if (this.model.uri.scheme === Schemas.vscodeNotebookCell) {
 			// new wordHighlighter coming from a different model, NOT the query model, need to create a textModel ref
 
@@ -709,8 +709,7 @@ class WordHighlighter {
 			}
 
 			const queryModelRef = await this.textModelService.createModelReference(WordHighlighter.query.modelInfo.modelURI);
-			const queryModel = queryModelRef.object.textEditorModel;
-			this.workerRequest = this.computeWithModel(queryModel, WordHighlighter.query.modelInfo.selection, [this.model]);
+			this.workerRequest = this.computeWithModel(queryModelRef.object.textEditorModel, WordHighlighter.query.modelInfo.selection, [this.model]);
 
 			this.workerRequest?.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -719,6 +718,7 @@ class WordHighlighter {
 					this._beginRenderDecorations(noDelay);
 				}
 			}, onUnexpectedError);
+			queryModelRef.dispose();
 		}
 	}
 
