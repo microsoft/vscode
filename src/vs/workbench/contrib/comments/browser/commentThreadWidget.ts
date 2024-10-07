@@ -68,8 +68,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstantiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
@@ -176,7 +176,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 		if (keybinding) {
 			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
-		} else {
+		} else if (verbose) {
 			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
 		}
 		this._body.container.ariaLabel = ariaLabel;
@@ -333,11 +333,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingEdits(): { [key: number]: string } {
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
 		return this._body.getPendingEdits();
 	}
 
-	getPendingComment(): string | undefined {
+	getPendingComment(): languages.PendingComment | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
@@ -345,9 +345,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
-	setPendingComment(comment: string) {
-		this._pendingComment = comment;
-		this._commentReply?.setPendingComment(comment);
+	setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
+		this._commentReply?.setPendingComment(pending);
 	}
 
 	getDimensions() {
@@ -370,15 +370,15 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentReply?.expandReplyAreaAndFocusCommentEditor();
 	}
 
-	focus() {
-		this._body.focus();
+	focus(commentUniqueId: number | undefined) {
+		this._body.focus(commentUniqueId);
 	}
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment) {
 			return activeComment.submitComment();
-		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
+		} else if ((this._commentReply?.getPendingComment()?.body.length ?? 0) > 0) {
 			return this._commentReply?.submitComment();
 		}
 	}

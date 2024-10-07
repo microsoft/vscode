@@ -141,7 +141,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
 							container.classList.toggle('command-center-quick-pick');
-
+							container.role = 'button';
 							const action = this.action;
 
 							// icon (search)

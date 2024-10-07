@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { transaction } from '../../../../../base/common/observable.js';
-import { asyncTransaction } from '../../../../../base/common/observableInternal/base.js';
-import { ICodeEditor } from '../../../../browser/editorBrowser.js';
-import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
-import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
-import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, inlineSuggestCommitId } from './commandIds.js';
-import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
-import { InlineCompletionsController } from './inlineCompletionsController.js';
-import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
+import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
-import { MenuId, Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor } from '../../../../browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
+import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
+import { inlineSuggestCommitId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from './commandIds.js';
+import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
+import { InlineCompletionsController } from './inlineCompletionsController.js';
 
 export class ShowNextInlineSuggestionAction extends EditorAction {
 	public static ID = showNextInlineSuggestionActionId;
@@ -139,9 +138,14 @@ export class AcceptInlineCompletion extends EditorAction {
 			id: inlineSuggestCommitId,
 			label: nls.localize('action.inlineSuggest.accept', "Accept Inline Suggestion"),
 			alias: 'Accept Inline Suggestion',
-			precondition: InlineCompletionContextKeys.inlineSuggestionVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
+				title: nls.localize('accept', "Accept"),
+				group: 'primary',
+				order: 1,
+			}, {
+				menuId: MenuId.InlineEditsActions,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
 				order: 1,
@@ -149,12 +153,25 @@ export class AcceptInlineCompletion extends EditorAction {
 			kbOpts: {
 				primary: KeyCode.Tab,
 				weight: 200,
-				kbExpr: ContextKeyExpr.and(
-					InlineCompletionContextKeys.inlineSuggestionVisible,
-					EditorContextKeys.tabMovesFocus.toNegated(),
-					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
-					SuggestContext.Visible.toNegated(),
-					EditorContextKeys.hoverFocused.toNegated(),
+				kbExpr: ContextKeyExpr.or(
+					ContextKeyExpr.and(
+						InlineCompletionContextKeys.inlineSuggestionVisible,
+						EditorContextKeys.tabMovesFocus.toNegated(),
+						SuggestContext.Visible.toNegated(),
+						EditorContextKeys.hoverFocused.toNegated(),
+
+						InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+					),
+					ContextKeyExpr.and(
+						InlineCompletionContextKeys.inlineEditVisible,
+						EditorContextKeys.tabMovesFocus.toNegated(),
+						SuggestContext.Visible.toNegated(),
+						EditorContextKeys.hoverFocused.toNegated(),
+
+						//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
+						InlineCompletionContextKeys.hasSelection.toNegated(),
+						InlineCompletionContextKeys.cursorAtInlineEdit,
+					)
 				),
 			}
 		});
@@ -169,6 +186,44 @@ export class AcceptInlineCompletion extends EditorAction {
 	}
 }
 
+export class JumpToNextInlineEdit extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.jump',
+			label: nls.localize('action.inlineSuggest.jump', "Jump to next inline edit"),
+			alias: 'Jump to next inline edit',
+			precondition: InlineCompletionContextKeys.inlineEditVisible,
+			menuOpts: [{
+				menuId: MenuId.InlineEditsActions,
+				title: nls.localize('jump', "Jump"),
+				group: 'primary',
+				order: 2,
+				when: InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
+			}],
+			kbOpts: {
+				primary: KeyCode.Tab,
+				weight: 201,
+				kbExpr: ContextKeyExpr.and(
+					InlineCompletionContextKeys.inlineEditVisible,
+					//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
+					InlineCompletionContextKeys.hasSelection.toNegated(),
+					EditorContextKeys.tabMovesFocus.toNegated(),
+					SuggestContext.Visible.toNegated(),
+					EditorContextKeys.hoverFocused.toNegated(),
+					InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
+				),
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.get(editor);
+		if (controller) {
+			controller.jump();
+		}
+	}
+}
+
 export class HideInlineCompletion extends EditorAction {
 	public static ID = 'editor.action.inlineSuggest.hide';
 
@@ -177,7 +232,7 @@ export class HideInlineCompletion extends EditorAction {
 			id: HideInlineCompletion.ID,
 			label: nls.localize('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			alias: 'Hide Inline Suggestion',
-			precondition: InlineCompletionContextKeys.inlineSuggestionVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
 				weight: 100,
 				primary: KeyCode.Escape,

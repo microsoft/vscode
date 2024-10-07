@@ -397,4 +397,5 @@ import './contrib/accountEntitlements/browser/accountsEntitlements.contribution.
 
 // Synchronized Scrolling
 import './contrib/scrollLocking/browser/scrollLocking.contribution.js';
+
 //#endregion

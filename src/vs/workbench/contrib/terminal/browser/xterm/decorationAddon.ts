@@ -38,8 +38,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _showOverviewRulerDecorations?: boolean;
 	private _terminalDecorationHoverManager: TerminalDecorationHoverManager;
 
-	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean }>());
+	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestCopyAsHtml = this._register(new Emitter<{ command: ITerminalCommand }>());
+	readonly onDidRequestCopyAsHtml = this._onDidRequestCopyAsHtml.event;
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -440,7 +442,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			const labelHtml = localize("terminal.copyOutputAsHtml", 'Copy Output as HTML');
 			actions.push({
 				class: undefined, tooltip: labelHtml, id: 'terminal.copyOutputAsHtml', label: labelHtml, enabled: true,
-				run: () => this._onDidRequestRunCommand.fire({ command, copyAsHtml: true })
+				run: () => this._onDidRequestCopyAsHtml.fire({ command })
 			});
 		}
 		if (actions.length > 0) {

@@ -62,7 +62,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'string',
 			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
-				localize('accessibleDiffView.auto', "The accessible diff viewer is based screen reader mode being enabled."),
+				localize('accessibleDiffView.auto', "The accessible diff viewer is based on screen reader mode being enabled."),
 				localize('accessibleDiffView.on', "The accessible diff viewer is always enabled."),
 				localize('accessibleDiffView.off', "The accessible diff viewer is never enabled."),
 			],
@@ -88,6 +88,7 @@ export const enum InlineChatResponseType {
 	MessagesAndEdits = 'messagesAndEdits'
 }
 
+export const CTX_INLINE_CHAT_POSSIBLE = new RawContextKey<boolean>('inlineChatPossible', false, localize('inlineChatHasPossible', "Whether a provider for inline chat exists and whether an editor for inline chat is open"));
 export const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
 export const CTX_INLINE_CHAT_FOCUSED = new RawContextKey<boolean>('inlineChatFocused', false, localize('inlineChatFocused', "Whether the interactive editor input is focused"));

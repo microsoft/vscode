@@ -470,7 +470,7 @@ class ExtensionFeatureView extends Disposable {
 						return $('tr', undefined,
 							...row.map(rowData => {
 								if (typeof rowData === 'string') {
-									return $('td', undefined, rowData);
+									return $('td', undefined, $('p', undefined, rowData));
 								}
 								const data = Array.isArray(rowData) ? rowData : [rowData];
 								return $('td', undefined, ...data.map(item => {

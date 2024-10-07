@@ -10,7 +10,7 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService.js';
-import { NumberBadge, IBadge, IActivity, ProgressBadge } from '../../services/activity/common/activity.js';
+import { NumberBadge, IBadge, IActivity, ProgressBadge, IconBadge } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DelayedDragHandler } from '../../../base/browser/dnd.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
@@ -44,6 +44,11 @@ export interface ICompositeBar {
 	 * Find out if a composite is pinned in the composite bar.
 	 */
 	isPinned(compositeId: string): boolean;
+
+	/**
+	 * Get pinned composite ids in the composite bar.
+	 */
+	getPinnedCompositeIds(): string[];
 
 	/**
 	 * Returns if badges are enabled for that specified composite.
@@ -154,7 +159,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 	protected override readonly options: ICompositeBarActionViewItemOptions;
 
 	private badgeContent: HTMLElement | undefined;
-	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private readonly badgeDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private mouseUpTimeout: any;
 	private keybindingLabel: string | undefined | null;
 
@@ -214,9 +219,10 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeFg = colors.badgeForeground ?? theme.getColor(badgeForeground);
-			const badgeBg = colors.badgeBackground ?? theme.getColor(badgeBackground);
-			const contrastBorderColor = theme.getColor(contrastBorder);
+			const badgeStyles = this.getActivity()?.badge.getColors(theme);
+			const badgeFg = badgeStyles?.badgeForeground ?? colors.badgeForeground ?? theme.getColor(badgeForeground);
+			const badgeBg = badgeStyles?.badgeBackground ?? colors.badgeBackground ?? theme.getColor(badgeBackground);
+			const contrastBorderColor = badgeStyles?.badgeBorder ?? theme.getColor(contrastBorder);
 
 			this.badgeContent.style.color = badgeFg ? badgeFg.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBg ? badgeBg.toString() : '';
@@ -285,15 +291,21 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		this.updateStyles();
 	}
 
+	private getActivity(): IActivity | undefined {
+		if (this._action instanceof CompositeBarAction) {
+			return this._action.activity;
+		}
+		return undefined;
+	}
+
 	protected updateActivity(): void {
-		const action = this.action;
-		if (!this.badge || !this.badgeContent || !(action instanceof CompositeBarAction)) {
+		if (!this.badge || !this.badgeContent || !(this._action instanceof CompositeBarAction)) {
 			return;
 		}
 
-		const activity = action.activity;
+		const activity = this.getActivity();
 
-		this.badgeDisposable.clear();
+		this.badgeDisposable.value = new DisposableStore();
 
 		clearNode(this.badgeContent);
 		hide(this.badge);
@@ -336,14 +348,24 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 				}
 			}
 
+			// Icon
+			else if (badge instanceof IconBadge) {
+				classes.push('icon-badge');
+				const badgeContentClassess = ['icon-overlay', ...ThemeIcon.asClassNameArray(badge.icon)];
+				this.badgeContent.classList.add(...badgeContentClassess);
+				this.badgeDisposable.value.add(toDisposable(() => this.badgeContent?.classList.remove(...badgeContentClassess)));
+				show(this.badge);
+			}
+
 			if (classes.length) {
 				this.badge.classList.add(...classes);
-				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classes));
+				this.badgeDisposable.value.add(toDisposable(() => this.badge.classList.remove(...classes)));
 			}
 
 		}
 
 		this.updateTitle();
+		this.updateStyles();
 	}
 
 	protected override updateLabel(): void {
@@ -672,8 +694,10 @@ export class CompositeActionViewItem extends CompositeBarActionViewItem {
 		if (isPinned) {
 			this.toggleCompositePinnedAction.label = localize('hide', "Hide '{0}'", this.compositeBarActionItem.name);
 			this.toggleCompositePinnedAction.checked = false;
+			this.toggleCompositePinnedAction.enabled = this.compositeBar.getPinnedCompositeIds().length > 1;
 		} else {
 			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.compositeBarActionItem.name);
+			this.toggleCompositePinnedAction.enabled = true;
 		}
 
 		const isBadgeEnabled = this.compositeBar.areBadgesEnabled(this.compositeBarActionItem.id);

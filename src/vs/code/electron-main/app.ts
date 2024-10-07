@@ -97,8 +97,6 @@ import { IWorkspacesManagementMainService, WorkspacesManagementMainService } fro
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { PolicyChannel } from '../../platform/policy/common/policyIpc.js';
 import { IUserDataProfilesMainService } from '../../platform/userDataProfile/electron-main/userDataProfile.js';
-import { RequestChannel } from '../../platform/request/common/requestIpc.js';
-import { IRequestService } from '../../platform/request/common/request.js';
 import { IExtensionsProfileScannerService } from '../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { IExtensionsScannerService } from '../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionsScannerService } from '../../platform/extensionManagement/node/extensionsScannerService.js';
@@ -112,7 +110,6 @@ import { ILoggerMainService } from '../../platform/log/electron-main/loggerServi
 import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
 import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
-import { firstOrDefault } from '../../base/common/arrays.js';
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { ElectronPtyHostStarter } from '../../platform/terminal/electron-main/electronPtyHostStarter.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
@@ -122,6 +119,7 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -916,14 +914,14 @@ export class CodeApplication extends Disposable {
 			} else {
 				this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
-				const window = firstOrDefault(await windowsMainService.open({
+				const window = (await windowsMainService.open({
 					context: OpenContext.LINK,
 					cli: { ...this.environmentMainService.args },
 					urisToOpen: [windowOpenableFromProtocolUrl],
 					forceNewWindow: shouldOpenInNewWindow,
 					gotoLineMode: true
 					// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-				}));
+				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
@@ -935,14 +933,14 @@ export class CodeApplication extends Disposable {
 		if (shouldOpenInNewWindow) {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
-			const window = firstOrDefault(await windowsMainService.open({
+			const window = (await windowsMainService.open({
 				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
 				gotoLineMode: true,
 				remoteAuthority: getRemoteAuthority(uri)
-			}));
+			})).at(0);
 
 			await window?.ready();
 
@@ -1106,6 +1104,11 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
+		if (this.productService.quality !== 'stable') {
+			// extensions signature verification service
+			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
+		}
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1147,9 +1150,12 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
-		// Request
-		const requestService = new RequestChannel(accessor.get(IRequestService));
-		sharedProcessClient.then(client => client.registerChannel('request', requestService));
+		if (this.productService.quality !== 'stable') {
+			// Extension signature verification service
+			const extensionSignatureVerificationService = accessor.get(IExtensionSignatureVerificationService);
+			sharedProcessClient.then(client => client.registerChannel('signatureVerificationService',
+				ProxyChannel.fromService(extensionSignatureVerificationService, disposables)));
+		}
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -1417,7 +1423,7 @@ export class CodeApplication extends Disposable {
 		try {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
-			const argvJSON = parse(argvString);
+			const argvJSON = parse<{ 'enable-crash-reporter'?: boolean }>(argvString);
 			const telemetryLevel = getTelemetryLevel(this.configurationService);
 			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 

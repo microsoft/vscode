@@ -3,96 +3,77 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { ISequence, LcsDiff } from '../../../../../base/common/diff/diff.js';
-import { doHash, hash, numberHash } from '../../../../../base/common/hash.js';
+import { doHash, numberHash } from '../../../../../base/common/hash.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
-import * as model from '../../../../../editor/common/model.js';
 import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from '../notebookCommon.js';
+import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata, TransientDocumentMetadata } from '../notebookCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
-
-function bufferHash(buffer: VSBuffer): number {
-	let initialHashVal = numberHash(104579, 0);
-	for (let k = 0; k < buffer.buffer.length; k++) {
-		initialHashVal = doHash(buffer.buffer[k], initialHashVal);
-	}
-
-	return initialHashVal;
-}
+import { MirrorModel } from '../../../../../editor/common/services/textModelSync/textModelSync.impl.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { IModelChangedEvent } from '../../../../../editor/common/model/mirrorTextModel.js';
+import { filter } from '../../../../../base/common/objects.js';
 
 class MirrorCell {
-	private _textBuffer!: model.IReadonlyTextBuffer;
-
-	get textBuffer() {
-		if (this._textBuffer) {
-			return this._textBuffer;
-		}
-
-		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(Array.isArray(this._source) ? this._source.join('\n') : this._source);
-		const bufferFactory = builder.finish(true);
-		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF).textBuffer;
-
-		return this._textBuffer;
+	private readonly textModel: MirrorModel;
+	private _hash?: Promise<number>;
+	public get eol() {
+		return this._eol === '\r\n' ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF;
 	}
-
-	private _primaryKey?: number | null = null;
-	primaryKey(): number | null {
-		if (this._primaryKey === undefined) {
-			this._primaryKey = hash(this.getValue());
-		}
-
-		return this._primaryKey;
-	}
-
-	private _hash: number | null = null;
-
 	constructor(
-		readonly handle: number,
-		private _source: string | string[],
+		public readonly handle: number,
+		uri: URI,
+		source: string[],
+		private readonly _eol: string,
+		versionId: number,
 		public language: string,
 		public cellKind: CellKind,
 		public outputs: IOutputDto[],
 		public metadata?: NotebookCellMetadata,
 		public internalMetadata?: NotebookCellInternalMetadata,
 
-	) { }
-
-	getFullModelRange() {
-		const lineCount = this.textBuffer.getLineCount();
-		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
+	) {
+		this.textModel = new MirrorModel(uri, source, _eol, versionId);
 	}
 
+	onEvents(e: IModelChangedEvent) {
+		this.textModel.onEvents(e);
+		this._hash = undefined;
+	}
 	getValue(): string {
-		const fullRange = this.getFullModelRange();
-		return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
+		return this.textModel.getValue();
 	}
 
-	getComparisonValue(): number {
-		if (this._primaryKey !== null) {
-			return this._primaryKey!;
-		}
-
-		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
-			outputs: op.outputs.map(output => ({
-				mime: output.mime,
-				data: bufferHash(output.data)
-			})),
-			metadata: op.metadata
-		}))]);
-		return this._hash;
+	async getComparisonValue(): Promise<number> {
+		return this._hash ??= this._getHash();
 	}
 
-	getHashValue() {
-		if (this._hash !== null) {
-			return this._hash;
+	private async _getHash() {
+		let hashValue = numberHash(104579, 0);
+
+		hashValue = doHash(this.language, hashValue);
+		hashValue = doHash(this.getValue(), hashValue);
+		hashValue = doHash(this.metadata, hashValue);
+		hashValue = doHash(this.internalMetadata, hashValue);
+		for (const op of this.outputs) {
+			hashValue = doHash(op.metadata, hashValue);
+			for (const output of op.outputs) {
+				hashValue = doHash(output.mime, hashValue);
+			}
 		}
 
-		this._hash = hash([hash(this.getValue()), this.language, this.metadata, this.internalMetadata]);
-		return this._hash;
+		// note: hash has not updated within the Promise.all since we must retain order
+		const digests = await Promise.all(this.outputs.flatMap(op =>
+			op.outputs.map(o => crypto.subtle.digest('sha-1', o.data.buffer))
+		));
+		for (const digest of digests) {
+			hashValue = numberHash(new Int32Array(digest)[0], hashValue);
+		}
+
+
+		return hashValue;
 	}
 }
 
@@ -101,6 +82,7 @@ class MirrorNotebookDocument {
 		readonly uri: URI,
 		public cells: MirrorCell[],
 		public metadata: NotebookDocumentMetadata,
+		public transientDocumentMetadata: TransientDocumentMetadata,
 	) {
 	}
 
@@ -129,6 +111,8 @@ class MirrorNotebookDocument {
 				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
+			} else if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+				this.metadata = e.metadata;
 			}
 		});
 	}
@@ -144,12 +128,15 @@ class MirrorNotebookDocument {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
 				return new MirrorCell(
-					(cell as unknown as IMainCellDto).handle,
+					cell.handle,
+					URI.parse(cell.url),
 					cell.source,
+					cell.eol,
+					cell.versionId,
 					cell.language,
 					cell.cellKind,
 					cell.outputs,
-					cell.metadata
+					cell.metadata,
 				);
 			});
 
@@ -160,22 +147,18 @@ class MirrorNotebookDocument {
 
 class CellSequence implements ISequence {
 
-	constructor(readonly textModel: MirrorNotebookDocument) {
+	static async create(textModel: MirrorNotebookDocument) {
+		const hashValue = new Int32Array(textModel.cells.length);
+		await Promise.all(textModel.cells.map(async (c, i) => {
+			hashValue[i] = await c.getComparisonValue();
+		}));
+		return new CellSequence(hashValue);
 	}
+
+	constructor(readonly hashValue: Int32Array) { }
 
 	getElements(): string[] | number[] | Int32Array {
-		const hashValue = new Int32Array(this.textModel.cells.length);
-		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getComparisonValue();
-		}
-
-		return hashValue;
-	}
-
-	getCellHash(cell: ICellDto2) {
-		const source = Array.isArray(cell.source) ? cell.source.join('\n') : cell.source;
-		const hashVal = hash([hash(source), cell.metadata]);
-		return hashVal;
+		return this.hashValue;
 	}
 }
 
@@ -190,20 +173,28 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public $acceptNewModel(uri: string, data: NotebookData): void {
-		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
-			(dto as unknown as IMainCellDto).handle,
+	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, transientDocumentMetadata: TransientDocumentMetadata, cells: IMainCellDto[]): void {
+		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => new MirrorCell(
+			dto.handle,
+			URI.parse(dto.url),
 			dto.source,
+			dto.eol,
+			dto.versionId,
 			dto.language,
 			dto.cellKind,
 			dto.outputs,
 			dto.metadata
-		)), data.metadata);
+		)), metadata, transientDocumentMetadata);
 	}
 
 	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
 		model?.acceptModelChanged(event);
+	}
+
+	public $acceptCellModelChanged(strURL: string, handle: number, event: IModelChangedEvent) {
+		const model = this._models[strURL];
+		model.cells.find(cell => cell.handle === handle)?.onEvents(event);
 	}
 
 	public $acceptRemovedModel(strURL: string): void {
@@ -213,11 +204,16 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		delete this._models[strURL];
 	}
 
-	$computeDiff(originalUrl: string, modifiedUrl: string): INotebookDiffResult {
+	async $computeDiff(originalUrl: string, modifiedUrl: string): Promise<INotebookDiffResult> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 
-		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
+		const [originalSeq, modifiedSeq] = await Promise.all([
+			CellSequence.create(original),
+			CellSequence.create(modified),
+		]);
+
+		const diff = new LcsDiff(originalSeq, modifiedSeq);
 		const diffResult = diff.ComputeDiff(false);
 
 		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
@@ -269,7 +265,10 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			}
 		});
  */
+		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
+		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
 		return {
+			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
 			cellsDiff: diffResult,
 			// linesDiff: cellLineChanges
 		};
@@ -289,9 +288,6 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 				continue;
 			}
 
-			const lineCount = cell.textBuffer.getLineCount();
-			const maxLineCount = Math.min(lineCount, 20);
-			const range = new Range(1, 1, maxLineCount, cell.textBuffer.getLineLength(maxLineCount) + 1);
 			const searchParams = new SearchParams('import\\s*pandas|from\\s*pandas', true, false, null);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -299,7 +295,15 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 				continue;
 			}
 
-			const cellMatches = cell.textBuffer.findMatchesLineByLine(range, searchData, true, 1);
+			const builder = new PieceTreeTextBufferBuilder();
+			builder.acceptChunk(cell.getValue());
+			const bufferFactory = builder.finish(true);
+			const textBuffer = bufferFactory.create(cell.eol).textBuffer;
+
+			const lineCount = textBuffer.getLineCount();
+			const maxLineCount = Math.min(lineCount, 20);
+			const range = new Range(1, 1, maxLineCount, textBuffer.getLineLength(maxLineCount) + 1);
+			const cellMatches = textBuffer.findMatchesLineByLine(range, searchData, true, 1);
 			if (cellMatches.length > 0) {
 				return true;
 			}

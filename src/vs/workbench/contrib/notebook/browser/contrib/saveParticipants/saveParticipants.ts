@@ -39,6 +39,24 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../../../../services/workingCopy/common/storedFileWorkingCopy.js';
 import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService } from '../../../../../services/workingCopy/common/workingCopyFileService.js';
+import { NotebookMultiCursorController, NotebookMultiCursorState } from '../multicursor/notebookMulticursor.js';
+
+abstract class NotebookSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
+	constructor(
+		private readonly _editorService: IEditorService,
+	) { }
+	abstract participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
+
+	protected canParticipate(): boolean {
+		const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
+		const controller = editor?.getContribution<NotebookMultiCursorController>(NotebookMultiCursorController.id);
+		if (!controller) {
+			return true;
+		}
+
+		return controller.getState() !== NotebookMultiCursorState.Editing;
+	}
+}
 
 class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	constructor(
@@ -104,19 +122,21 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 	}
 }
 
-class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant {
+class TrimWhitespaceParticipant extends NotebookSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-	) { }
+	) {
+		super(editorService);
+	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		const trimTrailingWhitespaceOption = this.configurationService.getValue<boolean>('files.trimTrailingWhitespace');
 		const trimInRegexAndStrings = this.configurationService.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings');
-		if (trimTrailingWhitespaceOption) {
+		if (trimTrailingWhitespaceOption && this.canParticipate()) {
 			await this.doTrimTrailingWhitespace(workingCopy, context.reason === SaveReason.AUTO, trimInRegexAndStrings, progress);
 		}
 	}
@@ -174,16 +194,19 @@ class TrimWhitespaceParticipant implements IStoredFileWorkingCopySaveParticipant
 	}
 }
 
-class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticipant {
+class TrimFinalNewLinesParticipant extends NotebookSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-	) { }
+	) {
+		super(editorService);
+	}
+
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines')) {
+		if (this.configurationService.getValue<boolean>('files.trimFinalNewlines') && this.canParticipate()) {
 			await this.doTrimFinalNewLines(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
@@ -254,19 +277,21 @@ class TrimFinalNewLinesParticipant implements IStoredFileWorkingCopySaveParticip
 	}
 }
 
-class InsertFinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
+class InsertFinalNewLineParticipant extends NotebookSaveParticipant {
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IEditorService private readonly editorService: IEditorService,
-	) { }
+	) {
+		super(editorService);
+	}
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
 		// waiting on notebook-specific override before this feature can sync with 'files.insertFinalNewline'
 		// if (this.configurationService.getValue('files.insertFinalNewline')) {
 
-		if (this.configurationService.getValue<boolean>(NotebookSetting.insertFinalNewline)) {
+		if (this.configurationService.getValue<boolean>(NotebookSetting.insertFinalNewline) && this.canParticipate()) {
 			await this.doInsertFinalNewLine(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}
