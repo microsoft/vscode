@@ -8,6 +8,7 @@ import { Constants } from '../../../../base/common/uint.js';
 import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
@@ -39,20 +40,24 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return;
 		}
 		const model = this._editor.getModel();
+		if (this._editor.getOption(EditorOption.inDiffEditor)) {
+			this._clearRendering();
+			return;
+		}
 		this._sessionStore.add(model.onDidChangeContent(() => this._updateSessionDecorations()));
 		this._updateSessionDecorations();
 	}
 
 	private _updateSessionDecorations(): void {
 		if (!this._editor.hasModel()) {
-			this._decorations.clear();
+			this._clearRendering();
 			return;
 		}
 		const model = this._editor.getModel();
 		const editingSession = this._chatEditingService.getEditingSession(model.uri);
 		const entry = this._getEntry(editingSession, model);
 		if (!entry) {
-			this._decorations.clear();
+			this._clearRendering();
 			return;
 		}
 
