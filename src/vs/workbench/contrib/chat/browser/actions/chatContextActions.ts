@@ -93,7 +93,7 @@ function isISearchResultsQuickPickItem(obj: unknown): obj is ISearchResultsQuick
 	return (
 		typeof obj === 'object'
 		&& (obj as ISearchResultsQuickPickItem).kind === 'search-results');
-	}
+}
 
 interface IImageQuickPickItem extends IQuickPickItem {
 	kind: 'image';
