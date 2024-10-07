@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { getNWords } from '../../common/chatWordCounter.js';
+import { getNWords, IWordCountResult } from '../../common/chatWordCounter.js';
 
 suite('ChatWordCounter', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,6 +30,33 @@ suite('ChatWordCounter', () => {
 			];
 
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+
+		test('whitespace', () => {
+			assert.deepStrictEqual(
+				getNWords('hello ', 1),
+				{
+					value: 'hello ',
+					returnedWordCount: 1,
+					isFullString: true,
+					totalWordCount: 1,
+				} satisfies IWordCountResult);
+			assert.deepStrictEqual(
+				getNWords('hello\n\n', 1),
+				{
+					value: 'hello\n\n',
+					returnedWordCount: 1,
+					isFullString: true,
+					totalWordCount: 1,
+				} satisfies IWordCountResult);
+			assert.deepStrictEqual(
+				getNWords('\nhello', 1),
+				{
+					value: '\nhello',
+					returnedWordCount: 1,
+					isFullString: true,
+					totalWordCount: 1,
+				} satisfies IWordCountResult);
 		});
 
 		test('matching links', () => {
