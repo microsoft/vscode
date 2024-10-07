@@ -17,6 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IActiveCodeEditor, ICodeEditor, isDiffEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
@@ -37,7 +38,6 @@ import { ILanguageFeaturesService } from '../../../common/services/languageFeatu
 import { ITextModelService } from '../../../common/services/resolverService.js';
 import { getHighlightDecorationOptions } from './highlightDecorations.js';
 import { TextualMultiDocumentHighlightFeature } from './textualHighlightProvider.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
