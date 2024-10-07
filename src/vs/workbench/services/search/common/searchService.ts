@@ -165,7 +165,7 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token);
 	}
 
-	hasFileSearchProviderScheme(scheme: string): boolean {
+	schemeHasFileSearchProvider(scheme: string): boolean {
 		return this.fileSearchProviders.has(scheme);
 	}
 
