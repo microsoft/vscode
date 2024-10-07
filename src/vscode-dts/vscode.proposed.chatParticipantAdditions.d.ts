@@ -353,6 +353,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatEditorAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'editor';
 		accepted: boolean;
 	}

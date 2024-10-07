@@ -195,11 +195,13 @@ module.exports.tsFormattingFilter = [
 
 module.exports.eslintFilter = [
 	'**/*.js',
+	'**/*.cjs',
+	'**/*.mjs',
 	'**/*.ts',
-	...readFileSync(join(__dirname, '../.eslintignore'))
-		.toString().split(/\r\n|\n/)
-		.filter(line => !line.startsWith('#'))
-		.filter(line => !!line)
+	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
+		.toString()
+		.split(/\r\n|\n/)
+		.filter(line => line && !line.startsWith('#'))
 		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 
