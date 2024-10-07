@@ -30,6 +30,7 @@ declare module 'vscode' {
 	}
 
 	// LM -> USER: function that should be used
+	// TODO@API NAME: LanguageModelChatMessageToolCallPart, LanguageModelToolCallPart
 	export class LanguageModelChatResponseToolCallPart {
 		name: string;
 		toolCallId: string;
@@ -39,6 +40,7 @@ declare module 'vscode' {
 	}
 
 	// LM -> USER: text chunk
+	// TODO@API NAME: LanguageModelChatMessageTextPart, LanguageModelTextPart
 	export class LanguageModelChatResponseTextPart {
 		value: string;
 
@@ -51,6 +53,7 @@ declare module 'vscode' {
 
 
 	// USER -> LM: the result of a function call
+	// TODO@API NAME: LanguageModelChatMessageToolResultPart, LanguageModelToolResultPart
 	export class LanguageModelChatMessageToolResultPart {
 		toolCallId: string;
 		content: string;
@@ -76,6 +79,7 @@ declare module 'vscode' {
 	/**
 	 * A result returned from a tool invocation.
 	 */
+	// TODO@API should we align this with NotebookCellOutput and NotebookCellOutputItem
 	export interface LanguageModelToolResult {
 		/**
 		 * The result can contain arbitrary representations of the content. A tool user can set

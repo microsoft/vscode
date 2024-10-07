@@ -5,7 +5,6 @@
 
 import * as es from 'event-stream';
 import * as gulp from 'gulp';
-import * as concat from 'gulp-concat';
 import * as filter from 'gulp-filter';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -15,10 +14,12 @@ import * as bundle from './bundle';
 import { gulpPostcss } from './postcss';
 import * as esbuild from 'esbuild';
 import * as sourcemaps from 'gulp-sourcemaps';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-export interface IOptimizeESMTaskOpts {
+export interface IBundleESMTaskOpts {
 	/**
 	 * The folder to read files from.
 	 */
@@ -34,7 +35,13 @@ export interface IOptimizeESMTaskOpts {
 	/**
 	 * File contents interceptor for a given path.
 	 */
-	fileContentMapper?: (path: string) => ((contents: string) => string) | undefined;
+	fileContentMapper?: (path: string) => ((contents: string) => Promise<string> | string) | undefined;
+	/**
+	 * Allows to skip the removal of TS boilerplate. Use this when
+	 * the entry point is small and the overhead of removing the
+	 * boilerplate makes the file larger in the end.
+	 */
+	skipTSBoilerplateRemoval?: (entryPointName: string) => boolean;
 }
 
 const DEFAULT_FILE_HEADER = [
@@ -43,7 +50,7 @@ const DEFAULT_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
+function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 	const resourcesStream = es.through(); // this stream will contain the resources
 	const bundlesStream = es.through(); // this stream will contain the bundled files
 
@@ -51,6 +58,7 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 		if (typeof entryPoint === 'string') {
 			return { name: path.parse(entryPoint).name };
 		}
+
 		return entryPoint;
 	});
 
@@ -62,38 +70,45 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 	}
 
 	const bundleAsync = async () => {
-
 		const files: VinylFile[] = [];
 		const tasks: Promise<any>[] = [];
 
 		for (const entryPoint of entryPoints) {
-
-			console.log(`[bundle] '${entryPoint.name}'`);
+			fancyLog(`Bundled entry point: ${ansiColors.yellow(entryPoint.name)}...`);
 
 			// support for 'dest' via esbuild#in/out
 			const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
 
-			// boilerplate massage
+			// banner contents
 			const banner = {
 				js: DEFAULT_FILE_HEADER,
 				css: DEFAULT_FILE_HEADER
 			};
-			const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
-			banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+
+			// TS Boilerplate
+			if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+				const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
+				banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+			}
 
 			const contentsMapper: esbuild.Plugin = {
 				name: 'contents-mapper',
 				setup(build) {
 					build.onLoad({ filter: /\.js$/ }, async ({ path }) => {
+						const contents = await fs.promises.readFile(path, 'utf-8');
 
 						// TS Boilerplate
-						const contents = await fs.promises.readFile(path, 'utf-8');
-						let newContents = bundle.removeAllTSBoilerplate(contents);
+						let newContents: string;
+						if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+							newContents = bundle.removeAllTSBoilerplate(contents);
+						} else {
+							newContents = contents;
+						}
 
 						// File Content Mapper
 						const mapper = opts.fileContentMapper?.(path);
 						if (mapper) {
-							newContents = mapper(newContents);
+							newContents = await mapper(newContents);
 						}
 
 						return { contents: newContents };
@@ -138,12 +153,10 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 				outdir: path.join(REPO_ROOT_PATH, opts.src),
 				write: false, // enables res.outputFiles
 				metafile: true, // enables res.metafile
-
+				// minify: NOT enabled because we have a separate minify task that takes care of the TSLib banner as well
 			}).then(res => {
 				for (const file of res.outputFiles) {
-
 					let sourceMapFile: esbuild.OutputFile | undefined = undefined;
-
 					if (file.path.endsWith('.js')) {
 						sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
 					}
@@ -187,53 +200,20 @@ function optimizeESMTask(opts: IOptimizeESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IOptimizeManualTaskOpts {
+export interface IBundleESMTaskOpts {
 	/**
-	 * The paths to consider for concatenation. The entries
-	 * will be concatenated in the order they are provided.
-	 */
-	src: string[];
-	/**
-	 * Destination target to concatenate the entryPoints into.
-	 */
-	out: string;
-}
-
-function optimizeManualTask(options: IOptimizeManualTaskOpts[]): NodeJS.ReadWriteStream {
-	const concatenations = options.map(opt => {
-		return gulp
-			.src(opt.src)
-			.pipe(concat(opt.out));
-	});
-
-	return es.merge(...concatenations);
-}
-
-export interface IOptimizeTaskOpts {
-	/**
-	 * Destination folder for the optimized files.
+	 * Destination folder for the bundled files.
 	 */
 	out: string;
 	/**
-	 * Optimize ESM modules (using esbuild).
+	 * Bundle ESM modules (using esbuild).
 	*/
-	esm: IOptimizeESMTaskOpts;
-	/**
-	 * Optimize manually by concatenating files.
-	 */
-	manual?: IOptimizeManualTaskOpts[];
+	esm: IBundleESMTaskOpts;
 }
 
-export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
+export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
-		const optimizers: NodeJS.ReadWriteStream[] = [];
-		optimizers.push(optimizeESMTask(opts.esm));
-
-		if (opts.manual) {
-			optimizers.push(optimizeManualTask(opts.manual));
-		}
-
-		return es.merge(...optimizers).pipe(gulp.dest(opts.out));
+		return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};
 }
 
@@ -258,7 +238,8 @@ export function minifyTask(src: string, sourceMapBaseUrl?: string): (cb: any) =>
 					minify: true,
 					sourcemap: 'external',
 					outdir: '.',
-					platform: 'node',
+					packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
+					platform: 'neutral', // makes esm
 					target: ['es2022'],
 					write: false
 				}).then(res => {

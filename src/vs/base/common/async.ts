@@ -1314,7 +1314,7 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 
 (function () {
 	if (typeof globalThis.requestIdleCallback !== 'function' || typeof globalThis.cancelIdleCallback !== 'function') {
-		_runWhenIdle = (_targetWindow, runner) => {
+		_runWhenIdle = (_targetWindow, runner, timeout?) => {
 			setTimeout0(() => {
 				if (disposed) {
 					return;
@@ -1353,7 +1353,7 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 			};
 		};
 	}
-	runWhenGlobalIdle = (runner) => _runWhenIdle(globalThis, runner);
+	runWhenGlobalIdle = (runner, timeout) => _runWhenIdle(globalThis, runner, timeout);
 })();
 
 export abstract class AbstractIdleValue<T> {

@@ -1563,10 +1563,6 @@ export class TestHostService implements IHostService {
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
-
-	getPathForFile(file: File): string | undefined {
-		return undefined;
-	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
