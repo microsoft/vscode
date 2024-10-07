@@ -289,7 +289,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		if (session) {
 			this.sendProviderUsageTelemetry(extensionId, providerId);
-			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, extensionId, extensionName);
+			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, scopes, extensionId, extensionName);
 		}
 
 		return session;
