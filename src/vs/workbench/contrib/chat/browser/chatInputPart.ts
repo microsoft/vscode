@@ -9,7 +9,6 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IManagedHoverContentOrFactory } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -492,7 +491,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.initAttachedContext(this.attachedContextContainer);
 		this._register(this._attachmentModel.onDidChangeContext(() => this.initAttachedContext(this.attachedContextContainer)));
-		this.renderChatEditingSessionState(null, undefined, widget);
+		this.renderChatEditingSessionState(null, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_CHAT_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -672,9 +671,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate });
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
 
-			let hoverElement: IManagedHoverContentOrFactory;
 			let ariaLabel: string | undefined;
 
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
@@ -685,7 +683,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const friendlyName = `${fileBasename} ${fileDirname}`;
 
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
-				hoverElement = file.fsPath;
 
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
@@ -696,7 +693,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
-				hoverElement = dom.$('div.chat-attached-context-hover');
+				const hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				// Custom label
@@ -720,22 +717,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				widget.style.position = 'relative';
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
+				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
 				label.setLabel(withIcon, undefined);
 
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-				hoverElement = attachmentLabel;
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			}
 
 			widget.tabIndex = 0;
 			widget.ariaLabel = ariaLabel;
-			if (!this.attachedContextDisposables.isDisposed) {
-				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-			}
 		});
 
 		if (oldHeight !== container.offsetHeight && !isLayout) {
@@ -802,22 +798,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		};
 	}
 
-	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, initialState?: boolean, chatWidget?: IChatWidget) {
-		dom.setVisibility(Boolean(chatEditingSession) || Boolean(initialState), this.chatEditingSessionWidgetContainer);
+	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
+		dom.setVisibility(Boolean(chatEditingSession), this.chatEditingSessionWidgetContainer);
 
-		if (!chatEditingSession && !initialState) {
+		if (!chatEditingSession) {
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
 			this._chatEditsProgress?.dispose();
-			this._chatEditsProgress = undefined;
 			return;
 		}
 
-		if (this._chatEditList && chatEditingSession?.state.get() === ChatEditingSessionState.Idle) {
+		const currentChatEditingState = chatEditingSession.state.get();
+		if (this._chatEditList && !chatWidget?.viewModel?.requestInProgress && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial)) {
 			this._chatEditsProgress?.stop();
-			this._chatEditsProgress?.dispose();
-			this._chatEditsProgress = undefined;
 		}
 
 		// Summary of number of files changed
@@ -897,9 +891,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (!this._chatEditsProgress && (chatEditingSession.state.get() === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress)) {
-			this._chatEditsProgress = new ProgressBar(innerContainer);
-			this._chatEditsProgress.infinite().show(500);
+		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
+			this._chatEditsProgress ??= new ProgressBar(innerContainer);
+			this._chatEditsProgress?.infinite().show(500);
 		}
 
 		// Working set

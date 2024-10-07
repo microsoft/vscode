@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
@@ -175,7 +174,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.attachmentModel.addContext({ value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isFile: true, isDynamic: true });
+			widget.attachmentModel.addFile(uri, range);
 			return;
 		}
 

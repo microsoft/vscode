@@ -8,7 +8,6 @@ const path = require("path");
 const fs = require("fs");
 const minimatch = require("minimatch");
 const vscode_universal_bundler_1 = require("vscode-universal-bundler");
-const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
 const root = path.dirname(path.dirname(__dirname));
 async function main(buildDir) {
     const arch = process.env['VSCODE_ARCH'];
@@ -48,12 +47,6 @@ async function main(buildDir) {
         darwinUniversalAssetId: 'darwin-universal'
     });
     fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
-    // Verify if native module architecture is correct
-    const findOutput = await (0, cross_spawn_promise_1.spawn)('find', [outAppPath, '-name', 'kerberos.node']);
-    const lipoOutput = await (0, cross_spawn_promise_1.spawn)('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
-    if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
-        throw new Error(`Invalid arch, got : ${lipoOutput}`);
-    }
 }
 if (require.main === module) {
     main(process.argv[2]).catch(err => {

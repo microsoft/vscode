@@ -28,11 +28,11 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
-import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
@@ -74,7 +74,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const result = this._register(renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = !raw || raw?.endsWith('```');
+				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
@@ -275,8 +275,8 @@ class CollapsedCodeBlock extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 	) {
 		super();
-		this.element = $('.chat-codeblock');
-		this.element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
+		this.element = $('.chat-codeblock-pill-widget');
+		this.element.classList.add('show-file-icons');
 		this._register(dom.addDisposableListener(this.element, 'click', () => {
 			if (this.uri) {
 				this.editorService.openEditor({ resource: this.uri });

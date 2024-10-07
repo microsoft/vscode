@@ -6,12 +6,12 @@
 import * as nls from '../../../../nls.js';
 import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchCompressibleAsyncDataTree, WorkbenchListFocusContextKey } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
 import * as Constants from '../common/constants.js';
 import { ISearchHistoryService } from '../common/searchHistoryService.js';
-import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, SearchResult, TextSearchResult } from './searchModel.js';
+import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, RenderableMatch, SearchResult, TextSearchResult } from './searchModel.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -222,14 +222,43 @@ async function expandAll(accessor: ServicesAccessor) {
 
 		if (searchView.shouldShowAIResults()) {
 			if (searchView.model.hasAIResults) {
-				viewer.expandAll();
+				await forcedExpandRecursively(viewer, undefined);
 			} else {
-				await viewer.expand(searchView.model.searchResult.plainTextSearchResult, true);
+				await forcedExpandRecursively(viewer, searchView.model.searchResult.plainTextSearchResult);
 			}
 		} else {
-			viewer.expandAll();
+			await forcedExpandRecursively(viewer, undefined);
 		}
 	}
+}
+
+/**
+ * Recursively expand all nodes in the search results tree that are a child of `element`
+ * If `element` is not provided, it is the root node.
+ */
+export async function forcedExpandRecursively(
+	viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch, void>,
+	element: RenderableMatch | undefined
+) {
+	if (element) {
+		if (!viewer.hasNode(element)) {
+			return;
+		}
+		await viewer.expand(element, true);
+	}
+
+	const children = viewer.getNode(element)?.children;
+
+	if (children) {
+		for (const child of children) {
+			if (child.element instanceof SearchResult) {
+				throw Error('SearchResult should not be a child of a RenderableMatch');
+			}
+			forcedExpandRecursively(viewer, child.element);
+		}
+	}
+
+
 }
 
 function clearSearchResults(accessor: ServicesAccessor) {
