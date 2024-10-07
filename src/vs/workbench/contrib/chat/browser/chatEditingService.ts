@@ -70,6 +70,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IChatService private readonly _chatService: IChatService,
 		@IProgressService private readonly _progressService: IProgressService,
 		@ICodeMapperService private readonly _codeMapperService: ICodeMapperService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
@@ -189,14 +190,24 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		};
 
+		const openCodeBlockUris = (responseModel: IChatResponseModel) => {
+			for (const part of responseModel.response.value) {
+				if (part.kind === 'codeblockUri') {
+					this._editorService.openEditor({ resource: part.uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+				}
+			}
+		};
+
 		observerDisposables.add(chatModel.onDidChange(e => {
 			if (e.kind === 'addRequest') {
 				const responseModel = e.request.response;
 				if (responseModel) {
 					if (responseModel.isComplete) {
+						openCodeBlockUris(responseModel);
 						onResponseComplete(responseModel);
 					} else {
 						const disposable = responseModel.onDidChange(() => {
+							openCodeBlockUris(responseModel);
 							if (responseModel.isComplete) {
 								onResponseComplete(responseModel);
 								disposable.dispose();
