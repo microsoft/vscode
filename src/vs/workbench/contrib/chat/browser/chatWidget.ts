@@ -45,7 +45,6 @@ import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileT
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
-import { ChatImageDropAndPaste } from './chatImagePaste.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
@@ -425,7 +424,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}).filter(isDefined);
 
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
-		this._register(this.instantiationService.createInstance(ChatImageDropAndPaste, this.inputPart));
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
