@@ -155,9 +155,6 @@ export default tseslint.config(
 		],
 		languageOptions: {
 			parser: tseslint.parser,
-			parserOptions: {
-				project: path.join(__dirname, 'src', 'tsconfig.json'),
-			}
 		},
 		plugins: {
 			'@typescript-eslint': tseslint.plugin,
