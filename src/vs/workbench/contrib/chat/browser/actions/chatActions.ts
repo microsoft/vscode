@@ -38,6 +38,7 @@ import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { clearChatEditor } from './chatClear.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -88,7 +89,7 @@ class OpenChatGlobalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions, variables?: IChatRequestVariableEntry[]): Promise<void> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
@@ -98,14 +99,14 @@ class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
-				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, variables ? { variables } : undefined, 0, { message: response });
 			}
 		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
-				chatWidget.setInput(opts.query);
+				chatWidget.setInput(opts.query, variables);
 			} else {
-				chatWidget.acceptInput(opts.query);
+				chatWidget.acceptInput(opts.query, undefined, variables);
 			}
 		}
 
