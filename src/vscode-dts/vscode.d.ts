@@ -3892,7 +3892,7 @@ declare module 'vscode' {
 		isRefactoring?: boolean;
 
 		/**
-		 * Signal to the editor that a preview should be shown even if no edits need to be confirmed.
+		 * Signal to the editor that a preview should be displayed, even if there are no edits to confirm.
 		 */
 		showPreview?: boolean;
 	}
