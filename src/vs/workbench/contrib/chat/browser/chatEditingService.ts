@@ -36,6 +36,7 @@ import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMappe
 import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
+import { IChatWidgetService } from './chat.js';
 
 export class ChatEditingService extends Disposable implements IChatEditingService {
 
@@ -432,17 +433,22 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
 		// Add the currently active editor to the working set
+		const widget = chatWidgetService.getWidgetBySessionId(chatSessionId);
+
 		let activeEditorControl = this._editorService.activeTextEditorControl;
 		if (activeEditorControl) {
 			if (isDiffEditor(activeEditorControl)) {
 				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 			}
 			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
-				this._workingSet.add(activeEditorControl.getModel().uri);
+				const uri = activeEditorControl.getModel().uri;
+				this._workingSet.add(uri);
+				widget?.attachmentModel.addFile(uri);
 				this._workingSetObs.set([...this._workingSet.values()], undefined);
 			}
 		}

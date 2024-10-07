@@ -803,15 +803,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
 			this._chatEditsProgress?.dispose();
-			this._chatEditsProgress = undefined;
 			return;
 		}
 
 		const currentChatEditingState = chatEditingSession.state.get();
-		if (this._chatEditList && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial && !chatWidget?.viewModel?.requestInProgress)) {
+		if (this._chatEditList && !chatWidget?.viewModel?.requestInProgress && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial)) {
 			this._chatEditsProgress?.stop();
-			this._chatEditsProgress?.dispose();
-			this._chatEditsProgress = undefined;
 		}
 
 		// Summary of number of files changed
@@ -891,9 +888,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (!this._chatEditsProgress && (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress)) {
-			this._chatEditsProgress = new ProgressBar(innerContainer);
-			this._chatEditsProgress.infinite().show(500);
+		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
+			this._chatEditsProgress ??= new ProgressBar(innerContainer);
+			this._chatEditsProgress?.infinite().show(500);
 		}
 
 		// Working set
