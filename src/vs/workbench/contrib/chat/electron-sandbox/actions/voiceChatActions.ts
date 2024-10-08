@@ -919,7 +919,8 @@ export class ReadChatResponseAloud extends Action2 {
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
 					CONTEXT_RESPONSE_FILTERED.negate(),		// and not when response is filtered
 				),
-				group: 'navigation'
+				group: 'navigation',
+				order: -10 // first
 			}, {
 				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				when: ContextKeyExpr.and(
@@ -928,7 +929,8 @@ export class ReadChatResponseAloud extends Action2 {
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
 					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
 				),
-				group: 'navigation'
+				group: 'navigation',
+				order: -10 // first
 			}]
 		});
 	}
@@ -1046,7 +1048,8 @@ export class StopReadChatItemAloud extends Action2 {
 						CONTEXT_RESPONSE,					// only for responses
 						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
 					),
-					group: 'navigation'
+					group: 'navigation',
+					order: -10 // first
 				},
 				{
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -1055,7 +1058,8 @@ export class StopReadChatItemAloud extends Action2 {
 						CONTEXT_RESPONSE,					// only for responses
 						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
 					),
-					group: 'navigation'
+					group: 'navigation',
+					order: -10 // first
 				}
 			]
 		});
