@@ -168,5 +168,6 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"typescript.enablePromptUseWorkspaceTsdk": true,
-	"chat.commandCenter.enabled": true
+	"chat.commandCenter.enabled": true,
+	"eslint.useFlatConfig": true
 }
