@@ -14,7 +14,7 @@ import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry } from '../common/chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 
 export class ChatEditorController extends Disposable implements IEditorContribution {
 
@@ -59,7 +59,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		const model = this._editor.getModel();
 		const editingSession = this._chatEditingService.getEditingSession(model.uri);
 		const entry = this._getEntry(editingSession, model);
-		if (!entry) {
+
+		if (!entry || entry.state.get() !== WorkingSetEntryState.Modified) {
 			this._clearRendering();
 			return;
 		}
