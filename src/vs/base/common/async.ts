@@ -126,6 +126,20 @@ export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?:
 	]);
 }
 
+export function raceFilter<T>(promises: Promise<T>[], filter: (result: T) => boolean): Promise<T> {
+	return new Promise((resolve, reject) => {
+		let resolved = false;
+		for (const promise of promises) {
+			promise.then(result => {
+				if (!resolved && filter(result)) {
+					resolved = true;
+					resolve(result);
+				}
+			}).catch(reject);
+		}
+	});
+}
+
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();

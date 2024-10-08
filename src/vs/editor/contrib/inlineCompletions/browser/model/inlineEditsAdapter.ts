@@ -84,6 +84,9 @@ export class InlineEditsAdapter extends Disposable {
 						e.provider.freeInlineEdit(e.result);
 					}
 				}
+				toString(): string {
+					return 'InlineEditsAdapter';
+				}
 			}));
 		}));
 	}
