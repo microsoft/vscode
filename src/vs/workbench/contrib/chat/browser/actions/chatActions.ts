@@ -59,7 +59,7 @@ export interface IChatViewOpenOptions {
 	previousRequests?: IChatViewOpenRequestEntry[];
 
 	/**
-	 * The path to the images(s)
+	 * The image(s) to include in the request
 	 */
 	images?: IChatImageAttachment[];
 }
