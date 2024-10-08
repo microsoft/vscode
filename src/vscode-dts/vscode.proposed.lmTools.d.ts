@@ -98,7 +98,8 @@ declare module 'vscode' {
 	export namespace lm {
 		/**
 		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution
-		 * point. A registered tool is available in the {@link lm.tools} list for any extension to invoke.
+		 * point. A registered tool is available in the {@link lm.tools} list for any extension to see. But in order for it to
+		 * be seen by a language model, it must be passed in the list of available tools in {@link LanguageModelChatRequestOptions.tools}.
 		 */
 		export function registerTool<T>(id: string, tool: LanguageModelTool<T>): Disposable;
 
