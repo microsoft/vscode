@@ -359,10 +359,16 @@ declare module 'vscode' {
 	}
 
 	export interface ChatEditingSessionAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'chatEditingSessionAction';
 		uri: Uri;
 		hasRemainingEdits: boolean;
-		outcome: 'accepted' | 'rejected';
+		outcome: ChatEditingSessionActionOutcome;
+	}
+
+	export enum ChatEditingSessionActionOutcome {
+		Accepted = 'accepted',
+		Rejected = 'rejected'
 	}
 
 	export interface ChatUserActionEvent {
