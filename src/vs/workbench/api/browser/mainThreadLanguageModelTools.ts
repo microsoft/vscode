@@ -5,9 +5,9 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
@@ -30,8 +30,8 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return Array.from(this._languageModelToolsService.getTools());
 	}
 
-	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
-		return this._languageModelToolsService.invokeTool(
+	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult> {
+		return await this._languageModelToolsService.invokeTool(
 			dto,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 			token,
@@ -47,9 +47,9 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return fn(input, token);
 	}
 
-	$registerTool(name: string): void {
+	$registerTool(id: string): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
-			name,
+			id,
 			{
 				invoke: async (dto, countTokens, token) => {
 					try {
@@ -59,8 +59,9 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 						this._countTokenCallbacks.delete(dto.callId);
 					}
 				},
+				prepareToolInvocation: (participantName, parameters, token) => this._proxy.$prepareToolInvocation(id, participantName, parameters, token),
 			});
-		this._tools.set(name, disposable);
+		this._tools.set(id, disposable);
 	}
 
 	$unregisterTool(name: string): void {

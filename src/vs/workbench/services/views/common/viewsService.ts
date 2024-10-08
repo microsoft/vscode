@@ -17,6 +17,7 @@ export interface IViewsService {
 	// View Container APIs
 	readonly onDidChangeViewContainerVisibility: Event<{ id: string; visible: boolean; location: ViewContainerLocation }>;
 	isViewContainerVisible(id: string): boolean;
+	isViewContainerActive(id: string): boolean;
 	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
 	closeViewContainer(id: string): void;
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;

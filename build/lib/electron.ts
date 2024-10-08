@@ -93,7 +93,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 			extensions: Array.isArray(extensions) ? extensions : [extensions],
 			iconFile: 'resources/darwin/' + icon + '.icns'
-		} as DarwinDocumentType;
+		};
 	});
 }
 

@@ -175,7 +175,7 @@ class InternalTerminalShellIntegration extends Disposable {
 			// executeCommand(executable: string, args: string[]): vscode.TerminalShellExecution;
 			executeCommand(commandLineOrExecutable: string, args?: string[]): vscode.TerminalShellExecution {
 				let commandLineValue: string = commandLineOrExecutable;
-				if (args) {
+				if (args && args.length > 0) {
 					commandLineValue += ` "${args.map(e => `${e.replaceAll('"', '\\"')}`).join('" "')}"`;
 				}
 

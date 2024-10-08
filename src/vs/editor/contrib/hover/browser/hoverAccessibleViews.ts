@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { localize } from '../../../../nls.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
-import { ContentHoverController } from './contentHoverController2.js';
+import { ContentHoverController } from './contentHoverController.js';
 import { AccessibleViewType, AccessibleViewProviderId, AccessibleContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';

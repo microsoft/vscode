@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EqualityComparer, strictEquals } from '../equals.js';
-import { ISettableObservable } from '../observable.js';
-import { ObservableValue } from './base.js';
-import { IDebugNameData, DebugNameData } from './debugName.js';
+import { ISettableObservable, ObservableValue } from './base.js';
+import { DebugNameData, IDebugNameData } from './debugName.js';
+import { EqualityComparer, strictEquals } from './commonFacade/deps.js';
 import { LazyObservableValue } from './lazyObservableValue.js';
 
 export function observableValueOpts<T, TChange = void>(

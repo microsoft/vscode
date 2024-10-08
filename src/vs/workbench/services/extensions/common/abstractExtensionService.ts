@@ -201,9 +201,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					// We need to disconnect the management connection before killing the local extension host.
 					// Otherwise, the local extension host might terminate the underlying tunnel before the
 					// management connection has a chance to send its disconnection message.
-					await this._remoteAgentService.endConnection();
-					await this._doStopExtensionHosts();
-					this._remoteAgentService.getConnection()?.dispose();
+					try {
+						await this._remoteAgentService.endConnection();
+						await this._doStopExtensionHosts();
+						this._remoteAgentService.getConnection()?.dispose();
+					} catch {
+						this._logService.warn('Error while disconnecting remote agent');
+					}
 				}, {
 					id: 'join.disconnectRemote',
 					label: nls.localize('disconnectRemote', "Disconnect Remote Agent"),
@@ -688,6 +692,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _doStopExtensionHostsWithVeto(reason: string, auto: boolean = false): Promise<boolean> {
+		if (auto && this._environmentService.isExtensionDevelopment) {
+			return false;
+		}
+
 		const vetos: (boolean | Promise<boolean>)[] = [];
 		const vetoReasons = new Set<string>();
 
