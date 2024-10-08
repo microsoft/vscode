@@ -62,13 +62,22 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const imageContext = await getImageAttachContext(currClipboard, mimeType, token);
-		if (token.isCancellationRequested || !imageContext) {
+		const widget = this.chatWidgetService.getWidgetByInputUri(_model.uri);
+		if (!widget) {
 			return;
 		}
 
-		const widget = this.chatWidgetService.getWidgetByInputUri(_model.uri);
-		if (!widget) {
+		const attachedVariables = widget.attachmentModel.attachments;
+		const displayName = localize('pastedImageName', 'Pasted Image');
+		let tempDisplayName = displayName;
+
+		for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
+			tempDisplayName = `${displayName} ${appendValue}`;
+		}
+
+		const imageContext = await getImageAttachContext(currClipboard, mimeType, token, tempDisplayName);
+
+		if (token.isCancellationRequested || !imageContext) {
 			return;
 		}
 
@@ -84,7 +93,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	}
 }
 
-async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken): Promise<IChatRequestVariableEntry | undefined> {
+async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string): Promise<IChatRequestVariableEntry | undefined> {
 	const imageHash = await imageToHash(data);
 	if (token.isCancellationRequested) {
 		return undefined;
@@ -93,7 +102,7 @@ async function getImageAttachContext(data: Uint8Array, mimeType: string, token: 
 	return {
 		value: data,
 		id: imageHash,
-		name: localize('pastedImage', 'Pasted Image'),
+		name: displayName,
 		isImage: true,
 		icon: Codicon.fileMedia,
 		isDynamic: true,
