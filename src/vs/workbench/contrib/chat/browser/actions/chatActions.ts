@@ -64,7 +64,7 @@ export interface IChatViewOpenOptions {
 	images?: IChatImageAttachment[];
 }
 
-export interface IChatImageAttachment extends IChatRequestVariableEntry {
+export interface IChatImageAttachment {
 	id: string;
 	name: string;
 	value: URI | Uint8Array;
@@ -117,7 +117,11 @@ class OpenChatGlobalAction extends Action2 {
 		if (opts?.images) {
 			chatWidget.attachmentModel.clear();
 			for (const image of opts.images) {
-				chatWidget.attachmentModel.addContext(image);
+				chatWidget.attachmentModel.addContext({
+					...image,
+					isDynamic: true,
+					isImage: true
+				});
 			}
 		}
 		if (opts?.query) {
