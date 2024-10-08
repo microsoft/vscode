@@ -216,6 +216,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			await this.reveal();
 		}
 		assertType(this._model.value);
+		this._messages.fire(Message.ACCEPT_INPUT);
 		const lastInput = this._terminalChatWidget.value.inlineChatWidget.value;
 		if (!lastInput) {
 			return;
