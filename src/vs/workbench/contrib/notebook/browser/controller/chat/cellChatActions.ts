@@ -318,10 +318,7 @@ async function startChat(accessor: ServicesAccessor, context: INotebookActionCon
 	const configurationService = accessor.get(IConfigurationService);
 	const commandService = accessor.get(ICommandService);
 
-	if (configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
-		context.notebookEditor.focusContainer();
-		NotebookChatController.get(context.notebookEditor)?.run(index, input, autoSend);
-	} else if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate)) {
+	if (configurationService.getValue<boolean>(NotebookSetting.cellGenerate) || configurationService.getValue<boolean>(NotebookSetting.cellChat)) {
 		const activeCell = context.notebookEditor.getActiveCell();
 		const targetCell = activeCell?.getTextLength() === 0 && source !== 'insertToolbar' ? activeCell : (await insertNewCell(accessor, context, CellKind.Code, 'below', true));
 

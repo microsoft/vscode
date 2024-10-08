@@ -166,26 +166,26 @@
 	background-color: inherit;
 }
 
-.chat-footer-toolbar {
+.interactive-item-container .chat-footer-toolbar {
 	display: none;
 }
 
-.chat-footer-toolbar .monaco-action-bar .actions-container {
+.interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
-	padding-top: 6px;
 }
 
-.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
-	/* Complete response only */
-	display: initial;
-	height: 22px;
-}
-
-.interactive-item-container .header .monaco-toolbar .checked.action-label,
-.interactive-item-container .header .monaco-toolbar .checked.action-label:hover {
+.interactive-item-container .chat-footer-toolbar .checked.action-label,
+.interactive-item-container .chat-footer-toolbar .checked.action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
+	/* Complete response only */
+	display: initial;
+	padding-top: 6px;
+	height: 22px;
 }
 
 .interactive-item-container .value {
@@ -270,20 +270,20 @@
 .interactive-item-container .value .rendered-markdown h1 {
 	font-size: 20px;
 	font-weight: 600;
-	margin: 16px 0;
+	margin: 16px 0 8px 0;
 
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
 	font-size: 16px;
 	font-weight: 600;
-	margin: 16px 0;
+	margin: 16px 0 8px 0;
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
 	font-size: 14px;
 	font-weight: 600;
-	margin: 16px 0;
+	margin: 16px 0 8px 0;
 }
 
 .interactive-item-container .value .rendered-markdown p {
@@ -482,22 +482,44 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session {
+	margin-bottom: -4px;
 	width: 100%;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
-	margin-bottom: -10px;
-	padding: 4px 8px 14px 8px;
+	margin-bottom: -14px;
+	padding: 4px 8px 18px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	display: flex;
 	flex-direction: column;
+	gap: 2px;
+}
+
+.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
+	display: none;
+}
+
+.interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar,
+.interactive-session .chat-editing-session .monaco-list-row.focused .chat-collapsible-list-action-bar,
+.interactive-session .chat-editing-session .monaco-list-row.selected .chat-collapsible-list-action-bar {
+	display: inherit;
+}
+
+.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar.modified::after {
+	content: "E";
+	padding-right: 4px;
+	color: var(--vscode-chat-editedFileForeground);
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .monaco-list .monaco-list-row .monaco-icon-name-container.modified {
+	font-weight: bold;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
@@ -512,15 +534,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 11px;
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
+	position: relative;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions,
 .interactive-session .chat-editing-session .chat-editing-session-actions {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
 	gap: 6px;
 	align-items: center;
+	justify-content: space-between;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
+.interactive-session .chat-editing-session .monaco-button {
 	height: 17px;
 	width: fit-content;
 	padding: 2px 6px;
@@ -530,13 +558,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-button-foreground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close {
-	width: 22px;
-	height: 22px;
+.interactive-session .chat-editing-session .chat-editing-session-actions-group {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close {
+	width: 17px;
+	height: 17px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -549,18 +585,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.codicon.codicon-close:hover {
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary {
 	background-color: var(--vscode-button-secondaryBackground);
 	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-secondaryForeground);
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button,
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
+	overflow: hidden;
+	text-wrap: nowrap;
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
@@ -704,9 +748,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part {
 	margin: 0px 16px;
-	padding: 0 0 12px 0px;
+	padding: 4px 0 12px 0px;
 	display: flex;
 	flex-direction: column;
+	gap: 4px;
 }
 
 .interactive-session .interactive-input-part.compact {
@@ -717,15 +762,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	gap: 4px;
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
-	cursor: pointer;
+	overflow: hidden;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
 	display: flex;
 	align-items: center;
+	margin-top: -2px;
+	margin-right: -4px;
+	padding-right: 4px;
+	padding-left: 2px;
+	height: calc(100% + 4px);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
+	cursor: pointer;
+	background: var(--vscode-button-secondaryHoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
@@ -748,7 +800,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context {
-	padding: 0 0 8px 0;
+	padding: 0 0 4px 0;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
@@ -767,7 +819,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
-	padding: 2px;
+	font-size: 11px;
+	padding: 0 4px 0 2px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	height: 18px;
@@ -800,6 +853,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
+	padding: 0 2px 0 0;
+}
+
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
 	padding-right: 6px;
 }
@@ -825,9 +882,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 4px 8px;
 }
 
-.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
-	margin-bottom: 8px;
-}
+/* .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 4px;
+} */
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
 	display: block;
@@ -867,8 +924,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0 3px;
 }
 
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .monaco-toolbar,
+.quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars .actions-container {
+	height: initial;
+}
+
 .quick-input-widget .interactive-session .interactive-input-part .chat-input-toolbars {
 	margin-bottom: 1px;
+	align-items: flex-end;
 }
 
 .quick-input-widget .interactive-session .chat-input-container {
@@ -958,7 +1021,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
-	padding: 4px 6px;
+}
+
+.interactive-response-progress-tree,
+.interactive-session .chat-used-context-list {
+	padding: 4px 3px;
+
+	.monaco-icon-label {
+		padding: 0px 3px;
+	}
 }
 
 .interactive-item-container .chat-notification-widget {
@@ -1082,7 +1153,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attached-context-hover .chat-attached-context-image {
 	height: auto;
-	max-height: 500px;
+	max-height: 512px;
+	max-width: 512px;
 	width: 100%;
 	display: block;
 }
@@ -1091,7 +1163,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	display: inline-flex;
 	align-items: center;
-	padding: 0 4px 0 2px;
+	padding: 2px 0 2px 0px;
 	border-radius: 2px;
 	margin-right: 1px;
 	user-select: none;
@@ -1100,8 +1172,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 	border-radius: 2px;
 }
 

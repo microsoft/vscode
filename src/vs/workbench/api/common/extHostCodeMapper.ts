@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import * as extHostProtocol from './extHost.protocol.js';
-import { TextEdit } from './extHostTypeConverters.js';
+import { ChatAgentResult, DocumentContextItem, TextEdit } from './extHostTypeConverters.js';
 import { URI } from '../../../base/common/uri.js';
 
 export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape {
@@ -45,10 +45,25 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 			codeBlocks: internalRequest.codeBlocks.map(block => {
 				return {
 					code: block.code,
-					resource: URI.revive(block.resource)
+					resource: URI.revive(block.resource),
+					markdownBeforeBlock: block.markdownBeforeBlock
 				};
 			}),
-			conversation: internalRequest.conversation
+			conversation: internalRequest.conversation.map(item => {
+				if (item.type === 'request') {
+					return {
+						type: 'request',
+						message: item.message
+					} satisfies vscode.ConversationRequest;
+				} else {
+					return {
+						type: 'response',
+						message: item.message,
+						result: item.result ? ChatAgentResult.to(item.result) : undefined,
+						references: item.references?.map(DocumentContextItem.to)
+					} satisfies vscode.ConversationResponse;
+				}
+			})
 		};
 
 		const result = await provider.provideMappedEdits(request, stream, token);

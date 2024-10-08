@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -22,18 +23,19 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { IChatViewState, ChatWidget } from './chatWidget.js';
+import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
+import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatViewTitleActionContext } from './actions/chatActions.js';
+import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
 }
 
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
+export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
 export class ChatViewPane extends ViewPane {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -48,6 +50,7 @@ export class ChatViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession } = { location: ChatAgentLocation.Panel },
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -66,11 +69,11 @@ export class ChatViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
-		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
+		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.isInitialized = true;
-			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel) {
 					const sessionId = this.getSessionId();
 					const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
@@ -78,6 +81,7 @@ export class ChatViewPane extends ViewPane {
 					// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
 					// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
 					// so it should fire onDidChangeViewWelcomeState.
+					const wasVisible = this._widget.visible;
 					try {
 						this._widget.setVisible(false);
 						this.updateModel(model);
@@ -85,7 +89,7 @@ export class ChatViewPane extends ViewPane {
 						this.didUnregisterProvider = false;
 						this._onDidChangeViewWelcomeState.fire();
 					} finally {
-						this.widget.setVisible(true);
+						this.widget.setVisible(wasVisible);
 					}
 				}
 			} else if (this._widget?.viewModel?.initState === ChatModelInitState.Initialized) {
@@ -97,10 +101,11 @@ export class ChatViewPane extends ViewPane {
 		}));
 	}
 
-	override getActionsContext(): IChatViewTitleActionContext {
-		return {
-			chatView: this
-		};
+	override getActionsContext(): IChatViewTitleActionContext | undefined {
+		return this.widget?.viewModel ? {
+			sessionId: this.widget.viewModel.sessionId,
+			$mid: MarshalledId.ChatViewContext
+		} : undefined;
 	}
 
 	private updateModel(model?: IChatModel | undefined, viewState?: IChatViewState): void {
@@ -108,7 +113,7 @@ export class ChatViewPane extends ViewPane {
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId
 			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
-			: this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
 		if (!model) {
 			throw new Error('Could not start chat session');
 		}
@@ -119,10 +124,13 @@ export class ChatViewPane extends ViewPane {
 
 		this.viewState.sessionId = model.sessionId;
 		this._widget.setModel(model, { ...this.viewState });
+
+		// Update the toolbar context with new sessionId
+		this.updateActions();
 	}
 
 	override shouldShowWelcome(): boolean {
-		if (!this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel)) {
+		if (!this.chatAgentService.getContributedDefaultAgent(this.chatOptions.location)) {
 			return true;
 		}
 
@@ -149,15 +157,16 @@ export class ChatViewPane extends ViewPane {
 			const locationBasedColors = this.getLocationBasedColors();
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
-				ChatAgentLocation.Panel,
+				this.chatOptions.location,
 				{ viewId: this.id },
-				{ supportsFileReferences: true },
+				{ renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel, supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel, rendererOptions: { renderCodeBlockPills: this.chatOptions.location === ChatAgentLocation.EditingSession } },
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: locationBasedColors.background,
 					overlayBackground: locationBasedColors.overlayBackground,
 					inputEditorBackground: locationBasedColors.background,
-					resultEditorBackground: editorBackground
+					resultEditorBackground: editorBackground,
+
 				}));
 			this._register(this.onDidChangeBodyVisibility(visible => {
 				this._widget.setVisible(visible);
@@ -196,6 +205,9 @@ export class ChatViewPane extends ViewPane {
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
 		this.updateModel(undefined);
+
+		// Update the toolbar context with new sessionId
+		this.updateActions();
 	}
 
 	loadSession(sessionId: string, viewState?: IChatViewState): void {
@@ -236,8 +248,9 @@ export class ChatViewPane extends ViewPane {
 
 	private updateViewState(viewState?: IChatViewState): void {
 		const newViewState = viewState ?? this._widget.getViewState();
-		this.viewState.inputValue = newViewState.inputValue;
-		this.viewState.inputState = newViewState.inputState;
-		this.viewState.selectedLanguageModelId = newViewState.selectedLanguageModelId;
+		for (const [key, value] of Object.entries(newViewState)) {
+			// Assign all props to the memento so they get saved
+			(this.viewState as any)[key] = value;
+		}
 	}
 }

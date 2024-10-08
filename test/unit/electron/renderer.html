@@ -78,7 +78,7 @@
 		// generate import map
 		const importMap = {
 			imports: {
-				assert: new URL('../test/unit/assert-esm.js', baseUrl).href,
+				assert: new URL('../test/unit/assert.js', baseUrl).href,
 				sinon: new URL('../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
 				'sinon-test': new URL('../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
 				'electron': asRequireBlobUri('electron'),

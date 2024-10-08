@@ -33,6 +33,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { localize } from '../../../../../nls.js';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
 import { IDiffEditorConstructionOptions } from '../../../../../editor/browser/editorBrowser.js';
+import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<IDiffElementViewModelBase> {
 	private readonly lineHeight: number;
@@ -607,7 +608,9 @@ function buildDiffEditorWidget(instantiationService: IInstantiationService, note
 
 function buildSourceEditor(instantiationService: IInstantiationService, notebookEditor: INotebookTextDiffEditor, sourceContainer: HTMLElement, options: IEditorConstructionOptions = {}) {
 	const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
-
+	const skipContributions = [
+		'editor.contrib.emptyTextEditorHint'
+	];
 	const editor = instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 		...fixedEditorOptions,
 		glyphMargin: false,
@@ -618,7 +621,9 @@ function buildSourceEditor(instantiationService: IInstantiationService, notebook
 		automaticLayout: false,
 		overflowWidgetsDomNode: notebookEditor.getOverflowContainerDomNode(),
 		readOnly: true,
-	}, {});
+	}, {
+		contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1)
+	});
 
 	return { editor, editorContainer };
 }
