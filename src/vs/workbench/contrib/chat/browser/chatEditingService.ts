@@ -13,6 +13,7 @@ import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEve
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -721,6 +722,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			// already accepted or rejected
 			return;
 		}
+
 		this.docSnapshot.setValue(this.doc.createSnapshot());
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
 		await this.collapse(transaction);
@@ -732,7 +734,12 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			// already accepted or rejected
 			return;
 		}
-		this.doc.setValue(this.docSnapshot.createSnapshot());
+
+		this.doc.pushStackElement();
+		const edit = EditOperation.replace(this.doc.getFullModelRange(), this.docSnapshot.getValue());
+		this.doc.pushEditOperations(null, [edit], () => null);
+		this.doc.pushStackElement();
+
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('rejected');
