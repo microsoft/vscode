@@ -53,7 +53,7 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 			delay: workingCopy.isDirty() ? 5000 : 3000
 		}, async progress => {
 			for (const saveParticipant of this.saveParticipants) {
-				if (cts.token.isCancellationRequested || !workingCopy.isDisposed()) {
+				if (cts.token.isCancellationRequested || workingCopy.isDisposed()) {
 					break;
 				}
 
