@@ -314,6 +314,7 @@ export class InlineEditsView extends Disposable {
 				horizontal: 'hidden',
 			},
 			readOnly: true,
+			wordWrap: 'off',
 		},
 		{ contributions: [], },
 		this._editor
