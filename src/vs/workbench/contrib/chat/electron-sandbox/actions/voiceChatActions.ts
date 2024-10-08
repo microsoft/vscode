@@ -607,7 +607,7 @@ export class StartVoiceChatAction extends Action2 {
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), menuCondition),
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
 					group: 'navigation',
 					order: 2
 				},
