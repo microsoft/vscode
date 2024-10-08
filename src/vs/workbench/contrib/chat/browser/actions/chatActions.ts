@@ -114,17 +114,17 @@ class OpenChatGlobalAction extends Action2 {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
 			}
 		}
+		if (opts?.images) {
+			chatWidget.attachmentModel.clear();
+			for (const image of opts.images) {
+				chatWidget.attachmentModel.addContext(image);
+			}
+		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
 				chatWidget.setInput(opts.query);
 			} else {
 				chatWidget.acceptInput(opts.query);
-			}
-		}
-		if (opts?.images) {
-			chatWidget.attachmentModel.clear();
-			for (const image of opts.images) {
-				chatWidget.attachmentModel.addContext(image);
 			}
 		}
 
