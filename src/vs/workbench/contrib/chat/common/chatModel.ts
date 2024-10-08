@@ -235,7 +235,15 @@ export class Response extends Disposable implements IResponse {
 
 	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatResponseCodeblockUriPart>) {
 		super();
-		this._responseParts = asArray(value).map((v) => (isMarkdownString(v) ?
+		const valueArr = asArray(value).filter(v => {
+			if ('kind' in v && v.kind === 'inlineReference' && !Object.keys(v.inlineReference).length) {
+				return false;
+			}
+
+			return true;
+		});
+
+		this._responseParts = valueArr.map((v) => (isMarkdownString(v) ?
 			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
 			'kind' in v ? v : { kind: 'treeData', treeData: v }));
 
@@ -256,6 +264,10 @@ export class Response extends Disposable implements IResponse {
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatTextEdit | IChatTask, quiet?: boolean): void {
+		if (progress.kind === 'inlineReference' && !Object.keys(progress.inlineReference).length) {
+			return;
+		}
+
 		if (progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
