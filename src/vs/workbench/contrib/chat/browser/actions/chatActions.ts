@@ -68,8 +68,6 @@ export interface IChatImageAttachment extends IChatRequestVariableEntry {
 	id: string;
 	name: string;
 	value: URI | Uint8Array;
-	isImage: true;
-	isDynamic: true;
 }
 
 export interface IChatViewOpenRequestEntry {
