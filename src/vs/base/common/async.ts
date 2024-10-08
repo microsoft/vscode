@@ -128,6 +128,11 @@ export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?:
 
 export function raceFilter<T>(promises: Promise<T>[], filter: (result: T) => boolean): Promise<T | undefined> {
 	return new Promise((resolve, reject) => {
+		if (promises.length === 0) {
+			resolve(undefined);
+			return;
+		}
+
 		let resolved = false;
 		let unresolvedCount = promises.length;
 		for (const promise of promises) {
