@@ -590,30 +590,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
-		let isFullyRendered = false;
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
-		isFullyRendered = partsToRender.every(part => part === null);
 
-		if (isFullyRendered) {
-			if (element.isComplete) {
-				// Response is done and content is rendered, so do a normal render
+		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
+		if (contentIsAlreadyRendered) {
+			if (contentForThisTurn.moreContentAvailable) {
+				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
+				this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
+				return false;
+			} else if (element.isComplete) {
+				// All content is rendered, and response is done, so do a normal render
 				this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
 				element.renderData = undefined;
 				this.basicRenderElement(element, index, templateData);
 				return true;
-			}
-
-			if (!contentForThisTurn.moreContentAvailable) {
+			} else {
 				// Nothing new to render, stop rendering until next model update
 				this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
 				return true;
 			}
-
-			// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
-			this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
-			return false;
 		}
 
 		// Do an actual progressive render
@@ -690,29 +687,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const part = renderableResponse[i];
 			if (part.kind === 'markdownContent') {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
-				if (wordCountResult.isFullString) {
-					partsToRender.push(part);
-				} else {
-					partsToRender.push({ kind: 'markdownContent', content: new MarkdownString(wordCountResult.value, part.content) });
-				}
-
 				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;
 
-				if (numNeededWords <= 0) {
-					// No more markdown needed, but need to ensure that all following non-markdown parts are rendered
-					i++;
-					while (i < renderableResponse.length) {
-						const nextPart = renderableResponse[i];
+				if (wordCountResult.isFullString) {
+					partsToRender.push(part);
+
+					// Consumed full markdown chunk- need to ensure that all following non-markdown parts are rendered
+					for (const nextPart of renderableResponse.slice(i + 1)) {
 						if (nextPart.kind !== 'markdownContent') {
+							i++;
 							partsToRender.push(nextPart);
 						} else {
 							break;
 						}
-
-						i++;
 					}
+				} else {
+					partsToRender.push({ kind: 'markdownContent', content: new MarkdownString(wordCountResult.value, part.content) });
+				}
 
+				if (numNeededWords <= 0) {
 					// Collected all words and following non-markdown parts if needed, done
 					break;
 				}

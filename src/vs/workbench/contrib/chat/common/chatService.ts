@@ -326,7 +326,15 @@ export interface IChatInlineChatCodeAction {
 	action: 'accepted' | 'discarded';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
+
+export interface IChatEditingSessionAction {
+	kind: 'chatEditingSessionAction';
+	uri: URI;
+	hasRemainingEdits: boolean;
+	outcome: 'accepted' | 'rejected';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

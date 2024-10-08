@@ -10,6 +10,7 @@ import { fromNowByDay } from '../../../../../base/common/date.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -55,6 +56,17 @@ export interface IChatViewOpenOptions {
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
 	previousRequests?: IChatViewOpenRequestEntry[];
+
+	/**
+	 * The image(s) to include in the request
+	 */
+	images?: IChatImageAttachment[];
+}
+
+export interface IChatImageAttachment {
+	id: string;
+	name: string;
+	value: URI | Uint8Array;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -99,6 +111,16 @@ class OpenChatGlobalAction extends Action2 {
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.images) {
+			chatWidget.attachmentModel.clear();
+			for (const image of opts.images) {
+				chatWidget.attachmentModel.addContext({
+					...image,
+					isDynamic: true,
+					isImage: true
+				});
 			}
 		}
 		if (opts?.query) {

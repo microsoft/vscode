@@ -12,7 +12,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -76,7 +76,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	},
 	order: 3,
 	group: 'navigation',
-	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel')),
+	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, ContextKeyExpr.or(ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel'), ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.EditingSession))),
 });
 
 export class ChatSubmitSecondaryAgentAction extends Action2 {
@@ -167,7 +167,7 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: {
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession)),
+				when: ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)),
 				order: 4,
 				group: 'navigation',
 			},
@@ -191,6 +191,12 @@ export class CancelAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		if (widget.viewModel) {
 			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
+		}
+
+		const chatEditingService = accessor.get(IChatEditingService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (currentEditingSession && currentEditingSession?.chatSessionId === widget.viewModel?.sessionId) {
+			chatEditingService.currentAutoApplyOperation?.cancel();
 		}
 	}
 }
