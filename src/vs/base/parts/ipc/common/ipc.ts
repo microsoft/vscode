@@ -553,6 +553,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	getChannel<T extends IChannel>(channelName: string): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
@@ -845,6 +846,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	getChannel<T extends IChannel>(channelName: string, routerOrClientFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean)): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				let connectionPromise: Promise<Client<TContext>>;
@@ -994,6 +996,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	return {
 		call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			return promise.then(c => c.call<T>(command, arg, cancellationToken));
@@ -1010,6 +1013,7 @@ export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	return {
 		call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			if (didTick) {

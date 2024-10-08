@@ -33,8 +33,12 @@ export interface IChatRequestVariableEntry {
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
+	mimeType?: string;
 
 	// TODO are these just a 'kind'?
+	/**
+	 * True if the variable has a value vs being a reference to a variable
+	 */
 	isDynamic?: boolean;
 	isFile?: boolean;
 	isTool?: boolean;
@@ -320,7 +324,11 @@ export class Response extends Disposable implements IResponse {
 
 	private _updateRepr(quiet?: boolean) {
 		const inlineRefToRepr = (part: IChatContentInlineReference) =>
-			'uri' in part.inlineReference ? basename(part.inlineReference.uri) : 'name' in part.inlineReference ? part.inlineReference.name : basename(part.inlineReference);
+			'uri' in part.inlineReference
+				? basename(part.inlineReference.uri)
+				: 'name' in part.inlineReference
+					? part.inlineReference.name
+					: basename(part.inlineReference);
 
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {

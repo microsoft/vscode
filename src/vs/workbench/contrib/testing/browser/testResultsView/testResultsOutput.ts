@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, IDiffEditorConstructionOptions } from '../../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -39,6 +39,8 @@ import { Testing } from '../../common/constants.js';
 import { MutableObservableValue } from '../../common/observableValue.js';
 import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChangeReason } from '../../common/testResult.js';
 import { ITestMessage, TestMessageType, getMarkId } from '../../common/testTypes.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { CALL_STACK_WIDGET_HEADER_HEIGHT } from '../../../debug/browser/callStackWidget.js';
 
 
 class SimpleDiffEditorModel extends EditorModel {
@@ -62,6 +64,7 @@ class SimpleDiffEditorModel extends EditorModel {
 
 export interface IPeekOutputRenderer extends IDisposable {
 	onDidContentSizeChange?: Event<void>;
+	onScrolled?(evt: ScrollEvent): void;
 	/** Updates the displayed test. Should clear if it cannot display the test. */
 	update(subject: InspectSubject): Promise<boolean>;
 	/** Recalculate content layout. Returns the height it should be rendered at. */
@@ -76,12 +79,12 @@ const commonEditorOptions: IEditorOptions = {
 	lineNumbers: 'off',
 	glyphMargin: false,
 	scrollbar: {
-		verticalScrollbarSize: 14,
+		vertical: 'hidden',
 		horizontal: 'auto',
 		useShadows: false,
 		verticalHasArrows: false,
 		horizontalHasArrows: false,
-		alwaysConsumeMouseWheel: false
+		handleMouseWheel: false,
 	},
 	overviewRulerLanes: 0,
 	fixedOverflowWidgets: true,
@@ -109,6 +112,7 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
+	private helper?: ScrollHelper;
 
 	public get onDidContentSizeChange() {
 		return this.widget.value?.onDidContentSizeChange || Event.None;
@@ -180,13 +184,16 @@ export class DiffContentProvider extends Disposable implements IPeekOutputRender
 		}
 
 		editor.layout(dimensions);
-		if (!hasMultipleFrames) {
-			return dimensions.height;
-		}
-
-		const height = Math.min(10000, Math.max(editor.getOriginalEditor().getContentHeight(), editor.getModifiedEditor().getContentHeight()));
-		editor.layout({ height, width: dimensions.width });
+		const height = Math.max(
+			editor.getOriginalEditor().getContentHeight(),
+			editor.getModifiedEditor().getContentHeight()
+		);
+		this.helper = new ScrollHelper(hasMultipleFrames, height, dimensions.height);
 		return height;
+	}
+
+	public onScrolled(evt: ScrollEvent): void {
+		this.helper?.onScrolled(evt, this.widget.value?.getDomNode(), this.widget.value?.getOriginalEditor());
 	}
 
 	protected getOptions(isMultiline: boolean): IDiffEditorOptions {
@@ -201,6 +208,7 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	private readonly markdown = new Lazy(
 		() => this._register(this.instantiationService.createInstance(MarkdownRenderer, {})),
 	);
+	private readonly rendered = this._register(new DisposableStore());
 
 	private element?: HTMLElement;
 
@@ -210,23 +218,24 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	}
 
 	public async update(subject: InspectSubject) {
+		this.clear();
 		if (!(subject instanceof MessageSubject)) {
-			this.clear();
 			return false;
 		}
 
 		const message = subject.message;
 		if (ITestMessage.isDiffable(message) || typeof message.message === 'string') {
-			this.clear();
 			return false;
 		}
 
 
-		const rendered = this._register(this.markdown.value.render(message.message, {}));
+		const rendered = this.rendered.add(this.markdown.value.render(message.message, {}));
 		rendered.element.style.userSelect = 'text';
 		rendered.element.classList.add('preview-text');
 		this.container.appendChild(rendered.element);
 		this.element = rendered.element;
+		this.rendered.add(toDisposable(() => rendered.element.remove()));
+
 		return true;
 	}
 
@@ -240,10 +249,28 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	}
 
 	private clear() {
-		if (this.element) {
-			this.element.remove();
-			this.element = undefined;
+		this.rendered.clear();
+		this.element = undefined;
+	}
+}
+
+class ScrollHelper {
+	constructor(
+		private readonly hasMultipleFrames: boolean,
+		private readonly contentHeight: number,
+		private readonly viewHeight: number,
+	) { }
+
+	public onScrolled(evt: ScrollEvent, container: HTMLElement | undefined | null, editor: ICodeEditor | undefined) {
+		if (!editor || !container) {
+			return;
 		}
+
+		let delta = Math.max(0, evt.scrollTop - (this.hasMultipleFrames ? CALL_STACK_WIDGET_HEADER_HEIGHT : 0));
+		delta = Math.min(Math.max(0, this.contentHeight - this.viewHeight), delta);
+
+		editor.setScrollTop(delta);
+		container.style.transform = `translateY(${delta}px)`;
 	}
 }
 
@@ -252,6 +279,7 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 	private readonly widget = this._register(new MutableDisposable<CodeEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
+	private helper?: ScrollHelper;
 
 	public get onDidContentSizeChange() {
 		return this.widget.value?.onDidContentSizeChange || Event.None;
@@ -310,6 +338,10 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		this.model.clear();
 	}
 
+	onScrolled(evt: ScrollEvent): void {
+		this.helper?.onScrolled(evt, this.widget.value?.getDomNode(), this.widget.value);
+	}
+
 	public layout(dimensions: dom.IDimension, hasMultipleFrames: boolean) {
 		this.dimension = dimensions;
 		const editor = this.widget.value;
@@ -318,12 +350,8 @@ export class PlainTextMessagePeek extends Disposable implements IPeekOutputRende
 		}
 
 		editor.layout(dimensions);
-		if (!hasMultipleFrames) {
-			return dimensions.height;
-		}
-
 		const height = editor.getContentHeight();
-		editor.layout({ height, width: dimensions.width });
+		this.helper = new ScrollHelper(hasMultipleFrames, height, dimensions.height);
 		return height;
 	}
 }
@@ -353,9 +381,8 @@ export class TerminalMessagePeek extends Disposable implements IPeekOutputRender
 		if (prev) {
 			prev.xterm.clearBuffer();
 			prev.xterm.clearSearchDecorations();
-			// clearBuffer tries to retain the prompt line, but this doesn't exist for tests.
-			// So clear the screen (J) and move to home (H) to ensure previous data is cleaned up.
-			prev.xterm.write(`\x1b[2J\x1b[0;0H`);
+			// clearBuffer tries to retain the prompt. Reset prompt, scrolling state, etc.
+			prev.xterm.write(`\x1bc`);
 			return prev;
 		}
 

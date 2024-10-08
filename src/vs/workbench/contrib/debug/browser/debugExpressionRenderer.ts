@@ -33,7 +33,12 @@ export interface IRenderValueOptions {
 	hover?: false | IValueHoverOptions;
 	colorize?: boolean;
 
-	/** @deprecated */
+	/**
+	 * Indicates areas where VS Code implicitly always supported ANSI escape
+	 * sequences. These should be rendered as ANSI when the DA does not specify
+	 * any value of `supportsANSIStyling`.
+	 * @deprecated
+	 */
 	wasANSI?: boolean;
 	session?: IDebugSession;
 	locationReference?: number;
@@ -125,7 +130,7 @@ export class DebugExpressionRenderer {
 	renderValue(container: HTMLElement, expressionOrValue: IExpressionValue | string, options: IRenderValueOptions = {}): IDisposable {
 		const store = new DisposableStore();
 		// Use remembered capabilities so REPL elements can render even once a session ends
-		const supportsANSI = !!options.session?.rememberedCapabilities?.supportsANSIStyling;
+		const supportsANSI: boolean = options.session?.rememberedCapabilities?.supportsANSIStyling ?? options.wasANSI ?? false;
 
 		let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 

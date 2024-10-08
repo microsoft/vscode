@@ -114,7 +114,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					command.arguments[0] = { ...command.arguments[0], autoSend: false };
 				}
 			}
-			await this._applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
+			await this.applyCodeAction(actionItem, false, false, ApplyCodeActionReason.FromAILightbulb);
 			return;
 		}
 		await this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: true });
@@ -147,7 +147,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this._model.trigger(trigger);
 	}
 
-	private async _applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
+	async applyCodeAction(action: CodeActionItem, retrigger: boolean, preview: boolean, actionReason: ApplyCodeActionReason): Promise<void> {
 		try {
 			await this._instantiationService.invokeFunction(applyCodeAction, action, actionReason, { preview, editor: this._editor });
 		} finally {
@@ -196,7 +196,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				if (validActionToApply) {
 					try {
 						this.hideLightBulbWidget();
-						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
+						await this.applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
 					}
@@ -288,7 +288,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this.applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
 				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},

@@ -21,6 +21,7 @@ interface IRawToolContribution {
 	name?: string;
 	icon?: string | { light: string; dark: string };
 	when?: string;
+	tags?: string[];
 	displayName?: string;
 	userDescription?: string;
 	modelDescription: string;
@@ -53,7 +54,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					pattern: '^[\\w-]+$'
 				},
 				name: {
-					description: localize('toolName', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeInvokedManually`'),
+					markdownDescription: localize('toolName', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeInvokedManually`'),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
@@ -79,7 +80,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'boolean'
 				},
 				icon: {
-					description: localize('icon', "An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like `\\$(zap)`"),
+					markdownDescription: localize('icon', "An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like `$(zap)`"),
 					anyOf: [{
 						type: 'string'
 					},
@@ -110,7 +111,13 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 				requiresConfirmation: {
 					description: localize('requiresConfirmation', "Whether this tool requires user confirmation before being executed."),
-					type: 'boolean'
+				},
+				tags: {
+					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
 				}
 			}
 		}

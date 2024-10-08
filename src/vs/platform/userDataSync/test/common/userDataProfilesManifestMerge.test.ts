@@ -90,7 +90,7 @@ suite('UserDataProfilesManifestMerge', () => {
 		const remoteProfiles: ISyncUserDataProfile[] = [
 			{ id: '1', name: '1', collection: '1' },
 			{ id: '2', name: '2', collection: '2' },
-			{ id: '3', name: '3', collection: '3', shortName: 'short 3' },
+			{ id: '3', name: '3', collection: '3' },
 			{ id: '4', name: 'changed remote', collection: '4' },
 			{ id: '5', name: '5', collection: '5' },
 			{ id: '7', name: '7', collection: '7' },
@@ -103,7 +103,7 @@ suite('UserDataProfilesManifestMerge', () => {
 
 		assert.deepStrictEqual(actual.local.added, [remoteProfiles[5], remoteProfiles[6]]);
 		assert.deepStrictEqual(actual.local.removed, [localProfiles[4]]);
-		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[2], remoteProfiles[3], remoteProfiles[7]]);
+		assert.deepStrictEqual(actual.local.updated, [remoteProfiles[3], remoteProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.added, [localProfiles[5]]);
 		assert.deepStrictEqual(actual.remote?.updated, [localProfiles[0], localProfiles[7]]);
 		assert.deepStrictEqual(actual.remote?.removed, [remoteProfiles[1]]);
