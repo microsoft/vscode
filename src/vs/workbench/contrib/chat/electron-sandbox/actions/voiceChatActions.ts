@@ -862,19 +862,6 @@ class ChatSynthesizerSessions {
 		let codeBlockTerminates = false;
 		const firstDelimiterIndex = text.indexOf(delimiter);
 
-		if (ignoreCodeBlocks && isWithinCodeBlock && firstDelimiterIndex === -1) {
-			text = '';
-		} else if (ignoreCodeBlocks && !isWithinCodeBlock) {
-			const [filteredText, terminated] = this.withoutCodeBlocks(text);
-			text = filteredText;
-			codeBlockTerminates = terminated;
-		} else if (ignoreCodeBlocks && isWithinCodeBlock && firstDelimiterIndex >= 0) {
-			text = text.substring(firstDelimiterIndex + 1);
-			const [filteredText, terminated] = this.withoutCodeBlocks(text);
-			text = filteredText;
-			codeBlockTerminates = terminated;
-		}
-
 		if (ignoreCodeBlocks) {
 			if (isWithinCodeBlock && firstDelimiterIndex === -1) {
 				text = '';
