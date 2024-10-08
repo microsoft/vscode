@@ -73,6 +73,8 @@ import { EditorContributionInstantiation, registerEditorContribution } from '../
 import { ChatEditorController } from './chatEditorController.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatEditorSaving } from './chatEditorSaving.js';
+import { registerChatEditorActions } from './chatEditorActions.js';
+
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -298,6 +300,7 @@ registerMoveActions();
 registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
+registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
