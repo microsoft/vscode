@@ -2869,7 +2869,7 @@ export namespace ChatAgentUserActionEvent {
 		} else if (event.action.kind === 'inlineChat') {
 			return { action: { kind: 'editor', accepted: event.action.action === 'accepted' }, result: ehResult };
 		} else if (event.action.kind === 'chatEditingSessionAction') {
-			return { action: { kind: 'chatEditingSessionAction', outcome: event.action.outcome, uri: URI.revive(event.action.uri), hasRemainingEdits: event.action.hasRemainingEdits }, result: ehResult };
+			return { action: { kind: 'chatEditingSessionAction', outcome: event.action.outcome === 'accepted' ? types.ChatEditingSessionActionOutcome.Accepted : types.ChatEditingSessionActionOutcome.Rejected, uri: URI.revive(event.action.uri), hasRemainingEdits: event.action.hasRemainingEdits }, result: ehResult };
 		} else {
 			return { action: event.action, result: ehResult };
 		}

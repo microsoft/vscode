@@ -367,8 +367,8 @@ declare module 'vscode' {
 	}
 
 	export enum ChatEditingSessionActionOutcome {
-		Accepted = 'accepted',
-		Rejected = 'rejected'
+		Accepted = 1,
+		Rejected = 2
 	}
 
 	export interface ChatUserActionEvent {
