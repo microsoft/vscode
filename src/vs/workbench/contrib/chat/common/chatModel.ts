@@ -35,6 +35,9 @@ export interface IChatRequestVariableEntry {
 	references?: IChatContentReference[];
 
 	// TODO are these just a 'kind'?
+	/**
+	 * True if the variable has a value vs being a reference to a variable
+	 */
 	isDynamic?: boolean;
 	isFile?: boolean;
 	isTool?: boolean;

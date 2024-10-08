@@ -30,6 +30,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -63,11 +64,12 @@ export interface IChatViewOpenOptions {
 	images?: IChatImageAttachment[];
 }
 
-export interface IChatImageAttachment {
+export interface IChatImageAttachment extends IChatRequestVariableEntry {
 	id: string;
 	name: string;
 	value: URI | Uint8Array;
 	isImage: true;
+	isDynamic: true;
 }
 
 export interface IChatViewOpenRequestEntry {
