@@ -88,8 +88,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 						const filelabel = labelService.getUriBasenameLabel(workingCopy.resource);
 
 						const message = agentName
-							? localize('message.1', "Do you want to accept the changes {0} made in {1}", agentName, filelabel)
-							: localize('message.2', "Do you want to accept the changes chat made in {1}", filelabel);
+							? localize('message.1', "Do you want to accept the changes {0} made in {1}?", agentName, filelabel)
+							: localize('message.2', "Do you want to accept the changes chat made in {1}?", filelabel);
 
 						const result = await this._dialogService.confirm({
 							message,
