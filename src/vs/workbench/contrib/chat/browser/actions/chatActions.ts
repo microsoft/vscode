@@ -38,7 +38,6 @@ import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { clearChatEditor } from './chatClear.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -56,6 +55,18 @@ export interface IChatViewOpenOptions {
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
 	previousRequests?: IChatViewOpenRequestEntry[];
+
+	/**
+	 * The path to the images(s)
+	 */
+	images?: IChatImageAttachment[];
+}
+
+export interface IChatImageAttachment {
+	id: string;
+	name: string;
+	value: URI | Uint8Array;
+	isImage: true;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -89,7 +100,7 @@ class OpenChatGlobalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions, variables?: IChatRequestVariableEntry[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
@@ -99,14 +110,19 @@ class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
-				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, variables ? { variables } : undefined, 0, { message: response });
+				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
 			}
 		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
-				chatWidget.setInput(opts.query, variables);
+				chatWidget.setInput(opts.query);
 			} else {
-				chatWidget.acceptInput(opts.query, undefined, variables);
+				chatWidget.acceptInput(opts.query);
+			}
+		}
+		if (opts?.images) {
+			for (const image of opts.images) {
+				chatWidget.attachmentModel.addContext(image);
 			}
 		}
 

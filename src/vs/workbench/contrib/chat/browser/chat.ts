@@ -14,7 +14,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
@@ -170,10 +170,10 @@ export interface IChatWidget {
 	focus(item: ChatTreeItem): void;
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined;
 	getFocus(): ChatTreeItem | undefined;
-	setInput(query?: string, variables?: IChatRequestVariableEntry[]): void;
+	setInput(query?: string): void;
 	getInput(): string;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean, variables?: IChatRequestVariableEntry[]): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

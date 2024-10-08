@@ -33,7 +33,7 @@ import { TerminalChatController } from '../../terminal/terminalContribChatExport
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
-import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatService } from '../common/chatService.js';
@@ -875,13 +875,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.resetInputPlaceholder();
 	}
 
-	setInput(value = '', variables?: IChatRequestVariableEntry[]): void {
+	setInput(value = ''): void {
 		this.inputPart.setValue(value, false);
-		if (variables) {
-			for (const v of variables) {
-				this.inputPart.attachmentModel.addContext(v);
-			}
-		}
 	}
 
 	getInput(): string {
@@ -892,8 +887,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.logInputHistory();
 	}
 
-	async acceptInput(query?: string, isVoiceInput?: boolean, variables?: IChatRequestVariableEntry[]): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined, isVoiceInput, variables);
+	async acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+		return this._acceptInput(query ? { query } : undefined, isVoiceInput);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {
@@ -910,7 +905,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean, variables?: IChatRequestVariableEntry[]): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
@@ -925,7 +920,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: [...this.attachmentModel.attachments, ...variables ?? []],
+				attachedContext: [...this.attachmentModel.attachments],
 			});
 
 			if (result) {
