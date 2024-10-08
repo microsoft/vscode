@@ -126,14 +126,21 @@ export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?:
 	]);
 }
 
-export function raceFilter<T>(promises: Promise<T>[], filter: (result: T) => boolean): Promise<T> {
+export function raceFilter<T>(promises: Promise<T>[], filter: (result: T) => boolean): Promise<T | undefined> {
 	return new Promise((resolve, reject) => {
 		let resolved = false;
+		let unresolvedCount = promises.length;
 		for (const promise of promises) {
 			promise.then(result => {
-				if (!resolved && filter(result)) {
-					resolved = true;
-					resolve(result);
+				unresolvedCount--;
+				if (!resolved) {
+					if (filter(result)) {
+						resolved = true;
+						resolve(result);
+					} else if (unresolvedCount === 0) {
+						// Last one has to resolve the promise
+						resolve(undefined);
+					}
 				}
 			}).catch(reject);
 		}

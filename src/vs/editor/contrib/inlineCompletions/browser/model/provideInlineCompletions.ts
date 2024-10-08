@@ -8,7 +8,7 @@ import { DeferredPromise, raceFilter } from '../../../../../base/common/async.js
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { SetMap } from '../../../../../base/common/map.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -127,7 +127,8 @@ export async function provideInlineCompletions(
 
 		if (!result) { return undefined; }
 		const list = new InlineCompletionList(result, provider);
-		token.onCancellationRequested(() => list.removeRef());
+
+		runWhenCancelled(token, () => list.removeRef());
 		return list;
 	}
 
@@ -143,6 +144,7 @@ export async function provideInlineCompletions(
 	}
 
 	if (token.isCancellationRequested) {
+		tokenSource.dispose(true);
 		// result has been disposed before we could call addRef! So we have to discard everything.
 		return new InlineCompletionProviderResult([], new Set(), []);
 	}
@@ -150,6 +152,20 @@ export async function provideInlineCompletions(
 	const result = addRefAndCreateResult(inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
 	tokenSource.dispose(true); // This disposes results that are not referenced.
 	return result;
+}
+
+/** If the token does not leak, this will not leak either. */
+function runWhenCancelled(token: CancellationToken, callback: () => void): IDisposable {
+	if (token.isCancellationRequested) {
+		callback();
+		return Disposable.None;
+	} else {
+		const listener = token.onCancellationRequested(() => {
+			listener.dispose();
+			callback();
+		});
+		return { dispose: () => listener.dispose() };
+	}
 }
 
 function addRefAndCreateResult(
