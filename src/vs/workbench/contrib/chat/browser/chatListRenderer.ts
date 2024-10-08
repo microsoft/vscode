@@ -683,6 +683,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			partsToRender.push({ kind: 'references', references: element.contentReferences });
 		}
 
+		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
 			if (part.kind === 'markdownContent') {
@@ -699,15 +700,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							i++;
 							partsToRender.push(nextPart);
 						} else {
+							moreContentAvailable = true;
 							break;
 						}
 					}
 				} else {
+					// Only taking part of this markdown part
+					moreContentAvailable = true;
 					partsToRender.push({ kind: 'markdownContent', content: new MarkdownString(wordCountResult.value, part.content) });
 				}
 
 				if (numNeededWords <= 0) {
 					// Collected all words and following non-markdown parts if needed, done
+					if (renderableResponse.slice(i + 1).some(part => part.kind === 'markdownContent')) {
+						moreContentAvailable = true;
+					}
 					break;
 				}
 			} else {
@@ -724,7 +731,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
 
-		return { content: partsToRender, moreContentAvailable: bufferWords > 0 };
+		return { content: partsToRender, moreContentAvailable };
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
