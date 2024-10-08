@@ -68,7 +68,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		}
 
 		const attachedVariables = widget.attachmentModel.attachments;
-
 		const displayName = localize('pastedImageName', 'Pasted Image');
 		let tempDisplayName = displayName;
 
@@ -81,7 +80,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		if (token.isCancellationRequested || !imageContext) {
 			return;
 		}
-
 
 		// Make sure to attach only new contexts
 		const currentContextIds = widget.attachmentModel.getAttachmentIDs();
