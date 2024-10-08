@@ -1224,6 +1224,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: initial;
 	width: 27px;
 	height: 27px;
+
+	.codicon {
+		margin: 0px;
+	}
 }
 
 .interactive-session.show-scroll-down .chat-scroll-down {

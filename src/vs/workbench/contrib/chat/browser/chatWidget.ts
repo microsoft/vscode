@@ -675,6 +675,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this._register(this.tree.onDidScroll(() => {
 			this._onDidScroll.fire();
+
+			const isScrolledDown = this.tree.scrollTop >= this.tree.scrollHeight - this.tree.renderHeight - 2;
+			this.container.classList.toggle('show-scroll-down', !isScrolledDown /* && !this.hasScrolledDownSinceLastUpdate */);
 		}));
 	}
 
