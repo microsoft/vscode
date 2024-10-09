@@ -34,6 +34,25 @@ async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined
 	}
 }
 
+async function openCommit(gitAPI: GitAPI, sourceControl: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem): Promise<void> {
+	const repo = gitAPI.repositories.find((repo) => repo.rootUri.toString() === sourceControl.rootUri?.toString());
+	if (!repo) {
+		return;
+	}
+
+	// TODO - should we be smarter about which remote to go to, or won't it matter?
+	// TODO - can we discover if the item is on any remote yet?
+	const remote = repo.state.remotes[0];
+	if (!remote?.fetchUrl) {
+		return;
+	}
+
+	// TODO - will this always work?
+	const rootUrl = remote.fetchUrl.endsWith('.git') ? remote.fetchUrl.slice(0, -4) : remote.fetchUrl;
+
+	vscode.env.openExternal(vscode.Uri.parse(`${rootUrl}/commit/${historyItem.id}`));
+}
+
 export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 	const disposables = new DisposableStore();
 
@@ -59,6 +78,12 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 
 	disposables.add(vscode.commands.registerCommand('github.openOnVscodeDev', async () => {
 		return openVscodeDevLink(gitAPI);
+	}));
+
+	disposables.add(vscode.commands.registerCommand('github.openCommitOfHistoryItem', async (sourceControl: vscode.SourceControl, historyItem: vscode.SourceControlHistoryItem) => {
+		if (sourceControl && historyItem) {
+			return openCommit(gitAPI, sourceControl, historyItem);
+		}
 	}));
 
 	return disposables;
