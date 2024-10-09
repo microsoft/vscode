@@ -33,6 +33,7 @@ export class QuickInputBox extends Disposable {
 		input.ariaHasPopup = 'menu';
 		input.ariaAutoComplete = 'list';
 		input.ariaExpanded = 'true';
+		input.ariaLabel = 'input';
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -77,6 +78,10 @@ export class QuickInputBox extends Disposable {
 
 	set placeholder(placeholder: string) {
 		this.findInput.inputBox.setPlaceHolder(placeholder);
+	}
+
+	setAriaLabel(ariaLabel: string | undefined): void {
+		this.findInput.inputBox.setAriaLabel(ariaLabel || this.placeholder);
 	}
 
 	get password() {
