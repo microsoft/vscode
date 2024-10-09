@@ -4056,7 +4056,7 @@ declare namespace monaco.editor {
 		/**
 		 * Controls if Find in Selection flag is turned on in the editor.
 		 */
-		autoFindInSelection?: 'never' | 'always' | 'multiline';
+		autoFindInSelection?: 'never' | 'always' | 'multiline' | 'selection';
 		addExtraSpaceOnTop?: boolean;
 		/**
 		 * Controls whether the search result and diff result automatically restarts from the beginning (or the end) when no further matches can be found
