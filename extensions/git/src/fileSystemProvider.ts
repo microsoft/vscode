@@ -47,7 +47,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
-			workspace.registerFileSystemProvider('git', this, { isReadonly: true, isCaseSensitive: true }),
+			workspace.registerFileSystemProvider('git', this, { isReadonly: false, isCaseSensitive: true }),
 		);
 
 		setInterval(() => this.cleanup(), FIVE_MINUTES);
@@ -196,8 +196,19 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		}
 	}
 
-	writeFile(): void {
-		throw new Error('Method not implemented.');
+	async writeFile(uri: Uri, content: Uint8Array): Promise<void> {
+		await this.model.isInitialized;
+		const { ref, submoduleOf } = fromGitUri(uri);
+		if (ref === '') {
+			const repo = this.model.getRepository(submoduleOf ? Uri.file(submoduleOf) : uri);
+			if (!repo) {
+				throw FileSystemError.FileNotFound();
+			}
+			if (!submoduleOf) {
+				this.cache.set(uri.toString(), { uri: uri, timestamp: new Date().getTime() });
+			}
+			await repo.stage(uri, content.toString());
+		}
 	}
 
 	delete(): void {
