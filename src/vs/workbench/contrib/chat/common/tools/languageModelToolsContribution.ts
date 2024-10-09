@@ -62,11 +62,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolDisplayName', "A human-readable name for this tool that may be used to describe it in the UI."),
 					type: 'string'
 				},
-				userDescription: {
-					description: localize('toolUserDescription', "A description of this tool that may be shown to the user."),
-					type: 'string'
-				},
-				modelDescription: {
+				description: {
+					required: true,
 					description: localize('toolModelDescription', "A description of this tool that may be passed to a language model."),
 					type: 'string'
 				},
@@ -109,6 +106,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 						type: 'string'
 					}
 				},
+				// todo@API nuke? dynamic ftw
 				requiresConfirmation: {
 					description: localize('requiresConfirmation', "Whether this tool requires user confirmation before being executed."),
 				},

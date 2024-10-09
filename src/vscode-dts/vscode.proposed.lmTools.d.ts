@@ -31,7 +31,7 @@ declare module 'vscode' {
 
 	// LM -> USER: function that should be used
 	export class LanguageModelToolCallPart {
-		name: string;
+		name: string; // TODO@API name
 		toolCallId: string;
 		parameters: any;
 
@@ -103,6 +103,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
+		// TODO@API no <T>
 		export function invokeTool<T>(id: string, options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
@@ -114,6 +115,7 @@ declare module 'vscode' {
 	/**
 	 * Options provided for tool invocation.
 	 */
+	// TODO@API split into consumer/caller part
 	export interface LanguageModelToolInvocationOptions<T> {
 		/**
 		 * When this tool is being invoked within the context of a chat request, this token should be passed from
@@ -167,6 +169,7 @@ declare module 'vscode' {
 		/**
 		 * A unique identifier for the tool.
 		 */
+		// TODO@API name: name
 		readonly id: string;
 
 		/**
@@ -245,6 +248,7 @@ declare module 'vscode' {
 		 * Called once before a tool is invoked. May be implemented to customize the progress message that appears while the tool
 		 * is running, and the messages that appear when the tool needs confirmation.
 		 */
+		// TODO@API name
 		prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 	}
 
