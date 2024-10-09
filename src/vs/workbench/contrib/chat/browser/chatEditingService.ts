@@ -705,8 +705,12 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 		// Create a reference to this model to avoid it being disposed from under our nose
 		(async () => {
-			// TODO: dispose manually if the outer object was disposed in the meantime
-			this._register(await textModelService.createModelReference(docSnapshot.uri));
+			const reference = await textModelService.createModelReference(docSnapshot.uri);
+			if (this._store.isDisposed) {
+				reference.dispose();
+				return;
+			}
+			this._register(reference);
 		})();
 
 		this._register(resourceRef);
