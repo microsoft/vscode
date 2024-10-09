@@ -12,7 +12,7 @@ declare module 'vscode' {
 
 	export interface ChatResponseFragment2 {
 		index: number;
-		part: LanguageModelChatResponseTextPart | LanguageModelChatResponseToolCallPart;
+		part: LanguageModelTextPart | LanguageModelToolCallPart;
 	}
 
 	// @API extension ship a d.ts files for their options
