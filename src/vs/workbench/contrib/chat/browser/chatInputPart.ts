@@ -14,6 +14,7 @@ import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/ho
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
@@ -711,7 +712,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
-				attachmentInitPromises.push(new Promise<void>(async (resolve) => {
+				attachmentInitPromises.push(Promises.withAsyncBody(async (resolve) => {
 					let buffer: Uint8Array;
 					try {
 						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
@@ -757,9 +758,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					};
 					if (range) {
 						// HACK: This uses text editor options but the opener service doesn't support that? It's not clear if this ever worked
+						// eslint-disable-next-line local/code-no-dangerous-type-assertions
 						options.editorOptions = {
 							selection: range
-						} as ITextEditorOptions as any
+						} as ITextEditorOptions as any;
 					}
 					this.openerService.open(file, options);
 				}));
