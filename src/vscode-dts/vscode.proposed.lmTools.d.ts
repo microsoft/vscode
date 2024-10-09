@@ -54,9 +54,8 @@ declare module 'vscode' {
 	export class LanguageModelToolResultPart {
 		toolCallId: string;
 		content: string;
-		isError: boolean;
 
-		constructor(toolCallId: string, content: string, isError?: boolean);
+		constructor(toolCallId: string, content: string);
 	}
 
 	export interface LanguageModelChatMessage {
