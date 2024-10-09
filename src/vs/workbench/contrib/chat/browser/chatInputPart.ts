@@ -22,6 +22,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -46,6 +47,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import type { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -55,6 +57,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService, type OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../browser/labels.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -135,7 +138,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly followupsDisposables = this._register(new DisposableStore());
 
 	private attachedContextContainer!: HTMLElement;
-	private readonly attachedContextDisposables = this._register(new DisposableStore());
+	private readonly attachedContextDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 
@@ -216,7 +219,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -656,16 +660,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 	}
 
-	private initAttachedContext(container: HTMLElement, isLayout = false) {
+	private async initAttachedContext(container: HTMLElement, isLayout = false) {
+		this.attachedContextDisposables.clear();
+		const store = new DisposableStore;
+		this.attachedContextDisposables.value = store;
+
 		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
-		this.attachedContextDisposables.clear();
-		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
+		const hoverDelegate = store.add(createInstantHoverDelegate());
 		dom.setVisibility(Boolean(this.attachmentModel.size), this.attachedContextContainer);
 		if (!this.attachmentModel.size) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
-		this.attachmentModel.attachments.forEach(async (attachment, index) => {
+
+		const attachmentInitPromises: Promise<void>[] = [];
+		for (const [index, attachment] of this.attachmentModel.attachments.entries()) {
 			if (attachment.isFile && this.location === ChatAgentLocation.EditingSession) {
 				return;
 			}
@@ -702,24 +711,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				widget.appendChild(pillIcon);
 				widget.appendChild(textLabel);
 
-				let buffer: Uint8Array;
-				try {
-					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
-					if (attachment.value instanceof URI) {
-						const readFile = await this.fileService.readFile(attachment.value);
-						buffer = readFile.value.buffer;
-					} else {
-						buffer = attachment.value as Uint8Array;
+				attachmentInitPromises.push(new Promise<void>(async (resolve) => {
+					let buffer: Uint8Array;
+					try {
+						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
+						if (attachment.value instanceof URI) {
+							const readFile = await this.fileService.readFile(attachment.value);
+							if (store.isDisposed) {
+								return;
+							}
+							buffer = readFile.value.buffer;
+						} else {
+							buffer = attachment.value as Uint8Array;
+						}
+						this.createImageElements(buffer, widget, hoverElement);
+					} catch (error) {
+						console.error('Error processing attachment:', error);
 					}
-					this.createImageElements(buffer, widget, hoverElement);
-				} catch (error) {
-					console.error('Error processing attachment:', error);
-				}
 
-				widget.style.position = 'relative';
-				if (!this.attachedContextDisposables.isDisposed) {
-					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-				}
+					widget.style.position = 'relative';
+					store.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
+					resolve();
+				}));
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
@@ -730,9 +743,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			}
 
+			await Promise.all(attachmentInitPromises);
+			if (store.isDisposed) {
+				return;
+			}
+
+			if (file) {
+				widget.style.cursor = 'pointer';
+				store.add(dom.addDisposableListener(widget, dom.EventType.CLICK, (e: MouseEvent) => {
+					dom.EventHelper.stop(e, true);
+					const options: Mutable<OpenInternalOptions> = {
+						fromUserGesture: true
+					};
+					if (range) {
+						// HACK: This uses text editor options but the opener service doesn't support that? It's not clear if this ever worked
+						options.editorOptions = {
+							selection: range
+						} as ITextEditorOptions as any
+					}
+					this.openerService.open(file, options);
+				}));
+			}
+
 			widget.tabIndex = 0;
 			widget.ariaLabel = ariaLabel;
-		});
+		}
 
 		if (oldHeight !== container.offsetHeight && !isLayout) {
 			this._onDidChangeHeight.fire();
@@ -740,6 +775,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private attachButtonAndDisposables(widget: HTMLElement, index: number, attachment: IChatRequestVariableEntry, hoverDelegate: IHoverDelegate) {
+		const store = this.attachedContextDisposables.value;
+		if (!store) {
+			return;
+		}
 
 		const clearButton = new Button(widget, {
 			supportIcons: true,
@@ -752,11 +791,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			clearButton.focus();
 		}
 
-		this.attachedContextDisposables.add(clearButton);
+		store.add(clearButton);
 		clearButton.icon = Codicon.close;
-		const disp = clearButton.onDidClick((e) => {
+		const disp = Event.once(clearButton.onDidClick)((e) => {
 			this._attachmentModel.delete(attachment.id);
-			disp.dispose();
 
 			// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
 			if (dom.isKeyboardEvent(e)) {
@@ -773,7 +811,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._onDidChangeHeight.fire();
 			this._onDidChangeContext.fire({ removed: [attachment] });
 		});
-		this.attachedContextDisposables.add(disp);
+		store.add(disp);
 	}
 
 	// Helper function to create and replace image
