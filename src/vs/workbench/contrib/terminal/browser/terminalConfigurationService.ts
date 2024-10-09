@@ -11,11 +11,16 @@ import { ITerminalConfigurationService, LinuxDistro } from './terminal.js';
 import type { IXtermCore } from './xterm-private.js';
 import { DEFAULT_BOLD_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, FontWeight, ITerminalConfiguration, MAXIMUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MINIMUM_LETTER_SPACING, TERMINAL_CONFIG_SECTION, type ITerminalFont } from '../common/terminal.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { TerminalContextKeys } from '../common/terminalContextKey.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 
 // #region TerminalConfigurationService
 
 export class TerminalConfigurationService extends Disposable implements ITerminalConfigurationService {
 	declare _serviceBrand: undefined;
+
+	private _terminalSettingShellIntegrationEnabled: IContextKey<boolean>;
 
 	protected _fontMetrics: TerminalFontMetrics;
 
@@ -27,14 +32,18 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._terminalSettingShellIntegrationEnabled = TerminalContextKeys.terminalSettingShellIntegrationEnabled.bindTo(this._contextKeyService);
+		this._terminalSettingShellIntegrationEnabled.set(this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled));
 
 		this._fontMetrics = this._register(new TerminalFontMetrics(this, this._configurationService));
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 				this._updateConfig();
+				this._terminalSettingShellIntegrationEnabled.set(this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled));
 			}
 		}));
 	}

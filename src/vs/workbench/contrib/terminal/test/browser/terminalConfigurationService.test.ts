@@ -14,6 +14,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITerminalConfigurationService, LinuxDistro } from '../../browser/terminal.js';
 import { TestTerminalConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 suite('Workbench - TerminalConfigurationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,6 +58,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 
 	function createTerminalConfigationService(config: any, linuxDistro?: LinuxDistro): ITerminalConfigurationService {
 		const instantiationService = new TestInstantiationService();
+		instantiationService.set(IContextKeyService, new MockContextKeyService());
 		instantiationService.set(IConfigurationService, new TestConfigurationService(config));
 		const terminalConfigurationService = store.add(instantiationService.createInstance(TestTerminalConfigurationService));
 		instantiationService.set(ITerminalConfigurationService, terminalConfigurationService);
