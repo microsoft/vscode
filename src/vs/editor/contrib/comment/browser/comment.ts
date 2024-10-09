@@ -100,6 +100,28 @@ class ToggleCommentLineAction extends CommentLineAction {
 	}
 }
 
+class ToggleCommentLineNumpadAction extends CommentLineAction {
+	constructor() {
+		super(Type.Toggle, {
+			id: 'editor.action.commentLine',
+			label: nls.localize('comment.line', "Toggle Line Comment"),
+			alias: 'Toggle Line Comment',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.NumpadDivide,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MenuId.MenubarEditMenu,
+				group: '5_insert',
+				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
+				order: 1
+			}
+		});
+	}
+}
+
 class AddLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceAdd, {
@@ -176,6 +198,7 @@ class BlockCommentAction extends EditorAction {
 }
 
 registerEditorAction(ToggleCommentLineAction);
+registerEditorAction(ToggleCommentLineNumPadAction);
 registerEditorAction(AddLineCommentAction);
 registerEditorAction(RemoveLineCommentAction);
 registerEditorAction(BlockCommentAction);
