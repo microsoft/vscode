@@ -523,7 +523,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			// This should be true, if the model is changing
 			if (this._contentUpdateTimings) {
 				const now = Date.now();
-				const wordCount = countWords(_model.response.toString());
+				const wordCount = countWords(_model.response.getMarkdown());
 
 				// Apply a min time difference, or the rate is typically too high for first few words
 				const timeDiff = Math.max(now - this._contentUpdateTimings.firstWordTime, 250);
