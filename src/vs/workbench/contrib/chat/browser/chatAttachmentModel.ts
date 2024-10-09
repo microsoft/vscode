@@ -54,6 +54,7 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	async attachScreenshot(): Promise<void> {
+		this.clear();
 		const screenshot = await generateFocusedWindowScreenshot(this._fileService, this._environmentService);
 		if (!screenshot) {
 			return;

@@ -170,9 +170,15 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
+		const allowedPermissions = new Set(['media']);
+
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
+			}
+
+			if (allowedPermissions.has(permission)) {
+				return callback(true);
 			}
 
 			return callback(false);

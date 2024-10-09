@@ -37,34 +37,31 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 }
 
 async function takeScreenshotAndCrop(x: number, y: number, width: number, height: number): Promise<Uint8Array | undefined> {
+	const window = getActiveWindow();
+	if (!window.isSecureContext) {
+		console.error('Window is not secure context');
+	}
 	try {
 		// Request screen capture stream
-		const stream = await (navigator.mediaDevices as any).getDisplayMedia({
-			video: { cursor: 'always' }
-		});
+		const stream = await window.navigator.mediaDevices.getDisplayMedia({ video: true });
 
 		// Create a video element to capture the frame
 		const video = document.createElement('video');
 		video.srcObject = stream;
-
 		// Play the video to be able to draw a frame from it
 		await new Promise((resolve) => (video.onloadedmetadata = resolve));
 		video.play();
-
 		// Create a canvas that matches the size of the cropped region
 		const canvas = document.createElement('canvas');
 		canvas.width = width;
 		canvas.height = height;
-
 		const context = canvas.getContext('2d');
 		if (context) {
 			// Draw the portion of the video based on x, y, width, and height
 			context.drawImage(video, x, y, width, height, 0, 0, width, height);
 		}
-
 		// Stop all tracks after capturing the frame
 		stream.getTracks().forEach((track: any) => track.stop());
-
 		// Convert the canvas to a Blob
 		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
 		if (!blob) {

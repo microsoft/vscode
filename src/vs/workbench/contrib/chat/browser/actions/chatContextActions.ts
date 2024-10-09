@@ -505,7 +505,7 @@ export class AttachContextAction extends Action2 {
 				id: 'screenshot',
 				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
 				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-				label: localize('chatContext.attachScreenshot.label', 'Attach Screenshot'),
+				label: localize('chatContext.attachScreenshot.label', 'Screenshot the focused window'),
 			});
 
 			if (widget.location === ChatAgentLocation.Notebook) {
