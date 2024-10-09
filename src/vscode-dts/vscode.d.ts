@@ -10671,12 +10671,12 @@ declare module 'vscode' {
 		 * that currently has focus or, when none has focus, the one that has changed
 		 * input most recently.
 		 */
-		export let activeTextEditor: TextEditor | undefined;
+		export const activeTextEditor: TextEditor | undefined;
 
 		/**
 		 * The currently visible editors or an empty array.
 		 */
-		export let visibleTextEditors: readonly TextEditor[];
+		export const visibleTextEditors: readonly TextEditor[];
 
 		/**
 		 * An {@link Event} which fires when the {@link window.activeTextEditor active editor}
@@ -11429,7 +11429,7 @@ declare module 'vscode' {
 		 * The currently active color theme as configured in the settings. The active
 		 * theme can be changed via the `workbench.colorTheme` setting.
 		 */
-		export let activeColorTheme: ColorTheme;
+		export const activeColorTheme: ColorTheme;
 
 		/**
 		 * An {@link Event} which fires when the active color theme is changed or has changes.
@@ -16595,18 +16595,18 @@ declare module 'vscode' {
 		 * represented by the debug action floating window or the one currently shown in the drop down menu of the debug action floating window.
 		 * If no debug session is active, the value is `undefined`.
 		 */
-		export let activeDebugSession: DebugSession | undefined;
+		export const activeDebugSession: DebugSession | undefined;
 
 		/**
 		 * The currently active {@link DebugConsole debug console}.
 		 * If no debug session is active, output sent to the debug console is not shown.
 		 */
-		export let activeDebugConsole: DebugConsole;
+		export const activeDebugConsole: DebugConsole;
 
 		/**
 		 * List of breakpoints.
 		 */
-		export let breakpoints: readonly Breakpoint[];
+		export const breakpoints: readonly Breakpoint[];
 
 		/**
 		 * An {@link Event} which fires when the {@link debug.activeDebugSession active debug session}
