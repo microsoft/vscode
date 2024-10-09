@@ -491,6 +491,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
+							// Re-render if element becomes enabled/disabled due to checkpointing
+							`_${element.isDisabled ? '1' : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
@@ -913,6 +915,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
+
+			if (this.viewModel.model.checkpoint) {
+				const requests = this.viewModel.model.getRequests();
+				for (let i = requests.length - 1; i >= 0; i -= 1) {
+					const request = requests[i];
+					if (request.isDisabled) {
+						this.chatService.removeRequest(this.viewModel.sessionId, request.id);
+					}
+				}
+			}
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
 				userSelectedModelId: this.inputPart.currentLanguageModel,
 				location: this.location,
@@ -928,6 +941,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, isVoiceInput);
+					// Keep the checkpoint toggled on until the response is complete to help the user keep their place in the chat history
+					this.viewModel?.model.setCheckpoint(undefined);
 					if (lastResponse?.result?.nextQuestion) {
 						const { prompt, participant, command } = lastResponse.result.nextQuestion;
 						const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
