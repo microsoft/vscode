@@ -131,7 +131,7 @@ declare module 'vscode' {
 
 		/**
 		 * A tool user can request that particular content types be returned from the tool, depending on what the tool user
-		 * supports. All tools are required to support `text/plain`. See {@link LanguageModelToolResult}.
+		 * supports. All tools are recommended to support `text/plain`. See {@link LanguageModelToolResult}.
 		 */
 		requestedContentTypes: string[];
 
