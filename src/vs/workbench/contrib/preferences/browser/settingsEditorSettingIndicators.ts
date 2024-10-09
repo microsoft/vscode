@@ -68,6 +68,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly scopeOverridesIndicator: SettingIndicator;
 	private readonly syncIgnoredIndicator: SettingIndicator;
 	private readonly defaultOverrideIndicator: SettingIndicator;
+	private readonly previewIndicator: SettingIndicator;
 	private readonly allIndicators: SettingIndicator[];
 
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
@@ -87,7 +88,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
 		this.syncIgnoredIndicator = this.createSyncIgnoredIndicator();
 		this.defaultOverrideIndicator = this.createDefaultOverrideIndicator();
-		this.allIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
+		this.previewIndicator = this.createPreviewIndictor();
+		this.allIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator, this.previewIndicator];
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
@@ -206,6 +208,18 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 	}
 
+	private createPreviewIndictor(): SettingIndicator {
+		const disposables = new DisposableStore();
+		const previewIndicator = $('span.setting-indicator.setting-item-preview');
+		const previewLabel = disposables.add(new SimpleIconLabel(previewIndicator));
+
+		return {
+			element: previewIndicator,
+			label: previewLabel,
+			disposables
+		};
+	}
+
 	private render() {
 		const indicatorsToShow = this.allIndicators.filter(indicator => {
 			return indicator.element.style.display !== 'none';
@@ -287,6 +301,29 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			cachedSyncIgnoredSettings = ignoredSettings;
 			cachedSyncIgnoredSettingsSet = new Set<string>(cachedSyncIgnoredSettings);
 		}
+	}
+
+	updatePreviewIndicator(element: SettingsTreeSettingElement) {
+		const isPreviewSetting = element.tags?.has('preview');
+		const isExperimentalSetting = element.tags?.has('experimental');
+		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
+		this.previewIndicator.label.text = isPreviewSetting ?
+			localize('previewLabel', "Preview") :
+			localize('experimentalLabel', "Experimental");
+
+		const content = isPreviewSetting ?
+			localize('previewSettingDescription', "The setting is in the process of becoming stable.") :
+			localize('experimentalSettingDescription', "The setting is experimental and may change names or be removed.");
+		const showHover = (focus: boolean) => {
+			return this.hoverService.showHover({
+				...this.defaultHoverOptions,
+				content,
+				target: this.previewIndicator.element
+			}, focus);
+		};
+		this.addHoverDisposables(this.previewIndicator.disposables, this.previewIndicator.element, showHover);
+
+		this.render();
 	}
 
 	private getInlineScopeDisplayText(completeScope: string): string {
