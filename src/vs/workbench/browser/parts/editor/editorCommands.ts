@@ -335,7 +335,11 @@ function registerEditorGroupsLayoutCommands(): void {
 						'orientation': {
 							'type': 'number',
 							'default': 0,
-							'enum': [0, 1]
+							'enum': [0, 1],
+							'enumDescriptions': [
+								localize('editorGroupLayout.horizontal', "Horizontal"),
+								localize('editorGroupLayout.vertical', "Vertical")
+							],
 						},
 						'groups': {
 							'$ref': '#/definitions/editorGroupsSchema',
