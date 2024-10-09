@@ -313,4 +313,4 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 			session.setCheckpoint(requestId);
 		}
 	}
-})
+});
