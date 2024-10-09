@@ -99,6 +99,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+
 	private readonly _onDidChangeResources = new Emitter<void>();
 	readonly onDidChangeResources = this._onDidChangeResources.event;
 
@@ -112,6 +113,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public label: string,
 		public id: string,
 		public readonly multiDiffEditorEnableViewChanges: boolean,
+		public contextValue: string | undefined,
 		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
@@ -137,6 +139,11 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	$updateGroupLabel(label: string): void {
 		this.label = label;
+		this._onDidChange.fire();
+	}
+
+	$updateGroupContextValue(contextValue: string): void {
+		this.contextValue = contextValue;
 		this._onDidChange.fire();
 	}
 }
@@ -353,8 +360,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 	}
 
-	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][]): void {
-		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges]) => {
+	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextValue*/][]): void {
+		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges, contextValue]) => {
 			const group = new MainThreadSCMResourceGroup(
 				this.handle,
 				handle,
@@ -363,6 +370,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				label,
 				id,
 				multiDiffEditorEnableViewChanges,
+				contextValue,
 				this._uriIdentService
 			);
 
@@ -392,6 +400,16 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		group.$updateGroupLabel(label);
+	}
+
+	$updateGroupContextValue(handle: number, contextValue: string): void {
+		const group = this._groupsByHandle[handle];
+
+		if (!group) {
+			return;
+		}
+
+		group.$updateGroupContextValue(contextValue);
 	}
 
 	$spliceGroupResourceStates(splices: SCMRawResourceSplices[]): void {
@@ -581,7 +599,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void> {
+	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean, string /*contextKey*/][], splices: SCMRawResourceSplices[]): Promise<void> {
 		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
 		const repository = this._repositories.get(sourceControlHandle);
 
@@ -616,6 +634,18 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		const provider = repository.provider as MainThreadSCMProvider;
 		provider.$updateGroupLabel(groupHandle, label);
+	}
+
+	async $updateGroupContextValue(sourceControlHandle: number, groupHandle: number, contextValue: string): Promise<void> {
+		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
+		const repository = this._repositories.get(sourceControlHandle);
+
+		if (!repository) {
+			return;
+		}
+
+		const provider = repository.provider as MainThreadSCMProvider;
+		provider.$updateGroupContextValue(groupHandle, contextValue);
 	}
 
 	async $spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): Promise<void> {
