@@ -193,8 +193,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return WorkbenchState.EMPTY;
 	}
 
-	public getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
-		return this.workspace.getFolder(resource);
+	public getWorkspaceFolder(resource: URI, useQueryAndFragment?: boolean): IWorkspaceFolder | null {
+		return this.workspace.getFolder(resource, useQueryAndFragment);
 	}
 
 	public addFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number): Promise<void> {

@@ -408,7 +408,7 @@ class ResourceLabelWidget extends IconLabel {
 		let name: string | undefined;
 		if (!hideLabel) {
 			if (options?.fileKind === FileKind.ROOT_FOLDER) {
-				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
+				const workspaceFolder = this.contextService.getWorkspaceFolder(resource, true);
 				if (workspaceFolder) {
 					name = workspaceFolder.name;
 					this.computedWorkspaceFolderLabel = name;
