@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { shuffle } from 'vs/base/common/arrays';
-import { randomPath } from 'vs/base/common/extpath';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from 'vs/base/common/ternarySearchTree';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { shuffle } from '../../common/arrays.js';
+import { randomPath } from '../../common/extpath.js';
+import { StopWatch } from '../../common/stopwatch.js';
+import { ConfigKeysIterator, PathIterator, StringIterator, TernarySearchTree, UriIterator } from '../../common/ternarySearchTree.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Ternary Search Tree', () => {
 

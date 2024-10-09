@@ -3,33 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/common/contributions';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, } from 'vs/platform/configuration/common/configurationRegistry';
-import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRequestService, asText } from 'vs/platform/request/common/request';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { isWeb } from 'vs/base/common/platform';
-import { isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { applicationConfigurationNodeBase } from '../../../common/configuration.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService, asText } from '../../../../platform/request/common/request.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements';
-const chatWelcomeViewConfigKey = 'workbench.chat.experimental.showWelcomeView';
 
 type EntitlementEnablementClassification = {
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if the entitlement is enabled' };
@@ -47,7 +45,6 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 
 	private isInitialized = false;
 	private showAccountsBadgeContextKey = new RawContextKey<boolean>(accountsBadgeConfigKey, false).bindTo(this.contextService);
-	private showChatWelcomeViewContextKey = new RawContextKey<boolean>(chatWelcomeViewConfigKey, false).bindTo(this.contextService);
 	private readonly accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
@@ -98,7 +95,6 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 				await this.enableEntitlements(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed?.length) {
 				this.showAccountsBadgeContextKey.set(false);
-				this.showChatWelcomeViewContextKey.set(false);
 				this.accountsMenuBadgeDisposable.clear();
 			}
 		}));
@@ -151,30 +147,31 @@ class EntitlementsContribution extends Disposable implements IWorkbenchContribut
 		return [true, orgs && orgs.length > 0 ? (orgs[0].name ? orgs[0].name : orgs[0].login) : undefined];
 	}
 
-	private async enableEntitlements(session: AuthenticationSession) {
-		const isInternal = isInternalTelemetry(this.productService, this.configurationService);
+	private async enableEntitlements(session: AuthenticationSession | undefined) {
+		if (!session) {
+			return;
+		}
+
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
+		if (installed) {
+			this.disableEntitlements();
+			return;
+		}
+
 		const showAccountsBadge = this.configurationService.inspect<boolean>(accountsBadgeConfigKey).value ?? false;
-		const showWelcomeView = this.configurationService.inspect<boolean>(chatWelcomeViewConfigKey).value ?? false;
 
 		const [enabled, org] = await this.getEntitlementsInfo(session);
-		if (enabled) {
-			if (isInternal && showWelcomeView) {
-				this.showChatWelcomeViewContextKey.set(true);
-				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(chatWelcomeViewConfigKey, { enabled: true });
-			}
-			if (showAccountsBadge) {
-				this.createAccountsBadge(org);
-				this.showAccountsBadgeContextKey.set(showAccountsBadge);
-				this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
-			}
+		if (enabled && showAccountsBadge) {
+			this.createAccountsBadge(org);
+			this.showAccountsBadgeContextKey.set(showAccountsBadge);
+			this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(accountsBadgeConfigKey, { enabled: true });
 		}
 	}
 
 	private disableEntitlements() {
 		this.storageService.store(accountsBadgeConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		this.storageService.store(chatWelcomeViewConfigKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.showAccountsBadgeContextKey.set(false);
-		this.showChatWelcomeViewContextKey.set(false);
 		this.accountsMenuBadgeDisposable.clear();
 	}
 
@@ -252,19 +249,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			description: localize('workbench.accounts.showEntitlements', "When enabled, available entitlements for the account will be show in the accounts menu.")
-		}
-	}
-});
-
-configurationRegistry.registerConfiguration({
-	...applicationConfigurationNodeBase,
-	properties: {
-		'workbench.chat.experimental.showWelcomeView': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			description: localize('workbench.chat.showWelcomeView', "When enabled, the chat panel welcome view will be shown.")
 		}
 	}
 });

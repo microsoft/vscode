@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IDialogHandler, IDialogResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
-import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
-import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Lazy } from 'vs/base/common/lazy';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IDialogHandler, IDialogResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IDialogsModel, IDialogViewItem } from '../../../common/dialogs.js';
+import { BrowserDialogHandler } from './dialogHandler.js';
+import { DialogService } from '../../../services/dialogs/common/dialogService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 

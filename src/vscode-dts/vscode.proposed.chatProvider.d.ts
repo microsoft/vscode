@@ -10,19 +10,28 @@ declare module 'vscode' {
 		part: string;
 	}
 
+	export interface ChatResponseFragment2 {
+		index: number;
+		part: LanguageModelTextPart | LanguageModelToolCallPart;
+	}
+
 	// @API extension ship a d.ts files for their options
 
 	/**
 	 * Represents a large language model that accepts ChatML messages and produces a streaming response
 	 */
-	export interface ChatResponseProvider {
+	export interface LanguageModelChatProvider {
 
 		onDidReceiveLanguageModelResponse2?: Event<{ readonly extensionId: string; readonly participant?: string; readonly tokenCount?: number }>;
 
 		provideLanguageModelResponse(messages: LanguageModelChatMessage[], options: { [name: string]: any }, extensionId: string, progress: Progress<ChatResponseFragment>, token: CancellationToken): Thenable<any>;
 
+		provideLanguageModelResponse2?(messages: LanguageModelChatMessage[], options: LanguageModelChatRequestOptions, extensionId: string, progress: Progress<ChatResponseFragment2>, token: CancellationToken): Thenable<any>;
+
 		provideTokenCount(text: string | LanguageModelChatMessage, token: CancellationToken): Thenable<number>;
 	}
+
+	export type ChatResponseProvider = LanguageModelChatProvider;
 
 	export interface ChatResponseProviderMetadata {
 
@@ -54,6 +63,10 @@ declare module 'vscode' {
 		 * Additionally, the extension can provide a label that will be shown in the UI.
 		 */
 		auth?: true | { label: string };
+
+		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
+		readonly isDefault?: boolean;
+		readonly isUserSelectable?: boolean;
 	}
 
 	export interface ChatResponseProviderMetadata {
@@ -64,14 +77,14 @@ declare module 'vscode' {
 	export namespace chat {
 
 		/**
-		 * Register a LLM as chat response provider to the editor.
-		 *
-		 *
-		 * @param id
-		 * @param provider
-		 * @param metadata
-		 */
+		 * @deprecated use `lm.registerChatResponseProvider` instead
+		*/
 		export function registerChatResponseProvider(id: string, provider: ChatResponseProvider, metadata: ChatResponseProviderMetadata): Disposable;
+	}
+
+	export namespace lm {
+
+		export function registerChatModelProvider(id: string, provider: LanguageModelChatProvider, metadata: ChatResponseProviderMetadata): Disposable;
 	}
 
 }

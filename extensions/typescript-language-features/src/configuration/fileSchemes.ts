@@ -17,19 +17,28 @@ export const vsls = 'vsls';
 export const walkThroughSnippet = 'walkThroughSnippet';
 export const vscodeNotebookCell = 'vscode-notebook-cell';
 export const officeScript = 'office-script';
+
+/** Used for code blocks in chat by vs code core */
 export const chatCodeBlock = 'vscode-chat-code-block';
 
 export function getSemanticSupportedSchemes() {
-	if (isWeb() && vscode.workspace.workspaceFolders) {
-		return vscode.workspace.workspaceFolders.map(folder => folder.uri.scheme);
-	}
-
-	return [
-		file,
+	const alwaysSupportedSchemes = [
 		untitled,
 		walkThroughSnippet,
 		vscodeNotebookCell,
 		chatCodeBlock,
+	];
+
+	if (isWeb()) {
+		return [
+			...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.scheme),
+			...alwaysSupportedSchemes,
+		];
+	}
+
+	return [
+		file,
+		...alwaysSupportedSchemes,
 	];
 }
 
@@ -42,3 +51,8 @@ export const disabledSchemes = new Set([
 	github,
 	azurerepos,
 ]);
+
+export function isOfScheme(uri: vscode.Uri, ...schemes: string[]): boolean {
+	const normalizedUriScheme = uri.scheme.toLowerCase();
+	return schemes.some(scheme => normalizedUriScheme === scheme);
+}

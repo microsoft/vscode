@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { Action, IAction, IActionRunner, SubmenuAction } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { EventMultiplexer } from 'vs/base/common/event';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./toolbar';
-import * as nls from 'vs/nls';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IContextMenuProvider } from '../../contextmenu.js';
+import { ActionBar, ActionsOrientation, IActionViewItemProvider } from '../actionbar/actionbar.js';
+import { AnchorAlignment } from '../contextview/contextview.js';
+import { DropdownMenuActionViewItem } from '../dropdown/dropdownActionViewItem.js';
+import { Action, IAction, IActionRunner, SubmenuAction } from '../../../common/actions.js';
+import { Codicon } from '../../../common/codicons.js';
+import { ThemeIcon } from '../../../common/themables.js';
+import { EventMultiplexer } from '../../../common/event.js';
+import { ResolvedKeybinding } from '../../../common/keybindings.js';
+import { Disposable, DisposableStore } from '../../../common/lifecycle.js';
+import './toolbar.css';
+import * as nls from '../../../../nls.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
 
 
@@ -38,6 +38,16 @@ export interface IToolBarOptions {
 	 * If true, toggled primary items are highlighted with a background color.
 	 */
 	highlightToggledItems?: boolean;
+
+	/**
+	 * Render action with icons (default: `true`)
+	 */
+	icon?: boolean;
+
+	/**
+	 * Render action with label (default: `false`)
+	 */
+	label?: boolean;
 }
 
 /**
@@ -50,7 +60,6 @@ export class ToolBar extends Disposable {
 	private toggleMenuActionViewItem: DropdownMenuActionViewItem | undefined;
 	private submenuActionViewItems: DropdownMenuActionViewItem[] = [];
 	private hasSecondaryActions: boolean = false;
-	private readonly lookupKeybindings: boolean;
 	private readonly element: HTMLElement;
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
@@ -62,7 +71,6 @@ export class ToolBar extends Disposable {
 
 		options.hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this.options = options;
-		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
 
 		this.toggleMenuAction = this._register(new ToggleMenuAction(() => this.toggleMenuActionViewItem?.show(), options.toggleMenuTitle));
 
@@ -198,7 +206,7 @@ export class ToolBar extends Disposable {
 		}
 
 		primaryActionsToSet.forEach(action => {
-			this.actionBar.push(action, { icon: true, label: false, keybinding: this.getKeybindingLabel(action) });
+			this.actionBar.push(action, { icon: this.options.icon ?? true, label: this.options.label ?? false, keybinding: this.getKeybindingLabel(action) });
 		});
 	}
 
@@ -207,7 +215,7 @@ export class ToolBar extends Disposable {
 	}
 
 	private getKeybindingLabel(action: IAction): string | undefined {
-		const key = this.lookupKeybindings ? this.options.getKeyBinding?.(action) : undefined;
+		const key = this.options.getKeyBinding?.(action);
 
 		return key?.getLabel() ?? undefined;
 	}

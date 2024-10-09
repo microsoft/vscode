@@ -2,41 +2,41 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { Attributes, AutoTunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
-import { ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from 'vs/workbench/contrib/remote/browser/tunnelView';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
-import Severity from 'vs/base/common/severity';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { isWeb, OperatingSystem } from 'vs/base/common/platform';
-import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from 'vs/platform/tunnel/common/tunnel';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { portsViewIcon } from 'vs/workbench/contrib/remote/browser/remoteIcons';
-import { Event } from 'vs/base/common/event';
-import { IExternalUriOpenerService } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { Action } from 'vs/base/common/actions';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import * as nls from '../../../../nls.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, PortsEnablement, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from '../../../services/remote/common/remoteExplorerService.js';
+import { Attributes, AutoTunnelSource, forwardedPortsFeaturesEnabled, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from '../../../services/remote/common/tunnelModel.js';
+import { ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from './tunnelView.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { UrlFinder } from './urlFinder.js';
+import Severity from '../../../../base/common/severity.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INotificationHandle, INotificationService, IPromptChoice } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITerminalService } from '../../terminal/browser/terminal.js';
+import { IDebugService } from '../../debug/common/debug.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { isWeb, OperatingSystem } from '../../../../base/common/platform.js';
+import { ITunnelService, RemoteTunnel, TunnelPrivacyId } from '../../../../platform/tunnel/common/tunnel.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
+import { portsViewIcon } from './remoteIcons.js';
+import { Event } from '../../../../base/common/event.js';
+import { IExternalUriOpenerService } from '../../externalUriOpener/common/externalUriOpenerService.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 
@@ -59,7 +59,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 				: nls.localize('noRemoteNoPorts', "No forwarded ports. Forward a port to access your locally running services over the internet.\n[Forward a Port]({0})", `command:${ForwardPortAction.INLINE_ID}`),
 		}));
 		this.enableBadgeAndStatusBar();
-		this.enableForwardedPortsView();
+		this.enableForwardedPortsFeatures();
 	}
 
 	private async getViewContainer(): Promise<ViewContainer | null> {
@@ -74,23 +74,28 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 		}, ViewContainerLocation.Panel);
 	}
 
-	private async enableForwardedPortsView() {
+	private async enableForwardedPortsFeatures() {
 		this.contextKeyListener.clear();
 
+		const featuresEnabled: boolean = !!forwardedPortsFeaturesEnabled.getValue(this.contextKeyService);
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 
-		if (viewEnabled) {
+		if (featuresEnabled || viewEnabled) {
+			// Also enable the view if it isn't already.
+			if (!viewEnabled) {
+				this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
+			}
 			const viewContainer = await this.getViewContainer();
 			const tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.tunnelService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
-				this.remoteExplorerService.enablePortsFeatures();
+				this.remoteExplorerService.enablePortsFeatures(!featuresEnabled);
 				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
 			this.contextKeyListener.value = this.contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-					this.enableForwardedPortsView();
+				if (e.affectsSome(new Set([...forwardedPortsFeaturesEnabled.keys(), ...forwardedPortsViewEnabled.keys()]))) {
+					this.enableForwardedPortsFeatures();
 				}
 			});
 		}
@@ -569,7 +574,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 	}
 
 	private startUrlFinder() {
-		if (!this.urlFinder && !this.remoteExplorerService.portsFeaturesEnabled) {
+		if (!this.urlFinder && (this.remoteExplorerService.portsFeaturesEnabled !== PortsEnablement.AdditionalFeatures)) {
 			return;
 		}
 		this.portsFeatures?.dispose();
@@ -666,7 +671,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 	}
 
 	private async startCandidateListener() {
-		if (this.candidateListener || !this.remoteExplorerService.portsFeaturesEnabled) {
+		if (this.candidateListener || (this.remoteExplorerService.portsFeaturesEnabled !== PortsEnablement.AdditionalFeatures)) {
 			return;
 		}
 		this.portsFeatures?.dispose();

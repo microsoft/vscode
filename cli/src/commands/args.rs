@@ -64,7 +64,7 @@ pub struct IntegratedCli {
 	pub core: CliCore,
 }
 
-/// Common CLI shared between intergated and standalone interfaces.
+/// Common CLI shared between integrated and standalone interfaces.
 #[derive(Args, Debug, Default, Clone)]
 pub struct CliCore {
 	/// One or more files, folders, or URIs to open.
@@ -226,12 +226,15 @@ pub struct ServeWebArgs {
 
 #[derive(Args, Debug, Clone)]
 pub struct CommandShellArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Listen on a socket instead of stdin/stdout.
 	#[clap(long)]
 	pub on_socket: bool,
 	/// Listen on a host/port instead of stdin/stdout.
-	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
-	pub on_port: Option<u16>,
+	#[clap(long, num_args = 0..=2, default_missing_value = "0")]
+	pub on_port: Vec<u16>,
 	/// Listen on a host/port instead of stdin/stdout.
 	#[clap[long]]
 	pub on_host: Option<String>,
@@ -619,7 +622,7 @@ pub enum OutputFormat {
 #[derive(Args, Clone, Debug, Default)]
 pub struct ExistingTunnelArgs {
 	/// Name you'd like to assign preexisting tunnel to use to connect the tunnel
-	/// Old option, new code sohuld just use `--name`.
+	/// Old option, new code should just use `--name`.
 	#[clap(long, hide = true)]
 	pub tunnel_name: Option<String>,
 
@@ -638,6 +641,9 @@ pub struct ExistingTunnelArgs {
 
 #[derive(Args, Debug, Clone, Default)]
 pub struct TunnelServeArgs {
+	#[clap(flatten)]
+	pub server_args: BaseServerArgs,
+
 	/// Optional details to connect to an existing tunnel
 	#[clap(flatten, next_help_heading = Some("ADVANCED OPTIONS"))]
 	pub tunnel: ExistingTunnelArgs,
@@ -661,7 +667,10 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+}
 
+#[derive(Args, Debug, Clone, Default)]
+pub struct BaseServerArgs {
 	/// Requests that extensions be preloaded and installed on connecting servers.
 	#[clap(long)]
 	pub install_extension: Vec<String>,
@@ -675,8 +684,8 @@ pub struct TunnelServeArgs {
 	pub extensions_dir: Option<String>,
 }
 
-impl TunnelServeArgs {
-	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
+impl BaseServerArgs {
+	pub fn apply_to(&self, csa: &mut CodeServerArgs) {
 		csa.install_extensions
 			.extend_from_slice(&self.install_extension);
 

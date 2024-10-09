@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { DeferredPromise } from 'vs/base/common/async';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationSource, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { IAction } from '../../../base/common/actions.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { INotificationSource, NotificationPriority } from '../../notification/common/notification.js';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -55,7 +55,7 @@ export interface IProgressOptions {
 	readonly title?: string;
 	readonly source?: string | INotificationSource;
 	readonly total?: number;
-	readonly cancellable?: boolean;
+	readonly cancellable?: boolean | string;
 	readonly buttons?: string[];
 }
 
@@ -65,7 +65,7 @@ export interface IProgressNotificationOptions extends IProgressOptions {
 	readonly secondaryActions?: readonly IAction[];
 	readonly delay?: number;
 	readonly priority?: NotificationPriority;
-	readonly type?: 'syncing' | 'loading';
+	readonly type?: 'loading' | 'syncing';
 }
 
 export interface IProgressDialogOptions extends IProgressOptions {
@@ -77,7 +77,7 @@ export interface IProgressDialogOptions extends IProgressOptions {
 export interface IProgressWindowOptions extends IProgressOptions {
 	readonly location: ProgressLocation.Window;
 	readonly command?: string;
-	readonly type?: 'syncing' | 'loading';
+	readonly type?: 'loading' | 'syncing';
 }
 
 export interface IProgressCompositeOptions extends IProgressOptions {
