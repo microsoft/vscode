@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { remove } from '../../../../base/common/arrays.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
@@ -10,13 +11,15 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { themeColorFromId } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { editorRangeHighlight } from '../../../../editor/common/core/editorColorRegistry.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -676,6 +679,10 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this.doc.uri;
 	}
 
+	get modifiedModel(): ITextModel {
+		return this.doc;
+	}
+
 	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
 	public get state(): IObservable<WorkingSetEntryState> {
 		return this._stateObs;
@@ -705,14 +712,50 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 		// Create a reference to this model to avoid it being disposed from under our nose
 		(async () => {
-			// TODO: dispose manually if the outer object was disposed in the meantime
-			this._register(await textModelService.createModelReference(docSnapshot.uri));
+			const reference = await textModelService.createModelReference(docSnapshot.uri);
+			if (this._store.isDisposed) {
+				reference.dispose();
+				return;
+			}
+			this._register(reference);
 		})();
 
 		this._register(resourceRef);
 	}
 
+	private readonly _allEditDecorations: string[][] = [];
+
 	applyEdits(textEdits: TextEdit[]): void {
+
+		// highlight edits
+		let existingIds: string[] = [];
+		if (this._allEditDecorations.length > 3) {
+			existingIds = this._allEditDecorations.shift() ?? [];
+		}
+
+		const newIds = this.doc.deltaDecorations(existingIds, textEdits.map(edit => {
+			return {
+				range: edit.range,
+				options: {
+					isWholeLine: true,
+					description: 'chat-editing',
+					className: 'rangeHighlight',
+					overviewRuler: {
+						position: OverviewRulerLane.Full,
+						color: themeColorFromId(editorRangeHighlight)
+					}
+				}
+			} satisfies IModelDeltaDecoration;
+		}));
+
+		this._allEditDecorations.push(newIds);
+		// TODO clear this timeout?
+		setTimeout(() => {
+			this.doc.deltaDecorations(newIds, []);
+			remove(this._allEditDecorations, newIds);
+		}, 500);
+
+		// make the actual edit
 		this.doc.applyEdits(textEdits);
 		this._stateObs.set(WorkingSetEntryState.Modified, undefined);
 	}
