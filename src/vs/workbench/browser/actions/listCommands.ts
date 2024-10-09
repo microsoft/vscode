@@ -877,7 +877,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.closeFind',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + 60,
 	when: ContextKeyExpr.and(RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen),
 	primary: KeyCode.Escape,
 	handler: (accessor) => {
