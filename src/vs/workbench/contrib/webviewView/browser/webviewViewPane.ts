@@ -235,10 +235,14 @@ export class WebviewViewPane extends ViewPane {
 					this._activated = false;
 					this._webview.clear();
 					this._webviewDisposables.clear();
+					webviewView.close();
 				},
 
 				show: (preserveFocus) => {
 					this.viewService.openView(this.id, !preserveFocus);
+				},
+				close: () => {
+					this.viewService.closeView(this.id);
 				}
 			};
 
