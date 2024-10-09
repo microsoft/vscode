@@ -261,4 +261,4 @@ fi
 
 wait_for_async_execs
 
-exec "$@"
+exec "$@" "--xdg-portal-required-version=3"
