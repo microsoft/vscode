@@ -15,8 +15,10 @@ import { importAMDNodeModule } from '../../../amdX.js';
 
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
-		const sharp = (await importAMDNodeModule<typeof import('sharp')>('sharp', 'lib/index.js'));
+		// const sharp = typeof (await import('sharp')).default;
+		// const screenshot = typeof (await import('@types/screenshot-desktop')).default;
 		const screenshot = (await importAMDNodeModule<typeof import('screenshot-desktop')>('screenshot-desktop', 'index.d.ts'));
+		const sharp = (await importAMDNodeModule<typeof import('sharp')>('sharp', 'lib/index.d.ts'));
 		const tmpDir = nativeEnvironmentService.tmpDir;
 		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
 
