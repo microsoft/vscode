@@ -5,6 +5,9 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 
 export class ChatAttachmentModel extends Disposable {
@@ -32,6 +35,16 @@ export class ChatAttachmentModel extends Disposable {
 	delete(variableEntryId: string) {
 		this._attachments.delete(variableEntryId);
 		this._onDidChangeContext.fire();
+	}
+
+	addFile(uri: URI, range?: IRange) {
+		this.addContext({
+			value: uri,
+			id: uri.toString() + (range?.toString() ?? ''),
+			name: basename(uri),
+			isFile: true,
+			isDynamic: true
+		});
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {

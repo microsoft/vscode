@@ -62,6 +62,7 @@ function hygiene(some, linting = true) {
 				}
 			}
 			// Please do not add symbols that resemble ASCII letters!
+			// eslint-disable-next-line no-misleading-character-class
 			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
 			if (m) {
 				console.error(

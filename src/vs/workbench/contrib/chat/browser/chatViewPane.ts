@@ -124,6 +124,9 @@ export class ChatViewPane extends ViewPane {
 
 		this.viewState.sessionId = model.sessionId;
 		this._widget.setModel(model, { ...this.viewState });
+
+		// Update the toolbar context with new sessionId
+		this.updateActions();
 	}
 
 	override shouldShowWelcome(): boolean {
