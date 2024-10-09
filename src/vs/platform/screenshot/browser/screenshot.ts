@@ -20,7 +20,7 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 			return;
 		}
 
-		const screenshot = await takeScreenshot(...bounds);
+		const screenshot = await takeScreenshotAndCrop(bounds.x, bounds.y, bounds.width, bounds.height);
 		if (!screenshot) {
 			return;
 		}
@@ -63,10 +63,13 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		}
 
 		// Stop all tracks after capturing the frame
-		stream.getTracks().forEach((track) => track.stop());
+		stream.getTracks().forEach((track: any) => track.stop());
 
 		// Convert the canvas to a Blob
-		const blob: Blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png')!);
+		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
+		if (!blob) {
+			throw new Error('Failed to create blob from canvas');
+		}
 
 		// Convert the Blob to an ArrayBuffer and then a Uint8Array
 		const arrayBuffer = await blob.arrayBuffer();
