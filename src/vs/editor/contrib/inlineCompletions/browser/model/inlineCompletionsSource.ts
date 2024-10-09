@@ -115,6 +115,7 @@ export class InlineCompletionsSource extends Disposable {
 			}
 
 			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+				updatedCompletions.dispose();
 				return false;
 			}
 

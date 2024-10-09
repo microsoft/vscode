@@ -34,7 +34,7 @@ import { IChatVariablesService } from '../common/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
-import { ILanguageModelToolsService, LanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
@@ -69,6 +69,12 @@ import './chatAttachmentModel.js';
 import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { ChatEditorController } from './chatEditorController.js';
+import { LanguageModelToolsService } from './languageModelToolsService.js';
+import { ChatEditorSaving } from './chatEditorSaving.js';
+import { registerChatEditorActions } from './chatEditorActions.js';
+
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -278,6 +284,8 @@ registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, Langu
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatCommandCenterRendering.ID, ChatCommandCenterRendering, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditorSaving.ID, ChatEditorSaving, WorkbenchPhase.AfterRestored);
+
 
 registerChatActions();
 registerChatCopyActions();
@@ -292,8 +300,10 @@ registerMoveActions();
 registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
+registerChatEditorActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
+registerEditorContribution(ChatEditorController.ID, ChatEditorController, EditorContributionInstantiation.Eventually);
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
