@@ -532,9 +532,9 @@ export class StackFrame implements IStackFrame {
 		this.scopes = undefined;
 	}
 
-	toString(): string {
+	toString(labelFormatter: (x: URI) => string): string {
 		const lineNumberToString = typeof this.range.startLineNumber === 'number' ? `:${this.range.startLineNumber}` : '';
-		const sourceToString = `${this.source.inMemory ? this.source.name : this.source.uri.fsPath}${lineNumberToString}`;
+		const sourceToString = `${this.source.inMemory ? this.source.name : labelFormatter(this.source.uri)}${lineNumberToString}`;
 
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
