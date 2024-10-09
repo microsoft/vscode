@@ -157,7 +157,7 @@ declare module 'vscode' {
 		 * that the returned object is *not* live and changes to the
 		 * document are not reflected.
 		 *
-		 * @param line A line number in [0, lineCount).
+		 * @param line A line number in `[0, lineCount)`.
 		 * @returns A {@link TextLine line}.
 		 */
 		lineAt(line: number): TextLine;
@@ -535,7 +535,7 @@ declare module 'vscode' {
 
 	/**
 	 * Represents sources that can cause {@link window.onDidChangeTextEditorSelection selection change events}.
-	*/
+	 */
 	export enum TextEditorSelectionChangeKind {
 		/**
 		 * Selection changed due to typing in the editor.
@@ -896,6 +896,11 @@ declare module 'vscode' {
 	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
 	 */
 	export class ThemeColor {
+
+		/**
+		 * The id of this color.
+		 */
+		readonly id: string;
 
 		/**
 		 * Creates a reference to a theme color.
@@ -3650,6 +3655,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
+		 * @param context Additional information about the references request.
 		 * @param token A cancellation token.
 		 *
 		 * @returns An array of locations or a thenable that resolves to such. The lack of a result can be
@@ -4683,7 +4689,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active {@linkcode SignatureHelp}.
 		 *
-		 * The `activeSignatureHelp` has its [`SignatureHelp.activeSignature`] field updated based on
+		 * The `activeSignatureHelp` has its {@linkcode SignatureHelp.activeSignature activeSignature} field updated based on
 		 * the user arrowing through available signatures.
 		 */
 		readonly activeSignatureHelp: SignatureHelp | undefined;
@@ -5186,7 +5192,7 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new list of inline completion items.
-		*/
+		 */
 		constructor(items: InlineCompletionItem[]);
 	}
 
@@ -5356,22 +5362,22 @@ declare module 'vscode' {
 	export class Color {
 
 		/**
-		 * The red component of this color in the range [0-1].
+		 * The red component of this color in the range `[0-1]`.
 		 */
 		readonly red: number;
 
 		/**
-		 * The green component of this color in the range [0-1].
+		 * The green component of this color in the range `[0-1]`.
 		 */
 		readonly green: number;
 
 		/**
-		 * The blue component of this color in the range [0-1].
+		 * The blue component of this color in the range `[0-1]`.
 		 */
 		readonly blue: number;
 
 		/**
-		 * The alpha component of this color in the range [0-1].
+		 * The alpha component of this color in the range `[0-1]`.
 		 */
 		readonly alpha: number;
 
@@ -6282,7 +6288,9 @@ declare module 'vscode' {
 		 * If the language supports Unicode identifiers (e.g. JavaScript), it is preferable
 		 * to provide a word definition that uses exclusion of known separators.
 		 * e.g.: A regex that matches anything except known separators (and dot is allowed to occur in a floating point number):
-		 *   /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 * ```
+		 * /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g
+		 * ```
 		 */
 		wordPattern?: RegExp;
 		/**
@@ -6368,7 +6376,7 @@ declare module 'vscode' {
 	export enum ConfigurationTarget {
 		/**
 		 * Global configuration
-		*/
+		 */
 		Global = 1,
 
 		/**
@@ -7333,6 +7341,18 @@ declare module 'vscode' {
 		readonly state: TerminalState;
 
 		/**
+		 * An object that contains [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered
+		 * features for the terminal. This will always be `undefined` immediately after the terminal
+		 * is created. Listen to {@link window.onDidChangeTerminalShellIntegration} to be notified
+		 * when shell integration is activated for a terminal.
+		 *
+		 * Note that this object may remain undefined if shell integation never activates. For
+		 * example Command Prompt does not support shell integration and a user's shell setup could
+		 * conflict with the automatic shell integration activation.
+		 */
+		readonly shellIntegration: TerminalShellIntegration | undefined;
+
+		/**
 		 * Send text to the terminal. The text is written to the stdin of the underlying pty process
 		 * (shell) of the terminal.
 		 *
@@ -7423,6 +7443,311 @@ declare module 'vscode' {
 		 * https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 		 */
 		readonly isInteractedWith: boolean;
+	}
+
+	/**
+	 * [Shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered capabilities owned by a terminal.
+	 */
+	export interface TerminalShellIntegration {
+		/**
+		 * The current working directory of the terminal. This {@link Uri} may represent a file on
+		 * another machine (eg. ssh into another machine). This requires the shell integration to
+		 * support working directory reporting.
+		 */
+		readonly cwd: Uri | undefined;
+
+		/**
+		 * Execute a command, sending ^C as necessary to interrupt any running command if needed.
+		 *
+		 * @param commandLine The command line to execute, this is the exact text that will be sent
+		 * to the terminal.
+		 *
+		 * @example
+		 * // Execute a command in a terminal immediately after being created
+		 * const myTerm = window.createTerminal();
+		 * window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		 *   if (terminal === myTerm) {
+		 *     const execution = shellIntegration.executeCommand('echo "Hello world"');
+		 *     window.onDidEndTerminalShellExecution(event => {
+		 *       if (event.execution === execution) {
+		 *         console.log(`Command exited with code ${event.exitCode}`);
+		 *       }
+		 *     });
+		 *   }
+		 * }));
+		 * // Fallback to sendText if there is no shell integration within 3 seconds of launching
+		 * setTimeout(() => {
+		 *   if (!myTerm.shellIntegration) {
+		 *     myTerm.sendText('echo "Hello world"');
+		 *     // Without shell integration, we can't know when the command has finished or what the
+		 *     // exit code was.
+		 *   }
+		 * }, 3000);
+		 *
+		 * @example
+		 * // Send command to terminal that has been alive for a while
+		 * const commandLine = 'echo "Hello world"';
+		 * if (term.shellIntegration) {
+		 *   const execution = shellIntegration.executeCommand({ commandLine });
+		 *   window.onDidEndTerminalShellExecution(event => {
+		 *     if (event.execution === execution) {
+		 *       console.log(`Command exited with code ${event.exitCode}`);
+		 *     }
+		 *   });
+		 * } else {
+		 *   term.sendText(commandLine);
+		 *   // Without shell integration, we can't know when the command has finished or what the
+		 *   // exit code was.
+		 * }
+		 */
+		executeCommand(commandLine: string): TerminalShellExecution;
+
+		/**
+		 * Execute a command, sending ^C as necessary to interrupt any running command if needed.
+		 *
+		 * *Note* This is not guaranteed to work as [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)
+		 * must be activated. Check whether {@link TerminalShellExecution.exitCode} is rejected to
+		 * verify whether it was successful.
+		 *
+		 * @param executable A command to run.
+		 * @param args Arguments to launch the executable with which will be automatically escaped
+		 * based on the executable type.
+		 *
+		 * @example
+		 * // Execute a command in a terminal immediately after being created
+		 * const myTerm = window.createTerminal();
+		 * window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		 *   if (terminal === myTerm) {
+		 *     const command = shellIntegration.executeCommand({
+		 *       command: 'echo',
+		 *       args: ['Hello world']
+		 *     });
+		 *     const code = await command.exitCode;
+		 *     console.log(`Command exited with code ${code}`);
+		 *   }
+		 * }));
+		 * // Fallback to sendText if there is no shell integration within 3 seconds of launching
+		 * setTimeout(() => {
+		 *   if (!myTerm.shellIntegration) {
+		 *     myTerm.sendText('echo "Hello world"');
+		 *     // Without shell integration, we can't know when the command has finished or what the
+		 *     // exit code was.
+		 *   }
+		 * }, 3000);
+		 *
+		 * @example
+		 * // Send command to terminal that has been alive for a while
+		 * const commandLine = 'echo "Hello world"';
+		 * if (term.shellIntegration) {
+		 *   const command = term.shellIntegration.executeCommand({
+		 *     command: 'echo',
+		 *     args: ['Hello world']
+		 *   });
+		 *   const code = await command.exitCode;
+		 *   console.log(`Command exited with code ${code}`);
+		 * } else {
+		 *   term.sendText(commandLine);
+		 *   // Without shell integration, we can't know when the command has finished or what the
+		 *   // exit code was.
+		 * }
+		 */
+		executeCommand(executable: string, args: string[]): TerminalShellExecution;
+	}
+
+	/**
+	 * A command that was executed in a terminal.
+	 */
+	export interface TerminalShellExecution {
+		/**
+		 * The command line that was executed. The {@link TerminalShellExecutionCommandLineConfidence confidence}
+		 * of this value depends on the specific shell's shell integration implementation. This
+		 * value may become more accurate after {@link window.onDidEndTerminalShellExecution} is
+		 * fired.
+		 *
+		 * @example
+		 * // Log the details of the command line on start and end
+		 * window.onDidStartTerminalShellExecution(event => {
+		 *   const commandLine = event.execution.commandLine;
+		 *   console.log(`Command started\n${summarizeCommandLine(commandLine)}`);
+		 * });
+		 * window.onDidEndTerminalShellExecution(event => {
+		 *   const commandLine = event.execution.commandLine;
+		 *   console.log(`Command ended\n${summarizeCommandLine(commandLine)}`);
+		 * });
+		 * function summarizeCommandLine(commandLine: TerminalShellExecutionCommandLine) {
+		 *   return [
+		 *     `  Command line: ${command.commandLine.value}`,
+		 *     `  Confidence: ${command.commandLine.confidence}`,
+		 *     `  Trusted: ${command.commandLine.isTrusted}
+		 *   ].join('\n');
+		 * }
+		 */
+		readonly commandLine: TerminalShellExecutionCommandLine;
+
+		/**
+		 * The working directory that was reported by the shell when this command executed. This
+		 * {@link Uri} may represent a file on another machine (eg. ssh into another machine). This
+		 * requires the shell integration to support working directory reporting.
+		 */
+		readonly cwd: Uri | undefined;
+
+		/**
+		 * Creates a stream of raw data (including escape sequences) that is written to the
+		 * terminal. This will only include data that was written after `read` was called for
+		 * the first time, ie. you must call `read` immediately after the command is executed via
+		 * {@link TerminalShellIntegration.executeCommand} or
+		 * {@link window.onDidStartTerminalShellExecution} to not miss any data.
+		 *
+		 * @example
+		 * // Log all data written to the terminal for a command
+		 * const command = term.shellIntegration.executeCommand({ commandLine: 'echo "Hello world"' });
+		 * const stream = command.read();
+		 * for await (const data of stream) {
+		 *   console.log(data);
+		 * }
+		 */
+		read(): AsyncIterable<string>;
+	}
+
+	/**
+	 * A command line that was executed in a terminal.
+	 */
+	export interface TerminalShellExecutionCommandLine {
+		/**
+		 * The full command line that was executed, including both the command and its arguments.
+		 */
+		readonly value: string;
+
+		/**
+		 * Whether the command line value came from a trusted source and is therefore safe to
+		 * execute without user additional confirmation, such as a notification that asks "Do you
+		 * want to execute (command)?". This verification is likely only needed if you are going to
+		 * execute the command again.
+		 *
+		 * This is `true` only when the command line was reported explicitly by the shell
+		 * integration script (ie. {@link TerminalShellExecutionCommandLineConfidence.High high confidence})
+		 * and it used a nonce for verification.
+		 */
+		readonly isTrusted: boolean;
+
+		/**
+		 * The confidence of the command line value which is determined by how the value was
+		 * obtained. This depends upon the implementation of the shell integration script.
+		 */
+		readonly confidence: TerminalShellExecutionCommandLineConfidence;
+	}
+
+	/**
+	 * The confidence of a {@link TerminalShellExecutionCommandLine} value.
+	 */
+	enum TerminalShellExecutionCommandLineConfidence {
+		/**
+		 * The command line value confidence is low. This means that the value was read from the
+		 * terminal buffer using markers reported by the shell integration script. Additionally one
+		 * of the following conditions will be met:
+		 *
+		 * - The command started on the very left-most column which is unusual, or
+		 * - The command is multi-line which is more difficult to accurately detect due to line
+		 *   continuation characters and right prompts.
+		 * - Command line markers were not reported by the shell integration script.
+		 */
+		Low = 0,
+
+		/**
+		 * The command line value confidence is medium. This means that the value was read from the
+		 * terminal buffer using markers reported by the shell integration script. The command is
+		 * single-line and does not start on the very left-most column (which is unusual).
+		 */
+		Medium = 1,
+
+		/**
+		 * The command line value confidence is high. This means that the value was explicitly sent
+		 * from the shell integration script or the command was executed via the
+		 * {@link TerminalShellIntegration.executeCommand} API.
+		 */
+		High = 2
+	}
+
+	/**
+	 * An event signalling that a terminal's shell integration has changed.
+	 */
+	export interface TerminalShellIntegrationChangeEvent {
+		/**
+		 * The terminal that shell integration has been activated in.
+		 */
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+	}
+
+	/**
+	 * An event signalling that an execution has started in a terminal.
+	 */
+	export interface TerminalShellExecutionStartEvent {
+		/**
+		 * The terminal that shell integration has been activated in.
+		 */
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+
+		/**
+		 * The terminal shell execution that has ended.
+		 */
+		readonly execution: TerminalShellExecution;
+	}
+
+	/**
+	 * An event signalling that an execution has ended in a terminal.
+	 */
+	export interface TerminalShellExecutionEndEvent {
+		/**
+		 * The terminal that shell integration has been activated in.
+		 */
+		readonly terminal: Terminal;
+
+		/**
+		 * The shell integration object.
+		 */
+		readonly shellIntegration: TerminalShellIntegration;
+
+		/**
+		 * The terminal shell execution that has ended.
+		 */
+		readonly execution: TerminalShellExecution;
+
+		/**
+		 * The exit code reported by the shell.
+		 *
+		 * Note that `undefined` means the shell either did not report an exit  code (ie. the shell
+		 * integration script is misbehaving) or the shell reported a command started before the command
+		 * finished (eg. a sub-shell was opened). Generally this should not happen, depending on the use
+		 * case, it may be best to treat this as a failure.
+		 *
+		 * @example
+		 * const execution = shellIntegration.executeCommand({
+		 *   command: 'echo',
+		 *   args: ['Hello world']
+		 * });
+		 * window.onDidEndTerminalShellExecution(event => {
+		 *   if (event.execution === execution) {
+		 *     if (event.exitCode === undefined) {
+		 * 	     console.log('Command finished but exit code is unknown');
+		 *     } else if (event.exitCode === 0) {
+		 * 	     console.log('Command succeeded');
+		 *     } else {
+		 * 	     console.log('Command failed');
+		 *     }
+		 *   }
+		 * });
+		 */
+		readonly exitCode: number | undefined;
 	}
 
 	/**
@@ -7854,7 +8179,7 @@ declare module 'vscode' {
 		/**
 		 * An object that keeps information about how this extension can use language models.
 		 *
-		 * @see {@link lm.sendChatRequest}
+		 * @see {@link LanguageModelChat.sendRequest}
 		 */
 		readonly languageModelAccessInformation: LanguageModelAccessInformation;
 	}
@@ -10461,6 +10786,25 @@ declare module 'vscode' {
 		export const onDidChangeTerminalState: Event<Terminal>;
 
 		/**
+		 * Fires when shell integration activates or one of its properties changes in a terminal.
+		 */
+		export const onDidChangeTerminalShellIntegration: Event<TerminalShellIntegrationChangeEvent>;
+
+		/**
+		 * This will be fired when a terminal command is started. This event will fire only when
+		 * [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) is
+		 * activated for the terminal.
+		 */
+		export const onDidStartTerminalShellExecution: Event<TerminalShellExecutionStartEvent>;
+
+		/**
+		 * This will be fired when a terminal command is ended. This event will fire only when
+		 * [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) is
+		 * activated for the terminal.
+		 */
+		export const onDidEndTerminalShellExecution: Event<TerminalShellExecutionEndEvent>;
+
+		/**
 		 * Represents the current window's state.
 		 */
 		export const state: WindowState;
@@ -11119,8 +11463,8 @@ declare module 'vscode' {
 		canSelectMany?: boolean;
 
 		/**
-		* An optional interface to implement drag and drop in the tree view.
-		*/
+		 * An optional interface to implement drag and drop in the tree view.
+		 */
 		dragAndDropController?: TreeDragAndDropController<T>;
 
 		/**
@@ -11353,8 +11697,8 @@ declare module 'vscode' {
 		 *
 		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
-		 * @param dataTransfer The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occurring on. When undefined, the target is the root.
+		 * @param dataTransfer The data transfer items of the source of the drag.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
 		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
@@ -11381,8 +11725,8 @@ declare module 'vscode' {
 	 */
 	export interface TreeCheckboxChangeEvent<T> {
 		/**
-		* The items that were checked or unchecked.
-		*/
+		 * The items that were checked or unchecked.
+		 */
 		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
 	}
 
@@ -11422,8 +11766,8 @@ declare module 'vscode' {
 		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
 
 		/**
-		* An event to signal that an element or root has either been checked or unchecked.
-		*/
+		 * An event to signal that an element or root has either been checked or unchecked.
+		 */
 		readonly onDidChangeCheckboxState: Event<TreeCheckboxChangeEvent<T>>;
 
 		/**
@@ -11466,15 +11810,15 @@ declare module 'vscode' {
 			/**
 			 * If true, then the element will be selected.
 			 */
-			select?: boolean;
+			readonly select?: boolean;
 			/**
 			 * If true, then the element will be focused.
 			 */
-			focus?: boolean;
+			readonly focus?: boolean;
 			/**
 			 * If true, then the element will be expanded. If a number is passed, then up to that number of levels of children will be expanded
 			 */
-			expand?: boolean | number;
+			readonly expand?: boolean | number;
 		}): Thenable<void>;
 	}
 
@@ -11700,8 +12044,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	* Checkbox state of the tree item
-	*/
+	 * Checkbox state of the tree item
+	 */
 	export enum TreeItemCheckboxState {
 		/**
 		 * Determines an item is unchecked
@@ -11790,8 +12134,8 @@ declare module 'vscode' {
 		color?: ThemeColor;
 
 		/**
-		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
-		*/
+		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		 */
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 
 		/**
@@ -12436,7 +12780,7 @@ declare module 'vscode' {
 		buttons: readonly QuickInputButton[];
 
 		/**
-		 * An event signaling when a button in the title bar was triggered.
+		 * An event signaling when a top level button (buttons stored in {@link buttons}) was triggered.
 		 * This event does not fire for buttons on a {@link QuickPickItem}.
 		 */
 		readonly onDidTriggerButton: Event<QuickInputButton>;
@@ -12671,7 +13015,7 @@ declare module 'vscode' {
 		/**
 		 * The reason why the document was changed.
 		 * Is `undefined` if the reason is not known.
-		*/
+		 */
 		readonly reason: TextDocumentChangeReason | undefined;
 	}
 
@@ -13176,8 +13520,9 @@ declare module 'vscode' {
 		 * `**` or path segments), it will be watched recursively and otherwise will be watched
 		 * non-recursively (i.e. only changes to the first level of the path will be reported).
 		 *
-		 * *Note* that paths must exist in the file system to be watched. File watching may stop when
-		 * the watched path is renamed or deleted.
+		 * *Note* that paths that do not exist in the file system will be monitored with a delay until
+		 * created and then watched depending on the parameters provided. If a watched path is deleted,
+		 * the watcher will suspend and not report any events until the path is created again.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
@@ -13192,25 +13537,12 @@ declare module 'vscode' {
 		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
-		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
+		 * that are known to produce many file changes at once (such as `.git` folders). As such,
 		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
 		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
-		 *
-		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
-		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
-		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
-		 * The underlying behaviour depends on the path that is provided for watching:
-		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
-		 *   excluded via `files.watcherExclude` setting
-		 * * if the path is equal to any of the workspace folders, deletions are not tracked
-		 * * if the path is outside of any of the workspace folders, deletions are not tracked
-		 *
-		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
-		 * folder) to not accidentally watch all sibling folders recursively.
 		 *
 		 * *Note* that the file paths that are reported for having changed may have a different path casing
 		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
@@ -15377,7 +15709,7 @@ declare module 'vscode' {
 		 *
 		 * @param rendererId The renderer ID to communicate with
 		 * @returns A new notebook renderer messaging object.
-		*/
+		 */
 		export function createRendererMessaging(rendererId: string): NotebookRendererMessaging;
 	}
 
@@ -16186,6 +16518,13 @@ declare module 'vscode' {
 		 * When true, the debug viewlet will not be automatically revealed for this session.
 		 */
 		suppressDebugView?: boolean;
+
+		/**
+		 * Signals to the editor that the debug session was started from a test run
+		 * request. This is used to link the lifecycle of the debug session and
+		 * test run in UI actions.
+		 */
+		testRun?: TestRun;
 	}
 
 	/**
@@ -16372,7 +16711,7 @@ declare module 'vscode' {
 		/**
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
-		*/
+		 */
 		export function addBreakpoints(breakpoints: readonly Breakpoint[]): void;
 
 		/**
@@ -16876,6 +17215,11 @@ declare module 'vscode' {
 		 * Note: you cannot use this option with any other options that prompt the user like {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
 		 */
 		silent?: boolean;
+
+		/**
+		 * The account that you would like to get a session for. This is passed down to the Authentication Provider to be used for creating the correct session.
+		 */
+		account?: AuthenticationSessionAccountInformation;
 	}
 
 	/**
@@ -16910,17 +17254,17 @@ declare module 'vscode' {
 		/**
 		 * Whether it is possible to be signed into multiple accounts at once with this provider.
 		 * If not specified, will default to false.
-		*/
+		 */
 		readonly supportsMultipleAccounts?: boolean;
 	}
 
 	/**
-	* An {@link Event} which fires when an {@link AuthenticationSession} is added, removed, or changed.
-	*/
+	 * An {@link Event} which fires when an {@link AuthenticationSession} is added, removed, or changed.
+	 */
 	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
 		 * The {@link AuthenticationSession AuthenticationSessions} of the {@link AuthenticationProvider} that have been added.
-		*/
+		 */
 		readonly added: readonly AuthenticationSession[] | undefined;
 
 		/**
@@ -16937,6 +17281,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The options passed in to the {@link AuthenticationProvider.getSessions} and
+	 * {@link AuthenticationProvider.createSession} call.
+	 */
+	export interface AuthenticationProviderSessionOptions {
+		/**
+		 * The account that is being asked about. If this is passed in, the provider should
+		 * attempt to return the sessions that are only related to this account.
+		 */
+		account?: AuthenticationSessionAccountInformation;
+	}
+
+	/**
 	 * A provider for performing authentication to a service.
 	 */
 	export interface AuthenticationProvider {
@@ -16950,9 +17306,10 @@ declare module 'vscode' {
 		 * Get a list of sessions.
 		 * @param scopes An optional list of scopes. If provided, the sessions returned should match
 		 * these permissions, otherwise all sessions should be returned.
+		 * @param options Additional options for getting sessions.
 		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
-		getSessions(scopes?: readonly string[]): Thenable<readonly AuthenticationSession[]>;
+		getSessions(scopes: readonly string[] | undefined, options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession[]>;
 
 		/**
 		 * Prompts a user to login.
@@ -16965,9 +17322,10 @@ declare module 'vscode' {
 		 * then this should never be called if there is already an existing session matching these
 		 * scopes.
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
+		 * @param options Additional options for creating a session.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -17029,6 +17387,20 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
 		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+
+		/**
+		 * Get all accounts that the user is logged in to for the specified provider.
+		 * Use this paired with {@link getSession} in order to get an authentication session for a specific account.
+		 *
+		 * Currently, there are only two authentication providers that are contributed from built in extensions
+		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 *
+		 * Note: Getting accounts does not imply that your extension has access to that account or its authentication sessions. You can verify access to the account by calling {@link getSession}.
+		 *
+		 * @param providerId The id of the provider to use
+		 * @returns A thenable that resolves to a readonly array of authentication accounts.
+		 */
+		export function getAccounts(providerId: string): Thenable<readonly AuthenticationSessionAccountInformation[]>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have
@@ -17147,7 +17519,7 @@ declare module 'vscode' {
 		 * @param id Identifier for the controller, must be globally unique.
 		 * @param label A human-readable label for the controller.
 		 * @returns An instance of the {@link TestController}.
-		*/
+		 */
 		export function createTestController(id: string, label: string): TestController;
 	}
 
@@ -17412,7 +17784,7 @@ declare module 'vscode' {
 		 * runs which may still be ongoing, will be marked as outdated and deprioritized
 		 * in the editor's UI.
 		 *
-		 * @param item Item to mark as outdated. If undefined, all the controller's items are marked outdated.
+		 * @param items Item to mark as outdated. If undefined, all the controller's items are marked outdated.
 		 */
 		invalidateTestResults(items?: TestItem | readonly TestItem[]): void;
 
@@ -17721,6 +18093,34 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A stack frame found in the {@link TestMessage.stackTrace}.
+	 */
+	export class TestMessageStackFrame {
+		/**
+		 * The location of this stack frame. This should be provided as a URI if the
+		 * location of the call frame can be accessed by the editor.
+		 */
+		uri?: Uri;
+
+		/**
+		 * Position of the stack frame within the file.
+		 */
+		position?: Position;
+
+		/**
+		 * The name of the stack frame, typically a method or function name.
+		 */
+		label: string;
+
+		/**
+		 * @param label The name of the stack frame
+		 * @param file The file URI of the stack frame
+		 * @param position The position of the stack frame within the file
+		 */
+		constructor(label: string, uri?: Uri, position?: Position);
+	}
+
+	/**
 	 * Message associated with the test state. Can be linked to a specific
 	 * source range -- useful for assertion failures, for example.
 	 */
@@ -17775,6 +18175,11 @@ declare module 'vscode' {
 		 * - `message`: the {@link TestMessage} instance.
 		 */
 		contextValue?: string;
+
+		/**
+		 * The stack trace associated with the message or failure.
+		 */
+		stackTrace?: TestMessageStackFrame[];
 
 		/**
 		 * Creates a new TestMessage that will present as a diff in the editor.
@@ -18507,12 +18912,12 @@ declare module 'vscode' {
 	 */
 	export enum ChatResultFeedbackKind {
 		/**
-		 * The user marked the result as helpful.
+		 * The user marked the result as unhelpful.
 		 */
 		Unhelpful = 0,
 
 		/**
-		 * The user marked the result as unhelpful.
+		 * The user marked the result as helpful.
 		 */
 		Helpful = 1,
 	}
@@ -18565,7 +18970,9 @@ declare module 'vscode' {
 	export interface ChatFollowupProvider {
 		/**
 		 * Provide followups for the given result.
+		 *
 		 * @param result This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * @param context Extra context passed to a participant.
 		 * @param token A cancellation token.
 		 */
 		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
@@ -18614,8 +19021,8 @@ declare module 'vscode' {
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *
-		 * The passed {@link ChatResultFeedback.result result} is guaranteed to be the same instance that was
-		 * previously returned from this chat participant.
+		 * The passed {@link ChatResultFeedback.result result} is guaranteed to have the same properties as the result that was
+		 * previously returned from this chat participant's handler.
 		 */
 		onDidReceiveFeedback: Event<ChatResultFeedback>;
 
@@ -18704,7 +19111,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseAnchorPart(value, title))`.
 		 * An anchor is an inline reference to some type of resource.
 		 *
-		 * @param value A uri, location, or symbol information.
+		 * @param value A uri or location.
 		 * @param title An optional title that is rendered with value.
 		 */
 		anchor(value: Uri | Location, title?: string): void;
@@ -18998,7 +19405,7 @@ declare module 'vscode' {
 	 * Represents a language model response.
 	 *
 	 * @see {@link LanguageModelAccess.chatRequest}
-	*/
+	 */
 	export interface LanguageModelChatResponse {
 
 		/**
@@ -19006,6 +19413,9 @@ declare module 'vscode' {
 		 *
 		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
 		 * the stream should handle the errors accordingly.
+		 *
+		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
+		 * or break from the for-loop.
 		 *
 		 * @example
 		 * ```ts
@@ -19020,9 +19430,6 @@ declare module 'vscode' {
 		 *   console.error(e);
 		 * }
 		 * ```
-		 *
-		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
-		 * or break from the for-loop.
 		 */
 		text: AsyncIterable<string>;
 	}
@@ -19045,7 +19452,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * A well-know identifier of the vendor of the language model, a sample is `copilot`, but
+		 * A well-known identifier of the vendor of the language model. An example is `copilot`, but
 		 * values are defined by extensions contributing chat models and need to be looked up with them.
 		 */
 		readonly vendor: string;
@@ -19198,12 +19605,11 @@ declare module 'vscode' {
 		export const onDidChangeChatModels: Event<void>;
 
 		/**
-		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models and
+		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield multiple or no chat models and
 		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
 		 *
 		 * ```ts
-		 *
-		 * const models = await vscode.lm.selectChatModels({family: 'gpt-3.5-turbo'})!;
+		 * const models = await vscode.lm.selectChatModels({ family: 'gpt-3.5-turbo' });
 		 * if (models.length > 0) {
 		 * 	const [first] = models;
 		 * 	const response = await first.sendRequest(...)
@@ -19213,7 +19619,11 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 *
-		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, when the
+		 * A selector can be written to broadly match all models of a given vendor or family, or it can narrowly select one model by ID.
+		 * Keep in mind that the available set of models will change over time, but also that prompts may perform differently in
+		 * different models.
+		 *
+		 * *Note* that extensions can hold on to the results returned by this function and use them later. However, when the
 		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
 		 *
 		 * @param selector A chat model selector. When omitted all chat models are returned.

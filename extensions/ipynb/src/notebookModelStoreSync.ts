@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, ExtensionContext, NotebookCellKind, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit, type NotebookCell, type NotebookDocumentWillSaveEvent } from 'vscode';
-import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively } from './serializers';
-import { CellMetadata, useCustomPropertyInMetadata } from './common';
-import { getNotebookMetadata } from './notebookSerializer';
+import { getCellMetadata, getVSCodeCellLanguageId, removeVSCodeCellLanguageId, setVSCodeCellLanguageId, sortObjectPropertiesRecursively, getNotebookMetadata } from './serializers';
+import { CellMetadata } from './common';
 import type * as nbformat from '@jupyterlab/nbformat';
+import { generateUuid } from './helper';
 
 const noop = () => {
 	//
@@ -108,17 +108,12 @@ function trackAndUpdateCellMetadata(notebook: NotebookDocument, updates: { cell:
 	pendingNotebookCellModelUpdates.set(notebook, pendingUpdates);
 	const edit = new WorkspaceEdit();
 	updates.forEach(({ cell, metadata }) => {
-		let newMetadata: any = {};
-		if (useCustomPropertyInMetadata()) {
-			newMetadata = { ...(cell.metadata), custom: metadata };
-		} else {
-			newMetadata = { ...cell.metadata, ...metadata };
-			if (!metadata.execution_count && newMetadata.execution_count) {
-				delete newMetadata.execution_count;
-			}
-			if (!metadata.attachments && newMetadata.attachments) {
-				delete newMetadata.attachments;
-			}
+		const newMetadata = { ...cell.metadata, ...metadata };
+		if (!metadata.execution_count && newMetadata.execution_count) {
+			delete newMetadata.execution_count;
+		}
+		if (!metadata.attachments && newMetadata.attachments) {
+			delete newMetadata.attachments;
 		}
 		edit.set(cell.notebook.uri, [NotebookEdit.updateCellMetadata(cell.index, sortObjectPropertiesRecursively(newMetadata))]);
 	});
@@ -247,55 +242,3 @@ function generateCellId(notebook: NotebookDocument) {
 	}
 }
 
-
-/**
- * Copied from src/vs/base/common/uuid.ts
- */
-function generateUuid() {
-	// use `randomValues` if possible
-	function getRandomValues(bucket: Uint8Array): Uint8Array {
-		for (let i = 0; i < bucket.length; i++) {
-			bucket[i] = Math.floor(Math.random() * 256);
-		}
-		return bucket;
-	}
-
-	// prep-work
-	const _data = new Uint8Array(16);
-	const _hex: string[] = [];
-	for (let i = 0; i < 256; i++) {
-		_hex.push(i.toString(16).padStart(2, '0'));
-	}
-
-	// get data
-	getRandomValues(_data);
-
-	// set version bits
-	_data[6] = (_data[6] & 0x0f) | 0x40;
-	_data[8] = (_data[8] & 0x3f) | 0x80;
-
-	// print as string
-	let i = 0;
-	let result = '';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += '-';
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	result += _hex[_data[i++]];
-	return result;
-}

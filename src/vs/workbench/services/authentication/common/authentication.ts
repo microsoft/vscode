@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../../base/common/event.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Use this if you don't want the onDidChangeSessions event to fire in the extension host
@@ -35,8 +35,12 @@ export interface AuthenticationProviderInformation {
 }
 
 export interface IAuthenticationCreateSessionOptions {
-	sessionToRecreate?: AuthenticationSession;
 	activateImmediate?: boolean;
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
 }
 
 export interface AllowedExtension {
@@ -126,12 +130,19 @@ export interface IAuthenticationService {
 	getProvider(id: string): IAuthenticationProvider;
 
 	/**
+	 * Gets all accounts that are currently logged in across all sessions
+	 * @param id The id of the provider to ask for accounts
+	 * @returns A promise that resolves to an array of accounts
+	 */
+	getAccounts(id: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
+
+	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
 	 * @param id The id of the provider to ask for a session
 	 * @param scopes The scopes for the session
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
-	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -154,16 +165,65 @@ export const IAuthenticationExtensionsService = createDecorator<IAuthenticationE
 export interface IAuthenticationExtensionsService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * Fires when an account preference for a specific provider has changed for the specified extensions. Does not fire when:
+	 * * An account preference is removed
+	 * * A session preference is changed (because it's deprecated)
+	 * * A session preference is removed (because it's deprecated)
+	 */
+	onDidChangeAccountPreference: Event<{ extensionIds: string[]; providerId: string }>;
+	/**
+	 * Returns the accountName (also known as account.label) to pair with `IAuthenticationAccessService` to get the account preference
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to get the preference for
+	 * @returns The accountName of the preference, or undefined if there is no preference set
+	 */
+	getAccountPreference(extensionId: string, providerId: string): string | undefined;
+	/**
+	 * Sets the account preference for the given provider and extension
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to set the preference for
+	 * @param account The account to set the preference to
+	 */
+	updateAccountPreference(extensionId: string, providerId: string, account: AuthenticationSessionAccount): void;
+	/**
+	 * Removes the account preference for the given provider and extension
+	 * @param providerId The authentication provider id
+	 * @param extensionId The extension id to remove the preference for
+	 */
+	removeAccountPreference(extensionId: string, providerId: string): void;
+	/**
+	 * @deprecated Sets the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param session
+	 */
 	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void;
+	/**
+	 * @deprecated Gets the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param scopes
+	 */
 	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined;
+	/**
+	 * @deprecated Removes the session preference for the given provider and extension
+	 * @param providerId
+	 * @param extensionId
+	 * @param scopes
+	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
 	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
 }
 
-export interface IAuthenticationProviderCreateSessionOptions {
-	sessionToRecreate?: AuthenticationSession;
+export interface IAuthenticationProviderSessionOptions {
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
 }
 
 /**
@@ -194,9 +254,10 @@ export interface IAuthenticationProvider {
 	/**
 	 * Retrieves a list of authentication sessions.
 	 * @param scopes - An optional list of scopes. If provided, the sessions returned should match these permissions, otherwise all sessions should be returned.
+	 * @param options - Additional options for getting sessions.
 	 * @returns A promise that resolves to an array of authentication sessions.
 	 */
-	getSessions(scopes?: string[]): Promise<readonly AuthenticationSession[]>;
+	getSessions(scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]>;
 
 	/**
 	 * Prompts the user to log in.
@@ -207,7 +268,7 @@ export interface IAuthenticationProvider {
 	 * @param options - Additional options for creating the session.
 	 * @returns A promise that resolves to an authentication session.
 	 */
-	createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session corresponding to the specified session ID.

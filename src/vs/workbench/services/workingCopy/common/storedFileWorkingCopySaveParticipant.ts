@@ -3,48 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { raceCancellation } from 'vs/base/common/async';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { insert } from 'vs/base/common/arrays';
-import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { raceCancellation } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { IDisposable, Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IStoredFileWorkingCopySaveParticipant, IStoredFileWorkingCopySaveParticipantContext } from './workingCopyFileService.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from './storedFileWorkingCopy.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { localize } from '../../../../nls.js';
 
 export class StoredFileWorkingCopySaveParticipant extends Disposable {
 
-	private readonly saveParticipants: IStoredFileWorkingCopySaveParticipant[] = [];
+	private readonly saveParticipants = new LinkedList<IStoredFileWorkingCopySaveParticipant>();
 
-	get length(): number { return this.saveParticipants.length; }
+	get length(): number { return this.saveParticipants.size; }
 
 	constructor(
+		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
 
 	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable {
-		const remove = insert(this.saveParticipants, participant);
+		const remove = this.saveParticipants.push(participant);
 
 		return toDisposable(() => remove());
 	}
 
-	participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, token: CancellationToken): Promise<void> {
+	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 		const cts = new CancellationTokenSource(token);
 
-		return this.progressService.withProgress({
-			title: localize('saveParticipants', "Saving '{0}'", workingCopy.name),
+		// undoStop before participation
+		workingCopy.model?.pushStackElement();
+
+		// report to the "outer" progress
+		progress.report({
+			message: localize('saveParticipants1', "Running Code Actions and Formatters...")
+		});
+
+		// create an "inner" progress to allow to skip over long running save participants
+		await this.progressService.withProgress({
+			priority: NotificationPriority.URGENT,
 			location: ProgressLocation.Notification,
-			cancellable: true,
-			delay: workingCopy.isDirty() ? 3000 : 5000
+			cancellable: localize('skip', "Skip"),
+			delay: workingCopy.isDirty() ? 5000 : 3000
 		}, async progress => {
-
-			// undoStop before participation
-			workingCopy.model?.pushStackElement();
-
 			for (const saveParticipant of this.saveParticipants) {
 				if (cts.token.isCancellationRequested || workingCopy.isDisposed()) {
 					break;
@@ -54,23 +61,23 @@ export class StoredFileWorkingCopySaveParticipant extends Disposable {
 					const promise = saveParticipant.participate(workingCopy, context, progress, cts.token);
 					await raceCancellation(promise, cts.token);
 				} catch (err) {
-					this.logService.warn(err);
+					if (!isCancellationError(err)) {
+						this.logService.error(err);
+					}
 				}
 			}
-
-			// undoStop after participation
-			workingCopy.model?.pushStackElement();
-
-			// Cleanup
-			cts.dispose();
 		}, () => {
-			// user cancel
-			cts.dispose(true);
+			cts.cancel();
 		});
+
+		// undoStop after participation
+		workingCopy.model?.pushStackElement();
+
+		cts.dispose();
 	}
 
 	override dispose(): void {
-		this.saveParticipants.splice(0, this.saveParticipants.length);
+		this.saveParticipants.clear();
 
 		super.dispose();
 	}

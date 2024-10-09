@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
-import { Location } from 'vs/editor/common/languages';
-import { ExtHostChatVariablesShape, ExtHostContext, IChatVariableResolverProgressDto, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableMap } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { ExtHostChatVariablesShape, ExtHostContext, IChatVariableResolverProgressDto, MainContext, MainThreadChatVariablesShape } from '../common/extHost.protocol.js';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService } from '../../contrib/chat/common/chatVariables.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatVariables)
 export class MainThreadChatVariables implements MainThreadChatVariablesShape {
@@ -49,9 +46,5 @@ export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 
 	$unregisterVariable(handle: number): void {
 		this._variables.deleteAndDispose(handle);
-	}
-
-	$attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation.Panel): void {
-		this._chatVariablesService.attachContext(name, revive(value), location);
 	}
 }

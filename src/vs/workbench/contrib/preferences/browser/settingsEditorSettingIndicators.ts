@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import type { IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import * as DOM from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { SettingsTreeSettingElement } from './settingsTreeModels.js';
+import { POLICY_SETTING_TAG } from '../common/preferences.js';
+import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 
 const $ = DOM.$;
 
@@ -70,8 +70,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly defaultOverrideIndicator: SettingIndicator;
 	private readonly allIndicators: SettingIndicator[];
 
-	private readonly profilesEnabled: boolean;
-
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
 	private focusedIndex = 0;
 
@@ -81,12 +79,9 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService private readonly commandService: ICommandService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.setting-indicators-container'));
 		this.indicatorsContainerElement.style.display = 'inline';
-
-		this.profilesEnabled = this.userDataProfilesService.isEnabled();
 
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
@@ -338,7 +333,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				}, focus);
 			};
 			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
-		} else if (this.profilesEnabled && element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+		} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
@@ -448,15 +443,27 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	updateDefaultOverrideIndicator(element: SettingsTreeSettingElement) {
 		this.defaultOverrideIndicator.element.style.display = 'none';
-		const sourceToDisplay = getDefaultValueSourceToDisplay(element);
+		let sourceToDisplay = getDefaultValueSourceToDisplay(element);
 		if (sourceToDisplay !== undefined) {
 			this.defaultOverrideIndicator.element.style.display = 'inline';
 			this.defaultOverrideIndicator.disposables.clear();
 
-			const defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by {0}", sourceToDisplay);
+			// Show source of default value when hovered
+			if (Array.isArray(sourceToDisplay) && sourceToDisplay.length === 1) {
+				sourceToDisplay = sourceToDisplay[0];
+			}
+
+			let defaultOverrideHoverContent;
+			if (!Array.isArray(sourceToDisplay)) {
+				defaultOverrideHoverContent = localize('defaultOverriddenDetails', "Default setting value overridden by `{0}`", sourceToDisplay);
+			} else {
+				sourceToDisplay = sourceToDisplay.map(source => `\`${source}\``);
+				defaultOverrideHoverContent = localize('multipledefaultOverriddenDetails', "A default values has been set by {0}", sourceToDisplay.slice(0, -1).join(', ') + ' & ' + sourceToDisplay.slice(-1));
+			}
+
 			const showHover = (focus: boolean) => {
 				return this.hoverService.showHover({
-					content: defaultOverrideHoverContent,
+					content: new MarkdownString().appendMarkdown(defaultOverrideHoverContent),
 					target: this.defaultOverrideIndicator.element,
 					position: {
 						hoverPosition: HoverPosition.BELOW,
@@ -473,14 +480,22 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 }
 
-function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): string | undefined {
-	let sourceToDisplay: string | undefined;
+function getDefaultValueSourceToDisplay(element: SettingsTreeSettingElement): string | undefined | string[] {
+	let sourceToDisplay: string | undefined | string[];
 	const defaultValueSource = element.defaultValueSource;
 	if (defaultValueSource) {
-		if (typeof defaultValueSource !== 'string') {
-			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
+		if (defaultValueSource instanceof Map) {
+			sourceToDisplay = [];
+			for (const [, value] of defaultValueSource) {
+				const newValue = typeof value !== 'string' ? value.displayName ?? value.id : value;
+				if (!sourceToDisplay.includes(newValue)) {
+					sourceToDisplay.push(newValue);
+				}
+			}
 		} else if (typeof defaultValueSource === 'string') {
 			sourceToDisplay = defaultValueSource;
+		} else {
+			sourceToDisplay = defaultValueSource.displayName ?? defaultValueSource.id;
 		}
 	}
 	return sourceToDisplay;
@@ -518,7 +533,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
-	} else if (userDataProfilesService.isEnabled() && element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {
 		// Add other overrides text
@@ -538,9 +553,19 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add default override indicator text
-	const sourceToDisplay = getDefaultValueSourceToDisplay(element);
+	let sourceToDisplay = getDefaultValueSourceToDisplay(element);
 	if (sourceToDisplay !== undefined) {
-		ariaLabelSections.push(localize('defaultOverriddenDetailsAriaLabel', "{0} overrides the default value", sourceToDisplay));
+		if (Array.isArray(sourceToDisplay) && sourceToDisplay.length === 1) {
+			sourceToDisplay = sourceToDisplay[0];
+		}
+
+		let overriddenDetailsText;
+		if (!Array.isArray(sourceToDisplay)) {
+			overriddenDetailsText = localize('defaultOverriddenDetailsAriaLabel', "{0} overrides the default value", sourceToDisplay);
+		} else {
+			overriddenDetailsText = localize('multipleDefaultOverriddenDetailsAriaLabel', "{0} override the default value", sourceToDisplay.slice(0, -1).join(', ') + ' & ' + sourceToDisplay.slice(-1));
+		}
+		ariaLabelSections.push(overriddenDetailsText);
 	}
 
 	// Add text about default values being overridden in other languages

@@ -3,27 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-
-async function showExtensionQuery(paneCompositeService: IPaneCompositePartService, query: string) {
-	const viewlet = await paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-	if (viewlet) {
-		(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(query);
-	}
-}
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import * as nls from '../../../../nls.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 
 registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 
@@ -48,7 +39,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		}
 
 		const commandService = accessor.get(ICommandService);
-		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const notificationService = accessor.get(INotificationService);
 		const dialogService = accessor.get(IDialogService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
@@ -70,7 +61,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 				primaryButton: nls.localize({ key: 'install.formatter', comment: ['&& denotes a mnemonic'] }, "&&Install Formatter...")
 			});
 			if (confirmed) {
-				showExtensionQuery(paneCompositeService, `category:formatters ${langName}`);
+				extensionsWorkbenchService.openSearch(`category:formatters ${langName}`);
 			}
 		}
 	}

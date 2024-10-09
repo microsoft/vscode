@@ -36,6 +36,11 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
+	export class ChatResponseCodeblockUriPart {
+		value: Uri;
+		constructor(value: Uri);
+	}
+
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
@@ -59,10 +64,18 @@ declare module 'vscode' {
 		title: string;
 		message: string;
 		data: any;
-		constructor(title: string, message: string, data: any);
+		buttons?: string[];
+		constructor(title: string, message: string, data: any, buttons?: string[]);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart;
+	export class ChatResponseCodeCitationPart {
+		value: Uri;
+		license: string;
+		snippet: string;
+		constructor(value: Uri, license: string, snippet: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -73,6 +86,73 @@ declare module 'vscode' {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
 		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
+	export class ChatResponseReferencePart2 {
+		/**
+		 * The reference target.
+		 */
+		value: Uri | Location | { variableName: string; value?: Uri | Location } | string;
+
+		/**
+		 * The icon for the reference.
+		 */
+		iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		};
+		options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+
+		/**
+		 * Create a new ChatResponseReferencePart.
+		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
+		 */
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location } | string, iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		}, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } });
+	}
+
+	export class ChatResponseMovePart {
+
+		readonly uri: Uri;
+		readonly range: Range;
+
+		constructor(uri: Uri, range: Range);
+	}
+
+	export interface ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 *
+		 * If this is a {@linkcode Uri} or {@linkcode Location}, this is rendered as a normal link.
+		 *
+		 * If this is a {@linkcode SymbolInformation}, this is rendered as a symbol link.
+		 *
+		 * TODO mjbvz: Should this be a full `SymbolInformation`? Or just the parts we need?
+		 * TODO mjbvz: Should we allow a `SymbolInformation` without a location? For example, until `resolve` completes?
+		 */
+		value2: Uri | Location | SymbolInformation;
+
+		/**
+		 * Optional method which fills in the details of the anchor.
+		 *
+		 * THis is currently only implemented for symbol links.
+		 */
+		resolve?(token: CancellationToken): Thenable<void>;
 	}
 
 	export interface ChatResponseStream {
@@ -89,6 +169,7 @@ declare module 'vscode' {
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
+		codeblockUri(uri: Uri): void;
 		detectedParticipant(participant: string, command?: ChatCommand): void;
 		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
@@ -102,7 +183,7 @@ declare module 'vscode' {
 		 * TODO@API should this be MarkdownString?
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
-		confirmation(title: string, message: string, data: any): void;
+		confirmation(title: string, message: string, data: any, buttons?: string[]): void;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
@@ -115,7 +196,17 @@ declare module 'vscode' {
 
 		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
+		reference2(value: Uri | Location | string | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
+
+		codeCitation(value: Uri, license: string, snippet: string): void;
+
 		push(part: ExtendedChatResponsePart): void;
+	}
+
+	export enum ChatResponseReferencePartStatusKind {
+		Complete = 1,
+		Partial = 2,
+		Omitted = 3
 	}
 
 	/**
@@ -132,6 +223,8 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
+
+		userSelectedModel?: LanguageModelChat;
 	}
 
 	// TODO@API fit this into the stream
@@ -166,19 +259,36 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	export interface ChatResult {
+		nextQuestion?: {
+			prompt: string;
+			participant?: string;
+			command?: string;
+		};
+	}
+
 	export namespace chat {
 		/**
 		 * Create a chat participant with the extended progress type
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		/**
-		 * Current version of the proposal. Changes whenever backwards-incompatible changes are made.
-		 * If a new feature is added that doesn't break existing code, the version is not incremented. When the extension uses this new feature, it should set its engines.vscode version appropriately.
-		 * But if a change is made to an existing feature that would break existing code, the version should be incremented.
-		 * The chat extension should not activate if it doesn't support the current version.
-		 */
-		export const _version: 1 | number;
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
+	}
+
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
 	}
 
 	/*
@@ -209,6 +319,15 @@ declare module 'vscode' {
 		newFile?: boolean;
 	}
 
+	export interface ChatApplyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'apply';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
+		codeMapper?: string;
+	}
+
 	export interface ChatTerminalAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
@@ -234,13 +353,27 @@ declare module 'vscode' {
 	}
 
 	export interface ChatEditorAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'editor';
 		accepted: boolean;
 	}
 
+	export interface ChatEditingSessionAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'chatEditingSessionAction';
+		uri: Uri;
+		hasRemainingEdits: boolean;
+		outcome: ChatEditingSessionActionOutcome;
+	}
+
+	export enum ChatEditingSessionActionOutcome {
+		Accepted = 1,
+		Rejected = 2
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
 	}
 
 	export interface ChatPromptReference {
@@ -248,5 +381,9 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
+	}
+
+	export interface ChatResultFeedback {
+		readonly unhelpfulReason?: string;
 	}
 }

@@ -28,7 +28,7 @@ declare module 'vscode' {
 		 * An optional set of glob patterns to exclude from watching.
 		 * Glob patterns are always matched relative to the watched folder.
 		 */
-		readonly excludes?: string[];
+		readonly excludes: string[];
 	}
 
 	export namespace workspace {

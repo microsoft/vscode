@@ -5,7 +5,7 @@
 
 import { IstanbulCoverageContext } from 'istanbul-to-vscode';
 import * as vscode from 'vscode';
-import { SourceLocationMapper, SourceMapStore } from './testOutputScanner';
+import { SearchStrategy, SourceLocationMapper, SourceMapStore } from './testOutputScanner';
 import { IScriptCoverage, OffsetToPosition, RangeCoverageTracker } from './v8CoverageWrangling';
 
 export const istanbulCoverageContext = new IstanbulCoverageContext();
@@ -18,7 +18,7 @@ export const istanbulCoverageContext = new IstanbulCoverageContext();
 export class PerTestCoverageTracker {
 	private readonly scripts = new Map</* script ID */ string, Script>();
 
-	constructor(private readonly maps: SourceMapStore) {}
+	constructor(private readonly maps: SourceMapStore) { }
 
 	public add(coverage: IScriptCoverage, test?: vscode.TestItem) {
 		const script = this.scripts.get(coverage.scriptId);
@@ -71,11 +71,7 @@ class Script {
 	public async report(run: vscode.TestRun) {
 		const mapper = await this.maps.getSourceLocationMapper(this.uri.toString());
 		const originalUri = (await this.maps.getSourceFile(this.uri.toString())) || this.uri;
-
-		run.addCoverage(this.overall.report(originalUri, this.converter, mapper));
-		for (const [test, projection] of this.perItem) {
-			run.addCoverage(projection.report(originalUri, this.converter, mapper, test));
-		}
+		run.addCoverage(this.overall.report(originalUri, this.converter, mapper, this.perItem));
 	}
 }
 
@@ -85,6 +81,43 @@ class ScriptCoverageTracker {
 	public add(coverage: IScriptCoverage) {
 		for (const range of RangeCoverageTracker.initializeBlocks(coverage.functions)) {
 			this.coverage.setCovered(range.start, range.end, range.covered);
+		}
+	}
+
+	public *toDetails(
+		uri: vscode.Uri,
+		convert: OffsetToPosition,
+		mapper: SourceLocationMapper | undefined,
+	) {
+		for (const range of this.coverage) {
+			if (range.start === range.end) {
+				continue;
+			}
+
+			const startCov = convert.toLineColumn(range.start);
+			let start = new vscode.Position(startCov.line, startCov.column);
+
+			const endCov = convert.toLineColumn(range.end);
+			let end = new vscode.Position(endCov.line, endCov.column);
+			if (mapper) {
+				const startMap = mapper(start.line, start.character, SearchStrategy.FirstAfter);
+				const endMap = startMap && mapper(end.line, end.character, SearchStrategy.FirstBefore);
+				if (!endMap || uri.toString().toLowerCase() !== endMap.uri.toString().toLowerCase()) {
+					continue;
+				}
+				start = startMap.range.start;
+				end = endMap.range.end;
+			}
+
+			for (let i = start.line; i <= end.line; i++) {
+				yield new vscode.StatementCoverage(
+					range.covered,
+					new vscode.Range(
+						new vscode.Position(i, i === start.line ? start.character : 0),
+						new vscode.Position(i, i === end.line ? end.character : Number.MAX_SAFE_INTEGER)
+					)
+				);
+			}
 		}
 	}
 
@@ -98,53 +131,27 @@ class ScriptCoverageTracker {
 		uri: vscode.Uri,
 		convert: OffsetToPosition,
 		mapper: SourceLocationMapper | undefined,
-		item?: vscode.TestItem
+		items: Map<vscode.TestItem, ScriptCoverageTracker>,
 	): V8CoverageFile {
-		const file = new V8CoverageFile(uri, item);
-
-		for (const range of this.coverage) {
-			if (range.start === range.end) {
-				continue;
-			}
-
-			const startCov = convert.toLineColumn(range.start);
-			let start = new vscode.Position(startCov.line, startCov.column);
-
-			const endCov = convert.toLineColumn(range.end);
-			let end = new vscode.Position(endCov.line, endCov.column);
-			if (mapper) {
-				const startMap = mapper(start.line, start.character);
-				const endMap = startMap && mapper(end.line, end.character);
-				if (!endMap || uri.toString().toLowerCase() !== endMap.uri.toString().toLowerCase()) {
-					continue;
-				}
-				start = startMap.range.start;
-				end = endMap.range.end;
-			}
-
-			for (let i = start.line; i <= end.line; i++) {
-				file.add(
-					new vscode.StatementCoverage(
-						range.covered,
-						new vscode.Range(
-							new vscode.Position(i, i === start.line ? start.character : 0),
-							new vscode.Position(i, i === end.line ? end.character : Number.MAX_SAFE_INTEGER)
-						)
-					)
-				);
-			}
+		const file = new V8CoverageFile(uri, items, convert, mapper);
+		for (const detail of this.toDetails(uri, convert, mapper)) {
+			file.add(detail);
 		}
 
 		return file;
 	}
 }
 
-export class V8CoverageFile extends vscode.FileCoverage {
+export class V8CoverageFile extends vscode.FileCoverage2 {
 	public details: vscode.StatementCoverage[] = [];
 
-	constructor(uri: vscode.Uri, item?: vscode.TestItem) {
-		super(uri, { covered: 0, total: 0 });
-		(this as vscode.FileCoverage2).testItem = item;
+	constructor(
+		uri: vscode.Uri,
+		private readonly perTest: Map<vscode.TestItem, ScriptCoverageTracker>,
+		private readonly convert: OffsetToPosition,
+		private readonly mapper: SourceLocationMapper | undefined,
+	) {
+		super(uri, { covered: 0, total: 0 }, undefined, undefined, [...perTest.keys()]);
 	}
 
 	public add(detail: vscode.StatementCoverage) {
@@ -153,5 +160,10 @@ export class V8CoverageFile extends vscode.FileCoverage {
 		if (detail.executed) {
 			this.statementCoverage.covered++;
 		}
+	}
+
+	public testDetails(test: vscode.TestItem): vscode.FileCoverageDetail[] {
+		const t = this.perTest.get(test);
+		return t ? [...t.toDetails(this.uri, this.convert, this.mapper)] : [];
 	}
 }

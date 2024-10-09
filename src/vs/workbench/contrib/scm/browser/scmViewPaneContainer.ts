@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { localize } from 'vs/nls';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISCMViewService, VIEWLET_ID } from 'vs/workbench/contrib/scm/common/scm';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import './media/scm.css';
+import { localize } from '../../../../nls.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { HISTORY_VIEW_PANE_ID, REPOSITORIES_VIEW_PANE_ID, VIEW_PANE_ID, VIEWLET_ID } from '../common/scm.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 
 export class SCMViewPaneContainer extends ViewPaneContainer {
 
 	constructor(
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -46,11 +45,17 @@ export class SCMViewPaneContainer extends ViewPaneContainer {
 	}
 
 	override getTitle(): string {
-		return localize('source control', "Source Control");
-	}
+		if (this.panes.length === 1) {
+			if (this.panes[0].id === VIEW_PANE_ID ||
+				this.panes[0].id === REPOSITORIES_VIEW_PANE_ID ||
+				this.panes[0].id === HISTORY_VIEW_PANE_ID) {
+				return this.panes[0].title;
+			} else {
+				return super.getTitle();
+			}
+		}
 
-	override getActionsContext(): unknown {
-		return this.scmViewService.visibleRepositories.length === 1 ? this.scmViewService.visibleRepositories[0].provider : undefined;
+		return localize('source control', "Source Control");
 	}
 
 }
