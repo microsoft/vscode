@@ -85,6 +85,7 @@ export const enum TerminalSettingId {
 	EnableVisualBell = 'terminal.integrated.enableVisualBell',
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
+	AllowSmartPaste = 'terminal.integrated.allowSmartPaste',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
 	TabFocusMode = 'terminal.integrated.tabFocusMode',
 	EnvMacOs = 'terminal.integrated.env.osx',
