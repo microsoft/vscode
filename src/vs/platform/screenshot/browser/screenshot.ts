@@ -10,11 +10,13 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import * as path from '../../../base/common/path.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { importAMDNodeModule } from '../../../amdX.js';
+// import screenshot from 'screenshot-desktop';
+// import sharp from 'sharp';
 
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
-		const screenshot = (await importAMDNodeModule<typeof import('screenshot-desktop')>('screenshot-desktop', ''));
-		const sharp = (await importAMDNodeModule<typeof import('sharp')>('sharp', ''));
+		const sharp = (await importAMDNodeModule<typeof import('sharp')>('sharp', 'lib/index', true));
+		const screenshot = (await importAMDNodeModule<typeof import('screenshot-desktop')>('screenshot-desktop', 'index', true));
 		const tmpDir = nativeEnvironmentService.tmpDir;
 		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
 
@@ -36,7 +38,7 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 		await fileService.writeFile(URI.file(imgPath), croppedImageBuffer);
 
 		const uniqueId = generateIdUsingDateTime();
-		return { id: uniqueId, name: 'screenshot-' + uniqueId + '.jpg', value: imgPath };
+		return { id: uniqueId, name: 'screenshot-' + uniqueId + '.jpg', value: imgPath, isDynamic: true, isImage: true };
 	} catch (err) {
 		console.error('Error taking screenshot:', err);
 		return undefined;
@@ -72,4 +74,6 @@ export interface IScreenShotContext {
 	id: string;
 	name: string;
 	value: string;
+	isDynamic: boolean;
+	isImage: boolean;
 }

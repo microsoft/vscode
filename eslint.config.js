@@ -802,7 +802,7 @@ export default tseslint.config(
 						'yazl',
 						'zlib',
 						'sharp',
-						'screenshot-desktop',
+						'@types/screenshot-desktop',
 
 					]
 				},
