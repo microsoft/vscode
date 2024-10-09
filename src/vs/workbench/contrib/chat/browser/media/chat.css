@@ -842,6 +842,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-style: dashed;
 	cursor: pointer;
 	font-style: italic;
+	padding-right: 26px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
@@ -851,6 +852,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-icon-label {
+	text-decoration: line-through;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
