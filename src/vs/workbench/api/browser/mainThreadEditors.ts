@@ -180,24 +180,22 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return Promise.resolve(undefined);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
+	$trySetDecorations(id: string, modelVersionId: number, key: string, ranges: IDecorationOptions[]): Promise<boolean> {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
-		editor.setDecorations(key, ranges);
-		return Promise.resolve(undefined);
+		return Promise.resolve(editor.setDecorations(key, modelVersionId, ranges));
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
+	$trySetDecorationsFast(id: string, modelVersionId: number, key: string, ranges: number[]): Promise<boolean> {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
-		editor.setDecorationsFast(key, ranges);
-		return Promise.resolve(undefined);
+		return Promise.resolve(editor.setDecorationsFast(key, modelVersionId, ranges));
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
