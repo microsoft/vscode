@@ -748,7 +748,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
 		const resource = path.basename(path.basename(xlf.relative, '.xlf'), '-new');
-		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
+		if (path.dirname(xlf.relative) === 'vscode-extensions') {
 			project = extensionsProject;
 		}
 		const contents = xlf.contents.toString();
