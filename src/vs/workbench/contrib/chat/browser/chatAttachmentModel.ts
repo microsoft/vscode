@@ -54,11 +54,11 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	async attachScreenshot(): Promise<void> {
-		const imagePath = await generateFocusedWindowScreenshot(this._fileService, this._environmentService);
-		if (!imagePath) {
+		const screenshot = await generateFocusedWindowScreenshot(this._fileService, this._environmentService);
+		if (!screenshot) {
 			return;
 		}
-		this.addContext(imagePath);
+		this.addContext(screenshot);
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {

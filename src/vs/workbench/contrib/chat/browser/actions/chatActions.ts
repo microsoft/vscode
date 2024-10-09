@@ -58,9 +58,9 @@ export interface IChatViewOpenOptions {
 	previousRequests?: IChatViewOpenRequestEntry[];
 
 	/**
-	 * The image(s) to include in the request
+	 * Whether a screenshot of the focused window should be taken and attached
 	 */
-	images?: IChatImageAttachment[];
+	attachScreenshot?: boolean;
 }
 
 export interface IChatImageAttachment {
@@ -113,15 +113,8 @@ class OpenChatGlobalAction extends Action2 {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
 			}
 		}
-		if (opts?.images) {
-			chatWidget.attachmentModel.clear();
-			for (const image of opts.images) {
-				chatWidget.attachmentModel.addContext({
-					...image,
-					isDynamic: true,
-					isImage: true
-				});
-			}
+		if (opts?.attachScreenshot) {
+			chatWidget.attachmentModel.attachScreenshot();
 		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {

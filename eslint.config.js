@@ -801,8 +801,6 @@ export default tseslint.config(
 						'yauzl',
 						'yazl',
 						'zlib',
-						'sharp',
-						'@types/screenshot-desktop',
 
 					]
 				},
@@ -875,8 +873,6 @@ export default tseslint.config(
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
 						'@xterm/headless', // node module allowed even in /common/
-						'sharp', // node module allowed even in /common/
-						'screenshot-desktop' // node module allowed even in /common/
 					]
 				},
 				{
