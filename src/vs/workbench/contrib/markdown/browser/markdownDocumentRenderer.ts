@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basicMarkupHtmlTags, hookDomPurifyHrefAndSrcSanitizer } from '../../../../base/browser/dom.js';
-import * as dompurify from '../../../../base/browser/dompurify/dompurify.js';
+import dompurify from '../../../../base/browser/dompurify/dompurify.js';
 import { allowedMarkdownAttr } from '../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as marked from '../../../../base/common/marked/marked.js';
