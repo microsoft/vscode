@@ -406,6 +406,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.AllowSmartPaste]: {
+			markdownDescription: localize('terminal.integrated.allowSmartPaste', "Whether or not to allow smart paste to automatically wrap file path with double quotes"),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.AllowMnemonics]: {
 			markdownDescription: localize('terminal.integrated.allowMnemonics', "Whether to allow menubar mnemonics (for example Alt+F) to trigger the open of the menubar. Note that this will cause all alt keystrokes to skip the shell when true. This does nothing on macOS."),
 			type: 'boolean',
