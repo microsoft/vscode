@@ -14,7 +14,7 @@ import { getMediaMime } from '../../base/common/mime.js';
 import { isLinux } from '../../base/common/platform.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
-import { extname, dirname, join, normalize } from '../../base/common/path.js';
+import { extname, dirname, join, normalize, posix } from '../../base/common/path.js';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from '../../base/common/network.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { IProductService } from '../../platform/product/common/productService.js';
@@ -130,7 +130,7 @@ export class WebClientServer {
 			if (pathname.startsWith(this._staticRoute) && pathname.charCodeAt(this._staticRoute.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, parsedUrl);
 			}
-			if (pathname === this._basePath) {
+			if (pathname === '/') {
 				return this._handleRoot(req, res, parsedUrl);
 			}
 			if (pathname === this._callbackRoute) {
@@ -276,14 +276,27 @@ export class WebClientServer {
 			return Array.isArray(val) ? val[0] : val;
 		};
 
+		const replacePort = (host: string, port: string) => {
+			const index = host?.indexOf(':');
+			if (index !== -1) {
+				host = host?.substring(0, index);
+			}
+			host += `:${port}`;
+			return host;
+		};
+
 		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
-		const remoteAuthority = (
+		let remoteAuthority = (
 			useTestResolver
 				? 'test+test'
 				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
 		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
+		}
+		const forwardedPort = getFirstHeader('x-forwarded-port');
+		if (forwardedPort) {
+			remoteAuthority = replacePort(remoteAuthority, forwardedPort);
 		}
 
 		function asJSON(value: unknown): string {
@@ -296,6 +309,12 @@ export class WebClientServer {
 			// so we must disable the iframe wrapping because the iframe URL will give a 404
 			_wrapWebWorkerExtHostInIframe = false;
 		}
+
+		// Prefix routes with basePath for clients
+		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+		const staticRoute = posix.join(basePath, this._staticRoute);
+		const callbackRoute = posix.join(basePath, this._callbackRoute);
+		const webExtensionRoute = posix.join(basePath, this._webExtensionRoute);
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
@@ -314,7 +333,7 @@ export class WebClientServer {
 				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
 					scheme: 'http',
 					authority: remoteAuthority,
-					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+					path: `${webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
 				}).toString(true)
 			} : undefined
 		} satisfies Partial<IProductConfiguration>;
@@ -328,7 +347,7 @@ export class WebClientServer {
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
-			serverBasePath: this._basePath,
+			serverBasePath: basePath,
 			_wrapWebWorkerExtHostInIframe,
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
@@ -336,7 +355,7 @@ export class WebClientServer {
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
-			callbackRoute: this._callbackRoute
+			callbackRoute: callbackRoute
 		};
 
 		const cookies = cookie.parse(req.headers.cookie || '');
@@ -353,9 +372,9 @@ export class WebClientServer {
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
-			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+			WORKBENCH_WEB_BASE_URL: staticRoute,
 			WORKBENCH_NLS_URL,
-			WORKBENCH_NLS_FALLBACK_URL: `${this._staticRoute}/out/nls.messages.js`
+			WORKBENCH_NLS_FALLBACK_URL: `${staticRoute}/out/nls.messages.js`
 		};
 
 		// DEV ---------------------------------------------------------------------------------------
