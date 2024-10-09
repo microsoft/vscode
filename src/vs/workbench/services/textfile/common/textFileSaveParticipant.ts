@@ -32,23 +32,23 @@ export class TextFileSaveParticipant extends Disposable {
 	}
 
 	async participate(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		const cts = new CancellationTokenSource(token);
 
 		// undoStop before participation
 		model.textEditorModel?.pushStackElement();
 
-		const cts = new CancellationTokenSource(token);
-
+		// report to the "outer" progress
 		progress.report({
 			message: localize('saveParticipants1', "Running Code Actions and Formatters...")
 		});
 
+		// create an "inner" progress to allow to skip over long running save participants
 		await this.progressService.withProgress({
 			priority: NotificationPriority.URGENT,
 			location: ProgressLocation.Notification,
 			cancellable: localize('skip', "Skip"),
 			delay: model.isDirty() ? 5000 : 3000
 		}, async progress => {
-
 			for (const saveParticipant of this.saveParticipants) {
 				if (cts.token.isCancellationRequested || !model.textEditorModel /* disposed */) {
 					break;

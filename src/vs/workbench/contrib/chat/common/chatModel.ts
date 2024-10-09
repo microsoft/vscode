@@ -33,8 +33,12 @@ export interface IChatRequestVariableEntry {
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
+	mimeType?: string;
 
 	// TODO are these just a 'kind'?
+	/**
+	 * True if the variable has a value vs being a reference to a variable
+	 */
 	isDynamic?: boolean;
 	isFile?: boolean;
 	isTool?: boolean;
@@ -117,7 +121,7 @@ export type IChatProgressRenderableResponseContent = Exclude<IChatProgressRespon
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
-	toMarkdown(): string;
+	getMarkdown(): string;
 	toString(): string;
 }
 
@@ -246,7 +250,10 @@ export class Response extends Disposable implements IResponse {
 		return this._responseRepr;
 	}
 
-	toMarkdown(): string {
+	/**
+	 * _Just_ the content of markdown parts in the response
+	 */
+	getMarkdown(): string {
 		return this._markdownContent;
 	}
 
@@ -358,7 +365,7 @@ export class Response extends Disposable implements IResponse {
 			}
 		})
 			.filter(s => s.length > 0)
-			.join('\n\n');
+			.join('');
 
 		if (!quiet) {
 			this._onDidChangeValue.fire();

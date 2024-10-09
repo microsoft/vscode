@@ -12,11 +12,13 @@ declare module 'vscode' {
 	}
 
 	export interface ConversationRequest {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		readonly type: 'request';
 		readonly message: string;
 	}
 
 	export interface ConversationResponse {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		readonly type: 'response';
 		readonly message: string;
 		readonly result?: ChatResult;

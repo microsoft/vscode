@@ -1126,8 +1126,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attached-context-hover .chat-attached-context-image {
 	height: auto;
-	max-height: 500px;
-	max-width: 400px;
+	max-height: 512px;
+	max-width: 512px;
 	width: 100%;
 	display: block;
 }
@@ -1136,7 +1136,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	display: inline-flex;
 	align-items: center;
-	padding: 0 4px 0 2px;
+	padding: 2px 0 2px 0px;
 	border-radius: 2px;
 	margin-right: 1px;
 	user-select: none;
@@ -1145,8 +1145,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 	border-radius: 2px;
 }
 

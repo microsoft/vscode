@@ -9,7 +9,6 @@ import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IManagedHoverContentOrFactory } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -672,9 +671,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate });
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
 
-			let hoverElement: IManagedHoverContentOrFactory;
 			let ariaLabel: string | undefined;
 
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
@@ -685,7 +683,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				const friendlyName = `${fileBasename} ${fileDirname}`;
 
 				ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
-				hoverElement = file.fsPath;
 
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
@@ -696,7 +693,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			} else if (attachment.isImage) {
 				ariaLabel = localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 
-				hoverElement = dom.$('div.chat-attached-context-hover');
+				const hoverElement = dom.$('div.chat-attached-context-hover');
 				hoverElement.setAttribute('aria-label', ariaLabel);
 
 				// Custom label
@@ -707,14 +704,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				let buffer: Uint8Array;
 				try {
+					this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 					if (attachment.value instanceof URI) {
-						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 						const readFile = await this.fileService.readFile(attachment.value);
 						buffer = readFile.value.buffer;
-
 					} else {
 						buffer = attachment.value as Uint8Array;
-						this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 					}
 					this.createImageElements(buffer, widget, hoverElement);
 				} catch (error) {
@@ -722,22 +717,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 
 				widget.style.position = 'relative';
+				if (!this.attachedContextDisposables.isDisposed) {
+					this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
+				}
 			} else {
 				const attachmentLabel = attachment.fullName ?? attachment.name;
 				const withIcon = attachment.icon?.id ? `$(${attachment.icon.id}) ${attachmentLabel}` : attachmentLabel;
 				label.setLabel(withIcon, undefined);
 
 				ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
-				hoverElement = attachmentLabel;
 
 				this.attachButtonAndDisposables(widget, index, attachment, hoverDelegate);
 			}
 
 			widget.tabIndex = 0;
 			widget.ariaLabel = ariaLabel;
-			if (!this.attachedContextDisposables.isDisposed) {
-				this.attachedContextDisposables.add(this.hoverService.setupManagedHover(hoverDelegate, widget, hoverElement, { trapFocus: false }));
-			}
 		});
 
 		if (oldHeight !== container.offsetHeight && !isLayout) {
@@ -786,7 +780,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private createImageElements(buffer: ArrayBuffer | Uint8Array, widget: HTMLElement, hoverElement: HTMLElement) {
 		const blob = new Blob([buffer], { type: 'image/png' });
 		const url = URL.createObjectURL(blob);
-		const img = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
@@ -795,8 +788,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			existingPill.replaceWith(pill);
 		}
 
+		const hoverImage = dom.$('img.chat-attached-context-image', { src: url, alt: '' });
+
 		// Update hover image
-		hoverElement.appendChild(img);
+		hoverElement.appendChild(hoverImage);
+
+		hoverImage.onload = () => {
+			URL.revokeObjectURL(url);
+		};
 	}
 
 	async renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null, chatWidget?: IChatWidget) {
@@ -807,15 +806,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
 			this._chatEditsProgress?.dispose();
-			this._chatEditsProgress = undefined;
 			return;
 		}
 
 		const currentChatEditingState = chatEditingSession.state.get();
-		if (this._chatEditList && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial && !chatWidget?.viewModel?.requestInProgress)) {
+		if (this._chatEditList && !chatWidget?.viewModel?.requestInProgress && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial)) {
 			this._chatEditsProgress?.stop();
-			this._chatEditsProgress?.dispose();
-			this._chatEditsProgress = undefined;
 		}
 
 		// Summary of number of files changed
@@ -895,9 +891,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		if (!this._chatEditsProgress && (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress)) {
-			this._chatEditsProgress = new ProgressBar(innerContainer);
-			this._chatEditsProgress.infinite().show(500);
+		if (currentChatEditingState === ChatEditingSessionState.StreamingEdits || chatWidget?.viewModel?.requestInProgress) {
+			this._chatEditsProgress ??= new ProgressBar(innerContainer);
+			this._chatEditsProgress?.infinite().show(500);
 		}
 
 		// Working set

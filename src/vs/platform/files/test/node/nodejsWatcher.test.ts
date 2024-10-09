@@ -30,8 +30,6 @@ import { TestParcelWatcher } from './parcelWatcher.test.js';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-/* eslint-disable local/code-ensure-no-disposables-leak-in-test */
-
 suite.skip('File Watcher (node.js)', function () {
 
 	this.timeout(10000);
