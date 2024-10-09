@@ -12,7 +12,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { parse } from '../../../base/common/marshalling.js';
 import { Schemas } from '../../../base/common/network.js';
-import { isWeb } from '../../../base/common/platform.js';
+import { isNative, isWeb } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
@@ -23,13 +23,6 @@ import { ByteSize, IFileService } from '../../files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { extractSelection } from '../../opener/common/opener.js';
 import { Registry } from '../../registry/common/platform.js';
-
-export interface FileAdditionalNativeProperties {
-	/**
-	 * The real path to the file on the users filesystem. Only available on electron.
-	 */
-	readonly path?: string;
-}
 
 
 //#region Editor / Resources DND
@@ -84,9 +77,9 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		if (e.dataTransfer?.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file && (file as FileAdditionalNativeProperties).path /* Electron only */) {
+				if (file && getPathForFile(file)) {
 					try {
-						editors.push({ resource: URI.file((file as FileAdditionalNativeProperties).path!), isExternal: true, allowWorkspaceOpen: true });
+						editors.push({ resource: URI.file(getPathForFile(file)!), isExternal: true, allowWorkspaceOpen: true });
 					} catch (error) {
 						// Invalid URI
 					}
@@ -405,6 +398,18 @@ export class LocalSelectionTransfer<T> {
 			this.proto = proto;
 		}
 	}
+}
+
+/**
+ * A helper to get access to Electrons `webUtils.getPathForFile` function
+ * in a safe way without crashing the application when running in the web.
+ */
+export function getPathForFile(file: File): string | undefined {
+	if (isNative && typeof (globalThis as any).vscode?.webUtils?.getPathForFile === 'function') {
+		return (globalThis as any).vscode.webUtils.getPathForFile(file);
+	}
+
+	return undefined;
 }
 
 //#endregion

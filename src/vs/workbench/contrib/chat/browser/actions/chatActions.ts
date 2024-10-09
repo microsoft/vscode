@@ -3,40 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { clearChatEditor } from './chatClear.js';
-import { CHAT_VIEW_ID, IChatWidgetService, showChatView } from '../chat.js';
-import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
-import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-
-export interface IChatViewTitleActionContext {
-	chatView: ChatViewPane;
-}
-
-export function isChatViewTitleActionContext(obj: unknown): obj is IChatViewTitleActionContext {
-	return obj instanceof Object && 'chatView' in obj;
-}
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
+import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
+import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -54,6 +56,17 @@ export interface IChatViewOpenOptions {
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
 	previousRequests?: IChatViewOpenRequestEntry[];
+
+	/**
+	 * The image(s) to include in the request
+	 */
+	images?: IChatImageAttachment[];
+}
+
+export interface IChatImageAttachment {
+	id: string;
+	name: string;
+	value: URI | Uint8Array;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -62,12 +75,15 @@ export interface IChatViewOpenRequestEntry {
 }
 
 class OpenChatGlobalAction extends Action2 {
+
+	static readonly TITLE = localize2('openChat', "Open Chat");
+
 	constructor() {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
-			title: localize2('openChat', "Open Chat"),
+			title: OpenChatGlobalAction.TITLE,
 			icon: Codicon.commentDiscussion,
-			f1: false,
+			f1: true,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -75,6 +91,11 @@ class OpenChatGlobalAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
 				}
+			},
+			menu: {
+				id: MenuId.ChatCommandCenter,
+				group: 'a_chat',
+				order: 1
 			}
 		});
 	}
@@ -90,6 +111,16 @@ class OpenChatGlobalAction extends Action2 {
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.images) {
+			chatWidget.attachmentModel.clear();
+			for (const image of opts.images) {
+				chatWidget.attachmentModel.addContext({
+					...image,
+					isDynamic: true,
+					isImage: true
+				});
 			}
 		}
 		if (opts?.query) {
@@ -113,7 +144,7 @@ class ChatHistoryAction extends Action2 {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
 				group: 'navigation',
-				order: -1
+				order: 2
 			},
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
@@ -233,10 +264,56 @@ class OpenChatEditorAction extends Action2 {
 	}
 }
 
+
+class ChatAddAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.addParticipant',
+			title: localize2('chatWith', "Chat with Extension"),
+			icon: Codicon.mention,
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ChatInput,
+				when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
+				group: 'navigation',
+				order: 1
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const widgetService = accessor.get(IChatWidgetService);
+		const context: { widget?: IChatWidget } | undefined = args[0];
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget) {
+			return;
+		}
+
+		const hasAgentOrCommand = extractAgentAndCommand(widget.parsedInput);
+		if (hasAgentOrCommand?.agentPart || hasAgentOrCommand?.commandPart) {
+			return;
+		}
+
+		const suggestCtrl = SuggestController.get(widget.inputEditor);
+		if (suggestCtrl) {
+			const curText = widget.inputEditor.getValue();
+			const newValue = curText ? `@ ${curText}` : '@';
+			if (!curText.startsWith('@')) {
+				widget.inputEditor.setValue(newValue);
+			}
+
+			widget.inputEditor.setPosition(new Position(1, 2));
+			suggestCtrl.triggerSuggest(undefined, true);
+		}
+	}
+}
+
 export function registerChatActions() {
 	registerAction2(OpenChatGlobalAction);
 	registerAction2(ChatHistoryAction);
 	registerAction2(OpenChatEditorAction);
+	registerAction2(ChatAddAction);
 
 	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {
@@ -298,15 +375,20 @@ export function registerChatActions() {
 				keybinding: [
 					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
 					{
-						when: CONTEXT_CHAT_INPUT_CURSOR_AT_TOP,
+						when: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_QUICK_CHAT.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
 					// On win/linux, ctrl+up can always focus the chat list
 					{
-						when: ContextKeyExpr.or(IsWindowsContext, IsLinuxContext),
+						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), CONTEXT_IN_QUICK_CHAT.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
+					},
+					{
+						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT),
+						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+						weight: KeybindingWeight.WorkbenchContrib,
 					}
 				]
 			});
@@ -327,11 +409,18 @@ export function registerChatActions() {
 				id: 'workbench.action.chat.focusInput',
 				title: localize2('interactiveSession.focusInput.label', "Focus Chat Input"),
 				f1: false,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate())
-				}
+				keybinding: [
+					{
+						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT.negate()),
+					},
+					{
+						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT),
+						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+						weight: KeybindingWeight.WorkbenchContrib,
+					}
+				]
 			});
 		}
 		run(accessor: ServicesAccessor, ...args: any[]) {
@@ -346,5 +435,65 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 		return (includeName ? `${item.username}: ` : '') + item.messageText;
 	} else {
 		return (includeName ? `${item.username}: ` : '') + item.response.toString();
+	}
+}
+
+
+// --- command center chat
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+	submenu: MenuId.ChatCommandCenter,
+	title: localize('title4', "Chat"),
+	icon: Codicon.commentDiscussion,
+	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
+	order: 10001,
+});
+
+export class ChatCommandCenterRendering implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.commandCenterRendering';
+
+	private readonly _store = new DisposableStore();
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IChatAgentService agentService: IChatAgentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+
+			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
+			if (!agent?.metadata.themeIcon) {
+				return undefined;
+			}
+
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+
+			const dropdownAction = toAction({
+				id: agent.id,
+				label: localize('more', "More..."),
+				run() { }
+			});
+
+			const primaryAction = instantiationService.createInstance(MenuItemAction, {
+				id: CHAT_OPEN_ACTION_ID,
+				title: OpenChatGlobalAction.TITLE,
+				icon: agent.metadata.themeIcon,
+			}, undefined, undefined, undefined, undefined);
+
+			return instantiationService.createInstance(
+				DropdownWithPrimaryActionViewItem,
+				primaryAction, dropdownAction, action.actions,
+				'', options
+			);
+
+		}, agentService.onDidChangeAgents));
+	}
+
+	dispose() {
+		this._store.dispose();
 	}
 }

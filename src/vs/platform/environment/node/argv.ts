@@ -272,6 +272,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		const newArgs = args.filter(a => a !== firstArg);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
 			[firstArg]: subcommandOptions,
 			_: []

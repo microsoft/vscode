@@ -4,6 +4,5 @@
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
-  welcomeMessage: undefined,
   requests: [  ]
 }

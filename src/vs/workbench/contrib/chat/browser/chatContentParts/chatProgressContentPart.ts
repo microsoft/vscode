@@ -25,11 +25,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner?: boolean,
-		forceShowMessage?: boolean
+		forceShowMessage?: boolean,
+		icon?: ThemeIcon
 	) {
 		super();
 
-		const followingContent = context.content.slice(context.index + 1);
+		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
 		const hideMessage = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
 		if (hideMessage) {
@@ -43,7 +44,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
-		const codicon = this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
+		const codicon = icon ? icon.id : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
 		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
 			supportThemeIcons: true
 		});

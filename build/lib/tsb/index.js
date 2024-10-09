@@ -14,8 +14,8 @@ const path_1 = require("path");
 const utils_1 = require("./utils");
 const fs_1 = require("fs");
 const log = require("fancy-log");
-const colors = require("ansi-colors");
 const transpiler_1 = require("./transpiler");
+const colors = require("ansi-colors");
 class EmptyDuplex extends stream_1.Duplex {
     _write(_chunk, _encoding, callback) { callback(); }
     _read() { this.push(null); }
@@ -97,7 +97,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     if (config.transpileOnly) {
         const transpiler = !config.transpileWithSwc
             ? new transpiler_1.TscTranspiler(logFn, printDiagnostic, projectPath, cmdLine)
-            : new transpiler_1.SwcTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
+            : new transpiler_1.ESBuildTranspiler(logFn, printDiagnostic, projectPath, cmdLine);
         result = (() => createTranspileStream(transpiler));
     }
     else {

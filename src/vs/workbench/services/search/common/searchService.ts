@@ -107,6 +107,11 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token, onProviderProgress);
 	}
 
+	async getAIName(): Promise<string | undefined> {
+		const provider = this.getSearchProvider(QueryType.aiText).get(Schemas.file);
+		return await provider?.getAIName();
+	}
+
 	textSearchSplitSyncAsync(
 		query: ITextQuery,
 		token?: CancellationToken | undefined,
@@ -158,6 +163,10 @@ export class SearchService extends Disposable implements ISearchService {
 
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 		return this.doSearch(query, token);
+	}
+
+	schemeHasFileSearchProvider(scheme: string): boolean {
+		return this.fileSearchProviders.has(scheme);
 	}
 
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {

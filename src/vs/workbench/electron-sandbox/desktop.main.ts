@@ -397,6 +397,10 @@ export class DesktopMain extends Disposable {
 	}
 }
 
+export interface IDesktopMain {
+	main(configuration: INativeWindowConfiguration): Promise<void>;
+}
+
 export function main(configuration: INativeWindowConfiguration): Promise<void> {
 	const workbench = new DesktopMain(configuration);
 

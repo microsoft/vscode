@@ -26,6 +26,8 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
+import { IModelTokensChangedEvent } from './textModelEvents.js';
+import type { Parser } from '@vscode/tree-sitter-wasm';
 
 /**
  * @internal
@@ -88,7 +90,9 @@ export class EncodedTokenizationResult {
  */
 export interface ITreeSitterTokenizationSupport {
 	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): Uint32Array | undefined;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): any;
+	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): Parser.QueryCapture[];
+	captureAtPositionTree(lineNumber: number, column: number, tree: Parser.Tree): Parser.QueryCapture[];
+	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
 }
 
 /**
@@ -757,6 +761,8 @@ export interface InlineCompletion {
 	 * Defaults to `false`.
 	*/
 	readonly completeBracketPairs?: boolean;
+
+	readonly isInlineEdit?: boolean;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -783,7 +789,7 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * @experimental
 	 * @internal
 	*/
-	provideInlineEdits?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+	provideInlineEditsForRange?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
 	 * Will be called when an item is shown.
@@ -1205,6 +1211,16 @@ export function isLocationLink(thing: any): thing is LocationLink {
 		&& Range.isIRange((thing as LocationLink).range)
 		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
 }
+
+/**
+ * @internal
+ */
+export function isLocation(thing: any): thing is Location {
+	return thing
+		&& URI.isUri((thing as Location).uri)
+		&& Range.isIRange((thing as Location).range);
+}
+
 
 export type Definition = Location | Location[] | LocationLink[];
 
@@ -1985,11 +2001,16 @@ export interface Comment {
 }
 
 export interface PendingCommentThread {
-	body: string;
 	range: IRange | undefined;
 	uri: URI;
 	uniqueOwner: string;
 	isReply: boolean;
+	comment: PendingComment;
+}
+
+export interface PendingComment {
+	body: string;
+	cursor: IPosition;
 }
 
 /**
@@ -2264,7 +2285,28 @@ export interface DocumentContextItem {
 
 export interface MappedEditsContext {
 	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
-	documents: DocumentContextItem[][];
+	readonly documents: DocumentContextItem[][];
+	/**
+	 * @internal
+	 */
+	readonly conversation?: (ConversationRequest | ConversationResponse)[];
+}
+
+/**
+ * @internal
+ */
+export interface ConversationRequest {
+	readonly type: 'request';
+	readonly message: string;
+}
+
+/**
+ * @internal
+ */
+export interface ConversationResponse {
+	readonly type: 'response';
+	readonly message: string;
+	readonly references?: DocumentContextItem[];
 }
 
 export interface MappedEditsProvider {

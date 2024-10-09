@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -33,7 +33,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable, useWindowControlsOverlay } from '../../window/common/window.js';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -47,6 +47,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
+import { randomPath } from '../../../base/common/extpath.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -568,35 +569,44 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
 		const sudoPrompt = await import('@vscode/sudo-prompt');
 
-		return new Promise<void>((resolve, reject) => {
-			const sudoCommand: string[] = [`"${this.cliPath}"`];
-			if (options?.unlock) {
-				sudoCommand.push('--file-chmod');
-			}
+		const argsFile = randomPath(this.environmentMainService.userDataPath, 'code-elevated');
+		await Promises.writeFile(argsFile, JSON.stringify({ source: source.fsPath, target: target.fsPath }));
 
-			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
-
-			const promptOptions = {
-				name: this.productService.nameLong.replace('-', ''),
-				icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
-			};
-
-			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
-				if (stdout) {
-					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const sudoCommand: string[] = [`"${this.cliPath}"`];
+				if (options?.unlock) {
+					sudoCommand.push('--file-chmod');
 				}
 
-				if (stderr) {
-					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
-				}
+				sudoCommand.push('--file-write', `"${argsFile}"`);
 
-				if (error) {
-					reject(error);
-				} else {
-					resolve(undefined);
-				}
+				const promptOptions = {
+					name: this.productService.nameLong.replace('-', ''),
+					icns: (isMacintosh && this.environmentMainService.isBuilt) ? join(dirname(this.environmentMainService.appRoot), `${this.productService.nameShort}.icns`) : undefined
+				};
+
+				this.logService.trace(`[sudo-prompt] running command: ${sudoCommand.join(' ')}`);
+
+				sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error?, stdout?, stderr?) => {
+					if (stdout) {
+						this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+					}
+
+					if (stderr) {
+						this.logService.error(`[sudo-prompt] received stderr: ${stderr}`);
+					}
+
+					if (error) {
+						reject(error);
+					} else {
+						resolve(undefined);
+					}
+				});
 			});
-		});
+		} finally {
+			await fs.promises.unlink(argsFile);
+		}
 	}
 
 	async isRunningUnderARM64Translation(): Promise<boolean> {
@@ -688,6 +698,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		return clipboard.readText(type);
+	}
+
+	async readImage(): Promise<Uint8Array> {
+		return clipboard.readImage().toPNG();
 	}
 
 	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
@@ -855,28 +869,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Development
 
-	async openDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-
-		let mode: 'bottom' | undefined = undefined;
-		if (isLinux && useWindowControlsOverlay(this.configurationService)) {
-			mode = 'bottom'; // TODO@bpasero WCO and devtools collide with default option 'right'
-		}
-		window?.win?.webContents.openDevTools(mode ? { mode } : undefined);
+		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
 	}
 
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		const webContents = window?.win?.webContents;
-		if (!webContents) {
-			return;
-		}
-
-		if (isLinux && useWindowControlsOverlay(this.configurationService) && !webContents.isDevToolsOpened()) {
-			webContents.openDevTools({ mode: 'bottom' }); // TODO@bpasero WCO and devtools collide with default option 'right'
-		} else {
-			webContents.toggleDevTools();
-		}
+		window?.win?.webContents.toggleDevTools();
 	}
 
 	//#endregion

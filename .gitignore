@@ -12,7 +12,7 @@ build/node_modules
 coverage/
 test_data/
 test-results/
-yarn-error.log
+test-results.xml
 vscode.lsif
 vscode.db
 /.profile-oss

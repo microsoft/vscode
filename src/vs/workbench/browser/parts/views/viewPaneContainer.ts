@@ -1176,14 +1176,15 @@ export abstract class ViewPaneContainerAction<T extends IViewPaneContainer> exte
 		this.desc = desc;
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: any[]): unknown {
 		const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(this.desc.viewPaneContainerId);
 		if (viewPaneContainer) {
 			return this.runInViewPaneContainer(accessor, <T>viewPaneContainer, ...args);
 		}
+		return undefined;
 	}
 
-	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): any;
+	abstract runInViewPaneContainer(accessor: ServicesAccessor, viewPaneContainer: T, ...args: any[]): unknown;
 }
 
 class MoveViewPosition extends Action2 {

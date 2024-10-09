@@ -261,16 +261,20 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				if (!token.isCancellationRequested) {
 					type notebookSaveErrorData = {
 						isRemote: boolean;
+						isIPyNbWorkerSerializer: boolean;
 						error: Error;
 					};
 					type notebookSaveErrorClassification = {
 						owner: 'amunger';
 						comment: 'Detect if we are having issues saving a notebook on the Extension Host';
 						isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
+						isIPyNbWorkerSerializer: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the IPynb files are serialized in workers' };
 						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
+					const isIPynb = this._notebookModel.viewType === 'jupyter-notebook' || this._notebookModel.viewType === 'interactive';
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
+						isIPyNbWorkerSerializer: isIPynb && this._configurationService.getValue<boolean>('ipynb.experimental.serialization'),
 						error: error
 					});
 				}
