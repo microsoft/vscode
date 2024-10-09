@@ -30,8 +30,7 @@ declare module 'vscode' {
 	}
 
 	// LM -> USER: function that should be used
-	// TODO@API NAME: LanguageModelChatMessageToolCallPart, LanguageModelToolCallPart
-	export class LanguageModelChatResponseToolCallPart {
+	export class LanguageModelToolCallPart {
 		name: string;
 		toolCallId: string;
 		parameters: any;
@@ -40,21 +39,19 @@ declare module 'vscode' {
 	}
 
 	// LM -> USER: text chunk
-	// TODO@API NAME: LanguageModelChatMessageTextPart, LanguageModelTextPart
-	export class LanguageModelChatResponseTextPart {
+	export class LanguageModelTextPart {
 		value: string;
 
 		constructor(value: string);
 	}
 
 	export interface LanguageModelChatResponse {
-		stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseToolCallPart>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart>;
 	}
 
 
 	// USER -> LM: the result of a function call
-	// TODO@API NAME: LanguageModelChatMessageToolResultPart, LanguageModelToolResultPart
-	export class LanguageModelChatMessageToolResultPart {
+	export class LanguageModelToolResultPart {
 		toolCallId: string;
 		content: string;
 		isError: boolean;
@@ -68,10 +65,10 @@ declare module 'vscode' {
 		 * Some parts would be message-type specific for some models and wouldn't go together,
 		 * but it's up to the chat provider to decide what to do about that.
 		 * Can drop parts that are not valid for the message type.
-		 * LanguageModelChatMessageToolResultPart: only on User messages
-		 * LanguageModelChatResponseToolCallPart: only on Assistant messages
+		 * LanguageModelToolResultPart: only on User messages
+		 * LanguageModelToolCallPart: only on Assistant messages
 		 */
-		content2: (string | LanguageModelChatMessageToolResultPart | LanguageModelChatResponseToolCallPart)[];
+		content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 	}
 
 	// Tool registration/invoking between extensions
@@ -84,15 +81,11 @@ declare module 'vscode' {
 		/**
 		 * The result can contain arbitrary representations of the content. A tool user can set
 		 * {@link LanguageModelToolInvocationOptions.requested} to request particular types, and a tool implementation should only
-		 * compute the types that were requested. `text/plain` is required to be supported by all tools. Another example might be
-		 * a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
+		 * compute the types that were requested. `text/plain` is recommended to be supported by all tools, which would indicate
+		 * any text-based content. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the
+		 * `contentType` exported by that library.
 		 */
 		[contentType: string]: any;
-
-		/**
-		 * A string representation of the result.
-		 */
-		'text/plain'?: string;
 	}
 
 	export namespace lm {
