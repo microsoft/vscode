@@ -47,6 +47,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { registerAndCreateHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -217,11 +218,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@INativeEnvironmentService nativeEnvironmentService: INativeEnvironmentService,
 	) {
 		super();
 
-		this._attachmentModel = this._register(new ChatAttachmentModel());
+		this._attachmentModel = this._register(new ChatAttachmentModel(fileService, nativeEnvironmentService));
 		this.getInputState = (): IChatInputState => {
 			// Get input state from widget contribs, merge with attachments
 			return {

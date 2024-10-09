@@ -44,6 +44,9 @@ import { imageToHash, isImage } from '../chatImagePaste.js';
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { SearchView } from '../../../search/browser/searchView.js';
+import { generateFocusedWindowScreenshot } from '../../../../../platform/screenshot/browser/screenshot.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -54,7 +57,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem;
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem | IScreenShotQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -93,6 +96,12 @@ function isISearchResultsQuickPickItem(obj: unknown): obj is ISearchResultsQuick
 	return (
 		typeof obj === 'object'
 		&& (obj as ISearchResultsQuickPickItem).kind === 'search-results');
+}
+
+function isScreenshotQuickPickItem(obj: unknown): obj is IScreenShotQuickPickItem {
+	return (
+		typeof obj === 'object'
+		&& (obj as IScreenShotQuickPickItem).kind === 'screenshot');
 }
 
 interface IImageQuickPickItem extends IQuickPickItem {
@@ -137,6 +146,12 @@ interface IOpenEditorsQuickPickItem extends IQuickPickItem {
 
 interface ISearchResultsQuickPickItem extends IQuickPickItem {
 	kind: 'search-results';
+	id: string;
+	icon?: ThemeIcon;
+}
+
+interface IScreenShotQuickPickItem extends IQuickPickItem {
+	kind: 'screenshot';
 	id: string;
 	icon?: ThemeIcon;
 }
@@ -258,7 +273,7 @@ export class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -321,6 +336,11 @@ export class AttachContextAction extends Action2 {
 						name: labelService.getUriBasenameLabel(result.resource),
 						isFile: true
 					});
+				}
+			} else if (isScreenshotQuickPickItem(pick)) {
+				const screenshot = await generateFocusedWindowScreenshot(fileService, nativeEnvironmentService);
+				if (screenshot) {
+					toAttach.push(screenshot);
 				}
 			} else {
 				// Anything else is an attachment
@@ -390,6 +410,8 @@ export class AttachContextAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
+		const fileService = accessor.get(IFileService);
+		const nativeEnvironmentService = accessor.get(INativeEnvironmentService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -478,6 +500,14 @@ export class AttachContextAction extends Action2 {
 				id: 'symbol'
 			});
 
+			quickPickItems.push({
+				kind: 'screenshot',
+				id: 'screenshot',
+				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+				label: localize('chatContext.attachScreenshot.label', 'Attach Screenshot'),
+			});
+
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',
@@ -527,19 +557,19 @@ export class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, editorService, labelService, viewsService, chatEditingService, '', context?.placeholder);
+		}), clipboardService, editorService, labelService, viewsService, chatEditingService, fileService, nativeEnvironmentService, '', context?.placeholder);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, query: string = '', placeholder?: string) {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService, query: string = '', placeholder?: string) {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			handleAccept: (item: IChatContextQuickPickItem) => {
 				if ('prefix' in item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, item.prefix, placeholder);
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, fileService, nativeEnvironmentService, item.prefix, placeholder);
 				} else {
 					if (!clipboardService) {
 						return;
 					}
-					this._attachContext(widget, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, item);
+					this._attachContext(widget, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, fileService, nativeEnvironmentService, item);
 					if (isQuickChat(widget)) {
 						quickChatService.open();
 					}

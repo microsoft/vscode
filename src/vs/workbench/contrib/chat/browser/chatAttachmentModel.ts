@@ -5,9 +5,18 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { generateFocusedWindowScreenshot } from '../../../../platform/screenshot/browser/screenshot.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 export class ChatAttachmentModel extends Disposable {
+	constructor(
+		@IFileService private readonly _fileService: IFileService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
+	) {
+		super();
+	}
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
@@ -42,6 +51,14 @@ export class ChatAttachmentModel extends Disposable {
 		}
 
 		this._onDidChangeContext.fire();
+	}
+
+	async attachScreenshot(): Promise<void> {
+		const imagePath = await generateFocusedWindowScreenshot(this._fileService, this._environmentService);
+		if (!imagePath) {
+			return;
+		}
+		this.addContext(imagePath);
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {

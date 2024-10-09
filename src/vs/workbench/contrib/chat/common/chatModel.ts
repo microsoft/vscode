@@ -42,6 +42,11 @@ export interface IChatRequestVariableEntry {
 	isFile?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
+	/**
+	 * True if a screenshot has been requested for this variable
+	 * Note that name and ID will be created for the screenshot
+	 */
+	isScreenShotRequested?: boolean;
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {
