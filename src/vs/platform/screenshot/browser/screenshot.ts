@@ -9,11 +9,12 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import * as path from '../../../base/common/path.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-const screenshot = require('screenshot-desktop');
-const sharp = require('sharp');
+import { importAMDNodeModule } from '../../../amdX.js';
 
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
+		const screenshot = (await importAMDNodeModule<typeof import('screenshot-desktop')>('screenshot-desktop', ''));
+		const sharp = (await importAMDNodeModule<typeof import('sharp')>('sharp', ''));
 		const tmpDir = nativeEnvironmentService.tmpDir;
 		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
 
