@@ -5,7 +5,6 @@
 
 import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Constants } from '../../../../base/common/uint.js';
 import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
@@ -13,13 +12,13 @@ import { EditorOption } from '../../../../editor/common/config/editorOptions.js'
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
-import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { autorun, derived } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -40,7 +39,6 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -51,12 +49,25 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 
 
+		this._register(autorun(r => {
+			const session = this._chatEditingService.currentEditingSessionObs.read(r);
+			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
+
+			if (!entry || entry.state.read(r) !== WorkingSetEntryState.Modified) {
+				this._clearRendering();
+				return;
+			}
+
+			const diff = entry?.diffInfo.read(r);
+			this._updateWithDiff(entry, diff);
+		}));
+
 		const shouldBeReadOnly = derived(this, r => {
 			const value = this._chatEditingService.currentEditingSessionObs.read(r);
 			if (!value || value.state.read(r) !== ChatEditingSessionState.StreamingEdits) {
 				return false;
 			}
-			return value.entries.read(r).some(e => e.modifiedURI.toString() === this._editor.getModel()?.uri.toString());
+			return value.entries.read(r).some(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
 		});
 
 
@@ -99,12 +110,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		if (this._editor.getOption(EditorOption.inDiffEditor)) {
 			return;
 		}
-		const model = this._editor.getModel();
 		if (this._editor.getOption(EditorOption.inDiffEditor)) {
 			this._clearRendering();
 			return;
 		}
-		this._sessionStore.add(model.onDidChangeContent(() => this._updateSessionDecorations()));
 		this._updateSessionDecorations();
 	}
 
@@ -122,32 +131,8 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			return;
 		}
 
-		this._editorWorkerService.computeDiff(
-			entry.originalURI,
-			model.uri,
-			{
-				ignoreTrimWhitespace: false,
-				maxComputationTimeMs: Constants.MAX_SAFE_SMALL_INTEGER,
-				computeMoves: false
-			},
-			'advanced'
-		).then(diff => {
-			if (!this._editor.hasModel()) {
-				this._clearRendering();
-				return;
-			}
-
-			const model = this._editor.getModel();
-			const editingSession = this._chatEditingService.getEditingSession(model.uri);
-			const entry = this._getEntry(editingSession, model);
-			if (!entry || entry.state.get() !== WorkingSetEntryState.Modified) {
-				this._clearRendering();
-				return;
-			}
-
-			this._ctxHasEditorModification.set(true);
-			this._updateWithDiff(model, entry, diff);
-		});
+		const diff = entry.diffInfo.get();
+		this._updateWithDiff(entry, diff);
 	}
 
 	private _getEntry(editingSession: IChatEditingSession | null, model: ITextModel): IModifiedFileEntry | null {
@@ -168,12 +153,13 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._ctxHasEditorModification.reset();
 	}
 
-	private _updateWithDiff(model: ITextModel, entry: IModifiedFileEntry, diff: IDocumentDiff | null): void {
+	private _updateWithDiff(entry: IModifiedFileEntry, diff: IDocumentDiff | null | undefined): void {
 		if (!diff) {
 			this._clearRendering();
 			return;
 		}
 
+		this._ctxHasEditorModification.set(true);
 		const originalModel = entry.originalModel;
 
 		// original view zone
@@ -190,7 +176,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 			for (const diffEntry of diff.changes) {
 				const originalRange = diffEntry.original;
-				originalModel.tokenization.forceTokenization(originalRange.endLineNumberExclusive - 1);
+				originalModel.tokenization.forceTokenization(Math.max(1, originalRange.endLineNumberExclusive - 1));
 				const source = new LineSource(
 					originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
 					[],
@@ -204,10 +190,20 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 						diffDeleteDecoration.className!,
 						InlineDecorationType.Regular
 					));
-					modifiedDecorations.push({ range: i.modifiedRange, options: diffAddDecoration });
+					modifiedDecorations.push({
+						range: i.modifiedRange, options: {
+							...diffAddDecoration,
+							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+						}
+					});
 				}
 				if (!diffEntry.modified.isEmpty) {
-					modifiedDecorations.push({ range: diffEntry.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
+					modifiedDecorations.push({
+						range: diffEntry.modified.toInclusiveRange()!, options: {
+							...diffWholeLineAddDecoration,
+							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+						}
+					});
 				}
 				const domNode = document.createElement('div');
 				domNode.className = 'chat-editing-original-zone line-delete';
