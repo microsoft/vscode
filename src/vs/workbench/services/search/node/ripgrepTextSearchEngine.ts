@@ -14,41 +14,22 @@ import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/st
 import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
-import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from '../common/searchExtTypes.js';
+import { Range, TextSearchCompleteNew, TextSearchContextInternal, TextSearchMatchInternal, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultInternal, TextSearchResultNew } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
-import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
+import { RipgrepTextSearchContext, RipgrepTextSearchMatch, RipgrepTextSearchOptions, RipgrepTextSearchResult } from '../common/searchExtTypesInternal.js';
 import { newToOldPreviewOptions } from '../common/searchExtConversionTypes.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepTextSearchEngine {
 
-	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
+	constructor(private outputChannel: IOutputChannel, protected readonly _numThreads?: number | undefined) { }
 
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
-		return Promise.all(options.folderOptions.map(folderOption => {
-			const extendedOptions: RipgrepTextSearchOptions = {
-				folderOptions: folderOption,
-				numThreads: this._numThreads,
-				maxResults: options.maxResults,
-				previewOptions: options.previewOptions,
-				maxFileSize: options.maxFileSize,
-				surroundingContext: options.surroundingContext
-			};
-			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
-		})).then((e => {
-			const complete: TextSearchCompleteNew = {
-				// todo: get this to actually check
-				limitHit: e.some(complete => !!complete && complete.limitHit)
-			};
-			return complete;
-		}));
-	}
-
-	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResultsWithRgOptions(query: TextSearchQueryNew, options: RipgrepTextSearchOptions, progress: Progress<RipgrepTextSearchResult>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -81,7 +62,7 @@ export class RipgrepTextSearchEngine {
 
 			let gotResult = false;
 			const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, options.folderOptions.folder, newToOldPreviewOptions(options.previewOptions));
-			ripgrepParser.on('result', (match: TextSearchResultNew) => {
+			ripgrepParser.on('result', (match: RipgrepTextSearchResult) => {
 				gotResult = true;
 				dataWithoutResult = '';
 				progress.report(match);
@@ -223,7 +204,7 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 
-	override on(event: 'result', listener: (result: TextSearchResultNew) => void): this;
+	override on(event: 'result', listener: (result: RipgrepTextSearchResult) => void): this;
 	override on(event: 'hitLimit', listener: () => void): this;
 	override on(event: string, listener: (...args: any[]) => void): this {
 		super.on(event, listener);
@@ -295,7 +276,7 @@ export class RipgrepParser extends EventEmitter {
 		}
 	}
 
-	private createTextSearchMatch(data: IRgMatch, uri: URI): TextSearchMatchNew {
+	private createTextSearchMatch(data: IRgMatch, uri: URI): RipgrepTextSearchMatch {
 		const lineNumber = data.line_number - 1;
 		const fullText = bytesOrTextToString(data.lines);
 		const fullTextBytes = Buffer.from(fullText);
@@ -351,7 +332,7 @@ export class RipgrepParser extends EventEmitter {
 		const searchRange = mapArrayOrNot(<Range[]>ranges, rangeToSearchRange);
 
 		const internalResult = new TextSearchMatch(fullText, searchRange, this.previewOptions);
-		return new TextSearchMatchNew(
+		return new RipgrepTextSearchMatch(
 			uri,
 			internalResult.rangeLocations.map(e => (
 				{
@@ -362,16 +343,16 @@ export class RipgrepParser extends EventEmitter {
 			internalResult.previewText);
 	}
 
-	private createTextSearchContexts(data: IRgMatch, uri: URI): TextSearchContextNew[] {
+	private createTextSearchContexts(data: IRgMatch, uri: URI): RipgrepTextSearchContext[] {
 		const text = bytesOrTextToString(data.lines);
 		const startLine = data.line_number;
 		return text
 			.replace(/\r?\n$/, '')
 			.split('\n')
-			.map((line, i) => new TextSearchContextNew(uri, line, startLine + i));
+			.map((line, i) => new RipgrepTextSearchContext(uri, line, startLine + i));
 	}
 
-	private onResult(match: TextSearchResultNew): void {
+	private onResult(match: RipgrepTextSearchResult): void {
 		this.emit('result', match);
 	}
 }
@@ -776,4 +757,136 @@ export function performBraceExpansionForRipgrep(pattern: string): string[] {
 			return start + end;
 		});
 	});
+}
+
+export class SimpleRipgrepTextSearchProvider extends RipgrepTextSearchEngine implements TextSearchProviderNew {
+	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+		return Promise.all(options.folderOptions.map(folderOption => {
+			const extendedOptions: RipgrepTextSearchOptions = {
+				folderOptions: folderOption,
+				numThreads: this._numThreads,
+				maxResults: options.maxResults,
+				previewOptions: options.previewOptions,
+				maxFileSize: options.maxFileSize,
+				surroundingContext: options.surroundingContext
+			};
+
+			const dedupMatcher = new DeDuplicationMatcher(progress);
+
+			const splitRipgrepResultAndReport = (e: RipgrepTextSearchMatch) => {
+				e.ranges.forEach(r => {
+					const textSearchMatchNew = new TextSearchMatchInternal(e.uri, [{ sourceRange: r.sourceRange, previewRange: r.previewRange }], e.previewText);
+					dedupMatcher.adopterProgress.report(textSearchMatchNew);
+				});
+			};
+			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, new Progress(p => {
+				if (p instanceof RipgrepTextSearchMatch) {
+					splitRipgrepResultAndReport(p);
+				} else {
+					dedupMatcher.adopterProgress.report(p);
+				}
+			}), token);
+		})).then((e => {
+			const complete: TextSearchCompleteNew = {
+				// todo: get this to actually check
+				limitHit: e.some(complete => !!complete && complete.limitHit)
+			};
+			return complete;
+		}));
+	}
+}
+
+class DeDuplicationMatcher {
+	private matchers = new ResourceMap<DeDuplicationMatcherForFile>();
+	public adopterProgress: Progress<TextSearchResultInternal>;
+	constructor(private readonly progress: Progress<TextSearchResultInternal>) {
+		this.adopterProgress = new Progress<TextSearchResultInternal>(result => {
+			if (result instanceof TextSearchMatchInternal) {
+				const startLine = result.ranges.sourceRange.start.line;
+				const endLine = result.ranges.sourceRange.end.line;
+				this.sendPreview(result.uri, startLine === endLine ? startLine : [startLine, endLine], result.previewText, result.ranges);
+			} else {
+				this.sendContext(result.uri, result.lineNumber, result.text);
+			}
+		});
+	}
+
+	sendContext(uri: URI, line: number, text: string) {
+		let matcher = this.matchers.get(uri);
+		if (!matcher) {
+			matcher = new DeDuplicationMatcherForFile(uri, this.progress);
+			this.matchers.set(uri, matcher);
+		}
+		if (matcher) {
+			matcher.sendContext(line, text);
+		}
+	}
+	sendPreview(uri: URI, location: number | [number, number], text: string, ranges: { sourceRange: Range; previewRange: Range }) {
+		let matcher = this.matchers.get(uri);
+		if (!matcher) {
+			matcher = new DeDuplicationMatcherForFile(uri, this.progress);
+			this.matchers.set(uri, matcher);
+		}
+		if (typeof (location) === 'number') {
+			matcher.sendOneLinePreview(location, text, ranges);
+		} else {
+			matcher.sendMultiLinePreview(location, text, ranges);
+		}
+	}
+}
+
+class DeDuplicationMatcherForFile {
+
+	// deduplicate context
+	private sentContextLines: Set<number> = new Set();
+
+	// deduplicate preview lines
+	private sentPreviewTextSingleLines: Set<number> = new Set();
+	private sentPreviewTextMultiLines: Map<number, Set<number>> = new Map();
+
+	constructor(private readonly uri: URI, private readonly progress: Progress<TextSearchResultInternal>) { }
+
+	sendContext(lineNumber: number, text: string) {
+		if (!this.sentContextLines.has(lineNumber)) {
+			this.progress.report(
+				new TextSearchContextInternal(
+					this.uri,
+					text,
+					lineNumber,
+				)
+			);
+			this.sentContextLines.add(lineNumber);
+		}
+	}
+	sendMultiLinePreview(lineNumber: [number, number], text: string, ranges: { sourceRange: Range; previewRange: Range }) {
+		let firstNumArray = this.sentPreviewTextMultiLines.get(lineNumber[0]);
+		const isIncluded = firstNumArray?.has(lineNumber[1]);
+		if (!isIncluded) {
+			this.progress.report(
+				new TextSearchMatchInternal(
+					this.uri,
+					ranges,
+					text
+				)
+			);
+			if (!firstNumArray) {
+				firstNumArray = new Set();
+				this.sentPreviewTextMultiLines.set(lineNumber[0], firstNumArray);
+			}
+			firstNumArray.add(lineNumber[1]);
+		}
+	}
+	sendOneLinePreview(lineNumber: number, text: string, ranges: { sourceRange: Range; previewRange: Range }) {
+		if (!this.sentPreviewTextSingleLines.has(lineNumber)) {
+			this.progress.report(
+				new TextSearchMatchInternal(
+					this.uri,
+					ranges,
+					text
+				)
+			);
+			this.sentPreviewTextSingleLines.add(lineNumber);
+		}
+
+	}
 }

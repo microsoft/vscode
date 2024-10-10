@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import * as pfs from '../../../../base/node/pfs.js';
 import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess, resultIsMatch } from '../common/search.js';
-import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
+import { SimpleRipgrepTextSearchProvider } from './ripgrepTextSearchEngine.js';
 import { NativeTextSearchManager } from './textSearchManager.js';
 
 export class TextSearchEngineAdapter {
@@ -30,7 +30,7 @@ export class TextSearchEngineAdapter {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new NativeTextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel, this.numThreads), pfs);
+		const textSearchManager = new NativeTextSearchManager(this.query, new SimpleRipgrepTextSearchProvider(pretendOutputChannel, this.numThreads), pfs);
 		return new Promise((resolve, reject) => {
 			return textSearchManager
 				.search(

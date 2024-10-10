@@ -34,7 +34,7 @@ import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
-import { ExcludeSettingOptions, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchContextInternal, TextSearchMatchInternal } from '../../services/search/common/searchExtTypes.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -628,7 +628,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				const result = e.result;
 				const uri = e.uri;
 				if (resultIsMatch(result)) {
-					emitter.emitOne(new TextSearchMatchNew(
+					emitter.emitOne(new TextSearchMatchInternal(
 						uri,
 						result.rangeLocations.map((range) => ({
 							previewRange: new Range(range.preview.startLineNumber, range.preview.startColumn, range.preview.endLineNumber, range.preview.endColumn),
@@ -638,7 +638,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 					));
 				} else {
-					emitter.emitOne(new TextSearchContextNew(
+					emitter.emitOne(new TextSearchContextInternal(
 						uri,
 						result.text,
 						result.lineNumber

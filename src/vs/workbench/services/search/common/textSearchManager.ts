@@ -12,7 +12,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from './searchExtTypes.js';
+import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchInternal, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultInternal } from './searchExtTypes.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -54,14 +54,14 @@ export class TextSearchManager {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
-			const onResult = (result: TextSearchResultNew, folderIdx: number) => {
+			const onResult = (result: TextSearchResultInternal, folderIdx: number) => {
 				if (isCanceled) {
 					return;
 				}
 
 				if (!this.isLimitHit) {
 					const resultSize = this.resultSize(result);
-					if (result instanceof TextSearchMatchNew && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
+					if (result instanceof TextSearchMatchInternal && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
 						this.isLimitHit = true;
 						isCanceled = true;
 						tokenSource.cancel();
@@ -71,7 +71,7 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					const a = result instanceof TextSearchMatchNew;
+					const a = result instanceof TextSearchMatchInternal;
 
 					if (newResultSize > 0 || !a) {
 						this.collector!.add(result, folderIdx);
@@ -105,8 +105,8 @@ export class TextSearchManager {
 		return [result.message];
 	}
 
-	private resultSize(result: TextSearchResultNew): number {
-		if (result instanceof TextSearchMatchNew) {
+	private resultSize(result: TextSearchResultInternal): number {
+		if (result instanceof TextSearchMatchInternal) {
 			return Array.isArray(result.ranges) ?
 				result.ranges.length :
 				1;
@@ -117,11 +117,11 @@ export class TextSearchManager {
 		}
 	}
 
-	private trimResultToSize(result: TextSearchMatchNew, size: number): TextSearchMatchNew {
-		return new TextSearchMatchNew(result.uri, result.ranges.slice(0, size), result.previewText);
+	private trimResultToSize(result: TextSearchMatchInternal, size: number): TextSearchMatchInternal {
+		return new TextSearchMatchInternal(result.uri, result.ranges.slice(0, size), result.previewText);
 	}
 
-	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
+	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultInternal, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
 		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>(() => true);
 		folderQueries.forEach((fq, i) => {
 			const queryTester = new QueryGlobTester(this.query, fq);
@@ -130,7 +130,7 @@ export class TextSearchManager {
 
 		const testingPs: Promise<void>[] = [];
 		const progress = {
-			report: (result: TextSearchResultNew) => {
+			report: (result: TextSearchResultInternal) => {
 
 				if (result.uri === undefined) {
 					throw Error('Text search result URI is undefined. Please check provider implementation.');
@@ -238,7 +238,7 @@ export class TextSearchResultsCollector {
 		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
 	}
 
-	add(data: TextSearchResultNew, folderIdx: number): void {
+	add(data: TextSearchResultInternal, folderIdx: number): void {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
@@ -275,9 +275,9 @@ export class TextSearchResultsCollector {
 	}
 }
 
-function extensionResultToFrontendResult(data: TextSearchResultNew): ITextSearchResult {
+function extensionResultToFrontendResult(data: TextSearchResultInternal): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
-	if (data instanceof TextSearchMatchNew) {
+	if (data instanceof TextSearchMatchInternal) {
 		return {
 			previewText: data.previewText,
 			rangeLocations: data.ranges.map(r => ({
