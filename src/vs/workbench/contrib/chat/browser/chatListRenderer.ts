@@ -395,11 +395,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
-		if (element.isDisabled) {
-			templateData.disabledOverlay.classList.add('disabled');
-		} else {
-			templateData.disabledOverlay.classList.remove('disabled');
-		}
+		templateData.disabledOverlay.classList.toggle('disabled', element.isDisabled);
 
 		if (isRequestVM(element) && element.confirmation) {
 			this.renderConfirmationAction(element, templateData);
