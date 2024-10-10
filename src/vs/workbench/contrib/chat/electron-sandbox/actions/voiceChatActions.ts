@@ -47,7 +47,7 @@ import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../.
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from '../../../speech/common/speechService.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { TerminalChatContextKeys, TerminalChatController } from '../../../terminal/terminalContribExports.js';
+import { TerminalChatContextKeys, TerminalChatController } from '../../../terminal/terminalContribChatExports.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -61,6 +61,8 @@ import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRen
 
 type VoiceChatSessionContext = 'view' | 'inline' | 'terminal' | 'quick' | 'editor';
 const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'terminal', 'quick', 'editor'];
+
+const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, terminal decided to go with their own menu (https://github.com/microsoft/vscode/issues/208789)
 
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
@@ -605,9 +607,19 @@ export class StartVoiceChatAction extends Action2 {
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), menuCondition),
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
 					group: 'navigation',
 					order: 2
+				},
+				{
+					id: TerminalChatExecute,
+					when: ContextKeyExpr.and(
+						HasSpeechProvider,
+						ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
+						AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
+					),
+					group: 'navigation',
+					order: -1
 				},
 			]
 		});
@@ -656,6 +668,12 @@ export class StopListeningAction extends Action2 {
 					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
 					group: 'navigation',
 					order: 2
+				}, {
+
+					id: TerminalChatExecute,
+					when: AnyScopedVoiceChatInProgress,
+					group: 'navigation',
+					order: -1
 				},
 			]
 		});
@@ -933,7 +951,8 @@ export class ReadChatResponseAloud extends Action2 {
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
 					CONTEXT_RESPONSE_FILTERED.negate(),		// and not when response is filtered
 				),
-				group: 'navigation'
+				group: 'navigation',
+				order: -10 // first
 			}, {
 				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				when: ContextKeyExpr.and(
@@ -942,7 +961,8 @@ export class ReadChatResponseAloud extends Action2 {
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
 					CONTEXT_RESPONSE_FILTERED.negate()		// and not when response is filtered
 				),
-				group: 'navigation'
+				group: 'navigation',
+				order: -10 // first
 			}]
 		});
 	}
@@ -1023,6 +1043,12 @@ export class StopReadAloud extends Action2 {
 					group: 'navigation',
 					order: 2
 				},
+				{
+					id: TerminalChatExecute,
+					when: ScopedChatSynthesisInProgress,
+					group: 'navigation',
+					order: -1
+				}
 			]
 		});
 	}
@@ -1054,7 +1080,8 @@ export class StopReadChatItemAloud extends Action2 {
 						CONTEXT_RESPONSE,					// only for responses
 						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
 					),
-					group: 'navigation'
+					group: 'navigation',
+					order: -10 // first
 				},
 				{
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
@@ -1063,7 +1090,8 @@ export class StopReadChatItemAloud extends Action2 {
 						CONTEXT_RESPONSE,					// only for responses
 						CONTEXT_RESPONSE_FILTERED.negate()	// but not when response is filtered
 					),
-					group: 'navigation'
+					group: 'navigation',
+					order: -10 // first
 				}
 			]
 		});
@@ -1357,9 +1385,14 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			precondition: InstallingSpeechProvider.negate(),
 			menu: [{
 				id: MenuId.ChatInput,
-				when: HasSpeechProvider.negate(),
+				when: ContextKeyExpr.and(HasSpeechProvider.negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal).negate()),
 				group: 'navigation',
 				order: 3
+			}, {
+				id: TerminalChatExecute,
+				when: HasSpeechProvider.negate(),
+				group: 'navigation',
+				order: -1
 			}]
 		});
 	}

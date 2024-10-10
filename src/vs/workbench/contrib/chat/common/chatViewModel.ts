@@ -28,7 +28,7 @@ export function isResponseVM(item: unknown): item is IChatResponseViewModel {
 	return !!item && typeof (item as IChatResponseViewModel).setVote !== 'undefined';
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | IChatSetCheckpointEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -40,6 +40,10 @@ export interface IChangePlaceholderEvent {
 
 export interface IChatSessionInitEvent {
 	kind: 'initialize';
+}
+
+export interface IChatSetCheckpointEvent {
+	kind: 'setCheckpoint';
 }
 
 export interface IChatViewModel {
@@ -69,6 +73,7 @@ export interface IChatRequestViewModel {
 	currentRenderedHeight: number | undefined;
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
+	readonly isDisabled?: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -170,6 +175,7 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
+	readonly isDisabled: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -265,9 +271,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				}
 			}
 
-			const modelEventToVmEvent: IChatViewModelChangeEvent = e.kind === 'addRequest' ? { kind: 'addRequest' } :
-				e.kind === 'initialize' ? { kind: 'initialize' } :
-					null;
+			const modelEventToVmEvent: IChatViewModelChangeEvent =
+				e.kind === 'addRequest' ? { kind: 'addRequest' }
+					: e.kind === 'initialize' ? { kind: 'initialize' }
+						: e.kind === 'setCheckpoint' ? { kind: 'setCheckpoint' }
+							: null;
 			this._onDidChange.fire(modelEventToVmEvent);
 		}));
 	}
@@ -359,6 +367,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.confirmation;
 	}
 
+	get isDisabled() {
+		return this._model.isDisabled;
+	}
+
 	currentRenderedHeight: number | undefined;
 
 	constructor(
@@ -445,6 +457,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.isCanceled;
 	}
 
+	get isDisabled() {
+		return this._model.isDisabled;
+	}
+
 	get replyFollowups() {
 		return this._model.followups?.filter((f): f is IChatFollowup => f.kind === 'reply');
 	}
@@ -523,7 +539,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			// This should be true, if the model is changing
 			if (this._contentUpdateTimings) {
 				const now = Date.now();
-				const wordCount = countWords(_model.response.toString());
+				const wordCount = countWords(_model.response.getMarkdown());
 
 				// Apply a min time difference, or the rate is typically too high for first few words
 				const timeDiff = Math.max(now - this._contentUpdateTimings.firstWordTime, 250);

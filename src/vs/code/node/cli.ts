@@ -117,7 +117,20 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await import(['./cliProcessMain.js'].join('/') /* workaround to prevent esbuild from inlining this */);
+
+		// We do not bundle `cliProcessMain.js` into this file because
+		// it is rather large and only needed for very few CLI operations.
+		// This has the downside that we need to know if we run OSS or
+		// built, because our location on disk is different if built.
+
+		let cliProcessMain: string;
+		if (process.env['VSCODE_DEV']) {
+			cliProcessMain = './cliProcessMain.js';
+		} else {
+			cliProcessMain = './vs/code/node/cliProcessMain.js';
+		}
+
+		const cli = await import(cliProcessMain);
 		await cli.main(args);
 
 		return;
@@ -125,14 +138,26 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Write File
 	else if (args['file-write']) {
-		const source = args._[0];
-		const target = args._[1];
+		const argsFile = args._[0];
+		if (!argsFile || !isAbsolute(argsFile) || !existsSync(argsFile) || !statSync(argsFile).isFile()) {
+			throw new Error('Using --file-write with invalid arguments.');
+		}
+
+		let source: string | undefined;
+		let target: string | undefined;
+		try {
+			const argsContents = JSON.parse(readFileSync(argsFile, 'utf8'));
+			source = argsContents.source;
+			target = argsContents.target;
+		} catch (error) {
+			throw new Error('Using --file-write with invalid arguments.');
+		}
 
 		// Windows: set the paths as allowed UNC paths given
 		// they are explicitly provided by the user as arguments
 		if (isWindows) {
 			for (const path of [source, target]) {
-				if (isUNC(path)) {
+				if (typeof path === 'string' && isUNC(path)) {
 					addUNCHostToAllowlist(URI.file(path).authority);
 				}
 			}

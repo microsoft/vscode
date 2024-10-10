@@ -463,6 +463,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected getEmptyItem(): TListDataItem {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			value: {
 				type: 'string',
@@ -624,6 +625,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 
 		const updatedInputBoxItem = (): TListDataItem => {
 			const inputBox = valueInput as InputBox;
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return {
 				value: {
 					type: 'string',
@@ -633,6 +635,7 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 			} as TListDataItem;
 		};
 		const updatedSelectBoxItem = (selectedValue: string): TListDataItem => {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return {
 				value: {
 					type: 'enum',

@@ -767,6 +767,36 @@ MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
 });
 
 
+// Chat used attachment anchor context menu
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: 'navigation',
+	order: 10,
+	command: openToSideCommand,
+	when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: 'navigation',
+	order: 20,
+	command: revealInsideBarCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: '1_cutcopypaste',
+	order: 10,
+	command: copyPathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
+	group: '1_cutcopypaste',
+	order: 20,
+	command: copyRelativePathCommand,
+	when: ResourceContextKey.IsFileSystemResource
+});
+
 // Chat resource anchor context menu
 
 MenuRegistry.appendMenuItem(MenuId.ChatInlineResourceAnchorContext, {
