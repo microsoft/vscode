@@ -538,11 +538,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					// aliases to be looked up properly. Fallback to the
 					// configured value if not found.
 					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
-				}
+				},
+				wait: true
 			});
 
 			res.stderr?.once('data', (data: Buffer) => {
-				this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+				this.logService.error(`Error opening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
 				return shell.openExternal(url);
 			});
 		} catch (error) {
