@@ -284,8 +284,12 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 			id: 'workbench.action.chat.restoreWorkingSet',
 			title: localize2('chat.restoreWorkingSet.label', 'Restore Working Set'),
 			f1: false,
-			shortTitle: localize2('chat.restoreWorkingSet.label', 'Restore Working Set'),
-			toggled: isChatRequestCheckpointed,
+			shortTitle: localize2('chat.restoreWorkingSet.shortTitle', 'Restore Working Set'),
+			toggled: {
+				condition: isChatRequestCheckpointed,
+				title: localize2('chat.restoreWorkingSet.title', 'Using Working Set').value,
+				tooltip: localize2('chat.restoreWorkingSet.tooltip', 'Toggle to use the working set state from an earlier request in your next edit').value
+			},
 			menu: {
 				id: MenuId.ChatMessageFooter,
 				group: 'navigation',
