@@ -8,7 +8,7 @@ import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base
 import { TerminalCapabilityStore } from '../capabilities/terminalCapabilityStore.js';
 import { CommandDetectionCapability } from '../capabilities/commandDetectionCapability.js';
 import { CwdDetectionCapability } from '../capabilities/cwdDetectionCapability.js';
-import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
+import { IBufferMarkCapability, ICommandDetectionCapability, ICwdDetectionCapability, ISerializedCommandDetectionCapability, IShellEnvDetectionCapability, TerminalCapability } from '../capabilities/capabilities.js';
 import { PartialCommandDetectionCapability } from '../capabilities/partialCommandDetectionCapability.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
@@ -18,6 +18,7 @@ import type { ITerminalAddon, Terminal } from '@xterm/headless';
 import { URI } from '../../../../base/common/uri.js';
 import { sanitizeCwd } from '../terminalEnvironment.js';
 import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings.js';
+import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
 
 
 /**
@@ -224,6 +225,20 @@ const enum VSCodeOscPt {
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	SetMark = 'SetMark',
+
+	/**
+	 * Sends the shell's environment.
+	 *
+	 * Format: `OSC 633 ; Env ; <Environment> ; <Nonce>`
+	 *
+	 *	`Environment` - A JSON string containing the shell's environment variables.
+	 *   TODO: Encoding information for commandline sequence.
+	 *  `Nonce` -  An optional nonce can be provided which is may be required by the terminal in order enable
+	 *   some features. This helps ensure no malicious command injection has occurred.
+	 *
+	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
+	 */
+	Env = 'Env',
 }
 
 /**
@@ -463,6 +478,21 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetBufferMarkDetection(this._terminal).addMark(parseMarkSequence(args));
 				return true;
 			}
+			case VSCodeOscPt.Env: {
+				const arg0 = args[0];
+				const arg1 = args[1];
+				// Ignore unless nonce is correct
+				if (arg1 !== this._nonce) {
+					return true;
+				}
+				if (arg0 !== undefined) {
+					const env = JSON.parse(deserializeMessage(arg0));
+					const capability = this._createOrGetShellEnvDetection();
+					capability.setEnvironment(env);
+
+				}
+				return true;
+			}
 		}
 
 		// Unrecognized sequence
@@ -613,6 +643,15 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			this.capabilities.add(TerminalCapability.BufferMarkDetection, bufferMarkDetection);
 		}
 		return bufferMarkDetection;
+	}
+
+	protected _createOrGetShellEnvDetection(): IShellEnvDetectionCapability {
+		let shellEnvDetection = this.capabilities.get(TerminalCapability.ShellEnvDetection);
+		if (!shellEnvDetection) {
+			shellEnvDetection = this._register(new ShellEnvDetectionCapability());
+			this.capabilities.add(TerminalCapability.ShellEnvDetection, shellEnvDetection);
+		}
+		return shellEnvDetection;
 	}
 }
 
