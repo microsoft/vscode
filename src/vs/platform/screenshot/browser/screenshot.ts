@@ -9,10 +9,12 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import * as path from '../../../base/common/path.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+// eslint-disable-next-line local/code-layering, local/code-import-patterns
+import { desktopCapturer } from '../../../base/parts/sandbox/electron-sandbox/globals.js';
 
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
-		const tmpDir = nativeEnvironmentService.tmpDir;
+		const tmpDir = nativeEnvironmentService.tmpDir || nativeEnvironmentService.userDataSyncHome;
 		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
 
 		const bounds = getActiveWindowBounds();
@@ -37,20 +39,30 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 }
 
 async function takeScreenshotAndCrop(x: number, y: number, width: number, height: number): Promise<Uint8Array | undefined> {
-	const window = getActiveWindow();
-	if (!window.isSecureContext) {
-		console.error('Window is not secure context');
-	}
 	try {
-		// Request screen capture stream
-		const stream = await window.navigator.mediaDevices.getDisplayMedia({ video: true });
 
-		// Create a video element to capture the frame
+		// Create a video element to play the captured screen source
 		const video = document.createElement('video');
+		const source = await desktopCapturer.getSources({ types: ['screen'] });
+
+		if (!source?.length) {
+			return;
+		}
+		// Create a stream from the screen source
+		const stream = await navigator.mediaDevices.getUserMedia({
+			audio: false,
+			video: {
+				deviceId: source[0].id
+			}
+		});
+
+		// Set the stream as the source of the video element
 		video.srcObject = stream;
-		// Play the video to be able to draw a frame from it
+
+		// Wait for the video to load metadata and play
 		await new Promise((resolve) => (video.onloadedmetadata = resolve));
 		video.play();
+
 		// Create a canvas that matches the size of the cropped region
 		const canvas = document.createElement('canvas');
 		canvas.width = width;
@@ -60,15 +72,17 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 			// Draw the portion of the video based on x, y, width, and height
 			context.drawImage(video, x, y, width, height, 0, 0, width, height);
 		}
-		// Stop all tracks after capturing the frame
-		stream.getTracks().forEach((track: any) => track.stop());
+
+		// Stop all video tracks once the screenshot is taken
+		stream.getTracks().forEach((track) => track.stop());
+
 		// Convert the canvas to a Blob
 		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
 		if (!blob) {
 			throw new Error('Failed to create blob from canvas');
 		}
 
-		// Convert the Blob to an ArrayBuffer and then a Uint8Array
+		// Convert the Blob to an ArrayBuffer and then to a Uint8Array
 		const arrayBuffer = await blob.arrayBuffer();
 		return new Uint8Array(arrayBuffer);
 	} catch (error) {
@@ -76,6 +90,7 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		return undefined;
 	}
 }
+
 
 function generateIdUsingDateTime(): string {
 	const now = new Date();

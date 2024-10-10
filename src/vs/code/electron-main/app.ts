@@ -188,8 +188,14 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-
+			if (allowedPermissions.has(permission)) {
+				return true;
+			}
 			return false;
+		});
+
+		session.defaultSession.setDevicePermissionHandler((details) => {
+			return true;
 		});
 
 		//#endregion
