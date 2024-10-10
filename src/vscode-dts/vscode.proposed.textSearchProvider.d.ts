@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * The parameters of a query for text search.
 	 */
-	export interface TextSearchQuery {
+	export interface TextSearchQueryOld {
 		/**
 		 * The text pattern to search for.
 		 */
@@ -171,7 +171,7 @@ declare module 'vscode' {
 	/**
 	 * Information collected when text search is complete.
 	 */
-	export interface TextSearchComplete {
+	export interface TextSearchCompleteOld {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
 		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
@@ -212,7 +212,7 @@ declare module 'vscode' {
 	/**
 	 * A match from a text search
 	 */
-	export interface TextSearchMatch {
+	export interface TextSearchMatchOld {
 		/**
 		 * The uri for the matching document.
 		 */
@@ -232,7 +232,7 @@ declare module 'vscode' {
 	/**
 	 * A line of context surrounding a TextSearchMatch.
 	 */
-	export interface TextSearchContext {
+	export interface TextSearchContextOld {
 		/**
 		 * The uri for the matching document.
 		 */
@@ -250,12 +250,12 @@ declare module 'vscode' {
 		lineNumber: number;
 	}
 
-	export type TextSearchResult = TextSearchMatch | TextSearchContext;
+	export type TextSearchResultOld = TextSearchMatchOld | TextSearchContextOld;
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
 	 */
-	export interface TextSearchProvider {
+	export interface TextSearchProviderOld {
 		/**
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
@@ -263,7 +263,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideTextSearchResults(query: TextSearchQueryOld, options: TextSearchOptions, progress: Progress<TextSearchResultOld>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {
@@ -276,6 +276,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTextSearchProvider(scheme: string, provider: TextSearchProvider): Disposable;
+		export function registerTextSearchProvider(scheme: string, provider: TextSearchProviderOld): Disposable;
 	}
 }

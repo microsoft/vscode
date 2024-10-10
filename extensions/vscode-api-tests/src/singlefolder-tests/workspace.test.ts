@@ -636,7 +636,7 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findTextInFiles', async () => {
-		const options: vscode.FindTextInFilesOptions = {
+		const options: vscode.FindTextInFilesOptionsOld = {
 			include: '*.ts',
 			previewOptions: {
 				matchLines: 1,
@@ -644,19 +644,19 @@ suite('vscode API - workspace', () => {
 			}
 		};
 
-		const results: vscode.TextSearchResult[] = [];
+		const results: vscode.TextSearchResultOld[] = [];
 		await vscode.workspace.findTextInFiles({ pattern: 'foo' }, options, result => {
 			results.push(result);
 		});
 
 		assert.strictEqual(results.length, 1);
-		const match = <vscode.TextSearchMatch>results[0];
+		const match = <vscode.TextSearchMatchOld>results[0];
 		assert(match.preview.text.indexOf('foo') >= 0);
 		assert.strictEqual(basename(vscode.workspace.asRelativePath(match.uri)), '10linefile.ts');
 	});
 
 	test('findTextInFiles, cancellation', async () => {
-		const results: vscode.TextSearchResult[] = [];
+		const results: vscode.TextSearchResultOld[] = [];
 		const cancellation = new vscode.CancellationTokenSource();
 		cancellation.cancel();
 

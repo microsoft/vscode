@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/59924
 
-	export interface FindTextInFilesOptionsNew {
+	export interface FindTextInFilesOptions {
 		/**
 		 * An array of {@link GlobPattern GlobPattern} that defines the files to search for.
 		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
@@ -73,12 +73,12 @@ declare module 'vscode' {
 			 */
 			local?: boolean;
 			/**
-			 * Use ignore files at the parent directory. When set to `true`, {@link FindTextInFilesOptionsNew.useIgnoreFiles.local} must be `true`.
+			 * Use ignore files at the parent directory. When set to `true`, {@link FindTextInFilesOptions.useIgnoreFiles.local} must be `true`.
 			 * May default to `search.useParentIgnoreFiles` setting if not set.
 			 */
 			parent?: boolean;
 			/**
-			 * Use global ignore files. When set to `true`, {@link FindTextInFilesOptionsNew.useIgnoreFiles.local} must also be `true`.
+			 * Use global ignore files. When set to `true`, {@link FindTextInFilesOptions.useIgnoreFiles.local} must also be `true`.
 			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
 			 */
 			global?: boolean;
@@ -123,11 +123,11 @@ declare module 'vscode' {
 		/**
 		 * The results of the text search, in batches. To get completion information, wait on the `complete` property.
 		 */
-		results: AsyncIterable<TextSearchResultNew>;
+		results: AsyncIterable<TextSearchResult>;
 		/**
 		 * The text search completion information. This resolves on completion.
 		 */
-		complete: Thenable<TextSearchCompleteNew>;
+		complete: Thenable<TextSearchComplete>;
 	}
 
 	/**
@@ -159,6 +159,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFilesNew(query: TextSearchQueryNew, options?: FindTextInFilesOptionsNew, token?: CancellationToken): FindTextInFilesResponse;
+		export function findTextInFiles2(query: TextSearchQuery, options?: FindTextInFilesOptions, token?: CancellationToken): FindTextInFilesResponse;
 	}
 }

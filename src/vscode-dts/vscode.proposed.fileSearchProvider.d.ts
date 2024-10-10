@@ -48,7 +48,7 @@ declare module 'vscode' {
 	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
 	 * and in that case, every file in the folder should be returned.
 	 */
-	export interface FileSearchProvider {
+	export interface FileSearchProviderOld {
 		/**
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param query The parameters for this query.
@@ -68,6 +68,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerFileSearchProvider(scheme: string, provider: FileSearchProvider): Disposable;
+		export function registerFileSearchProvider(scheme: string, provider: FileSearchProviderOld): Disposable;
 	}
 }
