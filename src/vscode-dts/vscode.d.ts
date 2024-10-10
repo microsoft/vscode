@@ -898,6 +898,11 @@ declare module 'vscode' {
 	export class ThemeColor {
 
 		/**
+		 * The id of this color.
+		 */
+		readonly id: string;
+
+		/**
 		 * Creates a reference to a theme color.
 		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/api/references/theme-color.
 		 */
@@ -3650,6 +3655,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
+		 * @param context Additional information about the references request.
 		 * @param token A cancellation token.
 		 *
 		 * @returns An array of locations or a thenable that resolves to such. The lack of a result can be
@@ -7500,7 +7506,7 @@ declare module 'vscode' {
 		 * must be activated. Check whether {@link TerminalShellExecution.exitCode} is rejected to
 		 * verify whether it was successful.
 		 *
-		 * @param command A command to run.
+		 * @param executable A command to run.
 		 * @param args Arguments to launch the executable with which will be automatically escaped
 		 * based on the executable type.
 		 *
@@ -11688,8 +11694,8 @@ declare module 'vscode' {
 		 *
 		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
-		 * @param dataTransfer The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occurring on. When undefined, the target is the root.
+		 * @param dataTransfer The data transfer items of the source of the drag.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
 		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
@@ -17775,7 +17781,7 @@ declare module 'vscode' {
 		 * runs which may still be ongoing, will be marked as outdated and deprioritized
 		 * in the editor's UI.
 		 *
-		 * @param item Item to mark as outdated. If undefined, all the controller's items are marked outdated.
+		 * @param items Item to mark as outdated. If undefined, all the controller's items are marked outdated.
 		 */
 		invalidateTestResults(items?: TestItem | readonly TestItem[]): void;
 
@@ -18961,7 +18967,9 @@ declare module 'vscode' {
 	export interface ChatFollowupProvider {
 		/**
 		 * Provide followups for the given result.
+		 *
 		 * @param result This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * @param context Extra context passed to a participant.
 		 * @param token A cancellation token.
 		 */
 		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
@@ -19100,7 +19108,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseAnchorPart(value, title))`.
 		 * An anchor is an inline reference to some type of resource.
 		 *
-		 * @param value A uri, location, or symbol information.
+		 * @param value A uri or location.
 		 * @param title An optional title that is rendered with value.
 		 */
 		anchor(value: Uri | Location, title?: string): void;

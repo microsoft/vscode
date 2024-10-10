@@ -60,6 +60,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
@@ -1128,7 +1129,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			}
 
 			if (toPaste.type === 'paths') {
-				const path = hostService.getPathForFile(item);
+				const path = getPathForFile(item);
 				if (path) {
 					return path;
 				}
@@ -1287,13 +1288,13 @@ type FilesToPaste =
 async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService, hostService: IHostService): Promise<FilesToPaste> {
 	if (fileList && fileList.length > 0) {
 		// with a `fileList` we support natively pasting file from disk from clipboard
-		const resources = [...fileList].map(file => hostService.getPathForFile(file)).filter(filePath => !!filePath && isAbsolute(filePath)).map((filePath) => URI.file(filePath!));
+		const resources = [...fileList].map(file => getPathForFile(file)).filter(filePath => !!filePath && isAbsolute(filePath)).map((filePath) => URI.file(filePath!));
 		if (resources.length) {
 			return { type: 'paths', files: resources, };
 		}
 
 		// Support pasting files that we can't read from disk
-		return { type: 'data', files: [...fileList].filter(file => !hostService.getPathForFile(file)) };
+		return { type: 'data', files: [...fileList].filter(file => !getPathForFile(file)) };
 	} else {
 		// otherwise we fallback to reading resources from our clipboard service
 		return { type: 'paths', files: resources.distinctParents(await clipboardService.readResources(), resource => resource) };

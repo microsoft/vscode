@@ -37,7 +37,7 @@ export class ChatImageDropAndPaste extends Disposable {
 			return;
 		}
 
-		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
+		const currentContextIds = this.inputPart.attachmentModel.getAttachmentIDs();
 		const filteredContext = [];
 
 		if (!currentContextIds.has(context.id)) {
@@ -45,7 +45,7 @@ export class ChatImageDropAndPaste extends Disposable {
 			filteredContext.push(context);
 		}
 
-		this.inputPart.attachContext(false, ...filteredContext);
+		this.inputPart.attachmentModel.addContext(...filteredContext);
 	}
 }
 
@@ -84,4 +84,3 @@ export function isImage(array: Uint8Array): boolean {
 		signature.every((byte, index) => array[index] === byte)
 	);
 }
-

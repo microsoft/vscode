@@ -47,6 +47,7 @@ import { registerZIndex, ZIndex } from '../../../../../platform/layout/browser/z
 import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
 import { INotebookService } from '../../common/notebookService.js';
 import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 const $ = DOM.$;
 
@@ -152,6 +153,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
 		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
@@ -433,8 +435,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const model = await input.resolve();
 		if (this._model !== model) {
 			this._detachModel();
-			this._model = model;
-			this._attachModel();
+			this._attachModel(model);
 		}
 
 		this._model = model;
@@ -449,7 +450,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._layoutCancellationTokenSource = new CancellationTokenSource();
 
 		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
-			if (this._model !== null) {
+			// If the user has made changes to the notebook whilst in the diff editor,
+			// then do not re-compute the diff of the notebook,
+			// As change will result in re-computing diff and re-building entire diff view.
+			if (this._model !== null && this.editorService.activeEditor !== input) {
 				this._layoutCancellationTokenSource?.dispose();
 				this._layoutCancellationTokenSource = new CancellationTokenSource();
 				this.updateLayout(this._layoutCancellationTokenSource.token);
@@ -484,7 +488,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list.clear();
 
 	}
-	private _attachModel() {
+	private _attachModel(model: INotebookDiffEditorModel) {
+		this._model = model;
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 		const updateInsets = () => {
 			DOM.scheduleAtNextAnimationFrame(this.window, () => {
@@ -514,15 +519,23 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			updateInsets();
 		}));
 
-		if (this._model) {
-			const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.diffEditorCalcuator, this.fontInfo, undefined));
-			this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
-				this._list.splice(e.start, e.deleteCount, e.elements);
-				if (this.isOverviewRulerEnabled()) {
-					this._overviewRuler.updateViewModels(vm.items, this._eventDispatcher);
-				}
-			}));
-		}
+		const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.diffEditorCalcuator, this.fontInfo, undefined));
+		this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
+			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
+			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
+
+			if (this._revealFirst && typeof e.firstChangeIndex === 'number' && e.firstChangeIndex < this._list.length) {
+				this._revealFirst = false;
+				this._list.setFocus([e.firstChangeIndex]);
+				this._list.reveal(e.firstChangeIndex, 0.3);
+			}
+
+			this._list.splice(e.start, e.deleteCount, e.elements);
+
+			if (this.isOverviewRulerEnabled()) {
+				this._overviewRuler.updateViewModels(vm.items, this._eventDispatcher);
+			}
+		}));
 	}
 
 	private async _createModifiedWebview(id: string, viewType: string, resource: URI): Promise<void> {
@@ -568,21 +581,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			return;
 		}
 
-		const diffResult = await this.notebookDiffViewModel.computeDiff(token);
+		await this.notebookDiffViewModel.computeDiff(token);
 		if (token.isCancellationRequested) {
 			// after await the editor might be disposed.
 			return;
-		}
-
-		if (diffResult) {
-			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
-			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
-
-			if (this._revealFirst && diffResult.firstChangeIndex !== -1 && diffResult.firstChangeIndex < this._list.length) {
-				this._revealFirst = false;
-				this._list.setFocus([diffResult.firstChangeIndex]);
-				this._list.reveal(diffResult.firstChangeIndex, 0.3);
-			}
 		}
 
 		if (selections) {

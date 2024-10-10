@@ -193,7 +193,7 @@ extends:
       eslint:
         enabled: true
         enableExclusions: true
-        exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
       sourceAnalysisPool: 1es-windows-2022-x64
       createAdoIssuesForJustificationsForDisablement: false
     containers:

@@ -24,7 +24,6 @@ import { match } from 'minimatch';
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-	'require', // from our AMD loader
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',
@@ -73,7 +72,11 @@ const CORE_TYPES = [
 	'__global',
 	'PerformanceMark',
 	'PerformanceObserver',
-	'ImportMeta'
+	'ImportMeta',
+
+	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
+	'Crypto',
+	'SubtleCrypto'
 ];
 
 // Types that are defined in a common layer but are known to be only

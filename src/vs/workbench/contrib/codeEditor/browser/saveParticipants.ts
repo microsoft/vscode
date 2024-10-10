@@ -396,7 +396,7 @@ class CodeActionOnSaveParticipant extends Disposable implements ITextFileSavePar
 				progress.report({
 					message: localize(
 						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
-						"Getting code actions from '{0}' ([configure]({1})).",
+						"Getting code actions from {0} ([configure]({1})).",
 						[...this._names].map(name => `'${name}'`).join(', '),
 						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
 					)

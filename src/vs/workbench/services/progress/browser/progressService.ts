@@ -183,7 +183,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				text,
 				showProgress: options.type || true,
 				ariaLabel: text,
-				tooltip: title,
+				tooltip: stripIcons(title).trim(),
 				command: progressCommand
 			};
 
@@ -315,7 +315,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			if (options.cancellable) {
 				const cancelAction = new class extends Action {
 					constructor() {
-						super('progress.cancel', localize('cancel', "Cancel"), undefined, true);
+						super('progress.cancel', typeof options.cancellable === 'string' ? options.cancellable : localize('cancel', "Cancel"), undefined, true);
 					}
 
 					override async run(): Promise<void> {
@@ -564,7 +564,10 @@ export class ProgressService extends Disposable implements IProgressService {
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
 			if (!options.sticky) {
-				buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+				buttons.push(options.cancellable
+					? (typeof options.cancellable === 'boolean' ? localize('cancel', "Cancel") : options.cancellable)
+					: localize('dismiss', "Dismiss")
+				);
 			}
 
 			dialog = new Dialog(
