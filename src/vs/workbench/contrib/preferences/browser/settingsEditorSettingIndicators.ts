@@ -64,15 +64,16 @@ let cachedSyncIgnoredSettings: string[] = [];
 export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly indicatorsContainerElement: HTMLElement;
 
+	private readonly previewIndicator: SettingIndicator;
 	private readonly workspaceTrustIndicator: SettingIndicator;
 	private readonly scopeOverridesIndicator: SettingIndicator;
 	private readonly syncIgnoredIndicator: SettingIndicator;
 	private readonly defaultOverrideIndicator: SettingIndicator;
-	private readonly previewIndicator: SettingIndicator;
-	/** Indicators that end up wrapped in a parenthesis at the top-right of the setting */
-	private readonly parenthesizedIndicators: SettingIndicator[];
+
 	/** Indicators that each have their own square container at the top-right of the setting */
 	private readonly isolatedIndicators: SettingIndicator[] = [];
+	/** Indicators that end up wrapped in a parenthesis at the top-right of the setting */
+	private readonly parenthesizedIndicators: SettingIndicator[];
 
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
 	private focusedIndex = 0;
@@ -87,13 +88,14 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.indicatorsContainerElement = DOM.append(container, $('.setting-indicators-container'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
+		this.previewIndicator = this.createPreviewIndicator();
+		this.isolatedIndicators = [this.previewIndicator];
+
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
 		this.syncIgnoredIndicator = this.createSyncIgnoredIndicator();
 		this.defaultOverrideIndicator = this.createDefaultOverrideIndicator();
-		this.previewIndicator = this.createPreviewIndicator();
 		this.parenthesizedIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
-		this.isolatedIndicators = [this.previewIndicator];
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
@@ -353,6 +355,9 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	dispose() {
 		this.keybindingListeners.dispose();
+		for (const indicator of this.isolatedIndicators) {
+			indicator.disposables.dispose();
+		}
 		for (const indicator of this.parenthesizedIndicators) {
 			indicator.disposables.dispose();
 		}
