@@ -69,7 +69,7 @@ export class ReplEditorInput extends NotebookEditorInput implements ICompositeNo
 		}
 
 		if (resource.scheme === 'untitled') {
-			const match = new RegExp('Untitled-(\\d+)\.').exec(resource.path);
+			const match = new RegExp('Untitled-(\\d+)\\.').exec(resource.path);
 			if (match?.length === 2) {
 				return `REPL - ${match[1]}`;
 			}
