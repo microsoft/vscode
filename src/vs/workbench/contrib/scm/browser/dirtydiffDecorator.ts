@@ -750,13 +750,13 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 					cursor: pointer;
 				}
 
-				.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
+				.monaco-editor .margin-view-overlays .line-decor-container:hover .dirty-diff-glyph::before {
 					height: 100%;
 					width: 6px;
 					left: -6px;
 				}
 
-				.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
+				.monaco-editor .margin-view-overlays .line-decor-container:hover .dirty-diff-deleted::after {
 					bottom: 0;
 					border-top-width: 0;
 					border-bottom-width: 0;
@@ -913,16 +913,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 		if (!e.target.element) {
 			return;
 		}
-		if (e.target.element.className.indexOf('dirty-diff-glyph') < 0) {
-			return;
-		}
-
-		const data = e.target.detail;
-		const offsetLeftInGutter = e.target.element.offsetLeft;
-		const gutterOffsetX = data.offsetX - offsetLeftInGutter;
-
-		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
-		if (gutterOffsetX < -3 || gutterOffsetX > 3) { // dirty diff decoration on hover is 6px wide
+		if (!e.target.element.classList.contains('dirty-diff-glyph')) {
 			return;
 		}
 
