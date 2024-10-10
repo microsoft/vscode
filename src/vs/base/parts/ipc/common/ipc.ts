@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../common/canc
 import { memoize } from '../../../common/decorators.js';
 import { CancellationError, ErrorNoTelemetry } from '../../../common/errors.js';
 import { Emitter, Event, EventMultiplexer, Relay } from '../../../common/event.js';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { revive } from '../../../common/marshalling.js';
 import * as strings from '../../../common/strings.js';
 import { isFunction, isUndefinedOrNull } from '../../../common/types.js';
@@ -635,8 +635,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				e(new CancellationError());
 			};
 
-			const cancellationTokenListener = cancellationToken.onCancellationRequested(cancel);
-			disposable = combinedDisposable(toDisposable(cancel), cancellationTokenListener);
+			disposable = cancellationToken.onCancellationRequested(cancel);
 			this.activeRequests.add(disposable);
 		});
 
@@ -655,12 +654,19 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
 		const emitter = new Emitter<any>({
 			onWillAddFirstListener: () => {
-				uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
-				uninitializedPromise.then(() => {
-					uninitializedPromise = null;
+				const doRequest = () => {
 					this.activeRequests.add(emitter);
 					this.sendRequest(request);
-				});
+				};
+				if (this.state === State.Idle) {
+					doRequest();
+				} else {
+					uninitializedPromise = createCancelablePromise(_ => this.whenInitialized());
+					uninitializedPromise.then(() => {
+						uninitializedPromise = null;
+						doRequest();
+					});
+				}
 			},
 			onDidRemoveLastListener: () => {
 				if (uninitializedPromise) {
@@ -933,6 +939,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				disposables = undefined;
 			}
 		});
+		that.disposables.add(emitter);
 
 		return emitter.event;
 	}
