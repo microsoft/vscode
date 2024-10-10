@@ -16,7 +16,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
-import { editorRangeHighlight } from '../../../../editor/common/core/editorColorRegistry.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../editor/common/model.js';
@@ -29,6 +28,7 @@ import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { editorSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -745,7 +745,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 					className: 'rangeHighlight',
 					overviewRuler: {
 						position: OverviewRulerLane.Full,
-						color: themeColorFromId(editorRangeHighlight)
+						color: themeColorFromId(editorSelectionBackground)
 					}
 				}
 			} satisfies IModelDeltaDecoration;
