@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vscode-uri';
 import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
@@ -17,6 +18,14 @@ import * as ts from 'typescript';
 import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+
+function uriToFilePath(uri: string) {
+	return URI.parse(uri).fsPath;
+}
+
+function isFileURI(uri: string) {
+	return URI.parse(uri).scheme === 'file';
+}
 
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
@@ -35,6 +44,8 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 			getScriptVersion: (fileName: string) => {
 				if (fileName === currentTextDocument.uri) {
 					return String(currentTextDocument.version);
+				} else if (isFileURI(fileName) && ts.sys.fileExists(uriToFilePath(fileName))) {
+					return String(ts.sys.getModifiedTime!(uriToFilePath(fileName)) ?? '1');
 				}
 				return '1'; // default lib an jquery.d.ts are static
 			},
@@ -42,6 +53,8 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				let text = '';
 				if (fileName === currentTextDocument.uri) {
 					text = currentTextDocument.getText();
+				} else if (isFileURI(fileName) && ts.sys.fileExists(uriToFilePath(fileName))) {
+					text = ts.sys.readFile(uriToFilePath(fileName), 'utf-8')!;
 				} else {
 					text = libs.loadLibrary(fileName);
 				}
@@ -56,6 +69,8 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 			readFile: (path: string, _encoding?: string | undefined): string | undefined => {
 				if (path === currentTextDocument.uri) {
 					return currentTextDocument.getText();
+				} else if (isFileURI(path)) {
+					return ts.sys.readFile(uriToFilePath(path), _encoding);
 				} else {
 					return libs.loadLibrary(path);
 				}
@@ -63,6 +78,8 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 			fileExists: (path: string): boolean => {
 				if (path === currentTextDocument.uri) {
 					return true;
+				} else if (isFileURI(path)) {
+					return ts.sys.fileExists(uriToFilePath(path));
 				} else {
 					return !!libs.loadLibrary(path);
 				}
@@ -302,10 +319,12 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const definition = jsLanguageService.getDefinitionAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (definition) {
-				return definition.filter(d => d.fileName === jsDocument.uri).map(d => {
+				return definition.map(d => {
+					const text = jsLanguageService.getProgram()!.getSourceFile(d.fileName)!.text;
+					const doc = TextDocument.create('tmp', 'javascript', 1, text);
 					return {
-						uri: document.uri,
-						range: convertRange(jsDocument, d.textSpan)
+						uri: d.fileName,
+						range: convertRange(doc, d.textSpan)
 					};
 				});
 			}
@@ -316,10 +335,12 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			const jsLanguageService = await host.getLanguageService(jsDocument);
 			const references = jsLanguageService.getReferencesAtPosition(jsDocument.uri, jsDocument.offsetAt(position));
 			if (references) {
-				return references.filter(d => d.fileName === jsDocument.uri).map(d => {
+				return references.map(d => {
+					const text = jsLanguageService.getProgram()!.getSourceFile(d.fileName)!.text;
+					const doc = TextDocument.create('tmp', 'javascript', 1, text);
 					return {
-						uri: document.uri,
-						range: convertRange(jsDocument, d.textSpan)
+						uri: d.fileName,
+						range: convertRange(doc, d.textSpan)
 					};
 				});
 			}
