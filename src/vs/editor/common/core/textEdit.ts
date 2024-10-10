@@ -5,6 +5,7 @@
 
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
+import { commonPrefixLength } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
@@ -258,6 +259,19 @@ export class SingleTextEdit {
 			initialValue.getTransformer().getLineLength(this.range.endLineNumber) + 1
 		);
 		return this.extendToCoverRange(newRange, initialValue);
+	}
+
+	public removeCommonPrefix(text: AbstractText): SingleTextEdit {
+		const normalizedOriginalText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const normalizedModifiedText = this.text.replaceAll('\r\n', '\n');
+
+		const commonPrefixLen = commonPrefixLength(normalizedOriginalText, normalizedModifiedText);
+		const start = TextLength.ofText(normalizedOriginalText.substring(0, commonPrefixLen))
+			.addToPosition(this.range.getStartPosition());
+
+		const newText = normalizedModifiedText.substring(commonPrefixLen);
+		const range = Range.fromPositions(start, this.range.getEndPosition());
+		return new SingleTextEdit(range, newText);
 	}
 }
 
