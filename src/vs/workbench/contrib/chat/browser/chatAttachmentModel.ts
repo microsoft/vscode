@@ -9,6 +9,9 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { generateFocusedWindowScreenshot } from '../../../../platform/screenshot/browser/screenshot.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { IRange } from '../../../../base/common/range.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 
 export class ChatAttachmentModel extends Disposable {
 	constructor(
