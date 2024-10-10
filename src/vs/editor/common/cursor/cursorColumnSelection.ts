@@ -48,8 +48,9 @@ export class ColumnSelection {
 			}
 
 			result.push(new SingleCursorState(
-				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, 0,
-				new Position(lineNumber, endColumn), 0
+				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple,
+				new Position(lineNumber, endColumn),
+				null
 			));
 		}
 
@@ -60,8 +61,9 @@ export class ColumnSelection {
 				const maxColumn = model.getLineMaxColumn(lineNumber);
 
 				result.push(new SingleCursorState(
-					new Range(lineNumber, maxColumn, lineNumber, maxColumn), SelectionStartKind.Simple, 0,
-					new Position(lineNumber, maxColumn), 0
+					new Range(lineNumber, maxColumn, lineNumber, maxColumn), SelectionStartKind.Simple,
+					new Position(lineNumber, maxColumn),
+					null
 				));
 			}
 		}

@@ -156,8 +156,12 @@ export class ViewCursor {
 	private _getGraphemeAwarePosition(): [Position, string] {
 		const { lineNumber, column } = this._position;
 		const lineContent = this._context.viewModel.getLineContent(lineNumber);
-		const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
-		return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
+		if (column > lineContent.length) {
+			return [new Position(lineNumber, column), ''];
+		} else {
+			const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
+			return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
+		}
 	}
 
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData | null {
@@ -196,7 +200,7 @@ export class ViewCursor {
 			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
 		}
 
-		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
+		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + Math.max(nextGrapheme.length, 1)), false);
 		if (!visibleRangeForCharacter || visibleRangeForCharacter.length === 0) {
 			// Outside viewport
 			return null;
