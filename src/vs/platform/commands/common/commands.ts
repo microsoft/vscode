@@ -55,6 +55,8 @@ export interface ICommandMetadata {
 		readonly schema?: IJSONSchema;
 	}>;
 	readonly returns?: string;
+
+	readonly contributedByExtension?: boolean;
 }
 
 export interface ICommandRegistry {
@@ -128,8 +130,10 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		return CommandsRegistry.registerCommand(oldId, (accessor, ...args) => accessor.get(ICommandService).executeCommand(newId, ...args));
 	}
 
+	// Keep track of whether a command is internal or external, send that back with the execut command result
 	getCommand(id: string): ICommand | undefined {
 		const list = this._commands.get(id);
+		console.log('list : ', list);
 		if (!list || list.isEmpty()) {
 			return undefined;
 		}
