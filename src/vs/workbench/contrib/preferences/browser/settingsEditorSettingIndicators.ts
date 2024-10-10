@@ -69,7 +69,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly syncIgnoredIndicator: SettingIndicator;
 	private readonly defaultOverrideIndicator: SettingIndicator;
 	private readonly previewIndicator: SettingIndicator;
-	private readonly allIndicators: SettingIndicator[];
+	/** Indicators that end up wrapped in a parenthesis at the top-right of the setting */
+	private readonly parenthesizedIndicators: SettingIndicator[];
+	/** Indicators that each have their own square container at the top-right of the setting */
+	private readonly isolatedIndicators: SettingIndicator[] = [];
 
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
 	private focusedIndex = 0;
@@ -88,8 +91,9 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
 		this.syncIgnoredIndicator = this.createSyncIgnoredIndicator();
 		this.defaultOverrideIndicator = this.createDefaultOverrideIndicator();
-		this.previewIndicator = this.createPreviewIndictor();
-		this.allIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator, this.previewIndicator];
+		this.previewIndicator = this.createPreviewIndicator();
+		this.parenthesizedIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
+		this.isolatedIndicators = [this.previewIndicator];
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
@@ -208,7 +212,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 	}
 
-	private createPreviewIndictor(): SettingIndicator {
+	private createPreviewIndicator(): SettingIndicator {
 		const disposables = new DisposableStore();
 		const previewIndicator = $('span.setting-indicator.setting-item-preview');
 		const previewLabel = disposables.add(new SimpleIconLabel(previewIndicator));
@@ -221,23 +225,33 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private render() {
-		const indicatorsToShow = this.allIndicators.filter(indicator => {
-			return indicator.element.style.display !== 'none';
-		});
-
 		this.indicatorsContainerElement.innerText = '';
 		this.indicatorsContainerElement.style.display = 'none';
-		if (indicatorsToShow.length) {
+
+		const isolatedIndicatorsToShow = this.isolatedIndicators.filter(indicator => {
+			return indicator.element.style.display !== 'none';
+		});
+		if (isolatedIndicatorsToShow.length) {
+			this.indicatorsContainerElement.style.display = 'inline';
+			for (let i = 0; i < isolatedIndicatorsToShow.length; i++) {
+				DOM.append(this.indicatorsContainerElement, isolatedIndicatorsToShow[i].element);
+			}
+		}
+
+		const parenthesizedIndicatorsToShow = this.parenthesizedIndicators.filter(indicator => {
+			return indicator.element.style.display !== 'none';
+		});
+		if (parenthesizedIndicatorsToShow.length) {
 			this.indicatorsContainerElement.style.display = 'inline';
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, '('));
-			for (let i = 0; i < indicatorsToShow.length - 1; i++) {
-				DOM.append(this.indicatorsContainerElement, indicatorsToShow[i].element);
+			for (let i = 0; i < parenthesizedIndicatorsToShow.length - 1; i++) {
+				DOM.append(this.indicatorsContainerElement, parenthesizedIndicatorsToShow[i].element);
 				DOM.append(this.indicatorsContainerElement, $('span.comma', undefined, ' • '));
 			}
-			DOM.append(this.indicatorsContainerElement, indicatorsToShow[indicatorsToShow.length - 1].element);
+			DOM.append(this.indicatorsContainerElement, parenthesizedIndicatorsToShow[parenthesizedIndicatorsToShow.length - 1].element);
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
-			this.resetIndicatorNavigationKeyBindings(indicatorsToShow);
 		}
+		this.resetIndicatorNavigationKeyBindings([...isolatedIndicatorsToShow, ...parenthesizedIndicatorsToShow]);
 	}
 
 	private resetIndicatorNavigationKeyBindings(indicators: SettingIndicator[]) {
@@ -339,7 +353,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	dispose() {
 		this.keybindingListeners.dispose();
-		for (const indicator of this.allIndicators) {
+		for (const indicator of this.parenthesizedIndicators) {
 			indicator.disposables.dispose();
 		}
 	}
