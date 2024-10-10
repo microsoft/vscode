@@ -533,9 +533,15 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
 						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
 					};
+
+					const formattingRange = new Range(
+						new Position(Math.max(0, range.start.line - 1), range.start.character),
+						new Position(range.end.line, range.end.character)
+					);
+
 					const params: DocumentRangeFormattingParams = {
 						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-						range: client.code2ProtocolConverter.asRange(range),
+						range: client.code2ProtocolConverter.asRange(formattingRange),
 						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
 					};
 
