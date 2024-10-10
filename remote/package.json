@@ -23,7 +23,7 @@
     "@xterm/addon-webgl": "^0.19.0-beta.65",
     "@xterm/headless": "^5.6.0-beta.65",
     "@xterm/xterm": "^5.6.0-beta.65",
-    "cookie": "^0.4.0",
+    "cookie": "^0.7.0",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
