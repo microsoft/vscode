@@ -509,7 +509,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.sortOrder': {
 			'type': 'string',
-			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified, SortOrder.FoldersNestsFiles],
+			'enum': [SortOrder.Default, SortOrder.Mixed, SortOrder.FilesFirst, SortOrder.Type, SortOrder.Modified, SortOrder.FoldersNestsFiles, SortOrder.FilesFirstWhenNested],
 			'default': SortOrder.Default,
 			'enumDescriptions': [
 				nls.localize('sortOrder.default', 'Files and folders are sorted by their names. Folders are displayed before files.'),
@@ -517,7 +517,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.'),
-				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
+				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.'),
+				nls.localize('sortOrder.filesFirstWhenNested', 'Files and folders are sorted by their names. Folders are displayed before files in the project root. Files within folders are displayed first.')
 			],
 			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the Explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
