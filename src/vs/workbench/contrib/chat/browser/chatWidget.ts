@@ -835,6 +835,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
 			}
+			if (e.kind === 'addRequest') {
+				if (this._location.location === ChatAgentLocation.EditingSession) {
+					this.chatEditingService.createSnapshot(e.request.id);
+				}
+			}
 		}));
 
 		if (this.tree) {
