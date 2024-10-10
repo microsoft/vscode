@@ -505,6 +505,18 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this.id = 'response_' + ChatResponseModel.nextId++;
 	}
 
+	withoutCodeBlocks(): string {
+		const delimiter = '```';
+		let filtered = this._response.toString();
+		let start = filtered.indexOf(delimiter);
+		while (start >= 0) {
+			const end = filtered.indexOf(delimiter, start + delimiter.length);
+			filtered = filtered.slice(0, start) + filtered.slice(end + delimiter.length);
+			start = filtered.indexOf(delimiter);
+		}
+		return filtered;
+	}
+
 	/**
 	 * Apply a progress update to the actual response content.
 	 */

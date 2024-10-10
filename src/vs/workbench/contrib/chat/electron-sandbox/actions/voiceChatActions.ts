@@ -787,7 +787,8 @@ class ChatSynthesizerSessions {
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
 	async start(controller: IChatSynthesizerSessionController): Promise<void> {
@@ -835,11 +836,13 @@ class ChatSynthesizerSessions {
 	private async *nextChatResponseChunk(response: IChatResponseModel, token: CancellationToken): AsyncIterable<string> {
 		let totalOffset = 0;
 		let complete = false;
+		let isWithinCodeBlock = false;
 		do {
 			const responseLength = response.response.toString().length;
-			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
+			const { chunk, offset, codeBlockTerminated } = this.parseNextChatResponseChunk(response, totalOffset, isWithinCodeBlock);
 			totalOffset = offset;
 			complete = response.isComplete;
+			isWithinCodeBlock = !codeBlockTerminated;
 
 			if (chunk) {
 				yield chunk;
@@ -855,10 +858,38 @@ class ChatSynthesizerSessions {
 		} while (!token.isCancellationRequested && !complete);
 	}
 
-	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
-		let chunk: string | undefined = undefined;
+	private withoutCodeBlocks(text: string): [string, boolean] {
+		const delimiter = '```';
+		let start = text.indexOf(delimiter);
+		while (start >= 0) {
+			const end = text.indexOf(delimiter, start + delimiter.length);
+			if (end === -1) {
+				return [text.substring(0, start), false];
+			}
+			text = text.slice(0, start) + text.slice(end + delimiter.length);
+			start = text.indexOf(delimiter);
+		}
+		return [text, true];
+	}
 
-		const text = response.response.toString();
+	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number, isWithinCodeBlock = false): { readonly chunk: string | undefined; readonly offset: number; readonly codeBlockTerminated: boolean } {
+		let chunk: string | undefined = undefined;
+		const ignoreCodeBlocks = this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.IgnoreCodeBlocks);
+		let text = response.response.toString();
+		const delimiter = '```';
+		let codeBlockTerminates = false;
+		const firstDelimiterIndex = text.indexOf(delimiter);
+
+		if (ignoreCodeBlocks) {
+			if (isWithinCodeBlock && firstDelimiterIndex === -1) {
+				text = '';
+			} else if (isWithinCodeBlock && firstDelimiterIndex >= 0) {
+				text = text.substring(firstDelimiterIndex + 1);
+			}
+			const [filteredText, terminated] = this.withoutCodeBlocks(text);
+			text = filteredText;
+			codeBlockTerminates = terminated;
+		}
 
 		if (response.isComplete) {
 			chunk = text.substring(offset);
@@ -871,7 +902,8 @@ class ChatSynthesizerSessions {
 
 		return {
 			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
-			offset
+			offset,
+			codeBlockTerminated: codeBlockTerminates
 		};
 	}
 

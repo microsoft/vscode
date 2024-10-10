@@ -235,7 +235,6 @@ export class UtilityProcess extends Disposable {
 		const args = this.configuration.args ?? [];
 		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
-		const respondToAuthRequestsFromMainProcess = this.configuration.respondToAuthRequestsFromMainProcess;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration);
 
@@ -247,7 +246,6 @@ export class UtilityProcess extends Disposable {
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
-			respondToAuthRequestsFromMainProcess,
 			stdio
 		});
 
