@@ -166,7 +166,7 @@ resources:
     - repository: 1ESPipelines
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
-      ref: refs/tags/release
+      ref: e7d15731fd26570a111a61f913ed7ea2b23f5b13
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
