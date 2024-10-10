@@ -135,6 +135,7 @@ export interface IMainWindowSandboxGlobals {
 	readonly process: ISandboxNodeProcess;
 	readonly context: ISandboxContext;
 	readonly webUtils: WebUtils;
+	readonly desktopCapturer: DesktopCapturer;
 }
 
 /**
