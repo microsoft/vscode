@@ -61,7 +61,7 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		const context = canvas.getContext('2d');
 		if (context) {
 			// Draw the portion of the video based on x, y, width, and height
-			context.drawImage(video, x, y, width, height, 0, 0, width, height);
+			context.drawImage(video, x, y, width, height);
 		}
 
 		// Stop all video tracks once the screenshot is taken

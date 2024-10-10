@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, desktopCapturer, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, protocol, session, Session, systemPreferences, screen, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -185,11 +185,48 @@ export class CodeApplication extends Disposable {
 			return callback(false);
 		});
 
-		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
-			// To do: filter to the active screen
-			desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
-				callback({ video: sources[0], audio: 'loopback' });
-			});
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+
+			// Get the currently focused window
+			const focusedWindow = BrowserWindow.getFocusedWindow();
+
+			if (!focusedWindow) {
+				return;
+			}
+
+			// Get the bounds (position and size) of the focused window
+			const windowBounds = focusedWindow.getBounds();
+
+			// Get all the screen sources
+			const screens = await desktopCapturer.getSources({ types: ['screen'] });
+
+			// Get the display that contains the focused window
+			const displays = screen.getAllDisplays();
+
+			// Find the screen that contains the focused window
+			for (const display of displays) {
+				const displayBounds = display.bounds;
+
+				// Check if the window is within the display's bounds
+				if (
+					windowBounds.x >= displayBounds.x &&
+					windowBounds.x + windowBounds.width <= displayBounds.x + displayBounds.width &&
+					windowBounds.y >= displayBounds.y &&
+					windowBounds.y + windowBounds.height <= displayBounds.y + displayBounds.height
+				) {
+					// Match the display to the screen source
+					for (const source of screens) {
+						if (source.display_id === display.id.toString()) {
+							// Found the screen containing the focused window
+							callback({ video: source, audio: 'loopback' });
+							return;
+						}
+					}
+				}
+			}
+
+			// Fallback: if no matching screen is found, return the first screen
+			callback({ video: screens[0], audio: 'loopback' });
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
