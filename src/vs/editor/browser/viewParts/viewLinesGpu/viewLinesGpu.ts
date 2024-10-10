@@ -400,6 +400,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	}
 
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
+		// TODO: Implement
 		return null;
 	}
 

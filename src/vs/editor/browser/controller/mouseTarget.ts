@@ -22,6 +22,7 @@ import { PositionAffinity } from '../../common/model.js';
 import { InjectedText } from '../../common/modelLineProjectionData.js';
 import { Mutable } from '../../../base/common/types.js';
 import { Lazy } from '../../../base/common/lazy.js';
+import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 
 const enum HitTestResultType {
 	Unknown,
@@ -238,6 +239,7 @@ export class HitTestContext {
 	public readonly viewModel: IViewModel;
 	public readonly layoutInfo: EditorLayoutInfo;
 	public readonly viewDomNode: HTMLElement;
+	public readonly viewLinesGpu: ViewLinesGpu | undefined;
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
@@ -251,6 +253,7 @@ export class HitTestContext {
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
+		this.viewLinesGpu = viewHelper.viewLinesGpu;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
@@ -574,6 +577,11 @@ export class MouseTargetFactory {
 			result = result || request.fulfillUnknown();
 		}
 
+		// TODO: Need to know about canvas here
+		if (ctx.viewLinesGpu) {
+			// ...
+		}
+
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestMinimap(ctx, resolvedRequest);
@@ -723,6 +731,11 @@ export class MouseTargetFactory {
 	private static _hitTestViewLines(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
 		if (!ElementPath.isChildOfViewLines(request.targetPath)) {
 			return null;
+		}
+
+		// TODO: Need to know about canvas here
+		if (ctx.viewLinesGpu) {
+			console.log('hit gpu');
 		}
 
 		if (ctx.isInTopPadding(request.mouseVerticalOffset)) {
