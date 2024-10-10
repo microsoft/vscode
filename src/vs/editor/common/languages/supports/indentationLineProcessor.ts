@@ -6,7 +6,7 @@
 import * as strings from '../../../../base/common/strings.js';
 import { Range } from '../../core/range.js';
 import { ITextModel } from '../../model.js';
-import { ILanguageConfigurationService } from '../languageConfigurationRegistry.js';
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from '../languageConfigurationRegistry.js';
 import { createScopedLineTokens, ScopedLineTokens } from '../supports.js';
 import { IVirtualModel } from '../autoIndent.js';
 import { IViewLineTokens, LineTokens } from '../../tokens/lineTokens.js';
@@ -197,25 +197,47 @@ class IndentationLineProcessor {
 	}
 
 	/**
-	 * Process the line with the given tokens, remove the language configuration brackets from the regex, string and comment tokens.
+	 * Process the line with the given tokens, remove the language configuration brackets and keywords from the regex, string and comment tokens.
 	 */
 	getProcessedTokens(tokens: IViewLineTokens): IViewLineTokens {
 
-		const shouldRemoveBracketsFromTokenType = (tokenType: StandardTokenType): boolean => {
+		const shouldRemoveBracketsKeywordsFromTokenType = (tokenType: StandardTokenType): boolean => {
 			return tokenType === StandardTokenType.String
 				|| tokenType === StandardTokenType.RegEx
 				|| tokenType === StandardTokenType.Comment;
 		};
 
+		const getKeywordsRegExp = (languageConfiguration: ResolvedLanguageConfiguration): RegExp | null => {
+			// get possible keywords from `increaseIndentPattern`
+			const increaseIndentPatternStr = languageConfiguration.indentationRules?.increaseIndentPattern?.toString();
+			if (increaseIndentPatternStr === undefined) {
+				return null;
+			}
+			// ignore character that are immediately after a backslash, e.g. `\bthen\b` we only want to match the `then`
+			const keywordRegExp = /(?<!\\)[a-z]{2,}/g;
+			const keywordsMatches = [...increaseIndentPatternStr.matchAll(keywordRegExp)];
+			if (keywordsMatches.length <= 0) {
+				return null;
+			}
+			// build regex with the unique keywords found
+			const uniqueKeywords = [...new Set(keywordsMatches.map(r => r[0]))];
+			return new RegExp(`\\b(${uniqueKeywords.join('|')})\\b`, 'g');
+		};
+
 		const languageId = tokens.getLanguageId(0);
-		const bracketsConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId).bracketsNew;
+		const languageConfiguration = this.languageConfigurationService.getLanguageConfiguration(languageId);
+		const bracketsConfiguration = languageConfiguration.bracketsNew;
 		const bracketsRegExp = bracketsConfiguration.getBracketRegExp({ global: true });
+		const keywordsRegExp = getKeywordsRegExp(languageConfiguration);
 		const textAndMetadata: { text: string; metadata: number }[] = [];
 		tokens.forEach((tokenIndex: number) => {
 			const tokenType = tokens.getStandardTokenType(tokenIndex);
 			let text = tokens.getTokenText(tokenIndex);
-			if (shouldRemoveBracketsFromTokenType(tokenType)) {
+			if (shouldRemoveBracketsKeywordsFromTokenType(tokenType)) {
 				text = text.replace(bracketsRegExp, '');
+				if (keywordsRegExp !== null) {
+					text = text.replace(keywordsRegExp, '');
+				}
 			}
 			const metadata = tokens.getMetadata(tokenIndex);
 			textAndMetadata.push({ text, metadata });
