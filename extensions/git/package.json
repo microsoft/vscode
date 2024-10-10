@@ -477,6 +477,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.fetchPruneAndDelete",
+        "title": "%command.fetchPruneAndDelete%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.renameBranch",
         "title": "%command.renameBranch%",
         "category": "Git",
