@@ -220,8 +220,8 @@ class TreeSitterTokenizationSupport extends Disposable implements ITreeSitterTok
 
 				// Check that the current token doesn't just replace the last token
 				if ((previousTokenStartOffset + currentTokenLength) === originalPreviousTokenEndOffset) {
-					// Current token and previous token span the exact same characters
-					endOffsetsAndScopes[tokenIndex - 1].scopes.push(capture.name);
+					// Current token and previous token span the exact same characters, replace the last scope
+					endOffsetsAndScopes[tokenIndex - 1].scopes[endOffsetsAndScopes[tokenIndex - 1].scopes.length - 1] = capture.name;
 				} else {
 					// The current token is within the previous token. Adjust the end of the previous token.
 					endOffsetsAndScopes[tokenIndex - 1].endOffset = intermediateTokenOffset;

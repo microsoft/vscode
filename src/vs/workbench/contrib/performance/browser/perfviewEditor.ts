@@ -141,7 +141,7 @@ class PerfModelContentProvider implements ITextModelContentProvider {
 			this._lifecycleService.when(LifecyclePhase.Eventually),
 			this._extensionService.whenInstalledExtensionsRegistered(),
 			// The terminal service never connects to the pty host on the web
-			isWeb && this._remoteAgentService.getConnection() === null ? Promise.resolve() : this._terminalService.whenConnected
+			isWeb && !this._remoteAgentService.getConnection()?.remoteAuthority ? Promise.resolve() : this._terminalService.whenConnected
 		]).then(() => {
 			if (this._model && !this._model.isDisposed()) {
 

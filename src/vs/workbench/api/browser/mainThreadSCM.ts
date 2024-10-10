@@ -287,9 +287,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private readonly _actionButton = observableValue<ISCMActionButtonDescriptor | undefined>(this, undefined);
 	get actionButton(): IObservable<ISCMActionButtonDescriptor | undefined> { return this._actionButton; }
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange: Event<void> = this._onDidChange.event;
-
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
 
@@ -319,7 +316,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
 		this.features = { ...this.features, ...features };
-		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {
 			this._commitTemplate.set(features.commitTemplate, undefined);

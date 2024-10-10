@@ -5,18 +5,21 @@
 
 /* eslint-disable no-restricted-globals */
 
-(function () {
+(async function () {
 
 	type IBootstrapWindow = import('vs/platform/window/electron-sandbox/window.js').IBootstrapWindow;
+	type IProcessExplorerMain = import('vs/code/electron-sandbox/processExplorer/processExplorerMain.js').IProcessExplorerMain;
+	type ProcessExplorerWindowConfiguration = import('vs/platform/issue/common/issue.js').ProcessExplorerWindowConfiguration;
+
 	const bootstrapWindow: IBootstrapWindow = (window as any).MonacoBootstrapWindow; // defined by bootstrap-window.ts
 
-	bootstrapWindow.load('vs/code/electron-sandbox/processExplorer/processExplorerMain', function (processExplorer, configuration) {
-		return processExplorer.startup(configuration);
-	}, {
+	const { result, configuration } = await bootstrapWindow.load<IProcessExplorerMain, ProcessExplorerWindowConfiguration>('vs/code/electron-sandbox/processExplorer/processExplorerMain', {
 		configureDeveloperSettings: function () {
 			return {
 				forceEnableDeveloperKeybindings: true
 			};
 		},
 	});
+
+	result.startup(configuration);
 }());

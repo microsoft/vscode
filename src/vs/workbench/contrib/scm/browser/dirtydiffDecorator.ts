@@ -1289,8 +1289,7 @@ export class DirtyDiffModel extends Disposable {
 		this.repositoryDisposables.add(disposables);
 		disposables.add(toDisposable(() => this.repositoryDisposables.delete(disposables)));
 
-		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		disposables.add(onDidChange(this.triggerDiff, this));
+		disposables.add(repository.provider.onDidChangeResources(this.triggerDiff, this));
 
 		const onDidRemoveThis = Event.filter(this.scmService.onDidRemoveRepository, r => r === repository);
 		disposables.add(onDidRemoveThis(() => dispose(disposables), null));

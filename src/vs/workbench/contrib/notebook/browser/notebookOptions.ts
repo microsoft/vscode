@@ -107,6 +107,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly outputScrolling?: boolean;
 	readonly outputLinkifyFilePaths?: boolean;
 	readonly minimalError?: boolean;
+	readonly readonly?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({

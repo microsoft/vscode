@@ -21,6 +21,7 @@ interface IRawToolContribution {
 	name?: string;
 	icon?: string | { light: string; dark: string };
 	when?: string;
+	tags?: string[];
 	displayName?: string;
 	userDescription?: string;
 	modelDescription: string;
@@ -38,7 +39,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 		}
 	},
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.tools', 'Contributes a tool that can be invoked by a language model.'),
+		description: localize('vscode.extension.contributes.tools', 'Contributes a tool that can be invoked by a language model in a chat session, or from a standalone command. Registered tools can be used by all extensions.'),
 		type: 'array',
 		items: {
 			additionalProperties: false,
@@ -53,7 +54,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					pattern: '^[\\w-]+$'
 				},
 				name: {
-					description: localize('toolName', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeInvokedManually`'),
+					markdownDescription: localize('toolName', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeInvokedManually`'),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
@@ -79,7 +80,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'boolean'
 				},
 				icon: {
-					description: localize('icon', "An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like `\\$(zap)`"),
+					markdownDescription: localize('icon', "An icon that represents this tool. Either a file path, an object with file paths for dark and light themes, or a theme icon reference, like `$(zap)`"),
 					anyOf: [{
 						type: 'string'
 					},
@@ -102,7 +103,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string'
 				},
 				supportedContentTypes: {
-					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's required that tools support `text/plain`, and that is assumed even if not specified here. Another example could be the contentType exported by the `@vscode/prompt-tsx` library."),
+					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's recommended that all tools support `text/plain`, which would indicate any text-based content. Another example is the contentType exported by the `@vscode/prompt-tsx` library, which would let a tool return a `PromptElementJSON` which can be easily rendered in a prompt by an extension using `@vscode/prompt-tsx`."),
 					type: 'array',
 					items: {
 						type: 'string'
@@ -110,7 +111,13 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 				requiresConfirmation: {
 					description: localize('requiresConfirmation', "Whether this tool requires user confirmation before being executed."),
-					type: 'boolean'
+				},
+				tags: {
+					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),
+					type: 'array',
+					items: {
+						type: 'string'
+					}
 				}
 			}
 		}

@@ -9,6 +9,13 @@
 	margin: 0 1px;
 	padding: 1px 3px;
 	text-wrap: nowrap;
+	width: fit-content;
+	font-weight: normal;
+	text-decoration: none;
+}
+
+.chat-inline-anchor-widget .icon-label {
+	padding-right: 3px;
 }
 
 .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {

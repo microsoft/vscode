@@ -136,6 +136,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _playAccessibilitySignal = observableSignal(this);
 
 	private readonly _fontFamily = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => val.fontFamily);
+	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -178,6 +179,9 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(runOnChange(this._editorObs.selections, (_value, _, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
+				if (!this._hideInlineEditOnSelectionChange.get() && this.model.get()?.stateWithInlineEdit.get()?.kind === 'inlineEdit') {
+					return;
+				}
 				this.model.get()?.stop();
 			}
 		}));
