@@ -65,6 +65,7 @@ export class Point {
 		return new Point(this.x + delta, this.y);
 	}
 }
+
 export class UniqueUriGenerator {
 	private static _modelId = 0;
 
