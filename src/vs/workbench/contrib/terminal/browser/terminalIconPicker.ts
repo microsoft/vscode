@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getActiveDocument } from '../../../../base/browser/dom.js';
+import { Dimension, getActiveDocument, getActiveWindow } from '../../../../base/browser/dom.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { codiconsLibrary } from '../../../../base/common/codiconsLibrary.js';
 import { Lazy } from '../../../../base/common/lazy.js';
@@ -50,17 +50,37 @@ export class TerminalIconPicker extends Disposable {
 		});
 	}
 
-	async pickIcons(): Promise<ThemeIcon | undefined> {
+	async pickIcons(instanceId: number): Promise<ThemeIcon | undefined> {
+		//Get the active document for current context
+		const doc = getActiveDocument();
+
+		//Select the default terminal tab if present
+		const defaultTab = doc.querySelector('.single-terminal-tab') as HTMLElement;
+
+		//Select terminal tab corresponding to the instance id
+		const terminalTab = doc.getElementById(`terminal-tab-instance-${instanceId}`);
+
+		//Use terminal tab if present, else use default tab or document body
+		const target = terminalTab ? terminalTab : defaultTab ?? doc.body;
 		const dimension = new Dimension(486, 260);
+
 		return new Promise<ThemeIcon | undefined>(resolve => {
-			this._register(this._iconSelectBox.onDidSelect(e => {
+
+			//Bind selection handler to resolve the promise
+			const selectHandler = (e: ThemeIcon) => {
 				resolve(e);
 				this._iconSelectBox.dispose();
-			}));
+			};
+
+			//Register selection event and initialize icon select box
+			this._register(this._iconSelectBox.onDidSelect(selectHandler));
 			this._iconSelectBox.clearInput();
+
+			//Show hover widget using target element
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: getActiveDocument().body,
+				target: target,
+				//Change the position to left so that the hover widget is not clipped by the window
 				position: {
 					hoverPosition: HoverPosition.BELOW,
 				},
@@ -71,11 +91,21 @@ export class TerminalIconPicker extends Disposable {
 					showPointer: true
 				}
 			}, true);
+
+			//Register the hover widget if created
 			if (hoverWidget) {
 				this._register(hoverWidget);
 			}
+
+			//Layout and focus the icon select box
 			this._iconSelectBox.layout(dimension);
 			this._iconSelectBox.focus();
+
+			//Trigger a resize event to ensure the hover widget is positioned correctly
+			setTimeout(() => {
+				getActiveWindow().dispatchEvent(new Event('resize'));
+			}, 10);
 		});
+
 	}
 }
