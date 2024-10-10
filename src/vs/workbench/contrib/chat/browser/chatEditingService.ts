@@ -58,6 +58,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._currentSessionObs.get();
 	}
 
+	get currentEditingSessionObs(): IObservable<IChatEditingSession | null> {
+		return this._currentSessionObs;
+	}
+
 	private readonly _onDidCreateEditingSession = this._register(new Emitter<IChatEditingSession>());
 	get onDidCreateEditingSession() {
 		return this._onDidCreateEditingSession.event;
@@ -408,7 +412,6 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	get state(): IObservable<ChatEditingSessionState> {
-		this._assertNotDisposed();
 		return this._state;
 	}
 

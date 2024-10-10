@@ -25,6 +25,8 @@ export interface IChatEditingService {
 	 */
 	readonly onDidChangeEditingSession: Event<void>;
 
+	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
+
 	readonly currentEditingSession: IChatEditingSession | null;
 	readonly currentAutoApplyOperation: CancellationTokenSource | null;
 

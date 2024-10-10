@@ -16,9 +16,10 @@ import { IEditorContribution, ScrollType } from '../../../../editor/common/edito
 import { IModelDeltaDecoration, ITextModel } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
-import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -48,6 +49,41 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._register(toDisposable(() => this._clearRendering()));
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
+
+
+		const shouldBeReadOnly = derived(this, r => {
+			const value = this._chatEditingService.currentEditingSessionObs.read(r);
+			if (!value || value.state.read(r) !== ChatEditingSessionState.StreamingEdits) {
+				return false;
+			}
+			return value.entries.read(r).some(e => e.modifiedURI.toString() === this._editor.getModel()?.uri.toString());
+		});
+
+
+		let actualReadonly: boolean | undefined;
+		let actualDeco: 'off' | 'editable' | 'on' | undefined;
+
+		this._register(autorun(r => {
+			const value = shouldBeReadOnly.read(r);
+			if (value) {
+				actualReadonly ??= this._editor.getOption(EditorOption.readOnly);
+				actualDeco ??= this._editor.getOption(EditorOption.renderValidationDecorations);
+
+				this._editor.updateOptions({
+					readOnly: true,
+					renderValidationDecorations: 'off'
+				});
+			} else {
+				if (actualReadonly !== undefined && actualDeco !== undefined) {
+					this._editor.updateOptions({
+						readOnly: actualReadonly,
+						renderValidationDecorations: actualDeco
+					});
+					actualReadonly = undefined;
+					actualDeco = undefined;
+				}
+			}
+		}));
 	}
 
 	override dispose(): void {
