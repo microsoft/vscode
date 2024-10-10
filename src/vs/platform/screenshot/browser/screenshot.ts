@@ -12,7 +12,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
-		const tmpDir = nativeEnvironmentService.tmpDir || nativeEnvironmentService.userDataSyncHome;
+		const tmpDir = nativeEnvironmentService.tmpDir;
 		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
 
 		const bounds = getActiveWindowBounds();
@@ -29,7 +29,7 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 		await fileService.writeFile(URI.file(imgPath), VSBuffer.wrap(screenshot));
 		console.log('created screenshot');
 		const uniqueId = generateIdUsingDateTime();
-		return { id: uniqueId, name: 'screenshot-' + uniqueId + '.jpg', value: imgPath, isDynamic: true, isImage: true };
+		return { id: uniqueId, name: 'screenshot-' + uniqueId + '.jpg', value: URI.file(imgPath), isDynamic: true, isImage: true };
 	} catch (err) {
 		console.error('Error taking screenshot:', err);
 		return undefined;
@@ -117,7 +117,7 @@ function getActiveWindowBounds(): { width: number; height: number; x: number; y:
 export interface IScreenShotContext {
 	id: string;
 	name: string;
-	value: string;
+	value: URI;
 	isDynamic: boolean;
-	isImage: boolean;
+	isImage: true;
 }

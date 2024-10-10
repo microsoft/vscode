@@ -114,7 +114,7 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.attachScreenshot) {
-			chatWidget.attachmentModel.attachScreenshot();
+			await chatWidget.attachmentModel.attachScreenshot();
 		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {
