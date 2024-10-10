@@ -69,7 +69,7 @@ export interface IModifiedFileEntry {
 }
 
 export interface IChatEditingSessionStream {
-	textEdits(resource: URI, textEdits: TextEdit[]): void;
+	textEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): void;
 }
 
 export const enum ChatEditingSessionState {
@@ -86,3 +86,4 @@ export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>(
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
+export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);

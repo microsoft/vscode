@@ -165,6 +165,10 @@ export class SearchService extends Disposable implements ISearchService {
 		return this.doSearch(query, token);
 	}
 
+	schemeHasFileSearchProvider(scheme: string): boolean {
+		return this.fileSearchProviders.has(scheme);
+	}
+
 	private doSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
 		this.logService.trace('SearchService#search', JSON.stringify(query));
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -12,16 +11,14 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from '../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatService } from '../common/chatService.js';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { isResponseVM } from '../common/chatViewModel.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { IChatExecuteActionContext } from './actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
 
 abstract class WorkingSetAction extends Action2 {
@@ -280,44 +277,44 @@ registerAction2(class AddFilesToWorkingSetAction extends Action2 {
 	}
 });
 
-registerAction2(class CancelAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.editing.cancel';
+
+registerAction2(class RestoreWorkingSetAction extends Action2 {
 	constructor() {
 		super({
-			id: CancelAction.ID,
-			title: localize2('workbench.action.chat.editing.cancel.label', "Cancel"),
+			id: 'workbench.action.chat.restoreWorkingSet',
+			title: localize2('chat.restoreWorkingSet.label', 'Restore Working Set'),
 			f1: false,
-			category: CHAT_CATEGORY,
-			icon: Codicon.stopCircle,
-			menu: {
-				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, applyingChatEditsContextKey)),
-				order: 4,
-				group: 'navigation',
+			shortTitle: localize2('chat.restoreWorkingSet.shortTitle', 'Restore Working Set'),
+			toggled: {
+				condition: isChatRequestCheckpointed,
+				title: localize2('chat.restoreWorkingSet.title', 'Using Working Set').value,
+				tooltip: localize2('chat.restoreWorkingSet.tooltip', 'Toggle to use the working set state from an earlier request in your next edit').value
 			},
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.Escape,
-				win: { primary: KeyMod.Alt | KeyCode.Backspace },
+			menu: {
+				id: MenuId.ChatMessageFooter,
+				group: 'navigation',
+				order: 1000,
+				when: ContextKeyExpr.and(
+					CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession),
+					CONTEXT_RESPONSE,
+					ContextKeyExpr.notIn(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key)
+				)
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext | undefined = args[0];
-
-		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const item = args[0];
+		if (!isResponseVM(item)) {
 			return;
 		}
 
-		const chatService = accessor.get(IChatService);
-		if (widget.viewModel) {
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
+		const { session, requestId } = item.model;
+		if (requestId === session.checkpoint?.id) {
+			// Unset the existing checkpoint
+			session.setCheckpoint(undefined);
+		} else {
+			session.setCheckpoint(requestId);
 		}
-
-		const chatEditingService = accessor.get(IChatEditingService);
-		chatEditingService.currentAutoApplyOperation?.cancel();
 	}
 });

@@ -39,8 +39,8 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
-import { imageToHash, isImage } from '../chatImagePaste.js';
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { SearchView } from '../../../search/browser/searchView.js';
@@ -323,8 +323,10 @@ export class AttachContextAction extends Action2 {
 							id: this._getFileContextId({ resource: editor.resource }),
 							value: editor.resource,
 							name: labelService.getUriBasenameLabel(editor.resource),
-							isFile: true
+							isFile: true,
+							isDynamic: true
 						});
+						chatEditingService?.addFileToWorkingSet(editor.resource);
 					}
 				}
 			} else if (isISearchResultsQuickPickItem(pick)) {
@@ -334,8 +336,10 @@ export class AttachContextAction extends Action2 {
 						id: this._getFileContextId({ resource: result.resource }),
 						value: result.resource,
 						name: labelService.getUriBasenameLabel(result.resource),
-						isFile: true
+						isFile: true,
+						isDynamic: true
 					});
+					chatEditingService?.addFileToWorkingSet(result.resource);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const screenshot = await generateFocusedWindowScreenshot(fileService, nativeEnvironmentService);

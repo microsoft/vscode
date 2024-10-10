@@ -24,6 +24,7 @@ export interface IIconLabelCreationOptions {
 	readonly supportDescriptionHighlights?: boolean;
 	readonly supportIcons?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
+	readonly hoverTargetOverrride?: HTMLElement;
 }
 
 export interface IIconLabelValueOptions {
@@ -209,6 +210,14 @@ export class IconLabel extends Disposable {
 			return;
 		}
 
+		let hoverTarget = htmlElement;
+		if (this.creationOptions?.hoverTargetOverrride) {
+			if (!dom.isAncestor(htmlElement, this.creationOptions.hoverTargetOverrride)) {
+				throw new Error('hoverTargetOverrride must be an ancestor of the htmlElement');
+			}
+			hoverTarget = this.creationOptions.hoverTargetOverrride;
+		}
+
 		if (this.hoverDelegate.showNativeHover) {
 			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 				if (isString(tooltip)) {
@@ -220,9 +229,9 @@ export class IconLabel extends Disposable {
 					htmlElement.removeAttribute('title');
 				}
 			}
-			setupNativeHover(htmlElement, tooltip);
+			setupNativeHover(hoverTarget, tooltip);
 		} else {
-			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, htmlElement, tooltip);
+			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, hoverTarget, tooltip);
 			if (hoverDisposable) {
 				this.customHovers.set(htmlElement, hoverDisposable);
 			}
