@@ -160,3 +160,10 @@ steps:
       ArtifactType: Container
       PublishProcessedResults: false
       AllTools: true
+
+  # TSA Upload
+  - task: securedevelopmentteam.vss-secure-development-tools.build-task-uploadtotsa.TSAUpload@2
+    displayName: TSA Upload
+    continueOnError: true
+    inputs:
+      GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json'
