@@ -9,6 +9,8 @@ import { getActiveWindow } from '../../../base/browser/dom.js';
 import * as path from '../../../base/common/path.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+
+// TODO:@meganrogge, ask @bpasero why this is needed per @deepak1556
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
 import { desktopCapturer } from '../../../base/parts/sandbox/electron-sandbox/globals.js';
 

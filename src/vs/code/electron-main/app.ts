@@ -163,6 +163,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
+		const isFromCore = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
 		const allowedPermissionsInWebview = new Set([
@@ -170,14 +171,14 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
-		const allowedPermissions = new Set(['media']);
+		const allowedPermissionsInCore = new Set(['media']);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (allowedPermissions.has(permission)) {
+			if (isFromCore(details.requestingUrl) && allowedPermissionsInCore.has(permission)) {
 				return callback(true);
 			}
 
@@ -188,14 +189,11 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-			if (allowedPermissions.has(permission)) {
+			if (isFromCore(details.requestingUrl) && allowedPermissionsInCore.has(permission)) {
 				return true;
 			}
-			return false;
-		});
 
-		session.defaultSession.setDevicePermissionHandler((details) => {
-			return true;
+			return false;
 		});
 
 		//#endregion
