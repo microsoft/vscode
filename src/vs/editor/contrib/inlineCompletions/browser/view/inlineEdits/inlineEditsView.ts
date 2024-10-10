@@ -86,7 +86,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 			));
 			const diffEdits = new TextEdit(edits);
 
-			return new InlineEditWithChanges(text, diffEdits);
+			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed);
 		});
 	});
 
@@ -114,6 +114,7 @@ export class InlineEditWithChanges {
 	constructor(
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
+		public readonly isCollapsed: boolean,
 	) {
 	}
 }
@@ -161,15 +162,21 @@ export class InlineEditsView extends Disposable {
 		return maxLeftInRange(this._previewEditorObs, edit.modifiedLineRange, reader);
 	});
 
+	private readonly _diffViewInformation = derived(this, reader => {
+		const edit = this._edit.read(reader);
+		if (!edit || edit.isCollapsed) { return undefined; }
+
+		return true;
+	});
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		const visible = derived(this, reader => this._edit.read(reader) !== undefined);
 		this._register(applyStyle(this._elements.root, {
-			display: derived(this, reader => visible.read(reader) ? 'block' : 'none')
+			display: derived(this, reader => !!this._diffViewInformation.read(reader) ? 'block' : 'none')
 		}));
 
 		this._register(appendRemoveOnDispose(this._editor.getDomNode()!, this._elements.root));
@@ -203,15 +210,36 @@ export class InlineEditsView extends Disposable {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 			if (!layoutInfo) {
 				this._indicator.root.style.visibility = 'hidden';
+				return;
+			}
+
+			this._indicator.root.style.visibility = '';
+			const i = this._editorObs.layoutInfo.read(reader);
+
+			const range = new OffsetRange(0, i.height - 30);
+
+			const topEdit = layoutInfo.edit1;
+			this._indicator.root.classList.toggle('top', topEdit.y < range.start);
+			this._indicator.root.classList.toggle('bottom', topEdit.y > range.endExclusive);
+			const showAnyway = !this._diffViewInformation.read(reader);
+			this._indicator.root.classList.toggle('visible', showAnyway);
+			this._indicator.root.classList.toggle('contained', range.contains(topEdit.y));
+
+
+			this._indicator.root.style.top = `${range.clip(topEdit.y)}px`;
+			this._indicator.root.style.right = `${i.minimap.minimapWidth + i.verticalScrollbarWidth}px`;
+		}));
+
+		this._register(autorun(reader => {
+			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
+			if (!layoutInfo) {
 				this._elements.path.style.visibility = 'hidden';
 				return;
 			}
-			this._indicator.root.style.visibility = '';
 			this._elements.path.style.visibility = '';
 
 			const topEdit = layoutInfo.edit1;
 			const editHeight = layoutInfo.editHeight;
-
 
 			const width = this._previewEditorWidth.read(reader) + 10;
 
@@ -234,19 +262,6 @@ export class InlineEditsView extends Disposable {
 			this._elements.editorContainer.style.left = `${topEdit.x}px`;
 
 			this._previewEditor.layout({ height: editHeight, width });
-
-			const i = this._editorObs.layoutInfo.read(reader);
-
-
-			const range = new OffsetRange(0, i.height - 30);
-
-			this._indicator.root.classList.toggle('top', topEdit.y < range.start);
-			this._indicator.root.classList.toggle('bottom', topEdit.y > range.endExclusive);
-			this._indicator.root.classList.toggle('contained', range.contains(topEdit.y));
-
-
-			this._indicator.root.style.top = `${range.clip(topEdit.y)}px`;
-			this._indicator.root.style.right = `${i.minimap.minimapWidth + i.verticalScrollbarWidth}px`;
 		}));
 
 		const toolbarDropdownVisible = observableFromEvent(this, this._toolbar.onDidChangeDropdownVisibility, (e) => e ?? false);
