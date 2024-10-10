@@ -305,6 +305,7 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const chatEditingService = accessor.get(IChatEditingService);
 		const item = args[0];
 		if (!isResponseVM(item)) {
 			return;
@@ -317,5 +318,7 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 		} else {
 			session.setCheckpoint(requestId);
 		}
+
+		chatEditingService.restoreSnapshot(requestId);
 	}
 });
