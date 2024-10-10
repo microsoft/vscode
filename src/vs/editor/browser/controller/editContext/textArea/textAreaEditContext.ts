@@ -300,6 +300,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {
+			console.log('on key down of TextAreaEditContext : ', e);
 			this._viewController.emitKeyDown(e);
 		}));
 
@@ -324,6 +325,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
+			console.log('onType : ', e);
 			if (e.replacePrevCharCnt || e.replaceNextCharCnt || e.positionDelta) {
 				// must be handled through the new command
 				if (_debugComposition) {

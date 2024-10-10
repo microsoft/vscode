@@ -94,11 +94,13 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => viewController.emitKeyUp(new StandardKeyboardEvent(e))));
 		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => {
+			console.log('keydown of NativeEditContext : ', e);
 
 			const standardKeyboardEvent = new StandardKeyboardEvent(e);
 
 			// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
 			if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
+				console.log('before stopPropagation');
 				standardKeyboardEvent.stopPropagation();
 			}
 			viewController.emitKeyDown(standardKeyboardEvent);
@@ -113,6 +115,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			console.log('textupdate : ', e);
 			this._emitTypeEvent(viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {

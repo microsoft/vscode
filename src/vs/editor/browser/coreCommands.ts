@@ -655,13 +655,23 @@ export namespace CoreNavigationCommands {
 	class CursorMoveBasedCommand extends CoreEditorCommand<CursorMoveCommandOptions> {
 
 		private readonly _staticArgs: CursorMove_.SimpleMoveArguments;
+		private readonly _id: string;
 
 		constructor(opts: ICommandOptions & { args: CursorMove_.SimpleMoveArguments }) {
 			super(opts);
+			this._id = opts.id;
 			this._staticArgs = opts.args;
 		}
 
 		public runCoreEditorCommand(viewModel: IViewModel, dynamicArgs: Partial<CursorMoveCommandOptions>): void {
+			console.log('runCoreEditorCommand');
+			console.log('this._id : ', this._id);
+
+			// if editor is in composition return
+			// update the selection based on the edit context selection, should tell us where the selection is
+			// selection change event, and make the editor selection change too
+			// if (viewModel.isInComposition) return;
+
 			let args = this._staticArgs;
 			if (this._staticArgs.value === Constants.PAGE_SIZE_MARKER) {
 				// -1 is a marker for page size
