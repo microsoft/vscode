@@ -97,7 +97,7 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 							primaryButton: localize('save', "Save"),
 							cancelButton: localize('discard', "Cancel"),
 							checkbox: {
-								label: localize('config', "Always save with AI-generated changes"),
+								label: localize('config', "Always save with AI-generated changes without asking"),
 								checked: false
 							}
 						});

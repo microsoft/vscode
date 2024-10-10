@@ -7,6 +7,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Event } from '../../../../base/common/event.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
@@ -24,6 +25,8 @@ export interface IChatEditingService {
 	 * emitted when a session is created, changed or disposed
 	 */
 	readonly onDidChangeEditingSession: Event<void>;
+
+	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
 
 	readonly currentEditingSession: IChatEditingSession | null;
 	readonly currentAutoApplyOperation: CancellationTokenSource | null;
@@ -64,6 +67,7 @@ export interface IModifiedFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly diffInfo: IObservable<IDocumentDiff>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 }

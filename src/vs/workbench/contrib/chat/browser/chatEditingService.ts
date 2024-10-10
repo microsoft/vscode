@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { remove } from '../../../../base/common/arrays.js';
-import { Sequencer } from '../../../../base/common/async.js';
+import { Sequencer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -16,19 +16,24 @@ import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation } from '../../../../editor/common/core/editOperation.js';
-import { editorRangeHighlight } from '../../../../editor/common/core/editorColorRegistry.js';
+import { LineRange } from '../../../../editor/common/core/lineRange.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { IDocumentDiff, nullDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../editor/common/model.js';
+import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../editor/common/model.js';
 import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { editorSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -56,6 +61,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	get currentEditingSession(): IChatEditingSession | null {
 		return this._currentSessionObs.get();
+	}
+
+	get currentEditingSessionObs(): IObservable<IChatEditingSession | null> {
+		return this._currentSessionObs;
 	}
 
 	private readonly _onDidCreateEditingSession = this._register(new Emitter<IChatEditingSession>());
@@ -408,7 +417,6 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	get state(): IObservable<ChatEditingSessionState> {
-		this._assertNotDisposed();
 		return this._state;
 	}
 
@@ -688,6 +696,16 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this._stateObs;
 	}
 
+	private _isApplyingEdits: boolean = false;
+
+	private _diffOperation: Promise<any> | undefined;
+	private _diffOperationIds: number = 0;
+
+	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
+	get diffInfo(): IObservable<IDocumentDiff> {
+		return this._diffInfo;
+	}
+
 	constructor(
 		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -698,6 +716,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		@ILanguageService languageService: ILanguageService,
 		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super();
 		this.doc = resourceRef.object.textEditorModel;
@@ -721,6 +740,64 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		})();
 
 		this._register(resourceRef);
+
+		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+	}
+
+	private _mirrorEdits(event: IModelContentChangedEvent) {
+
+		if (this._isApplyingEdits) {
+			// ignore edits that we are making
+			return;
+		}
+
+		// mirror edits that "others" are doing into the document snapshot. this is done
+		// so that subsequent diffing will not identify these edits are changes. the logic
+		// is simple: use the diff info to transpose each edit from `doc` into `docSnapshot`
+		// but ignore edits are inside AI-changes
+
+		const diff = this._diffInfo.get();
+		const edits: IIdentifiedSingleEditOperation[] = [];
+
+		for (const edit of event.changes) {
+
+			let isOverlapping = false;
+			let changeDelta = 0;
+
+			for (const change of diff.changes) {
+				const modifiedRange = lineRangeAsRange(change.modified, this.doc);
+
+				if (modifiedRange.getEndPosition().isBefore(Range.getStartPosition(edit.range))) {
+					const originalRange = lineRangeAsRange(change.original, this.docSnapshot);
+					changeDelta -= this.docSnapshot.getValueLengthInRange(originalRange);
+					changeDelta += this.doc.getValueLengthInRange(modifiedRange);
+
+				} else if (Range.areIntersectingOrTouching(modifiedRange, edit.range)) {
+					// overlapping
+					isOverlapping = true;
+					break;
+
+				} else {
+					// changes past the edit aren't relevant
+					break;
+				}
+			}
+
+			if (isOverlapping) {
+				// change overlapping with AI change aren't mirrored
+				continue;
+			}
+
+			const offset = edit.rangeOffset - changeDelta;
+			const start = this.docSnapshot.getPositionAt(offset);
+			const end = this.docSnapshot.getPositionAt(offset + edit.rangeLength);
+			edits.push(EditOperation.replace(Range.fromPositions(start, end), edit.text));
+		}
+
+		this.docSnapshot.applyEdits(edits);
+
+		// console.log('mirrored');
+		// console.log(this.docSnapshot.getValue());
 	}
 
 	private readonly _allEditDecorations: string[][] = [];
@@ -742,7 +819,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 					className: 'rangeHighlight',
 					overviewRuler: {
 						position: OverviewRulerLane.Full,
-						color: themeColorFromId(editorRangeHighlight)
+						color: themeColorFromId(editorSelectionBackground)
 					}
 				}
 			} satisfies IModelDeltaDecoration;
@@ -756,8 +833,33 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		}, 500);
 
 		// make the actual edit
-		this.doc.applyEdits(textEdits);
+		this._isApplyingEdits = true;
+		try {
+			this.doc.applyEdits(textEdits);
+		} finally {
+			this._isApplyingEdits = false;
+		}
+
 		this._stateObs.set(WorkingSetEntryState.Modified, undefined);
+
+		// trigger diff computation but only at first, when done, or when last
+		const myDiffOperationId = ++this._diffOperationIds;
+		Promise.resolve(this._diffOperation).then(() => {
+			if (this._diffOperationIds === myDiffOperationId) {
+				this._diffOperation = this._calculateDocumentChanges();
+			}
+		});
+	}
+
+	private async _calculateDocumentChanges(): Promise<void> {
+		const [diff] = await Promise.all([this._editorWorkerService.computeDiff(
+			this.docSnapshot.uri,
+			this.doc.uri,
+			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		), timeout(1000)]);
+
+		this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {
@@ -803,3 +905,10 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		});
 	}
 }
+
+const lineRangeAsRange = (lineRange: LineRange, model: ITextModel) => {
+	return model.validateRange(lineRange.isEmpty
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, Number.MAX_SAFE_INTEGER)
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER)
+	);
+};
