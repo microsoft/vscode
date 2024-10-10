@@ -60,6 +60,7 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 					{ label: 'file', detail: vscode.l10n.t("The current opened file") },
 					{ label: 'cwd', detail: vscode.l10n.t("The task runner's current working directory on startup") },
 					{ label: 'lineNumber', detail: vscode.l10n.t("The current selected line number in the active file") },
+					{ label: 'columnNumber', detail: vscode.l10n.t("The current selected column number in the active file") },
 					{ label: 'selectedText', detail: vscode.l10n.t("The current selected text in the active file") },
 					{ label: 'fileDirname', detail: vscode.l10n.t("The current opened file's dirname") },
 					{ label: 'fileExtname', detail: vscode.l10n.t("The current opened file's extension") },
