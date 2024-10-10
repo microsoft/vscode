@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Queue } from '../../../../base/common/async.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -20,7 +21,7 @@ import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 
 
-const _storageKey = 'workbench.chat.editorSaving';
+const _storageKey = 'workbench.chat.saveWithAiGeneratedChanges';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
@@ -48,8 +49,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 			store.clear();
 
-			const alwaysAcceptOnSave = this._storageService.getBoolean(_storageKey, StorageScope.PROFILE, false);
-			if (alwaysAcceptOnSave) {
+			const alwaysSave = this._storageService.getBoolean(_storageKey, StorageScope.PROFILE, false);
+			if (alwaysSave) {
 				return;
 			}
 
@@ -78,9 +79,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 					await queue.queue(async () => {
 
 						// this might have changed in the meantime and there is checked again and acted upon
-						const alwaysAcceptOnSave = this._storageService.getBoolean(_storageKey, StorageScope.PROFILE, false);
-						if (alwaysAcceptOnSave) {
-							await session.accept(workingCopy.resource);
+						const alwaysSave = this._storageService.getBoolean(_storageKey, StorageScope.PROFILE, false);
+						if (alwaysSave) {
 							return;
 						}
 
@@ -88,30 +88,28 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 						const filelabel = labelService.getUriBasenameLabel(workingCopy.resource);
 
 						const message = agentName
-							? localize('message.1', "Do you want to accept the changes {0} made in {1}", agentName, filelabel)
-							: localize('message.2', "Do you want to accept the changes chat made in {1}", filelabel);
+							? localize('message.1', "Do you want to save the changes {0} made in {1}?", agentName, filelabel)
+							: localize('message.2', "Do you want to save the changes chat made in {0}?", filelabel);
 
 						const result = await this._dialogService.confirm({
 							message,
 							detail: localize('detail', "AI-generated changes may be incorect and should be reviewed before saving.", agentName),
-							primaryButton: localize('save', "Accept & Save"),
-							cancelButton: localize('discard', "Discard & Save"),
+							primaryButton: localize('save', "Save"),
+							cancelButton: localize('discard', "Cancel"),
 							checkbox: {
-								label: localize('config', "Always accept edits when saving"),
+								label: localize('config', "Always save with AI-generated changes"),
 								checked: false
 							}
 						});
 
-						if (result.confirmed) {
-							await session.accept(workingCopy.resource);
+						if (!result.confirmed) {
+							// cancel the save
+							throw new CancellationError();
+						}
 
-							if (result.checkboxChecked) {
-								// remember choice
-								this._storageService.store(_storageKey, true, StorageScope.PROFILE, StorageTarget.USER);
-							}
-
-						} else {
-							await session.reject(workingCopy.resource);
+						if (result.checkboxChecked) {
+							// remember choice
+							this._storageService.store(_storageKey, true, StorageScope.PROFILE, StorageTarget.USER);
 						}
 					});
 				}
@@ -159,7 +157,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.resetChatEditorSaving',
-			title: localize2('resetChatEditorSaving', "Reset Choise for 'Always accept edits when saving'"),
+			title: localize2('resetChatEditorSaving', "Reset Choise for 'Always save with AI-generated changes'"),
 			category: CHAT_CATEGORY,
 			f1: true
 		});

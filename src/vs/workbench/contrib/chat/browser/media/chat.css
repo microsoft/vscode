@@ -18,6 +18,7 @@
 	display: flex;
 	flex-direction: column;
 	color: var(--vscode-interactive-session-foreground);
+	width: 100%;
 
 	cursor: default;
 	user-select: text;
@@ -948,6 +949,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .value .interactive-response-placeholder-content p {
 	margin: 0;
+}
+
+.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
+	/* The default is `display: block`. Allow the disabled-overlay element to show up on top of the rowContainer it applies to */
+	display: flex;
+}
+
+.disabled-overlay {
+	display: none;
+}
+
+.disabled-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(128, 128, 128, 0.2);
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 1;
 }
 
 .interactive-response  .interactive-response-codicon-details {

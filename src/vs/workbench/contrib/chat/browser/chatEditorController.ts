@@ -244,7 +244,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		const targetPosition = decorations[target].getStartPosition();
 		this._editor.setPosition(targetPosition);
-		this._editor.revealPosition(targetPosition, ScrollType.Smooth);
+		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
 	}
 }
