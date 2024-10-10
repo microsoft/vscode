@@ -9,11 +9,11 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWebviewManagerService } from '../../../../platform/webview/common/webviewManagerService.js';
-import { hasNativeTitlebar } from '../../../../platform/window/common/window.js';
+import { useNativeMenuStyle } from '../../../../platform/window/common/window.js';
 
 export class WindowIgnoreMenuShortcutsManager {
 
-	private readonly _isUsingNativeTitleBars: boolean;
+	private readonly _isUsingNativeMenuStyle: boolean;
 
 	private readonly _webviewMainService: IWebviewManagerService;
 
@@ -22,7 +22,7 @@ export class WindowIgnoreMenuShortcutsManager {
 		mainProcessService: IMainProcessService,
 		private readonly _nativeHostService: INativeHostService
 	) {
-		this._isUsingNativeTitleBars = hasNativeTitlebar(configurationService);
+		this._isUsingNativeMenuStyle = useNativeMenuStyle(configurationService);
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 	}
@@ -36,7 +36,7 @@ export class WindowIgnoreMenuShortcutsManager {
 	}
 
 	private get _shouldToggleMenuShortcutsEnablement() {
-		return isMacintosh || this._isUsingNativeTitleBars;
+		return isMacintosh || this._isUsingNativeMenuStyle;
 	}
 
 	protected setIgnoreMenuShortcuts(value: boolean) {

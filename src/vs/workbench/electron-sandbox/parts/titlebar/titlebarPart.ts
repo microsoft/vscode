@@ -18,7 +18,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { hasNativeTitlebar, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { hasNativeTitlebar, useNativeMenuStyle, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -143,7 +143,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		const targetWindowId = getWindowId(targetWindow);
 
 		// Native menu controller
-		if (isMacintosh || hasNativeTitlebar(this.configurationService)) {
+		if (isMacintosh || useNativeMenuStyle(this.configurationService)) {
 			this._register(this.instantiationService.createInstance(NativeMenubarControl));
 		}
 
@@ -157,7 +157,9 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 
 		// Window Controls (Native Linux when WCO is disabled)
+		let usingPrimaryWindowControls = false;
 		if (isLinux && !hasNativeTitlebar(this.configurationService) && !isWCOEnabled() && this.windowControlsContainer) {
+			usingPrimaryWindowControls = true;
 
 			// Minimize
 			const minimizeIcon = append(this.windowControlsContainer, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
@@ -190,6 +192,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 				}
 			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindow) }));
 		}
+		this.usingPrimaryWindowControls = usingPrimaryWindowControls;
+		this.updateHideContent();
 
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893

@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { MultiWindowParts, Part } from '../../part.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
 import { getWCOTitlebarAreaRect, getZoomFactor, isWCOEnabled } from '../../../../base/browser/browser.js';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar, useNativeMenuStyle, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
@@ -217,6 +217,11 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	//#endregion
 }
 
+const enum PrimaryControlLocation {
+	LEFT = 'left',
+	RIGHT = 'right',
+}
+
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	//#region IView
@@ -249,7 +254,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	//#endregion
 
 	protected rootContainer!: HTMLElement;
+	private readonly primaryWindowControlsLocation: PrimaryControlLocation;
 	protected windowControlsContainer: HTMLElement | undefined;
+	protected usingPrimaryWindowControls: boolean = false;
+	private usingCenterContent: boolean = false;
 	protected dragRegion: HTMLElement | undefined;
 	private title!: HTMLElement;
 
@@ -264,6 +272,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private lastLayoutDimensions: Dimension | undefined;
 
 	private actionToolBar!: WorkbenchToolBar;
+	private usingActionToolBar: boolean = false;
 	private readonly actionToolBarDisposable = this._register(new DisposableStore());
 	private readonly editorActionsChangeDisposable = this._register(new DisposableStore());
 	private actionToolBarElement!: HTMLElement;
@@ -314,7 +323,22 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
+		this.primaryWindowControlsLocation = this.detectPrimaryWindowControlsLocation();
+
 		this.registerListeners(getWindowId(targetWindow));
+	}
+
+	private detectPrimaryWindowControlsLocation(): PrimaryControlLocation {
+		let primaryWindowControlsLocation = isMacintosh ? PrimaryControlLocation.LEFT : PrimaryControlLocation.RIGHT;
+		if (isMacintosh && isNative) {
+			// Check if the locale is RTL, macOS will move traffic lights in RTL locales
+			// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
+			const localeInfo = new Intl.Locale(platformLocale) as any;
+			if (localeInfo?.textInfo?.direction === 'rtl') {
+				primaryWindowControlsLocation = PrimaryControlLocation.RIGHT;
+			}
+		}
+		return primaryWindowControlsLocation;
 	}
 
 	private registerListeners(targetWindowId: number): void {
@@ -344,6 +368,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
 				this.createActionToolBar();
 				this.createActionToolBarMenus({ editorActions: true });
+				this.updateHideContent();
 				this._onDidChange.fire(undefined);
 			}
 		}
@@ -352,7 +377,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
 
 		// Custom menu bar (disabled if auxiliary)
-		if (!this.isAuxiliary && !hasNativeTitlebar(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
+		if (!this.isAuxiliary && !useNativeMenuStyle(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration('window.menuBarVisibility')) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
@@ -369,7 +394,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			if (affectsLayoutControl || affectsActivityControl) {
 				this.createActionToolBarMenus({ layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
-
+				this.updateHideContent();
 				this._onDidChange.fire(undefined);
 			}
 		}
@@ -377,7 +402,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Command Center
 		if (event.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 			this.createTitle();
-
+			this.updateHideContent();
 			this._onDidChange.fire(undefined);
 		}
 	}
@@ -458,14 +483,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Menubar: install a custom menu bar depending on configuration
 		if (
 			!this.isAuxiliary &&
-			!hasNativeTitlebar(this.configurationService, this.titleBarStyle) &&
+			!useNativeMenuStyle(this.configurationService, this.titleBarStyle) &&
 			(!isMacintosh || isWeb) &&
 			this.currentMenubarVisibility !== 'compact'
 		) {
 			this.installMenubar();
 		}
 
-		// Title
+		// Create center content: Command Center or Title
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
 
@@ -478,29 +503,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Window Controls Container
 		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
-			let primaryWindowControlsLocation = isMacintosh ? 'left' : 'right';
-			if (isMacintosh && isNative) {
-
-				// Check if the locale is RTL, macOS will move traffic lights in RTL locales
-				// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Locale/textInfo
-
-				const localeInfo = new Intl.Locale(platformLocale) as any;
-				if (localeInfo?.textInfo?.direction === 'rtl') {
-					primaryWindowControlsLocation = 'right';
-				}
-			}
-
-			if (isMacintosh && isNative && primaryWindowControlsLocation === 'left') {
+			if (isMacintosh && isNative && this.primaryWindowControlsLocation === PrimaryControlLocation.LEFT) {
 				// macOS native: controls are on the left and the container is not needed to make room
 				// for something, except for web where a custom menu being supported). not putting the
 				// container helps with allowing to move the window when clicking very close to the
 				// window control buttons.
 			} else {
-				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
+				const primaryControlParent = this.primaryWindowControlsLocation === PrimaryControlLocation.LEFT ? this.leftContent : this.rightContent;
+				this.windowControlsContainer = append(primaryControlParent, $('div.window-controls-container'));
 				if (isWeb) {
 					// Web: its possible to have control overlays on both sides, for example on macOS
 					// with window controls on the left and PWA controls on the right.
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
+					const secondaryControlParent = this.primaryWindowControlsLocation === PrimaryControlLocation.LEFT ? this.rightContent : this.leftContent;
+					append(secondaryControlParent, $('div.window-controls-container'));
 				}
 
 				if (isWCOEnabled()) {
@@ -508,6 +523,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 		}
+
+		this.updateHideContent();
 
 		// Context menu over title bar: depending on the OS and the location of the click this will either be
 		// the overall context menu for the entire title bar or a specific title context menu.
@@ -544,23 +561,51 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return this.element;
 	}
 
+	protected updateHideContent(): void {
+		// Allow the menu to span the entire width of the custom title bar
+		// when using "Force Custom Menu Style" with the command center hidden.
+		const hideCenterContent = !this.usingCenterContent;
+
+		// Only hide rightContent if centerContent is also hidden, otherwise centerContent gets misaligned.
+		const usingRightContent = this.usingActionToolBar || (this.usingPrimaryWindowControls && this.primaryWindowControlsLocation === PrimaryControlLocation.RIGHT);
+		const hideRightContent = hideCenterContent && !usingRightContent;
+
+		if (hideCenterContent) {
+			this.centerContent.classList.add('hide');
+			this.rightContent.classList.add('disable-grow');
+		} else {
+			this.centerContent.classList.remove('hide');
+			this.rightContent.classList.remove('disable-grow');
+		}
+
+		if (hideRightContent) {
+			this.rightContent.classList.add('hide');
+		} else {
+			this.rightContent.classList.remove('hide');
+		}
+	}
+
 	private createTitle(): void {
+		let usingCenterContent = true;
+
 		this.titleDisposables.clear();
 
-		// Text Title
-		if (!this.isCommandCenterVisible) {
+		if (this.isCommandCenterVisible) {
+			// Display Command Center
+			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
+			reset(this.title, commandCenter.element);
+			this.titleDisposables.add(commandCenter);
+		} else if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
+			// Display title text
 			this.title.innerText = this.windowTitle.value;
 			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
 				this.title.innerText = this.windowTitle.value;
 			}));
+		} else {
+			usingCenterContent = false;
 		}
 
-		// Menu Title
-		else {
-			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
-			reset(this.title, commandCenter.element);
-			this.titleDisposables.add(commandCenter);
-		}
+		this.usingCenterContent = usingCenterContent;
 	}
 
 	private actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
@@ -627,9 +672,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		const updateToolBarActions = () => {
 			const actions: IToolbarActions = { primary: [], secondary: [] };
+			let usingActionToolBar = false;
 
 			// --- Editor Actions
 			if (this.editorActionsEnabled) {
+				usingActionToolBar = true;
 				this.editorActionsChangeDisposable.clear();
 
 				const activeGroup = this.editorGroupsContainer.activeGroup;
@@ -645,6 +692,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
+				usingActionToolBar = true;
 				createAndFillInActionBarActions(
 					this.layoutToolbarMenu,
 					{},
@@ -655,6 +703,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 			// --- Activity Actions
 			if (this.activityActionsEnabled) {
+				usingActionToolBar = true;
 				if (isAccountsActionVisible(this.storageService)) {
 					actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
 				}
@@ -662,6 +711,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
+			this.usingActionToolBar = usingActionToolBar;
+			this.updateHideContent();
 		};
 
 		// Create/Update the menus which should be in the title tool bar

@@ -127,10 +127,10 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
+	const nativeMenuStyleEnabled = useNativeMenuStyle(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (nativeMenuStyleEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -149,6 +149,7 @@ export interface IWindowSettings {
 	readonly restoreFullscreen: boolean;
 	readonly zoomLevel: number;
 	readonly titleBarStyle: TitlebarStyle;
+	readonly forceCustomMenuStyle: boolean;
 	readonly autoDetectHighContrast: boolean;
 	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
@@ -169,6 +170,7 @@ export interface IDensitySettings {
 
 export const enum TitleBarSetting {
 	TITLE_BAR_STYLE = 'window.titleBarStyle',
+	FORCE_CUSTOM_MENU_STYLE = 'window.forceCustomMenuStyle',
 	CUSTOM_TITLE_BAR_VISIBILITY = 'window.customTitleBarVisibility',
 }
 
@@ -195,6 +197,14 @@ export function hasNativeTitlebar(configurationService: IConfigurationService, t
 		titleBarStyle = getTitleBarStyle(configurationService);
 	}
 	return titleBarStyle === TitlebarStyle.NATIVE;
+}
+
+export function useNativeMenuStyle(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	const configuration = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (configuration && configuration.forceCustomMenuStyle) {
+		return false;
+	}
+	return hasNativeTitlebar(configurationService, titleBarStyle);
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
