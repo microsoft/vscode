@@ -688,7 +688,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 
 		this.panes.filter(view => view.isVisible() !== visible)
-			.map((view) => view.setVisible(visible));
+			.forEach((view) => view.setVisible(visible));
 	}
 
 	isVisible(): boolean {
