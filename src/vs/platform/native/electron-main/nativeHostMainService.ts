@@ -522,16 +522,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return shell.openExternal(url);
 		}
 
-		let browserName = configuredBrowser;
-		if (configuredBrowser.toLowerCase() === 'edge') {
-			browserName = isWindows ? 'msedge' : 'microsoft-edge';
-		}
-
 		if (configuredBrowser.includes(posix.sep) || configuredBrowser.includes(win32.sep)) {
 			const browserPathExists = await Promises.exists(configuredBrowser);
 			if (!browserPathExists) {
 				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
-				return;
+				return shell.openExternal(url);
 			}
 		}
 
@@ -539,33 +534,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			const { default: open } = await import('open');
 			const res = await open(url, {
 				app: {
-					name: browserName
+					// Use `open.apps` helper to allow cross-platform browser
+					// aliases to be looked up properly. Fallback to the
+					// configured value if not found.
+					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
 				},
 				wait: true
 			});
 
-			if (res.exitCode !== 0) {
-				throw new Error(`Failed to open browser. Exit code: ${res.exitCode}`);
-			}
-
 			res.stderr?.once('data', (data: Buffer) => {
-				this.logService.error(`Error opening external URL '${url}' using browser '${browserName}': ${data.toString()}`);
+				this.logService.error(`Error opening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
+				return shell.openExternal(url);
 			});
 		} catch (error) {
-			this.logService.error(`Unable to open external URL '${url}' using browser '${browserName}' due to ${error}.`);
-			try {
-				let command;
-				if (isWindows) {
-					command = `start ${browserName} "${url}"`;
-				} else if (isMacintosh) {
-					command = `open -a "${browserName}" "${url}"`;
-				} else {
-					command = `${browserName} "${url}"`;
-				}
-				await promisify(exec)(command);
-			} catch (fallbackError) {
-				this.logService.error(`Fallback method failed to open URL '${url}' using browser '${browserName}': ${fallbackError}`);
-			}
+			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
+			return shell.openExternal(url);
 		}
 	}
 
