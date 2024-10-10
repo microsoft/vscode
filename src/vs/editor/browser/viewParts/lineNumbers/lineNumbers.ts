@@ -33,6 +33,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
 	private _activeLineNumber: number;
+	protected _wordWrap!: boolean;
 
 	constructor(context: ViewContext) {
 		super();
@@ -56,6 +57,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
+		this._wordWrap = layoutInfo.isViewportWrapping;
 	}
 
 	public override dispose(): void {
@@ -160,6 +162,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 		const lineCount = this._context.viewModel.getLineCount();
 		const output: string[] = [];
+		const coordinatesConverter = this._context.viewModel.coordinatesConverter;
+		const activeModelLineNumber = coordinatesConverter.convertViewPositionToModelPosition(new Position(this._activeLineNumber, 1)).lineNumber;
+
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 
@@ -191,10 +196,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 					extraClassNames += ' dimmed-line-number';
 				}
 			}
-			if (lineNumber === this._activeLineNumber) {
+			if (lineNumber === this._activeLineNumber || (this._wordWrap && coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, 1)).lineNumber === activeModelLineNumber)) {
 				extraClassNames += ' active-line-number';
 			}
-
 
 			output[lineIndex] = (
 				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
