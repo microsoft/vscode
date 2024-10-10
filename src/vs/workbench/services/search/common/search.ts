@@ -155,6 +155,7 @@ export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
 
 export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
 export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
+export type ITextSearchQuery = ITextQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,
