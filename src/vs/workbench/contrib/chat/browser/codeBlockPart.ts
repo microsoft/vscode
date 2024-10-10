@@ -39,6 +39,7 @@ import { GotoDefinitionAtPositionEditorContribution } from '../../../../editor/c
 import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
 import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
 import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
+import { StickyScrollController } from '../../../../editor/contrib/stickyScroll/browser/stickyScrollController.js';
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { ViewportSemanticTokensContribution } from '../../../../editor/contrib/semanticTokens/browser/viewportSemanticTokens.js';
 import { SmartSelectController } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
@@ -305,6 +306,7 @@ export class CodeBlockPart extends Disposable {
 				LinkDetector.ID,
 
 				InspectEditorTokensController.ID,
+				StickyScrollController.ID
 			])
 		}));
 	}
@@ -339,6 +341,7 @@ export class CodeBlockPart extends Disposable {
 			wordWrap: this.options.configuration.resultEditor.wordWrap,
 			fontLigatures: this.options.configuration.resultEditor.fontLigatures,
 			bracketPairColorization: this.options.configuration.resultEditor.bracketPairColorization,
+			stickyScroll: this.options.configuration.resultEditor.stickyScroll,
 			fontFamily: this.options.configuration.resultEditor.fontFamily === 'default' ?
 				EDITOR_FONT_DEFAULTS.fontFamily :
 				this.options.configuration.resultEditor.fontFamily,
@@ -682,6 +685,7 @@ export class CodeCompareBlockPart extends Disposable {
 			wordWrap: this.options.configuration.resultEditor.wordWrap,
 			fontLigatures: this.options.configuration.resultEditor.fontLigatures,
 			bracketPairColorization: this.options.configuration.resultEditor.bracketPairColorization,
+			stickyScroll: this.options.configuration.resultEditor.stickyScroll,
 			fontFamily: this.options.configuration.resultEditor.fontFamily === 'default' ?
 				EDITOR_FONT_DEFAULTS.fontFamily :
 				this.options.configuration.resultEditor.fontFamily,
