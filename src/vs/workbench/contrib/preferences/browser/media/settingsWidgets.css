@@ -72,6 +72,7 @@
 	display: inline-block;
 	line-height: 24px;
 	min-height: 24px;
+	flex: none;
 }
 
 /* Use monospace to display glob patterns in include/exclude widget */
