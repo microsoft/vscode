@@ -185,6 +185,17 @@ export class CodeApplication extends Disposable {
 			return callback(false);
 		});
 
+		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
+			if (isUrlFromWebview(details.requestingUrl)) {
+				return allowedPermissionsInWebview.has(permission);
+			}
+			if (isFromCore(details.requestingUrl) && allowedPermissionsInCore.has(permission)) {
+				return true;
+			}
+
+			return false;
+		});
+
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 
 			// Get the currently focused window
@@ -227,17 +238,6 @@ export class CodeApplication extends Disposable {
 
 			// Fallback: if no matching screen is found, return the first screen
 			callback({ video: screens[0], audio: 'loopback' });
-		});
-
-		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
-			if (isUrlFromWebview(details.requestingUrl)) {
-				return allowedPermissionsInWebview.has(permission);
-			}
-			if (isFromCore(details.requestingUrl) && allowedPermissionsInCore.has(permission)) {
-				return true;
-			}
-
-			return false;
 		});
 
 		//#endregion
