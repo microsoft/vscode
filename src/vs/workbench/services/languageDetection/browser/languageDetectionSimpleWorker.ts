@@ -210,7 +210,7 @@ export class LanguageDetectionSimpleWorker implements ILanguageDetectionWorker {
 			case 'csv':
 			case 'toml':
 				// Other considerations for negativeConfidenceCorrection that
-				// aren't built in but suported by the model include:
+				// aren't built in but suportted by the model include:
 				// * Assembly, TeX - These languages didn't have clear language modes in the community
 				// * Markdown, Dockerfile - These languages are simple but they embed other languages
 				modelResult.confidence -= LanguageDetectionSimpleWorker.negativeConfidenceCorrection;
