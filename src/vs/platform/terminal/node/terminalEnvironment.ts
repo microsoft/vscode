@@ -7,7 +7,7 @@ import * as os from 'os';
 import { FileAccess } from '../../../base/common/network.js';
 import { getCaseInsensitive } from '../../../base/common/objects.js';
 import * as path from '../../../base/common/path.js';
-import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import * as process from '../../../base/common/process.js';
 import { format } from '../../../base/common/strings.js';
 import { isString } from '../../../base/common/types.js';
@@ -284,8 +284,11 @@ export function getShellIntegrationInjection(
 }
 
 /**
- * On macOS the profile calls path_helper which adds a bunch of standard bin directories to the
- * beginning of the PATH. This causes significant problems for the environment variable
+ * There are a few situations where some directories are added to the beginning of the PATH.
+ * 1. On macOS when the profile calls path_helper.
+ * 2. On fish when it automatically prepends "$fish_user_paths" to the PATH.
+ *
+ * This causes significant problems for the environment variable
  * collection API as the custom paths added to the end will now be somewhere in the middle of
  * the PATH. To combat this, VSCODE_PATH_PREFIX is used to re-apply any prefix after the profile
  * has run. This will cause duplication in the PATH but should fix the issue.
@@ -293,7 +296,7 @@ export function getShellIntegrationInjection(
  * See #99878 for more information.
  */
 function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment): void {
-	if (isMacintosh && options.environmentVariableCollections) {
+	if ((isMacintosh || isLinux) && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
