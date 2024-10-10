@@ -951,11 +951,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
-.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-contents {
-	/* The default is `display: block`. Allow the disabled-overlay element to show up on top of the rowContainer it applies to */
-	display: flex;
-}
-
 .disabled-overlay {
 	display: none;
 }

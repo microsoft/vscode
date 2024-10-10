@@ -8,6 +8,7 @@ import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 export class InlineEdit {
 	constructor(
 		public readonly edit: SingleTextEdit,
+		public readonly isCollapsed: boolean,
 	) { }
 
 	public get range() {
@@ -16,5 +17,9 @@ export class InlineEdit {
 
 	public get text() {
 		return this.edit.text;
+	}
+
+	public equals(other: InlineEdit): boolean {
+		return this.edit.equals(other.edit) && this.isCollapsed === other.isCollapsed;
 	}
 }

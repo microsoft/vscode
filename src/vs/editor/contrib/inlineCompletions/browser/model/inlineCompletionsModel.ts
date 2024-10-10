@@ -14,6 +14,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
+import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
@@ -138,7 +139,7 @@ export class InlineCompletionsModel extends Disposable {
 			});
 		}
 
-		const cursorPosition = this._primaryPosition.read(reader);
+		const cursorPosition = this._primaryPosition.get();
 		if (changeSummary.dontRefetch) {
 			return Promise.resolve(true);
 		}
@@ -171,6 +172,14 @@ export class InlineCompletionsModel extends Disposable {
 			this._isActive.set(false, tx);
 			this._source.clear(tx);
 		});
+	}
+
+	private readonly _collapsedInlineEditId = observableValue<string | undefined>(this, undefined);
+
+	public collapseInlineEdit(): void {
+		const currentInlineEdit = this.stateInlineEdit.get()?.inlineCompletion;
+		if (!currentInlineEdit) { return; }
+		this._collapsedInlineEditId.set(currentInlineEdit.semanticId, undefined);
 	}
 
 	private readonly _inlineCompletionItems = derivedOpts({ owner: this }, reader => {
@@ -255,7 +264,7 @@ export class InlineCompletionsModel extends Disposable {
 					&& a.inlineCompletion === b.inlineCompletion
 					&& a.suggestItem === b.suggestItem;
 			} else if (a.kind === 'inlineEdit' && b.kind === 'inlineEdit') {
-				return a.inlineEdit.edit.equals(b.inlineEdit.edit);
+				return a.inlineEdit.equals(b.inlineEdit);
 			}
 			return false;
 		}
@@ -266,7 +275,9 @@ export class InlineCompletionsModel extends Disposable {
 		if (item?.inlineEditCompletion) {
 			let edit = item.inlineEditCompletion.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
-			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit), inlineCompletion: item.inlineEditCompletion, edits: [edit] };
+			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
+			const currentItemIsCollapsed = cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId;
+			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed), inlineCompletion: item.inlineEditCompletion, edits: [edit] };
 		}
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
