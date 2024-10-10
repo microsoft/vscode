@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/voiceChatActions.css';
-import { RunOnceScheduler, disposableTimeout, first, raceCancellation } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, disposableTimeout, raceCancellation } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Color } from '../../../../../base/common/color.js';
