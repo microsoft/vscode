@@ -38,10 +38,10 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 
 async function takeScreenshotAndCrop(x: number, y: number, width: number, height: number): Promise<Uint8Array | undefined> {
 	try {
-
 		// Create a video element to play the captured screen source
 		const video = document.createElement('video');
-		// Create a stream from the screen source
+
+		// Create a stream from the screen source (capture screen without audio)
 		const stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
 			video: true
@@ -50,32 +50,38 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		// Set the stream as the source of the video element
 		video.srcObject = stream;
 
-		// Wait for the video to load metadata and play
-		await new Promise((resolve) => (video.onloadedmetadata = resolve));
-		video.play();
+		// Wait for the video to load metadata and ensure it can start playing
+		await new Promise<void>((resolve) => {
+			video.onloadedmetadata = () => {
+				video.play();
+				video.oncanplay = () => resolve();
+			};
+		});
 
-		// Create a canvas that matches the size of the cropped region
+		// Create a canvas element with the size of the cropped region
 		const canvas = document.createElement('canvas');
 		canvas.width = width;
 		canvas.height = height;
 		const context = canvas.getContext('2d');
+
 		if (context) {
-			// Draw the portion of the video based on x, y, width, and height
+			// Draw the portion of the video (x, y) with the specified width and height
 			context.drawImage(video, x, y, width, height);
 		}
 
-		// Stop all video tracks once the screenshot is taken
+		// Stop the screen stream once the screenshot is taken
 		stream.getTracks().forEach((track) => track.stop());
 
-		// Convert the canvas to a Blob
+		// Convert the canvas to a Blob (PNG format)
 		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
 		if (!blob) {
 			throw new Error('Failed to create blob from canvas');
 		}
 
-		// Convert the Blob to an ArrayBuffer and then to a Uint8Array
+		// Convert the Blob to an ArrayBuffer and then return it as a Uint8Array
 		const arrayBuffer = await blob.arrayBuffer();
 		return new Uint8Array(arrayBuffer);
+
 	} catch (error) {
 		console.error('Error taking screenshot:', error);
 		return undefined;
