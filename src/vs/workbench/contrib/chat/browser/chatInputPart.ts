@@ -920,13 +920,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		dom.append(actionsContainer, button.element);
 
-		const clearButton = this._chatEditsActionsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
-		clearButton.icon = Codicon.close;
-		this._chatEditsActionsDisposables.add(clearButton.onDidClick((e) => {
-			this.commandService.executeCommand('workbench.action.chat.newEditSession');
-		}));
-		dom.append(actionsContainer, clearButton.element);
-
 		if (!chatEditingSession) {
 			return;
 		}
