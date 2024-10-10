@@ -18,12 +18,12 @@ import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.j
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { IHostService } from '../../../../services/host/browser/host.js';
 import { QueryBuilder } from '../../../../services/search/common/queryBuilder.js';
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { detectLinks, getLinkSuffix } from './terminalLinkParsing.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
+import { INativeHostService } from '../../../../../platform/native/common/native.js';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -65,14 +65,14 @@ export class TerminalLocalFolderInWorkspaceLinkOpener implements ITerminalLinkOp
 }
 
 export class TerminalLocalFolderOutsideWorkspaceLinkOpener implements ITerminalLinkOpener {
-	constructor(@IHostService private readonly _hostService: IHostService) {
+	constructor(@INativeHostService private readonly _hostService: INativeHostService) {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
 		if (!link.uri) {
 			throw new Error('Tried to open folder in workspace link without a resolved URI');
 		}
-		this._hostService.openWindow([{ folderUri: link.uri }], { forceNewWindow: true });
+		this._hostService.showItemInFolder(link.uri.fsPath);
 	}
 }
 
