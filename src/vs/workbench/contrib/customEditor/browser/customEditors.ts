@@ -21,7 +21,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { DEFAULT_EDITOR_ASSOCIATION, EditorExtensions, GroupIdentifier, IEditorFactoryRegistry, IResourceDiffEditorInput } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from '../common/customEditor.js';
+import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
 import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
@@ -37,7 +37,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	private readonly _editorResolverDisposables = this._register(new DisposableStore());
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
-	private readonly _models = new CustomEditorModelManager();
+	private readonly _models: ICustomEditorModelManager;
 
 	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
 	public readonly onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
@@ -54,6 +54,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 	) {
 		super();
+
+		this._models = new CustomEditorModelManager(this.uriIdentityService);
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		// Register the contribution points only emitting one change from the resolver
