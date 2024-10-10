@@ -36,7 +36,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IAsyncDataTreeViewState, IAsyncFindProvider } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResult } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { fuzzyScore, FuzzyScore } from '../../../../../base/common/filters.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
@@ -53,7 +53,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { AbstractTreePart, ITreeFindToggleContribution } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { AbstractTreePart, contiguousFuzzyScore, ITreeFindToggleContribution } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { basename, relativePath } from '../../../../../base/common/resources.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -176,7 +176,7 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		@IExplorerService private readonly explorerService: IExplorerService,
 	) { }
 
-	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: ITreeFindToggleContribution[]): AsyncIterable<ExplorerItem> {
+	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: ITreeFindToggleContribution[]): AsyncIterable<IAsyncFindResult<ExplorerItem>> {
 		const isFuzzyMatch = toggleStates.find(t => t.id === explorerFuzzyMatch.id)?.isChecked!!;
 
 		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
@@ -210,25 +210,29 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 		yield* this.createResultItems(folderResults, pattern, isFuzzyMatch);
 	}
 
-	private async *createResultItems(folderResults: { folder: URI; result: ISearchComplete }[], pattern: string, isFuzzyMatch: boolean): AsyncIterable<ExplorerItem> {
+	private async *createResultItems(folderResults: { folder: URI; result: ISearchComplete }[], pattern: string, isFuzzyMatch: boolean): AsyncIterable<IAsyncFindResult<ExplorerItem>> {
 		const lowercasePattern = pattern.toLowerCase();
 
 		for (const { folder, result } of folderResults) {
 			const folderRoot = new ExplorerItem(folder, this.fileService, this.configurationService, this.filesConfigService, undefined);
 
 			for (const file of result.results) {
-				// If this is a fuzzy search, results can be very poor, so we need to filter them out
+				const baseName = basename(file.resource);
+
+				let filterdata;
 				if (isFuzzyMatch) {
-					const baseName = basename(file.resource);
-					const score = fuzzyScore(pattern, lowercasePattern, 0, baseName, baseName.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
-					if (!score) {
-						break; // Results are sorted by score, so we can stop here
-					}
+					filterdata = fuzzyScore(pattern, lowercasePattern, 0, baseName, baseName.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+				} else {
+					filterdata = contiguousFuzzyScore(lowercasePattern, baseName.toLowerCase());
+				}
+
+				if (!filterdata) {
+					continue;
 				}
 
 				const item = this.createItem(file.resource, folderRoot);
 				if (item) {
-					yield item;
+					yield { element: item, filterdata };
 				}
 			}
 		}

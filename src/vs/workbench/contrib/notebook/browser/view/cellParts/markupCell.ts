@@ -91,7 +91,6 @@ export class MarkupCell extends Disposable {
 			this.relayoutCell();
 		}
 
-		this.applyDecorations();
 		this.viewUpdate();
 
 		this.layoutCellParts();
@@ -220,32 +219,6 @@ export class MarkupCell extends Disposable {
 		}
 
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
-	}
-
-	private applyDecorations() {
-		// apply decorations
-		this._register(this.viewCell.onCellDecorationsChanged((e) => {
-			e.added.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
-					this.templateData.rootContainer.classList.add(options.className);
-				}
-			});
-
-			e.removed.forEach(options => {
-				if (options.className) {
-					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
-					this.templateData.rootContainer.classList.remove(options.className);
-				}
-			});
-		}));
-
-		this.viewCell.getCellDecorations().forEach(options => {
-			if (options.className) {
-				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
-				this.templateData.rootContainer.classList.add(options.className);
-			}
-		});
 	}
 
 	override dispose() {

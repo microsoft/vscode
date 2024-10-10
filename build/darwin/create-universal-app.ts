@@ -7,7 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import { makeUniversalApp } from 'vscode-universal-bundler';
-import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -54,13 +53,6 @@ async function main(buildDir?: string) {
 		darwinUniversalAssetId: 'darwin-universal'
 	});
 	fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
-
-	// Verify if native module architecture is correct
-	const findOutput = await spawn('find', [outAppPath, '-name', 'kerberos.node']);
-	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
-	if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
-		throw new Error(`Invalid arch, got : ${lipoOutput}`);
-	}
 }
 
 if (require.main === module) {

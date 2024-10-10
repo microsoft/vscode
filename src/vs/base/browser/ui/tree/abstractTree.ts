@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
@@ -576,6 +577,18 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 }
 
+export function contiguousFuzzyScore(patternLower: string, wordLower: string): FuzzyScore | undefined {
+	const index = wordLower.toLowerCase().indexOf(patternLower);
+	let score: FuzzyScore | undefined;
+	if (index > -1) {
+		score = [Number.MAX_SAFE_INTEGER, 0];
+		for (let i = patternLower.length; i > 0; i--) {
+			score.push(index + i - 1);
+		}
+	}
+	return score;
+}
+
 export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
 export interface IFindFilter<T> extends ITreeFilter<T, FuzzyScore | LabelFuzzyScore> {
@@ -643,13 +656,7 @@ class FindFilter<T> implements IFindFilter<T>, IDisposable {
 
 			let score: FuzzyScore | undefined;
 			if (this.tree.findMatchType === TreeFindMatchType.Contiguous) {
-				const index = labelStr.toLowerCase().indexOf(this._lowercasePattern);
-				if (index > -1) {
-					score = [Number.MAX_SAFE_INTEGER, 0];
-					for (let i = this._lowercasePattern.length; i > 0; i--) {
-						score.push(index + i - 1);
-					}
-				}
+				score = contiguousFuzzyScore(this._lowercasePattern, labelStr.toLowerCase());
 			} else {
 				score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 			}

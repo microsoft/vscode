@@ -646,3 +646,9 @@
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-chatGenerationHighlight {
 	background-color: var(--vscode-notebook-selectedCellBackground) !important;
 }
+
+/** Avoid Zone Widget hide cell editor focus indicator partially **/
+.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .zone-widget {
+	margin-left: 1px;
+	margin-right: 1px;
+}
