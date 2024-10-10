@@ -104,7 +104,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			const model = this._editor.getModel();
 			const editingSession = this._chatEditingService.getEditingSession(model.uri);
 			const entry = this._getEntry(editingSession, model);
-			if (!entry) {
+			if (!entry || entry.state.get() !== WorkingSetEntryState.Modified) {
 				this._clearRendering();
 				return;
 			}
