@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -183,6 +183,13 @@ export class CodeApplication extends Disposable {
 			}
 
 			return callback(false);
+		});
+
+		session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+			// To do: filter to the active screen
+			desktopCapturer.getSources({ types: ['screen'] }).then((sources) => {
+				callback({ video: sources[0], audio: 'loopback' });
+			});
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {

@@ -10,10 +10,6 @@ import * as path from '../../../base/common/path.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 
-// TODO:@meganrogge, ask @bpasero why this is needed per @deepak1556
-// eslint-disable-next-line local/code-layering, local/code-import-patterns
-import { desktopCapturer } from '../../../base/parts/sandbox/electron-sandbox/globals.js';
-
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
 		const tmpDir = nativeEnvironmentService.tmpDir || nativeEnvironmentService.userDataSyncHome;
@@ -45,17 +41,10 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 
 		// Create a video element to play the captured screen source
 		const video = document.createElement('video');
-		const source = await desktopCapturer.getSources({ types: ['screen'] });
-
-		if (!source?.length) {
-			return;
-		}
 		// Create a stream from the screen source
-		const stream = await navigator.mediaDevices.getUserMedia({
+		const stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
-			video: {
-				deviceId: source[0].id
-			}
+			video: true
 		});
 
 		// Set the stream as the source of the video element
