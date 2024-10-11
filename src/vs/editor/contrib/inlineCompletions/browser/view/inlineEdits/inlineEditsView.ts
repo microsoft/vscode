@@ -284,14 +284,16 @@ export class InlineEditsView extends Disposable {
 
 		const diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
 
-		const originalDisplayRange = LineRange.ofLength(edit.originalLineRange.startLineNumber, edit.lineEdit.newLines.length);
+		const originalDisplayRange = edit.originalText.lineRange.intersect(
+			LineRange.ofLength(edit.originalLineRange.startLineNumber - 1, edit.lineEdit.newLines.length + 2)
+		)!;
 
 		return {
 			diff,
 			edit,
 			newText,
 			newTextLineCount: edit.modifiedLineRange.length,
-			originalDisplayRange: originalDisplayRange.delta(-1).deltaLength(2),
+			originalDisplayRange: originalDisplayRange,
 		};
 	});
 

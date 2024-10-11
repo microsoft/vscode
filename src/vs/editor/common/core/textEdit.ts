@@ -7,6 +7,7 @@ import { assert, assertFn, checkAdjacentItems } from '../../../base/common/asser
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { commonPrefixLength } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
+import { LineRange } from './lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
 import { PositionOffsetTransformer } from './positionToOffset.js';
@@ -290,6 +291,10 @@ export abstract class AbstractText {
 
 	get endPositionExclusive(): Position {
 		return this.length.addToPosition(new Position(1, 1));
+	}
+
+	get lineRange(): LineRange {
+		return this.length.toLineRange();
 	}
 
 	getValue(): string {
