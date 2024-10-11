@@ -176,7 +176,7 @@ This will generate the new PearAI app and takes around 1 hour.
 
 ### Step 3: Integrate the Extension
 
-1. Copy the generated pearai.pearai-1.x.x folder to the `extensions` folder of the packaged PearAI App (right click on packaged app -> Show Package Contents).
+1. Copy the generated `pearai.pearai-1.x.x` folder to the `extensions` folder of the packaged PearAI App (right click on packaged app -> Show Package Contents).
 2. Delete any existing `pearai-submodule` folder in the `extensions/` folder of the packaged PearAI app.
 3. Double-click your overall PearAI app, and the extension should be built-in.
  - On MacOS for example (Using VScode for .vsix installation)
