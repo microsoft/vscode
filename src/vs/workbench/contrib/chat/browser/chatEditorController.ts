@@ -48,8 +48,12 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 
-
 		this._register(autorun(r => {
+
+			if (this._editor.getOption(EditorOption.inDiffEditor)) {
+				return;
+			}
+
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
 
