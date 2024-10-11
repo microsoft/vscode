@@ -102,7 +102,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool<T>(id: string, options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<unknown>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
@@ -119,6 +119,8 @@ declare module 'vscode' {
 		 * {@link ChatRequest.toolInvocationToken}. In that case, a progress bar will be automatically shown for the tool
 		 * invocation in the chat response view, and if the tool requires user confirmation, it will show up inline in the chat
 		 * view. If the tool is being invoked outside of a chat request, `undefined` should be passed instead.
+		 *
+		 * If a tool invokes another tool during its invocation, it can pass along the `toolInvocationToken` that it received.
 		 */
 		toolInvocationToken: ChatParticipantToolToken | undefined;
 
