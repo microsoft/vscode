@@ -182,7 +182,13 @@ export class InlineCompletionsController extends Disposable {
 				if (!this._hideInlineEditOnSelectionChange.get() && this.model.get()?.stateWithInlineEdit.get()?.kind === 'inlineEdit') {
 					return;
 				}
-				this.model.get()?.stop();
+				const m = this.model.get();
+				if (!m) { return; }
+				if (!m.stateInlineEdit.get()?.inlineEdit) {
+					this.model.get()?.stop();
+				} else {
+					this.model.get()?.collapseInlineEdit();
+				}
 			}
 		}));
 

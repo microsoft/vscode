@@ -5,7 +5,9 @@
 
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
+import { commonPrefixLength, commonSuffixLength } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
+import { LineRange } from './lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
 import { PositionOffsetTransformer } from './positionToOffset.js';
@@ -259,6 +261,32 @@ export class SingleTextEdit {
 		);
 		return this.extendToCoverRange(newRange, initialValue);
 	}
+
+	public removeCommonPrefix(text: AbstractText): SingleTextEdit {
+		const normalizedOriginalText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const normalizedModifiedText = this.text.replaceAll('\r\n', '\n');
+
+		const commonPrefixLen = commonPrefixLength(normalizedOriginalText, normalizedModifiedText);
+		const start = TextLength.ofText(normalizedOriginalText.substring(0, commonPrefixLen))
+			.addToPosition(this.range.getStartPosition());
+
+		const newText = normalizedModifiedText.substring(commonPrefixLen);
+		const range = Range.fromPositions(start, this.range.getEndPosition());
+		return new SingleTextEdit(range, newText);
+	}
+
+	public isEffectiveDeletion(text: AbstractText): boolean {
+		let newText = this.text.replaceAll('\r\n', '\n');
+		let existingText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const l = commonPrefixLength(newText, existingText);
+		newText = newText.substring(l);
+		existingText = existingText.substring(l);
+		const r = commonSuffixLength(newText, existingText);
+		newText = newText.substring(0, newText.length - r);
+		existingText = existingText.substring(0, existingText.length - r);
+
+		return newText === '';
+	}
 }
 
 function rangeFromPositions(start: Position, end: Position): Range {
@@ -276,6 +304,10 @@ export abstract class AbstractText {
 
 	get endPositionExclusive(): Position {
 		return this.length.addToPosition(new Position(1, 1));
+	}
+
+	get lineRange(): LineRange {
+		return this.length.toLineRange();
 	}
 
 	getValue(): string {

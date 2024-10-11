@@ -15,8 +15,8 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatWidget, IChatWidgetService } from './chat.js';
@@ -290,6 +290,7 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 				title: localize2('chat.restoreWorkingSet.title', 'Using Working Set').value,
 				tooltip: localize2('chat.restoreWorkingSet.tooltip', 'Toggle to use the working set state from an earlier request in your next edit').value
 			},
+			precondition: ContextKeyExpr.and(applyingChatEditsContextKey.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			menu: {
 				id: MenuId.ChatMessageFooter,
 				group: 'navigation',
@@ -304,6 +305,7 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		const chatEditingService = accessor.get(IChatEditingService);
 		const item = args[0];
 		if (!isResponseVM(item)) {
 			return;
@@ -316,5 +318,7 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 		} else {
 			session.setCheckpoint(requestId);
 		}
+
+		chatEditingService.restoreSnapshot(requestId);
 	}
 });

@@ -35,6 +35,9 @@
 		transition-delay: 0.4s;
 	}
 
+	&.visible {
+		opacity: 1;
+	}
 
 	&.top {
 		opacity: 1;
