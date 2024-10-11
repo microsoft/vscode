@@ -509,15 +509,15 @@ export class AttachContextAction extends Action2 {
 				prefix: SymbolsQuickAccessProvider.PREFIX,
 				id: 'symbol'
 			});
-
-			quickPickItems.push({
-				kind: 'screenshot',
-				id: 'screenshot',
-				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
-				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-				label: localize('chatContext.attachScreenshot.label', 'Screenshot the focused window'),
-			});
-
+			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+				quickPickItems.push({
+					kind: 'screenshot',
+					id: 'screenshot',
+					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+					label: localize('chatContext.attachScreenshot.label', 'Screenshot the focused window'),
+				});
+			}
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',
