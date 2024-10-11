@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { remove } from '../../../../base/common/arrays.js';
-import { Sequencer, timeout } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Sequencer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -22,7 +21,7 @@ import { IDocumentDiff, nullDocumentDiff } from '../../../../editor/common/diff/
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../editor/common/model.js';
-import { createTextBufferFactoryFromSnapshot } from '../../../../editor/common/model/textModel.js';
+import { createTextBufferFactoryFromSnapshot, ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -847,6 +846,20 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this._diffInfo;
 	}
 
+	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 500));
+	private _editDecorations: string[] = [];
+
+	private static readonly _editDecorationOptions = ModelDecorationOptions.register({
+		isWholeLine: true,
+		description: 'chat-editing',
+		className: 'rangeHighlight',
+		marginClassName: 'rangeHighlight',
+		overviewRuler: {
+			position: OverviewRulerLane.Full,
+			color: themeColorFromId(editorSelectionBackground)
+		},
+	});
+
 	constructor(
 		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -958,42 +971,19 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		}
 
 		this.docSnapshot.applyEdits(edits);
-
-		// console.log('mirrored');
-		// console.log(this.docSnapshot.getValue());
 	}
 
-	private readonly _allEditDecorations: string[][] = [];
 
 	applyEdits(textEdits: TextEdit[]): void {
 
 		// highlight edits
-		let existingIds: string[] = [];
-		if (this._allEditDecorations.length > 3) {
-			existingIds = this._allEditDecorations.shift() ?? [];
-		}
-
-		const newIds = this.doc.deltaDecorations(existingIds, textEdits.map(edit => {
+		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
 			return {
-				range: edit.range,
-				options: {
-					isWholeLine: true,
-					description: 'chat-editing',
-					className: 'rangeHighlight',
-					overviewRuler: {
-						position: OverviewRulerLane.Full,
-						color: themeColorFromId(editorSelectionBackground)
-					}
-				}
+				options: ModifiedFileEntry._editDecorationOptions,
+				range: edit.range
 			} satisfies IModelDeltaDecoration;
 		}));
-
-		this._allEditDecorations.push(newIds);
-		// TODO clear this timeout?
-		setTimeout(() => {
-			this.doc.deltaDecorations(newIds, []);
-			remove(this._allEditDecorations, newIds);
-		}, 500);
+		this._editDecorationClear.schedule();
 
 		// make the actual edit
 		this._isApplyingEdits = true;
