@@ -1125,7 +1125,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.saveState();
 
 		if (this.viewModel?.model.welcomeMessage) {
-			this.storageService.store(PersistWelcomeMessageContentKey, this.viewModel?.model.welcomeMessage, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.store(`${PersistWelcomeMessageContentKey}.${this.location}`, this.viewModel?.model.welcomeMessage, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
 
