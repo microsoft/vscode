@@ -380,7 +380,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, the file will be formatted when saved explicitly, not when saved automatically."),
+			'markdownDescription': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, the file will only be formatted when saved explicitly."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
 		},
 		'editor.formatOnSaveMode': {

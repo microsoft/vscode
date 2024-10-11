@@ -1141,7 +1141,7 @@ configurationRegistry.registerConfiguration({
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		},
 		[NotebookSetting.formatOnSave]: {
-			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, the file will be formatted when saved explicitly, not when saved automatically."),
+			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, the file will only be formatted when saved explicitly."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false

@@ -64,7 +64,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
-	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, Code Actions will run when the file is saved explicitly, not when saved automatically. Example: `"source.organizeImports": "explicit" `'),
+	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, Code Actions will only be run when the file is saved explicitly. Example: `"source.organizeImports": "explicit" `'),
 	type: ['object', 'array'],
 	additionalProperties: {
 		type: 'string',
@@ -94,7 +94,7 @@ const notebookCodeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
-	markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, Code Actions will run when the file is saved explicitly, not when saved automatically. Example: `"notebook.source.organizeImports": "explicit"`'),
+	markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified and the editor must not be shutting down. When [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) is set to `afterDelay`, Code Actions will only be run when the file is saved explicitly. Example: `"notebook.source.organizeImports": "explicit"`'),
 	type: 'object',
 	additionalProperties: {
 		type: ['string', 'boolean'],
