@@ -210,7 +210,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					});
 				}
 				const domNode = document.createElement('div');
-				domNode.className = 'chat-editing-original-zone line-delete';
+				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
 				const viewZoneData: IViewZone = {
 					afterLineNumber: diffEntry.modified.startLineNumber - 1,
