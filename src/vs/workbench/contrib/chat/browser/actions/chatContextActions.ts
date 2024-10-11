@@ -506,7 +506,7 @@ export class AttachContextAction extends Action2 {
 					id: ScreenshotVariableId,
 					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
 					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-					label: localize('chatContext.attachScreenshot.label', 'Image of Current VS Code Window'),
+					label: localize('chatContext.attachScreenshot.label', 'Image of the Current VS Code Window'),
 				});
 			}
 			if (widget.location === ChatAgentLocation.Notebook) {
