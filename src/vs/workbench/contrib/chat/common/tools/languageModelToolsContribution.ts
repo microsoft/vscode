@@ -18,15 +18,15 @@ import * as extensionsRegistry from '../../../../services/extensions/common/exte
 
 interface IRawToolContribution {
 	name: string;
-	name2?: string;
+	displayName: string;
+	modelDescription: string;
+	toolReferenceName?: string;
 	icon?: string | { light: string; dark: string };
 	when?: string;
 	tags?: string[];
-	displayName?: string;
 	userDescription?: string;
-	modelDescription: string;
 	parametersSchema?: IJSONSchema;
-	canBeInvokedManually?: boolean;
+	canBeReferencedInPrompt?: boolean;
 	supportedContentTypes?: string[];
 }
 
@@ -44,16 +44,16 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { name: '', description: '' } }],
-			required: ['name', 'modelDescription'],
+			required: ['name', 'displayName', 'modelDescription'],
 			properties: {
 				name: {
-					description: localize('toolName', "A unique name for this tool. This name must be a globally unique identifier, and is also used as a name when presenting this tool to an LLM."),
+					description: localize('toolName', "A unique name for this tool. This name must be a globally unique identifier, and is also used as a name when presenting this tool to a language model."),
 					type: 'string',
 					// Borrow OpenAI's requirement for tool names
 					pattern: '^[\\w-]+$'
 				},
-				name2: {
-					markdownDescription: localize('toolName2', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeInvokedManually`'),
+				toolReferenceName: {
+					markdownDescription: localize('toolName2', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeReferencedInPrompt`'),
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
@@ -66,7 +66,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string'
 				},
 				modelDescription: {
-					description: localize('toolModelDescription', "A description of this tool that may be passed to a language model."),
+					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'
 				},
 				parametersSchema: {
@@ -74,8 +74,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'object',
 					$ref: 'http://json-schema.org/draft-07/schema#'
 				},
-				canBeInvokedManually: {
-					description: localize('canBeInvokedManually', "Whether this tool can be invoked manually by the user through the chat UX."),
+				canBeReferencedInPrompt: {
+					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
 					type: 'boolean'
 				},
 				icon: {
@@ -136,8 +136,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const rawTool of extension.value) {
-					if (!rawTool.name || !rawTool.modelDescription) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool without name and modelDescription: ${JSON.stringify(rawTool)}`);
+					if (!rawTool.name || !rawTool.modelDescription || !rawTool.displayName) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool without name, modelDescription, and displayName: ${JSON.stringify(rawTool)}`);
 						continue;
 					}
 
@@ -146,8 +146,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
-					if (rawTool.canBeInvokedManually && !rawTool.name2) {
-						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with 'canBeInvokedManually' set without a name: ${JSON.stringify(rawTool)}`);
+					if (rawTool.canBeReferencedInPrompt && !rawTool.toolReferenceName) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with 'canBeReferencedInPrompt' set without a 'toolReferenceName': ${JSON.stringify(rawTool)}`);
 						continue;
 					}
 

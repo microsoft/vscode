@@ -15,15 +15,15 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export interface IToolData {
 	id: string;
-	name2?: string;
+	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];
-	displayName?: string;
+	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
-	canBeInvokedManually?: boolean;
+	canBeReferencedInPrompt?: boolean;
 	supportedContentTypes: string[];
 }
 

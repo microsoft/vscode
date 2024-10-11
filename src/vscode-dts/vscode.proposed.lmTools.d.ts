@@ -283,6 +283,8 @@ declare module 'vscode' {
 	export interface ChatRequestTurn {
 		/**
 		 * The list of tools were attached to this request.
+		 * TODO@API- do we keep `supportsToolReferences`, or accept that some participants won't implement them?
+		 * This is hard to implement properly anyway, with participant detection etc.
 		 */
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}

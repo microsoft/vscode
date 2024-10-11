@@ -112,7 +112,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getToolByName(name: string): IToolData | undefined {
 		for (const toolData of this.getTools()) {
-			if (toolData.name2 === name) {
+			if (toolData.toolReferenceName === name) {
 				return toolData;
 			}
 		}
@@ -146,7 +146,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				await tool.impl.prepareToolInvocation(dto.parameters, token)
 				: undefined;
 
-			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
+			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 			const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
 			toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
 			token.onCancellationRequested(() => {
