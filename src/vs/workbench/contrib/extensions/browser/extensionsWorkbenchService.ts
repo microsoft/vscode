@@ -3,64 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as semver from 'vs/base/common/semver/semver';
-import { Event, Emitter } from 'vs/base/common/event';
-import { firstOrDefault, index } from 'vs/base/common/arrays';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IPager, singlePagePager } from 'vs/base/common/paging';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import * as nls from '../../../../nls.js';
+import * as semver from '../../../../base/common/semver/semver.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { index } from '../../../../base/common/arrays.js';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IPager, singlePagePager } from '../../../../base/common/paging.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, WEB_EXTENSION_TAG, InstallExtensionResult,
 	IExtensionsControlManifest, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo, EXTENSION_IDENTIFIER_REGEX,
 	InstallOptions, IProductVersion,
 	UninstallExtensionInfo
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
-import * as resources from 'vs/base/common/resources';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription, isApplicationScopedExtension } from 'vs/platform/extensions/common/extensions';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { FileAccess } from 'vs/base/common/network';
-import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
-import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { isBoolean, isDefined, isString, isUndefined } from 'vs/base/common/types';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IExtensionService, IExtensionsStatus, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { isWeb, language } from 'vs/base/common/platform';
-import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { mainWindow } from 'vs/base/browser/window';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+} from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
+import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgressOptions, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import * as resources from '../../../../base/common/resources.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, TargetPlatform, ExtensionIdentifier, IExtensionIdentifier, IExtensionDescription, isApplicationScopedExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { IIgnoredExtensionsManagementService } from '../../../../platform/userDataSync/common/ignoredExtensions.js';
+import { IUserDataAutoSyncService, IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { isBoolean, isDefined, isString, isUndefined } from '../../../../base/common/types.js';
+import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { IExtensionService, IExtensionsStatus as IExtensionRuntimeStatus, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { isWeb, language } from '../../../../base/common/platform.js';
+import { getLocale } from '../../../../platform/languagePacks/common/languagePacks.js';
+import { ILocaleService } from '../../../services/localization/common/locale.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { areApiProposalsCompatible, isEngineValid } from '../../../../platform/extensions/common/extensionValidator.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -562,6 +563,7 @@ ${this.description}
 
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
 const EXTENSIONS_DONOT_AUTO_UPDATE_KEY = 'extensions.donotAutoUpdate';
+const EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY = 'extensions.dismissedNotifications';
 
 class Extensions extends Disposable {
 
@@ -583,7 +585,6 @@ class Extensions extends Disposable {
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IWorkbenchExtensionManagementService private readonly workbenchExtensionManagementService: IWorkbenchExtensionManagementService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -714,7 +715,7 @@ class Extensions extends Disposable {
 			const galleryWithLocalVersion: IGalleryExtension | undefined = (await this.galleryService.getExtensions([{ ...localExtension.identifier, version: localExtension.manifest.version }], CancellationToken.None))[0];
 			isPreReleaseVersion = !!galleryWithLocalVersion?.properties?.isPreReleaseVersion;
 		}
-		return this.server.extensionManagementService.updateMetadata(localExtension, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId, isPreReleaseVersion }, this.userDataProfileService.currentProfile.extensionsResource);
+		return this.workbenchExtensionManagementService.updateMetadata(localExtension, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId, isPreReleaseVersion });
 	}
 
 	canInstall(galleryExtension: IGalleryExtension): Promise<boolean> {
@@ -903,8 +904,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private updatesCheckDelayer: ThrottledDelayer<void>;
 	private autoUpdateDelayer: ThrottledDelayer<void>;
 
-	private readonly _onChange: Emitter<IExtension | undefined> = new Emitter<IExtension | undefined>();
+	private readonly _onChange = this._register(new Emitter<IExtension | undefined>());
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
+
+	private extensionsNotification: IExtensionsNotification | undefined;
+	private readonly _onDidChangeExtensionsNotification = new Emitter<IExtensionsNotification | undefined>();
+	readonly onDidChangeExtensionsNotification = this._onDidChangeExtensionsNotification.event;
 
 	private readonly _onReset = new Emitter<void>();
 	get onReset() { return this._onReset.event; }
@@ -947,6 +952,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 		const preferPreReleasesValue = configurationService.getValue('_extensions.preferPreReleases');
@@ -1031,30 +1037,24 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this._store.isDisposed) {
 			return;
 		}
+
 		this.initializeAutoUpdate();
+		this.updateExtensionsNotificaiton();
 		this.reportInstalledExtensionsTelemetry();
-		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.reportProgressFromOtherSources()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, this._store)(e => this.onDidDismissedNotificationsValueChange()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_DONOT_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
+		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => {
+			this.updateExtensionsNotificaiton();
+			this.reportProgressFromOtherSources();
+		}));
 	}
 
 	private initializeAutoUpdate(): void {
-		// Initialise Auto Update Value
-		let autoUpdateValue = this.getAutoUpdateValue();
-
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				const wasAutoUpdateEnabled = autoUpdateValue !== false;
-				autoUpdateValue = this.getAutoUpdateValue();
-				const isAutoUpdateEnabled = this.isAutoUpdateEnabled();
-				if (wasAutoUpdateEnabled !== isAutoUpdateEnabled) {
-					this.setEnabledAutoUpdateExtensions([]);
-					this.setDisabledAutoUpdateExtensions([]);
-					this._onChange.fire(undefined);
-					this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
-				}
-				if (isAutoUpdateEnabled) {
+				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
 				}
 			}
@@ -1072,7 +1072,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0)));
 		this._register(this.updateService.onStateChange(e => {
 			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloaded) {
-				this.eventuallyCheckForUpdates(true);
+				this.telemetryService.publicLog2<{}, {
+					owner: 'sandy081';
+					comment: 'Report when update check is triggered on product update';
+				}>('extensions:updatecheckonproductupdate');
+				if (this.isAutoCheckUpdatesEnabled()) {
+					this.checkForUpdates();
+				}
 			}
 		}));
 
@@ -1110,22 +1116,31 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
 	}
 
-	async updateAutoUpdateValue(value: AutoUpdateConfigurationValue): Promise<void> {
-		const wasEnabled = this.isAutoUpdateEnabled();
-		const isEnabled = value !== false;
-		if (wasEnabled !== isEnabled) {
-			const result = await this.dialogService.confirm({
-				title: nls.localize('confirmEnableDisableAutoUpdate', "Auto Update Extensions"),
-				message: isEnabled
-					? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
-					: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
-				detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
-			});
-			if (!result.confirmed) {
-				return;
-			}
+	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
+		const wasAutoUpdateEnabled = this.isAutoUpdateEnabled();
+		if (wasAutoUpdateEnabled === isAutoUpdateEnabled) {
+			return;
 		}
-		await this.configurationService.updateValue(AutoUpdateConfigurationKey, value);
+
+		const result = await this.dialogService.confirm({
+			title: nls.localize('confirmEnableDisableAutoUpdate', "Auto Update Extensions"),
+			message: isAutoUpdateEnabled
+				? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
+				: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
+			detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
+		});
+		if (!result.confirmed) {
+			return;
+		}
+
+		// Reset extensions enabled for auto update first to prevent them from being updated
+		this.setEnabledAutoUpdateExtensions([]);
+
+		await this.configurationService.updateValue(AutoUpdateConfigurationKey, isAutoUpdateEnabled);
+
+		this.setDisabledAutoUpdateExtensions([]);
+		await this.updateExtensionsPinnedState(!isAutoUpdateEnabled);
+		this._onChange.fire(undefined);
 	}
 
 	private readonly autoRestartListenerDisposable = this._register(new MutableDisposable());
@@ -1324,6 +1339,87 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			?? this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, undefined, { resourceExtension, isWorkspaceScoped }));
 	}
 
+	private onDidDismissedNotificationsValueChange(): void {
+		if (
+			this.dismissedNotificationsValue !== this.getDismissedNotificationsValue() /* This checks if current window changed the value or not */
+		) {
+			this._dismissedNotificationsValue = undefined;
+			this.updateExtensionsNotificaiton();
+		}
+	}
+
+	private updateExtensionsNotificaiton(): void {
+		const computedNotificiations = this.computeExtensionsNotifications();
+		const dismissedNotifications: string[] = [];
+
+		let extensionsNotification: IExtensionsNotification | undefined;
+		if (computedNotificiations.length) {
+			// populate dismissed notifications with the ones that are still valid
+			for (const dismissedNotification of this.getDismissedNotifications()) {
+				if (computedNotificiations.some(e => e.key === dismissedNotification)) {
+					dismissedNotifications.push(dismissedNotification);
+				}
+			}
+			if (!dismissedNotifications.includes(computedNotificiations[0].key)) {
+				extensionsNotification = {
+					message: computedNotificiations[0].message,
+					severity: computedNotificiations[0].severity,
+					extensions: computedNotificiations[0].extensions,
+					dismiss: () => {
+						this.setDismissedNotifications([...this.getDismissedNotifications(), computedNotificiations[0].key]);
+						this.updateExtensionsNotificaiton();
+					},
+				};
+			}
+		}
+		this.setDismissedNotifications(dismissedNotifications);
+
+		if (this.extensionsNotification?.message !== extensionsNotification?.message) {
+			this.extensionsNotification = extensionsNotification;
+			this._onDidChangeExtensionsNotification.fire(this.extensionsNotification);
+		}
+	}
+
+	private computeExtensionsNotifications(): Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> {
+		const computedNotificiations: Array<Omit<IExtensionsNotification, 'dismiss'> & { key: string }> = [];
+		const invalidExtensions = this.local.filter(e => e.enablementState === EnablementState.DisabledByInvalidExtension && !e.isWorkspaceScoped);
+		if (invalidExtensions.length) {
+			if (invalidExtensions.some(e => e.local && e.local.manifest.engines?.vscode &&
+				(!isEngineValid(e.local.manifest.engines.vscode, this.productService.version, this.productService.date) || areApiProposalsCompatible([...e.local.manifest.enabledApiProposals ?? []]))
+			)) {
+				computedNotificiations.push({
+					message: nls.localize('incompatibleExtensions', "Some extensions are disabled due to version incompatibility. Review and update them."),
+					severity: Severity.Warning,
+					extensions: invalidExtensions,
+					key: 'incompatibleExtensions:' + invalidExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => `${e.identifier.id.toLowerCase()}@${e.local?.manifest.version}`).join('-'),
+				});
+			} else {
+				computedNotificiations.push({
+					message: nls.localize('invalidExtensions', "Invalid extensions detected. Review them."),
+					severity: Severity.Warning,
+					extensions: invalidExtensions,
+					key: 'invalidExtensions:' + invalidExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => `${e.identifier.id.toLowerCase()}@${e.local?.manifest.version}`).join('-'),
+				});
+			}
+		}
+
+		const deprecatedExtensions = this.local.filter(e => !!e.deprecationInfo && e.local && this.extensionEnablementService.isEnabled(e.local));
+		if (deprecatedExtensions.length) {
+			computedNotificiations.push({
+				message: nls.localize('deprecated extensions', "Deprecated extensions detected. Review them and migrate to alternatives."),
+				severity: Severity.Warning,
+				extensions: deprecatedExtensions,
+				key: 'deprecatedExtensions:' + deprecatedExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
+			});
+		}
+
+		return computedNotificiations;
+	}
+
+	getExtensionsNotification(): IExtensionsNotification | undefined {
+		return this.extensionsNotification;
+	}
+
 	private resolveQueryText(text: string): string {
 		text = text.replace(/@web/g, `tag:"${WEB_EXTENSION_TAG}"`);
 
@@ -1386,7 +1482,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined {
+	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
+		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		viewPaneContainer.search(searchValue);
+		if (!preserveFoucs) {
+			viewPaneContainer.focus();
+		}
+	}
+
+	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined {
 		const extensionsStatus = this.extensionService.getExtensionsStatus();
 		for (const id of Object.keys(extensionsStatus)) {
 			if (areSameExtensions({ id }, extension.identifier)) {
@@ -1429,7 +1533,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (extension.isUnderDevelopment) {
 				continue;
 			}
-			if (extensionsToCheck.some(e => areSameExtensions({ id: extension.identifier.value, uuid: extension.uuid }, e.identifier))) {
+			if (extensionsToCheck.some(e => areSameExtensions({ id: extension.identifier.value, uuid: extension.uuid }, e.local?.identifier ?? e.identifier))) {
 				continue;
 			}
 			// Extension is running but doesn't exist locally. Remove it from running extensions.
@@ -2107,6 +2211,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (extension.gallery) {
+			if (!extension.gallery.isSigned) {
+				return false;
+			}
+
 			if (this.localExtensions && await this.localExtensions.canInstall(extension.gallery)) {
 				return true;
 			}
@@ -2154,7 +2262,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 			if (installableInfo) {
 				const targetPlatform = extension?.server ? await extension.server.extensionManagementService.getTargetPlatform() : undefined;
-				gallery = firstOrDefault(await this.galleryService.getExtensions([installableInfo], { targetPlatform }, CancellationToken.None));
+				gallery = (await this.galleryService.getExtensions([installableInfo], { targetPlatform }, CancellationToken.None)).at(0);
 			}
 			if (!extension && gallery) {
 				extension = this.instantiationService.createInstance(Extension, ext => this.getExtensionState(ext), ext => this.getRuntimeState(ext), undefined, undefined, gallery, undefined);
@@ -2323,26 +2431,34 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
+		for (const packExtension of this.getAllPackExtensionsToUninstall(extension.local, this.local)) {
+			if (!extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
+				extensionsToUninstall.push({ extension: packExtension });
+			}
+		}
+
 		const dependents: IExtension[] = [];
-		for (const local of this.local) {
-			if (local === extension) {
-				continue;
-			}
-			if (!local.local) {
-				continue;
-			}
-			if (local.dependencies.length === 0) {
-				continue;
-			}
-			if (extension.extensionPack.some(id => areSameExtensions({ id }, local.identifier))) {
-				continue;
-			}
-			if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
-				continue;
-			}
-			if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
-				dependents.push(local);
-				extensionsToUninstall.push({ extension: local.local });
+		for (const { extension } of extensionsToUninstall) {
+			for (const local of this.local) {
+				if (!local.local) {
+					continue;
+				}
+				if (areSameExtensions(local.identifier, extension.identifier)) {
+					continue;
+				}
+				if (local.dependencies.length === 0) {
+					continue;
+				}
+				if (extension.manifest.extensionPack?.some(id => areSameExtensions({ id }, local.identifier))) {
+					continue;
+				}
+				if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
+					continue;
+				}
+				if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
+					dependents.push(local);
+					extensionsToUninstall.push({ extension: local.local });
+				}
 			}
 		}
 
@@ -2369,6 +2485,28 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
 			source: `${extension.identifier.id}`
 		}, () => this.extensionManagementService.uninstallExtensions(extensionsToUninstall).then(() => undefined));
+	}
+
+	private getAllPackExtensionsToUninstall(extension: ILocalExtension, installed: IExtension[], checked: ILocalExtension[] = []): ILocalExtension[] {
+		if (checked.some(e => areSameExtensions(e.identifier, extension.identifier))) {
+			return [];
+		}
+		checked.push(extension);
+		const extensionsPack = extension.manifest.extensionPack ?? [];
+		if (extensionsPack.length) {
+			const packedExtensions: ILocalExtension[] = [];
+			for (const i of installed) {
+				if (i.local && !i.isBuiltin && extensionsPack.some(id => areSameExtensions({ id }, i.identifier))) {
+					packedExtensions.push(i.local);
+				}
+			}
+			const packOfPackedExtensions: ILocalExtension[] = [];
+			for (const packedExtension of packedExtensions) {
+				packOfPackedExtensions.push(...this.getAllPackExtensionsToUninstall(packedExtension, installed, checked));
+			}
+			return [...packedExtensions, ...packOfPackedExtensions];
+		}
+		return [];
 	}
 
 	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
@@ -2511,6 +2649,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		installOptions.pinned = extension.local?.pinned || !this.shouldAutoUpdateExtension(extension);
 		if (extension.local) {
 			installOptions.productVersion = this.getProductVersion();
+			installOptions.operation = InstallOperation.Update;
 			return this.extensionManagementService.updateFromGallery(gallery, extension.local, installOptions);
 		} else {
 			return this.extensionManagementService.installFromGallery(gallery, installOptions);
@@ -2842,6 +2981,44 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private setDisabledAutoUpdateExtensionsValue(value: string): void {
 		this.storageService.store(EXTENSIONS_DONOT_AUTO_UPDATE_KEY, value, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	private getDismissedNotifications(): string[] {
+		try {
+			const parsedValue = JSON.parse(this.dismissedNotificationsValue);
+			if (Array.isArray(parsedValue)) {
+				return parsedValue;
+			}
+		} catch (e) { /* Ignore */ }
+		return [];
+	}
+
+	private setDismissedNotifications(dismissedNotifications: string[]): void {
+		this.dismissedNotificationsValue = JSON.stringify(dismissedNotifications);
+	}
+
+	private _dismissedNotificationsValue: string | undefined;
+	private get dismissedNotificationsValue(): string {
+		if (!this._dismissedNotificationsValue) {
+			this._dismissedNotificationsValue = this.getDismissedNotificationsValue();
+		}
+
+		return this._dismissedNotificationsValue;
+	}
+
+	private set dismissedNotificationsValue(dismissedNotificationsValue: string) {
+		if (this.dismissedNotificationsValue !== dismissedNotificationsValue) {
+			this._dismissedNotificationsValue = dismissedNotificationsValue;
+			this.setDismissedNotificationsValue(dismissedNotificationsValue);
+		}
+	}
+
+	private getDismissedNotificationsValue(): string {
+		return this.storageService.get(EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, StorageScope.PROFILE, '[]');
+	}
+
+	private setDismissedNotificationsValue(value: string): void {
+		this.storageService.store(EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 }

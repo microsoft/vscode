@@ -3,50 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
-import { findLastIdx } from 'vs/base/common/arraysFind';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
-import { getDefaultNotebookCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DiffElementCellViewModelBase, IDiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffPlaceholderRenderer, CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffList';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { diffDiagonalFill, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
-import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor, INotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CellUri, INotebookDiffEditorModel, INotebookDiffResult, NOTEBOOK_DIFF_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { URI } from 'vs/base/common/uri';
-import { IDiffChange, IDiffResult } from 'vs/base/common/diff/diff';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { SequencerByKey } from 'vs/base/common/async';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
-import { BackLayerWebView, INotebookDelegateForWebview } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { cellIndexesToRanges, cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookDiffOverviewRuler } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffOverviewRuler';
-import { registerZIndex, ZIndex } from 'vs/platform/layout/browser/zIndexRegistry';
-import { NotebookDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffViewModel';
+import * as nls from '../../../../../nls.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { findLastIdx } from '../../../../../base/common/arraysFind.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService, registerThemingParticipant } from '../../../../../platform/theme/common/themeService.js';
+import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, IEditorPaneWithSelection } from '../../../../common/editor.js';
+import { getDefaultNotebookCreationOptions } from '../notebookEditorWidget.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { NotebookDiffEditorInput } from '../../common/notebookDiffEditorInput.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { DiffElementCellViewModelBase, IDiffElementViewModelBase, SideBySideDiffElementViewModel } from './diffElementViewModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { CellDiffPlaceholderRenderer, CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookDocumentMetadataDiffRenderer, NotebookTextDiffList } from './notebookDiffList.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { diffDiagonalFill, editorBackground, focusBorder, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEditorOptions as ICodeEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { BareFontInfo, FontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions } from '../notebookBrowser.js';
+import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor, INotebookDiffViewModel } from './notebookDiffEditorBrowser.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { CellUri, INotebookDiffEditorModel, NOTEBOOK_DIFF_EDITOR_ID, NotebookSetting } from '../../common/notebookCommon.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { SequencerByKey } from '../../../../../base/common/async.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IMouseWheelEvent, StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { DiffNestedCellViewModel } from './diffNestedCellViewModel.js';
+import { BackLayerWebView, INotebookDelegateForWebview } from '../view/renderers/backLayerWebView.js';
+import { NotebookDiffEditorEventDispatcher, NotebookDiffLayoutChangedEvent } from './eventDispatcher.js';
+import { FontMeasurements } from '../../../../../editor/browser/config/fontMeasurements.js';
+import { NotebookOptions } from '../notebookOptions.js';
+import { NotebookLayoutInfo } from '../notebookViewEvents.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { cellIndexesToRanges, cellRangesToIndexes } from '../../common/notebookRange.js';
+import { NotebookDiffOverviewRuler } from './notebookDiffOverviewRuler.js';
+import { registerZIndex, ZIndex } from '../../../../../platform/layout/browser/zIndexRegistry.js';
+import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { DiffEditorHeightCalculatorService, IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 const $ = DOM.$;
 
@@ -95,7 +96,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _overviewRulerContainer!: HTMLElement;
 	private _overviewRuler!: NotebookDiffOverviewRuler;
 	private _dimension: DOM.Dimension | null = null;
-	private notebookDiffViewModel: INotebookDiffViewModel = this._register(new NotebookDiffViewModel());
+	private notebookDiffViewModel?: INotebookDiffViewModel;
 	private _list!: NotebookTextDiffList;
 	private _modifiedWebview: BackLayerWebView<IDiffCellInfo> | null = null;
 	private _originalWebview: BackLayerWebView<IDiffCellInfo> | null = null;
@@ -110,6 +111,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
+	private readonly diffEditorCalcuator: IDiffEditorHeightCalculatorService;
 	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
 
 	get textModel() {
@@ -150,8 +152,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@INotebookService private readonly notebookService: INotebookService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(NotebookTextDiffEditor.ID, group, telemetryService, themeService, storageService);
+		this.diffEditorCalcuator = this.instantiationService.createInstance(DiffEditorHeightCalculatorService, this.fontInfo.lineHeight);
 		this._notebookOptions = instantiationService.createInstance(NotebookOptions, this.window, false, undefined);
 		this._register(this._notebookOptions);
 		this._revealFirst = true;
@@ -279,6 +284,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this.instantiationService.createInstance(CellDiffSingleSideRenderer, this),
 			this.instantiationService.createInstance(CellDiffSideBySideRenderer, this),
 			this.instantiationService.createInstance(CellDiffPlaceholderRenderer, this),
+			this.instantiationService.createInstance(NotebookDocumentMetadataDiffRenderer, this),
 		];
 
 		this._listViewContainer = DOM.append(this._rootElement, DOM.$('.notebook-diff-list-view'));
@@ -333,13 +339,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		);
 
 		this._register(this._list);
-		this._register(this.notebookDiffViewModel.onDidChangeItems(e => {
-			this._list.splice(e.start, e.deleteCount, e.elements);
-			if (this.isOverviewRulerEnabled()) {
-				this._overviewRuler.updateViewModels(this.notebookDiffViewModel.items, this._eventDispatcher);
-			}
-		}));
-
 		this._register(this._list.onMouseUp(e => {
 			if (e.element) {
 				if (typeof e.index === 'number') {
@@ -436,8 +435,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const model = await input.resolve();
 		if (this._model !== model) {
 			this._detachModel();
-			this._model = model;
-			this._attachModel();
+			this._attachModel(model);
 		}
 
 		this._model = model;
@@ -452,7 +450,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._layoutCancellationTokenSource = new CancellationTokenSource();
 
 		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
-			if (this._model !== null) {
+			// If the user has made changes to the notebook whilst in the diff editor,
+			// then do not re-compute the diff of the notebook,
+			// As change will result in re-computing diff and re-building entire diff view.
+			if (this._model !== null && this.editorService.activeEditor !== input) {
 				this._layoutCancellationTokenSource?.dispose();
 				this._layoutCancellationTokenSource = new CancellationTokenSource();
 				this.updateLayout(this._layoutCancellationTokenSource.token);
@@ -480,11 +481,15 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedWebview?.element.remove();
 		this._modifiedWebview = null;
 
+		this.notebookDiffViewModel?.dispose();
+		this.notebookDiffViewModel = undefined;
+
 		this._modifiedResourceDisposableStore.clear();
 		this._list.clear();
 
 	}
-	private _attachModel() {
+	private _attachModel(model: INotebookDiffEditorModel) {
+		this._model = model;
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 		const updateInsets = () => {
 			DOM.scheduleAtNextAnimationFrame(this.window, () => {
@@ -512,6 +517,24 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._localStore.add(this._eventDispatcher.onDidChangeCellLayout(() => {
 			updateInsets();
+		}));
+
+		const vm = this.notebookDiffViewModel = this._register(new NotebookDiffViewModel(this._model, this.notebookEditorWorkerService, this.configurationService, this._eventDispatcher!, this.notebookService, this.diffEditorCalcuator, this.fontInfo, undefined));
+		this._localStore.add(this.notebookDiffViewModel.onDidChangeItems(e => {
+			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
+			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
+
+			if (this._revealFirst && typeof e.firstChangeIndex === 'number' && e.firstChangeIndex < this._list.length) {
+				this._revealFirst = false;
+				this._list.setFocus([e.firstChangeIndex]);
+				this._list.reveal(e.firstChangeIndex, 0.3);
+			}
+
+			this._list.splice(e.start, e.deleteCount, e.elements);
+
+			if (this.isOverviewRulerEnabled()) {
+				this._overviewRuler.updateViewModels(vm.items, this._eventDispatcher);
+			}
 		}));
 	}
 
@@ -554,201 +577,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	async updateLayout(token: CancellationToken, selections?: number[]) {
-		if (!this._model) {
+		if (!this._model || !this.notebookDiffViewModel) {
 			return;
 		}
 
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
-
+		await this.notebookDiffViewModel.computeDiff(token);
 		if (token.isCancellationRequested) {
 			// after await the editor might be disposed.
 			return;
 		}
 
-		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
-		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult, this.fontInfo);
-
-		if (!this.notebookDiffViewModel.isEqual(viewModels)) {
-			this._originalWebview?.removeInsets([...this._originalWebview?.insetMapping.keys()]);
-			this._modifiedWebview?.removeInsets([...this._modifiedWebview?.insetMapping.keys()]);
-			this.notebookDiffViewModel.setViewModel(viewModels);
-		}
-
-		if (this._revealFirst && firstChangeIndex !== -1 && firstChangeIndex < this._list.length) {
-			this._revealFirst = false;
-			this._list.setFocus([firstChangeIndex]);
-			this._list.reveal(firstChangeIndex, 0.3);
-		}
-
 		if (selections) {
 			this._list.setFocus(selections);
 		}
-	}
-
-	/**
-	 * making sure that swapping cells are always translated to `insert+delete`.
-	 */
-	static prettyChanges(model: INotebookDiffEditorModel, diffResult: IDiffResult) {
-		const changes = diffResult.changes;
-		for (let i = 0; i < diffResult.changes.length - 1; i++) {
-			// then we know there is another change after current one
-			const curr = changes[i];
-			const next = changes[i + 1];
-			const x = curr.originalStart;
-			const y = curr.modifiedStart;
-
-			if (
-				curr.originalLength === 1
-				&& curr.modifiedLength === 0
-				&& next.originalStart === x + 2
-				&& next.originalLength === 0
-				&& next.modifiedStart === y + 1
-				&& next.modifiedLength === 1
-				&& model.original.notebook.cells[x].getHashValue() === model.modified.notebook.cells[y + 1].getHashValue()
-				&& model.original.notebook.cells[x + 1].getHashValue() === model.modified.notebook.cells[y].getHashValue()
-			) {
-				// this is a swap
-				curr.originalStart = x;
-				curr.originalLength = 0;
-				curr.modifiedStart = y;
-				curr.modifiedLength = 1;
-
-				next.originalStart = x + 1;
-				next.originalLength = 1;
-				next.modifiedStart = y + 2;
-				next.modifiedLength = 0;
-
-				i++;
-			}
-		}
-	}
-
-	static computeDiff(instantiationService: IInstantiationService, configurationService: IConfigurationService, model: INotebookDiffEditorModel, eventDispatcher: NotebookDiffEditorEventDispatcher, diffResult: INotebookDiffResult, fontInfo: FontInfo | undefined) {
-		const cellChanges = diffResult.cellsDiff.changes;
-		const diffElementViewModels: DiffElementCellViewModelBase[] = [];
-		const originalModel = model.original.notebook;
-		const modifiedModel = model.modified.notebook;
-		let originalCellIndex = 0;
-		let modifiedCellIndex = 0;
-
-		let firstChangeIndex = -1;
-		const initData = {
-			metadataStatusHeight: configurationService.getValue('notebook.diff.ignoreMetadata') ? 0 : 25,
-			outputStatusHeight: configurationService.getValue<boolean>('notebook.diff.ignoreOutputs') || !!(modifiedModel.transientOptions.transientOutputs) ? 0 : 25,
-			fontInfo
-		};
-
-		for (let i = 0; i < cellChanges.length; i++) {
-			const change = cellChanges[i];
-			// common cells
-
-			for (let j = 0; j < change.originalStart - originalCellIndex; j++) {
-				const originalCell = originalModel.cells[originalCellIndex + j];
-				const modifiedCell = modifiedModel.cells[modifiedCellIndex + j];
-				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
-					diffElementViewModels.push(new SideBySideDiffElementViewModel(
-						model.modified.notebook,
-						model.original.notebook,
-						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
-						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
-						'unchanged',
-						eventDispatcher,
-						initData
-					));
-				} else {
-					if (firstChangeIndex === -1) {
-						firstChangeIndex = diffElementViewModels.length;
-					}
-
-					diffElementViewModels.push(new SideBySideDiffElementViewModel(
-						model.modified.notebook,
-						model.original.notebook,
-						instantiationService.createInstance(DiffNestedCellViewModel, originalCell),
-						instantiationService.createInstance(DiffNestedCellViewModel, modifiedCell),
-						'modified',
-						eventDispatcher,
-						initData
-					));
-				}
-			}
-
-			const modifiedLCS = NotebookTextDiffEditor.computeModifiedLCS(instantiationService, change, originalModel, modifiedModel, eventDispatcher, initData);
-			if (modifiedLCS.length && firstChangeIndex === -1) {
-				firstChangeIndex = diffElementViewModels.length;
-			}
-
-			diffElementViewModels.push(...modifiedLCS);
-			originalCellIndex = change.originalStart + change.originalLength;
-			modifiedCellIndex = change.modifiedStart + change.modifiedLength;
-		}
-
-		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
-			diffElementViewModels.push(new SideBySideDiffElementViewModel(
-				model.modified.notebook,
-				model.original.notebook,
-				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[i]),
-				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[i - originalCellIndex + modifiedCellIndex]),
-				'unchanged',
-				eventDispatcher,
-				initData
-			));
-		}
-
-		return {
-			viewModels: diffElementViewModels,
-			firstChangeIndex
-		};
-	}
-
-	static computeModifiedLCS(instantiationService: IInstantiationService, change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel, eventDispatcher: NotebookDiffEditorEventDispatcher, initData: {
-		metadataStatusHeight: number;
-		outputStatusHeight: number;
-		fontInfo: FontInfo | undefined;
-	}) {
-		const result: DiffElementCellViewModelBase[] = [];
-		// modified cells
-		const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
-
-		for (let j = 0; j < modifiedLen; j++) {
-			const isTheSame = originalModel.cells[change.originalStart + j].equal(modifiedModel.cells[change.modifiedStart + j]);
-			result.push(new SideBySideDiffElementViewModel(
-				modifiedModel,
-				originalModel,
-				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
-				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
-				isTheSame ? 'unchanged' : 'modified',
-				eventDispatcher,
-				initData
-			));
-		}
-
-		for (let j = modifiedLen; j < change.originalLength; j++) {
-			// deletion
-			result.push(new SingleSideDiffElementViewModel(
-				originalModel,
-				modifiedModel,
-				instantiationService.createInstance(DiffNestedCellViewModel, originalModel.cells[change.originalStart + j]),
-				undefined,
-				'delete',
-				eventDispatcher,
-				initData
-			));
-		}
-
-		for (let j = modifiedLen; j < change.modifiedLength; j++) {
-			// insertion
-			result.push(new SingleSideDiffElementViewModel(
-				modifiedModel,
-				originalModel,
-				undefined,
-				instantiationService.createInstance(DiffNestedCellViewModel, modifiedModel.cells[change.modifiedStart + j]),
-				'insert',
-				eventDispatcher,
-				initData
-			));
-		}
-
-		return result;
 	}
 
 	scheduleOutputHeightAck(cellInfo: IDiffCellInfo, outputId: string, height: number) {
@@ -774,11 +615,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}, 10);
 	}
 
-	private pendingLayouts = new WeakMap<DiffElementCellViewModelBase, IDisposable>();
+	private pendingLayouts = new WeakMap<IDiffElementViewModelBase, IDisposable>();
 
 
-	layoutNotebookCell(cell: DiffElementCellViewModelBase, height: number) {
-		const relayout = (cell: DiffElementCellViewModelBase, height: number) => {
+	layoutNotebookCell(cell: IDiffElementViewModelBase, height: number) {
+		const relayout = (cell: IDiffElementViewModelBase, height: number) => {
 			this._list.updateElementHeight2(cell, height);
 		};
 
@@ -811,6 +652,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	previousChange(): void {
+		if (!this.notebookDiffViewModel) {
+			return;
+		}
 		let currFocus = this._list.getFocus()[0];
 
 		if (isNaN(currFocus) || currFocus < 0) {
@@ -822,7 +666,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const currentViewModels = this.notebookDiffViewModel.items;
 		while (prevChangeIndex >= 0) {
 			const vm = currentViewModels[prevChangeIndex];
-			if (vm.type !== 'unchanged') {
+			if (vm.type !== 'unchanged' && vm.type !== 'placeholder') {
 				break;
 			}
 
@@ -834,7 +678,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(prevChangeIndex);
 		} else {
 			// go to the last one
-			const index = findLastIdx(currentViewModels, vm => vm.type !== 'unchanged');
+			const index = findLastIdx(currentViewModels, vm => vm.type !== 'unchanged' && vm.type !== 'placeholder');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -843,6 +687,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	nextChange(): void {
+		if (!this.notebookDiffViewModel) {
+			return;
+		}
 		let currFocus = this._list.getFocus()[0];
 
 		if (isNaN(currFocus) || currFocus < 0) {
@@ -854,7 +701,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const currentViewModels = this.notebookDiffViewModel.items;
 		while (nextChangeIndex < currentViewModels.length) {
 			const vm = currentViewModels[nextChangeIndex];
-			if (vm.type !== 'unchanged') {
+			if (vm.type !== 'unchanged' && vm.type !== 'placeholder') {
 				break;
 			}
 
@@ -866,7 +713,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(nextChangeIndex);
 		} else {
 			// go to the first one
-			const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged');
+			const index = currentViewModels.findIndex(vm => vm.type !== 'unchanged' && vm.type !== 'placeholder');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -979,7 +826,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._modifiedResourceDisposableStore.clear();
 		this._list?.splice(0, this._list?.length || 0);
 		this._model = null;
-		this.notebookDiffViewModel.clear();
+		this.notebookDiffViewModel?.dispose();
+		this.notebookDiffViewModel = undefined;
 	}
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {

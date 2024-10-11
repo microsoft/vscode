@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import minimist from 'minimist';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { NativeParsedArgs } from '../common/argv.js';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -272,6 +272,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		const newArgs = args.filter(a => a !== firstArg);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
 			[firstArg]: subcommandOptions,
 			_: []

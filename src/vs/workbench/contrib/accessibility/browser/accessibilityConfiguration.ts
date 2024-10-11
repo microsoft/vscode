@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
-import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from 'vs/workbench/contrib/speech/common/speechService';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { Event } from 'vs/base/common/event';
-import { isDefined } from 'vs/base/common/types';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from '../../../common/configuration.js';
+import { AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from '../../speech/common/speechService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { Event } from '../../../../base/common/event.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -58,10 +58,12 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
+	ReplEditor = 'accessibility.verbosity.notebook',
 	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
 	Debug = 'accessibility.verbosity.debug',
+	Walkthrough = 'accessibility.verbosity.walkthrough',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -176,6 +178,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Debug]: {
 			description: localize('verbosity.debug', 'Provide information about how to access the debug console accessibility help dialog when the debug console or run and debug viewlet is focused. Note that a reload of the window is required for this to take effect.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.Walkthrough]: {
+			description: localize('verbosity.walkthrough', 'Provide information about how to open the walkthrough in an Accessible View.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {

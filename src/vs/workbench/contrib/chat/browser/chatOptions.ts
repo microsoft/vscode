@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IBracketPairColorizationOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IBracketPairColorizationOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IViewDescriptorService } from '../../../common/views.js';
 
 export interface IChatConfiguration {
 	editor: {

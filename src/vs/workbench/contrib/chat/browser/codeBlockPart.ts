@@ -3,69 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./codeBlockPart';
+import './codeBlockPart.css';
 
-import * as dom from 'vs/base/browser/dom';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
-import { TextEdit } from 'vs/editor/common/languages';
-import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
-import { TextModelText } from 'vs/editor/common/model/textModelText';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
-import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController2';
-import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
-import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
-import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
-import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
-import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
-import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IMarkdownVulnerability } from '../common/annotations';
-import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import * as dom from '../../../../base/browser/dom.js';
+import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
+import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
+import { IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
+import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { TextEdit } from '../../../../editor/common/languages.js';
+import { EndOfLinePreference, ITextModel } from '../../../../editor/common/model.js';
+import { TextModelText } from '../../../../editor/common/model/textModelText.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
+import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { BracketMatchingController } from '../../../../editor/contrib/bracketMatching/browser/bracketMatching.js';
+import { ColorDetector } from '../../../../editor/contrib/colorPicker/browser/colorDetector.js';
+import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
+import { GotoDefinitionAtPositionEditorContribution } from '../../../../editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition.js';
+import { ContentHoverController } from '../../../../editor/contrib/hover/browser/contentHoverController.js';
+import { GlyphHoverController } from '../../../../editor/contrib/hover/browser/glyphHoverController.js';
+import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js';
+import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
+import { ViewportSemanticTokensContribution } from '../../../../editor/contrib/semanticTokens/browser/viewportSemanticTokens.js';
+import { SmartSelectController } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
+import { WordHighlighterContribution } from '../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
+import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ResourceLabel } from '../../../browser/labels.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { InspectEditorTokensController } from '../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
+import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
+import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
+import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
+import { IMarkdownVulnerability } from '../common/annotations.js';
+import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
+import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
+import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
+import { ChatTreeItem } from './chat.js';
+import { IChatRendererDelegate } from './chatListRenderer.js';
+import { ChatEditorOptions } from './chatOptions.js';
 
 const $ = dom.$;
 
@@ -75,6 +78,8 @@ export interface ICodeBlockData {
 
 	readonly textModel: Promise<IResolvedTextEditorModel>;
 	readonly languageId: string;
+
+	readonly codemapperUri?: URI;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
@@ -123,6 +128,7 @@ export function parseLocalFileData(text: string) {
 
 export interface ICodeBlockActionContext {
 	code: string;
+	codemapperUri?: URI;
 	languageId?: string;
 	codeBlockIndex: number;
 	element: unknown;
@@ -292,10 +298,13 @@ export class CodeBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
-				ColorDetector.ID
+				ColorDetector.ID,
+				LinkDetector.ID,
+
+				InspectEditorTokensController.ID,
 			])
 		}));
 	}
@@ -403,7 +412,7 @@ export class CodeBlockPart extends Disposable {
 
 	private clearWidgets() {
 		ContentHoverController.get(this.editor)?.hideContentHover();
-		MarginHoverController.get(this.editor)?.hideContentHover();
+		GlyphHoverController.get(this.editor)?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeBlockData): Promise<void> {
@@ -418,7 +427,8 @@ export class CodeBlockPart extends Disposable {
 			code: textModel.getTextBuffer().getValueInRange(data.range ?? textModel.getFullModelRange(), EndOfLinePreference.TextDefined),
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element,
-			languageId: textModel.getLanguageId()
+			languageId: textModel.getLanguageId(),
+			codemapperUri: data.codemapperUri,
 		} satisfies ICodeBlockActionContext;
 		this.resourceContextKey.set(textModel.uri);
 	}
@@ -481,6 +491,7 @@ export interface ICodeCompareBlockData {
 }
 
 
+// long-lived object that sits in the DiffPool and that gets reused
 export class CodeCompareBlockPart extends Disposable {
 	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
@@ -492,7 +503,7 @@ export class CodeCompareBlockPart extends Disposable {
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
 
-	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable<IDiffEditorViewModel>());
+	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
 
 	constructor(
@@ -611,7 +622,7 @@ export class CodeCompareBlockPart extends Disposable {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				ContentHoverController.ID,
-				MarginHoverController.ID,
+				GlyphHoverController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
 			])
 		};
@@ -681,18 +692,20 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		const contentHeight = this.getContentHeight();
 		const editorBorder = 2;
-		const dimension = { width: width - editorBorder, height: contentHeight };
+
+		const toolbar = dom.getTotalHeight(this.toolbar.getElement());
+		const content = this.diffEditor.getModel()
+			? this.diffEditor.getContentHeight()
+			: dom.getTotalHeight(this.messageElement);
+
+		const dimension = new dom.Dimension(width - editorBorder, toolbar + content);
 		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
-		this.diffEditor.layout(dimension);
+		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
 		this.updatePaddingForLayout();
 	}
 
-	private getContentHeight() {
-		return this.diffEditor.getContentHeight();
-	}
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
 		if (data.parentContextKeyService) {
@@ -723,8 +736,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private clearWidgets() {
 		ContentHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
 		ContentHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
-		MarginHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
-		MarginHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getOriginalEditor())?.hideContentHover();
+		GlyphHoverController.get(this.diffEditor.getModifiedEditor())?.hideContentHover();
 	}
 
 	private async updateEditor(data: ICodeCompareBlockData, token: CancellationToken): Promise<void> {
@@ -739,7 +752,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.element.classList.toggle('no-diff', isEditApplied);
 
-		if (data.edit.state?.applied) {
+		if (isEditApplied) {
+			assertType(data.edit.state?.applied);
 
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
@@ -763,15 +777,11 @@ export class CodeCompareBlockPart extends Disposable {
 			});
 
 			dom.reset(this.messageElement, message);
-
 		}
 
 		const diffData = await data.diffData;
-		if (!diffData) {
-			return;
-		}
 
-		if (!isEditApplied) {
+		if (!isEditApplied && diffData) {
 			const viewModel = this.diffEditor.createViewModel({
 				original: diffData.original,
 				modified: diffData.modified
@@ -783,12 +793,18 @@ export class CodeCompareBlockPart extends Disposable {
 				return;
 			}
 
+			const listener = Event.any(diffData.original.onWillDispose, diffData.modified.onWillDispose)(() => {
+				// this a bit weird and basically duplicates https://github.com/microsoft/vscode/blob/7cbcafcbcc88298cfdcd0238018fbbba8eb6853e/src/vs/editor/browser/widget/diffEditor/diffEditorWidget.ts#L328
+				// which cannot call `setModel(null)` without first complaining
+				this.diffEditor.setModel(null);
+			});
 			this.diffEditor.setModel(viewModel);
-			this._lastDiffEditorViewModel.value = viewModel;
+			this._lastDiffEditorViewModel.value = combinedDisposable(listener, viewModel);
 
 		} else {
 			this.diffEditor.setModel(null);
 			this._lastDiffEditorViewModel.value = undefined;
+			this._onDidChangeContentHeight.fire();
 		}
 
 		this.toolbar.context = {
@@ -796,10 +812,6 @@ export class CodeCompareBlockPart extends Disposable {
 			element: data.element,
 			diffEditor: this.diffEditor,
 		} satisfies ICodeCompareBlockActionContext;
-	}
-
-	clearModel() {
-		this.diffEditor.setModel(null);
 	}
 }
 

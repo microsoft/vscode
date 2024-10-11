@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { env } from 'vs/base/common/process';
+import { IDisposable } from './lifecycle.js';
+import { env } from './process.js';
+
+function hotReloadDisabled() {
+	return true; // TODO@hediet fix hot reload.
+}
 
 export function isHotReloadEnabled(): boolean {
-	return env && !!env['VSCODE_DEV'];
+	return !hotReloadDisabled() && env && !!env['VSCODE_DEV'];
 }
 export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable {
 	if (!isHotReloadEnabled()) {

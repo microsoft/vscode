@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { Location } from 'vs/editor/common/languages';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatAgentLocation } from './chatAgents.js';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from './chatModel.js';
+import { IParsedChatRequest } from './chatParserTypes.js';
+import { IChatContentReference, IChatProgressMessage } from './chatService.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -26,7 +26,7 @@ export interface IChatVariableData {
 	canTakeArgument?: boolean;
 }
 
-export type IChatRequestVariableValue = string | URI | Location | unknown;
+export type IChatRequestVariableValue = string | URI | Location | unknown | Uint8Array;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INodeProcess, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { INodeProcess, isMacintosh, isWindows } from './platform.js';
 
 let safeProcess: Omit<INodeProcess, 'arch'> & { arch: string | undefined };
 declare const process: INodeProcess;

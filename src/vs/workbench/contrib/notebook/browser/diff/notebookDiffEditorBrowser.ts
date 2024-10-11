@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { DiffElementCellViewModelBase, IDiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { Event } from 'vs/base/common/event';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput } from '../notebookBrowser.js';
+import { DiffElementCellViewModelBase, IDiffElementViewModelBase } from './diffElementViewModel.js';
+import { Event } from '../../../../../base/common/event.js';
+import { BareFontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { NotebookOptions } from '../notebookOptions.js';
+import { NotebookLayoutInfo } from '../notebookViewEvents.js';
+import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../nls.js';
 
 export enum DiffSide {
 	Original = 0,
@@ -36,7 +38,7 @@ export interface INotebookTextDiffEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 	getScrollTop(): number;
 	getScrollHeight(): number;
-	layoutNotebookCell(cell: DiffElementCellViewModelBase, height: number): void;
+	layoutNotebookCell(cell: IDiffElementViewModelBase, height: number): void;
 	createOutput(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: IInsetRenderOutput, getOffset: () => number, diffSide: DiffSide): void;
 	showInset(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, displayOutput: ICellOutputViewModel, diffSide: DiffSide): void;
 	removeInset(cellDiffViewModel: DiffElementCellViewModelBase, cellViewModel: IDiffNestedCellViewModel, output: ICellOutputViewModel, diffSide: DiffSide): void;
@@ -89,6 +91,20 @@ export interface CellDiffSingleSideRenderTemplate extends CellDiffCommonRenderTe
 	readonly outputInfoContainer: HTMLElement;
 }
 
+
+export interface NotebookDocumentDiffElementRenderTemplate extends CellDiffCommonRenderTemplate {
+	readonly container: HTMLElement;
+	readonly body: HTMLElement;
+	readonly diffEditorContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly cellHeaderContainer: HTMLElement;
+	readonly sourceEditor: DiffEditorWidget;
+	readonly editorContainer: HTMLElement;
+	readonly inputToolbarContainer: HTMLElement;
+	readonly toolbar: WorkbenchToolBar;
+	readonly marginOverlay: IDiffCellMarginOverlay;
+}
+
 export interface IDiffCellMarginOverlay extends IDisposable {
 	onAction: Event<void>;
 	show(): void;
@@ -139,20 +155,35 @@ export interface CellDiffViewModelLayoutChangeEvent extends IDiffElementSelfLayo
 }
 
 export const DIFF_CELL_MARGIN = 16;
-export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebookDiffCellInputChanged', false);
-export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebookDiffCellPropertyChanged', false);
-export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebookDiffCellPropertyExpanded', false);
+export const NOTEBOOK_DIFF_CELL_INPUT = new RawContextKey<boolean>('notebook.diffEditor.cell.inputChanged', false);
+export const NOTEBOOK_DIFF_METADATA = new RawContextKey<boolean>('notebook.diffEditor.metadataChanged', false);
+export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY = 'notebook.diffEditor.cell.ignoreWhitespace';
+export const NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE = new RawContextKey<boolean>(NOTEBOOK_DIFF_CELL_IGNORE_WHITESPACE_KEY, false);
+export const NOTEBOOK_DIFF_CELL_PROPERTY = new RawContextKey<boolean>('notebook.diffEditor.cell.property.changed', false);
+export const NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED = new RawContextKey<boolean>('notebook.diffEditor.cell.property.expanded', false);
+export const NOTEBOOK_DIFF_CELLS_COLLAPSED = new RawContextKey<boolean>('notebook.diffEditor.allCollapsed', undefined, localize('notebook.diffEditor.allCollapsed', "Whether all cells in notebook diff editor are collapsed"));
+export const NOTEBOOK_DIFF_HAS_UNCHANGED_CELLS = new RawContextKey<boolean>('notebook.diffEditor.hasUnchangedCells', undefined, localize('notebook.diffEditor.hasUnchangedCells', "Whether there are unchanged cells in the notebook diff editor"));
+export const NOTEBOOK_DIFF_UNCHANGED_CELLS_HIDDEN = new RawContextKey<boolean>('notebook.diffEditor.unchangedCellsAreHidden', undefined, localize('notebook.diffEditor.unchangedCellsAreHidden', "Whether the unchanged cells in the notebook diff editor are hidden"));
+export const NOTEBOOK_DIFF_ITEM_KIND = new RawContextKey<boolean>('notebook.diffEditor.item.kind', undefined, localize('notebook.diffEditor.item.kind', "The kind of item in the notebook diff editor, Cell, Metadata or Output"));
+export const NOTEBOOK_DIFF_ITEM_DIFF_STATE = new RawContextKey<boolean>('notebook.diffEditor.item.state', undefined, localize('notebook.diffEditor.item.state', "The diff state of item in the notebook diff editor, delete, insert, modified or unchanged"));
 
 export interface INotebookDiffViewModelUpdateEvent {
 	readonly start: number;
 	readonly deleteCount: number;
 	readonly elements: readonly IDiffElementViewModelBase[];
+	readonly firstChangeIndex?: number;
 }
 
-export interface INotebookDiffViewModel {
+export interface INotebookDiffViewModel extends IDisposable {
 	readonly items: readonly IDiffElementViewModelBase[];
+	/**
+	 * Triggered when ever there's a change in the view model items.
+	 */
 	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
-	isEqual(viewModels: DiffElementCellViewModelBase[]): boolean;
-	setViewModel(cellViewModels: DiffElementCellViewModelBase[]): void;
-	clear(): void;
+	/**
+	 * Computes the differences and generates the viewmodel.
+	 * If view models are generated, then the onDidChangeItems is triggered.
+	 * @param token
+	 */
+	computeDiff(token: CancellationToken): Promise<void>;
 }

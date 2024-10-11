@@ -4,7 +4,7 @@ parameters:
     default: []
 
 steps:
-  - task: AzureKeyVault@1
+  - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"

@@ -3,44 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
+import { Emitter, Event, EventMultiplexer } from '../../../../base/common/event.js';
 import {
 	ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionsControlManifest, IExtensionGalleryService, InstallOptions, UninstallOptions, InstallExtensionResult, ExtensionManagementError, ExtensionManagementErrorCode, Metadata, InstallOperation, EXTENSION_INSTALL_SOURCE_CONTEXT, InstallExtensionInfo,
 	IProductVersion,
 	ExtensionInstallSource,
 	DidUpdateExtensionMetadata,
 	UninstallExtensionInfo
-} from 'vs/platform/extensionManagement/common/extensionManagement';
-import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { areSameExtensions, computeTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { localize } from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { IDownloadService } from 'vs/platform/download/common/download';
-import { coalesce } from 'vs/base/common/arrays';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
-import { IUserDataSyncEnablementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { Promises } from 'vs/base/common/async';
-import { IWorkspaceTrustRequestService, WorkspaceTrustRequestButton } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isString, isUndefined } from 'vs/base/common/types';
-import { FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionsScannerService, IScannedExtension } from 'vs/platform/extensionManagement/common/extensionsScannerService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+} from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { DidChangeProfileForServerEvent, DidUninstallExtensionOnServerEvent, IExtensionManagementServer, IExtensionManagementServerService, InstallExtensionOnServerEvent, IResourceExtension, IWorkbenchExtensionManagementService, UninstallExtensionOnServerEvent } from './extensionManagement.js';
+import { ExtensionType, isLanguagePackExtension, IExtensionManifest, getWorkspaceSupportTypeMessage, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { areSameExtensions, computeTargetPlatform } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { localize } from '../../../../nls.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IDownloadService } from '../../../../platform/download/common/download.js';
+import { coalesce } from '../../../../base/common/arrays.js';
+import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
+import Severity from '../../../../base/common/severity.js';
+import { IUserDataSyncEnablementService, SyncResource } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { Promises } from '../../../../base/common/async.js';
+import { IWorkspaceTrustRequestService, WorkspaceTrustRequestButton } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IExtensionManifestPropertiesService } from '../../extensions/common/extensionManifestPropertiesService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { isString, isUndefined } from '../../../../base/common/types.js';
+import { FileChangesEvent, IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionsScannerService, IScannedExtension } from '../../../../platform/extensionManagement/common/extensionsScannerService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 function isGalleryExtension(extension: IResourceExtension | IGalleryExtension): extension is IGalleryExtension {
 	return extension.type === 'gallery';
@@ -63,6 +64,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 
 	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+
+	private readonly _onDidProfileAwareInstallExtensions = this._register(new Emitter<readonly InstallExtensionResult[]>());
+	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
+
+	private readonly _onDidProfileAwareUninstallExtension = this._register(new Emitter<DidUninstallExtensionOnServerEvent>());
+	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+
+	readonly onProfileAwareDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
+
 	readonly onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	readonly onDidEnableExtensions: Event<ILocalExtension[]>;
@@ -75,6 +85,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		@IExtensionManagementServerService protected readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IProductService protected readonly productService: IProductService,
 		@IDownloadService protected readonly downloadService: IDownloadService,
@@ -111,6 +122,10 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this._register(onDidInstallExtensionsEventMultiplexer.add(this._onDidInstallExtensions.event));
 		this.onDidInstallExtensions = onDidInstallExtensionsEventMultiplexer.event;
 
+		const onDidProfileAwareInstallExtensionsEventMultiplexer = this._register(new EventMultiplexer<readonly InstallExtensionResult[]>());
+		this._register(onDidProfileAwareInstallExtensionsEventMultiplexer.add(this._onDidProfileAwareInstallExtensions.event));
+		this.onProfileAwareDidInstallExtensions = onDidProfileAwareInstallExtensionsEventMultiplexer.event;
+
 		const onUninstallExtensionEventMultiplexer = this._register(new EventMultiplexer<UninstallExtensionOnServerEvent>());
 		this._register(onUninstallExtensionEventMultiplexer.add(this._onUninstallExtension.event));
 		this.onUninstallExtension = onUninstallExtensionEventMultiplexer.event;
@@ -119,8 +134,15 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this._register(onDidUninstallExtensionEventMultiplexer.add(this._onDidUninstallExtension.event));
 		this.onDidUninstallExtension = onDidUninstallExtensionEventMultiplexer.event;
 
+		const onDidProfileAwareUninstallExtensionEventMultiplexer = this._register(new EventMultiplexer<DidUninstallExtensionOnServerEvent>());
+		this._register(onDidProfileAwareUninstallExtensionEventMultiplexer.add(this._onDidProfileAwareUninstallExtension.event));
+		this.onProfileAwareDidUninstallExtension = onDidProfileAwareUninstallExtensionEventMultiplexer.event;
+
 		const onDidUpdateExtensionMetadaEventMultiplexer = this._register(new EventMultiplexer<DidUpdateExtensionMetadata>());
 		this.onDidUpdateExtensionMetadata = onDidUpdateExtensionMetadaEventMultiplexer.event;
+
+		const onDidProfileAwareUpdateExtensionMetadaEventMultiplexer = this._register(new EventMultiplexer<DidUpdateExtensionMetadata>());
+		this.onProfileAwareDidUpdateExtensionMetadata = onDidProfileAwareUpdateExtensionMetadaEventMultiplexer.event;
 
 		const onDidChangeProfileEventMultiplexer = this._register(new EventMultiplexer<DidChangeProfileForServerEvent>());
 		this.onDidChangeProfile = onDidChangeProfileEventMultiplexer.event;
@@ -128,9 +150,12 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		for (const server of this.servers) {
 			this._register(onInstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onInstallExtension, e => ({ ...e, server }))));
 			this._register(onDidInstallExtensionsEventMultiplexer.add(server.extensionManagementService.onDidInstallExtensions));
+			this._register(onDidProfileAwareInstallExtensionsEventMultiplexer.add(server.extensionManagementService.onProfileAwareDidInstallExtensions));
 			this._register(onUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))));
 			this._register(onDidUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))));
+			this._register(onDidProfileAwareUninstallExtensionEventMultiplexer.add(Event.map(server.extensionManagementService.onProfileAwareDidUninstallExtension, e => ({ ...e, server }))));
 			this._register(onDidUpdateExtensionMetadaEventMultiplexer.add(server.extensionManagementService.onDidUpdateExtensionMetadata));
+			this._register(onDidProfileAwareUpdateExtensionMetadaEventMultiplexer.add(server.extensionManagementService.onProfileAwareDidUpdateExtensionMetadata));
 			this._register(onDidChangeProfileEventMultiplexer.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))));
 		}
 	}
@@ -195,7 +220,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			promises.push(this.uninstallInServer(server, extensions));
 		}
 
-		await Promise.allSettled(promises);
+		const result = await Promise.allSettled(promises);
+		const errors = result.filter(r => r.status === 'rejected').map(r => r.reason);
+		if (errors.length) {
+			throw new Error(errors.map(e => e.message).join('\n'));
+		}
 	}
 
 	private async uninstallInServer(server: IExtensionManagementServer, extensions: UninstallExtensionInfo[]): Promise<void> {
@@ -238,7 +267,8 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	updateMetadata(extension: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension> {
 		const server = this.getServer(extension);
 		if (server) {
-			return server.extensionManagementService.updateMetadata(extension, metadata, this.userDataProfileService.currentProfile.extensionsResource);
+			const profile = extension.isApplicationScoped ? this.userDataProfilesService.defaultProfile : this.userDataProfileService.currentProfile;
+			return server.extensionManagementService.updateMetadata(extension, metadata, profile.extensionsResource);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
@@ -1027,7 +1057,7 @@ class WorkspaceExtensionsManagementService extends Disposable {
 		if (extension.manifest.main) {
 			if (!(await this.fileService.exists(this.uriIdentityService.extUri.joinPath(extension.location, extension.manifest.main)))) {
 				isValid = false;
-				validations.push([Severity.Error, localize('main.notFound', "Cannot activate, becase {0} not found", extension.manifest.main)]);
+				validations.push([Severity.Error, localize('main.notFound', "Cannot activate because {0} not found", extension.manifest.main)]);
 			}
 		}
 		return {

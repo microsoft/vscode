@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getRandomElement } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { memoize } from 'vs/base/common/decorators';
-import { CancellationError, ErrorNoTelemetry } from 'vs/base/common/errors';
-import { Emitter, Event, EventMultiplexer, Relay } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import * as strings from 'vs/base/common/strings';
-import { isFunction, isUndefinedOrNull } from 'vs/base/common/types';
+import { getRandomElement } from '../../../common/arrays.js';
+import { CancelablePromise, createCancelablePromise, timeout } from '../../../common/async.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../common/cancellation.js';
+import { memoize } from '../../../common/decorators.js';
+import { CancellationError, ErrorNoTelemetry } from '../../../common/errors.js';
+import { Emitter, Event, EventMultiplexer, Relay } from '../../../common/event.js';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { revive } from '../../../common/marshalling.js';
+import * as strings from '../../../common/strings.js';
+import { isFunction, isUndefinedOrNull } from '../../../common/types.js';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -553,6 +553,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	getChannel<T extends IChannel>(channelName: string): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken) {
 				if (that.isDisposed) {
@@ -569,7 +570,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		} as T;
 	}
 
-	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<any> {
+	private requestPromise(channelName: string, name: string, arg?: any, cancellationToken = CancellationToken.None): Promise<unknown> {
 		const id = this.lastRequestId++;
 		const type = RequestType.Promise;
 		const request: IRawRequest = { id, type, channelName, name, arg };
@@ -845,6 +846,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	getChannel<T extends IChannel>(channelName: string, routerOrClientFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean)): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				let connectionPromise: Promise<Client<TContext>>;
@@ -994,6 +996,7 @@ export class IPCClient<TContext = string> implements IChannelClient, IChannelSer
 }
 
 export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	return {
 		call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			return promise.then(c => c.call<T>(command, arg, cancellationToken));
@@ -1010,6 +1013,7 @@ export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 export function getNextTickChannel<T extends IChannel>(channel: T): T {
 	let didTick = false;
 
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	return {
 		call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 			if (didTick) {

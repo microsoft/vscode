@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider, MultiDocumentHighlightProvider, ProviderResult } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { Position } from 'vs/editor/common/core/position';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { LanguageFilter } from 'vs/editor/common/languageSelector';
+import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider, MultiDocumentHighlightProvider, ProviderResult } from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { Position } from '../../../common/core/position.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { LanguageFilter } from '../../../common/languageSelector.js';
 
 
 class TextualDocumentHighlightProvider implements DocumentHighlightProvider, MultiDocumentHighlightProvider {

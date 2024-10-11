@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { marked } from 'vs/base/common/marked/marked';
-import { localize } from 'vs/nls';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { isRequestVM, isResponseVM, isWelcomeVM, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { marked } from '../../../../base/common/marked/marked.js';
+import { localize } from '../../../../nls.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { ChatTreeItem } from './chat.js';
+import { isRequestVM, isResponseVM, IChatResponseViewModel } from '../common/chatViewModel.js';
 
 export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
 
@@ -38,10 +38,6 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 
 		if (isResponseVM(element)) {
 			return this._getLabelWithCodeBlockCount(element);
-		}
-
-		if (isWelcomeVM(element)) {
-			return element.content.map(c => 'value' in c ? c.value : c.map(followup => followup.message).join('\n')).join('\n');
 		}
 
 		return '';

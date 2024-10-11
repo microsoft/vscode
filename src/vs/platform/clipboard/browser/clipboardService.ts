@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { DeferredPromise } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { isSafari, isWebkitWebView } from '../../../base/browser/browser.js';
+import { $, addDisposableListener, getActiveDocument, getActiveWindow, isHTMLElement, onDidRegisterWindow } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { hash } from '../../../base/common/hash.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { IClipboardService } from '../common/clipboardService.js';
+import { ILayoutService } from '../../layout/browser/layoutService.js';
+import { ILogService } from '../../log/common/log.js';
 
 /**
  * Custom mime type used for storing a list of uris in the clipboard.
@@ -43,6 +43,29 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResourcesState()));
 		}, { window: mainWindow, disposables: this._store }));
+	}
+
+	async readImage(): Promise<Uint8Array> {
+		try {
+			const clipboardItems = await navigator.clipboard.read();
+			const clipboardItem = clipboardItems[0];
+
+			const supportedImageTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/tiff', 'image/bmp'];
+			const mimeType = supportedImageTypes.find(type => clipboardItem.types.includes(type));
+
+			if (mimeType) {
+				const blob = await clipboardItem.getType(mimeType);
+				const buffer = await blob.arrayBuffer();
+				return new Uint8Array(buffer);
+			} else {
+				console.error('No supported image type found in the clipboard');
+			}
+		} catch (error) {
+			console.error('Error reading image from clipboard:', error);
+		}
+
+		// Return an empty Uint8Array if no image is found or an error occurs
+		return new Uint8Array(0);
 	}
 
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
@@ -81,6 +104,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 				}
 			});
 		};
+
 
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
 			disposables.add(addDisposableListener(container, 'click', handler));

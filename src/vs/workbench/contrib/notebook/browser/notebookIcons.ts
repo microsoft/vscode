@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
 export const executeIcon = registerIcon('notebook-execute', Codicon.play, localize('executeIcon', 'Icon to execute in notebook editors.'));
@@ -29,6 +29,7 @@ export const collapsedIcon = registerIcon('notebook-collapsed', Codicon.chevronR
 export const expandedIcon = registerIcon('notebook-expanded', Codicon.chevronDown, localize('expandedIcon', 'Icon to annotate an expanded section in notebook editors.'));
 export const openAsTextIcon = registerIcon('notebook-open-as-text', Codicon.fileCode, localize('openAsTextIcon', 'Icon to open the notebook in a text editor.'));
 export const revertIcon = registerIcon('notebook-revert', Codicon.discard, localize('revertIcon', 'Icon to revert in notebook editors.'));
+export const toggleWhitespace = registerIcon('notebook-diff-cell-toggle-whitespace', Codicon.whitespace, localize('toggleWhitespace', 'Icon for the toggle whitespace action in the diff editor.'));
 export const renderOutputIcon = registerIcon('notebook-render-output', Codicon.preview, localize('renderOutputIcon', 'Icon to render output in diff editor.'));
 export const mimetypeIcon = registerIcon('notebook-mimetype', Codicon.code, localize('mimetypeIcon', 'Icon for a mime type in notebook editors.'));
 export const copyIcon = registerIcon('notebook-copy', Codicon.copy, localize('copyIcon', 'Icon to copy content to clipboard'));
@@ -36,4 +37,4 @@ export const copyIcon = registerIcon('notebook-copy', Codicon.copy, localize('co
 export const previousChangeIcon = registerIcon('notebook-diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
 export const nextChangeIcon = registerIcon('notebook-diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));
 
-export const variablesViewIcon = registerIcon('variables-view-icon', Codicon.debugAlt, localize('variablesViewIcon', 'View icon of the variables view.'));
+export const variablesViewIcon = registerIcon('variables-view-icon', Codicon.variableGroup, localize('variablesViewIcon', 'View icon of the variables view.'));

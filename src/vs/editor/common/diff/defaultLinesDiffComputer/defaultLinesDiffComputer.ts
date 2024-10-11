@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals, groupAdjacentBy } from 'vs/base/common/arrays';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { DateTimeout, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
-import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
-import { computeMovedLines } from 'vs/editor/common/diff/defaultLinesDiffComputer/computeMovedLines';
-import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeShortMatches, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
-import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
-import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../rangeMapping';
+import { equals } from '../../../../base/common/arrays.js';
+import { assertFn } from '../../../../base/common/assert.js';
+import { LineRange } from '../../core/lineRange.js';
+import { OffsetRange } from '../../core/offsetRange.js';
+import { Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ArrayText } from '../../core/textEdit.js';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff, MovedText } from '../linesDiffComputer.js';
+import { DetailedLineRangeMapping, LineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../rangeMapping.js';
+import { DateTimeout, InfiniteTimeout, ITimeout, SequenceDiff } from './algorithms/diffAlgorithm.js';
+import { DynamicProgrammingDiffing } from './algorithms/dynamicProgrammingDiffing.js';
+import { MyersDiffAlgorithm } from './algorithms/myersDiffAlgorithm.js';
+import { computeMovedLines } from './computeMovedLines.js';
+import { extendDiffsToEntireWordIfAppropriate, optimizeSequenceDiffs, removeShortMatches, removeVeryShortMatchingLinesBetweenDiffs, removeVeryShortMatchingTextBetweenLongDiffs } from './heuristicSequenceOptimizations.js';
+import { LineSequence } from './lineSequence.js';
+import { LinesSliceCharSequence } from './linesSliceCharSequence.js';
 
 export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
@@ -140,7 +141,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 
 		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
-		const changes = lineRangeMappingFromRangeMappings(alignments, originalLines, modifiedLines);
+		const changes = lineRangeMappingFromRangeMappings(alignments, new ArrayText(originalLines), new ArrayText(modifiedLines));
 
 		let moves: MovedText[] = [];
 		if (options.computeMoves) {
@@ -203,7 +204,7 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 				m.original.toOffsetRange(),
 				m.modified.toOffsetRange(),
 			), timeout, considerWhitespaceChanges);
-			const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, originalLines, modifiedLines, true);
+			const mappings = lineRangeMappingFromRangeMappings(moveChanges.mappings, new ArrayText(originalLines), new ArrayText(modifiedLines), true);
 			return new MovedText(m, mappings);
 		});
 		return movesWithDiffs;
@@ -250,81 +251,6 @@ export class DefaultLinesDiffComputer implements ILinesDiffComputer {
 			hitTimeout: diffResult.hitTimeout,
 		};
 	}
-}
-
-export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], originalLines: string[], modifiedLines: string[], dontAssertStartLine: boolean = false): DetailedLineRangeMapping[] {
-	const changes: DetailedLineRangeMapping[] = [];
-	for (const g of groupAdjacentBy(
-		alignments.map(a => getLineRangeMapping(a, originalLines, modifiedLines)),
-		(a1, a2) =>
-			a1.original.overlapOrTouch(a2.original)
-			|| a1.modified.overlapOrTouch(a2.modified)
-	)) {
-		const first = g[0];
-		const last = g[g.length - 1];
-
-		changes.push(new DetailedLineRangeMapping(
-			first.original.join(last.original),
-			first.modified.join(last.modified),
-			g.map(a => a.innerChanges![0]),
-		));
-	}
-
-	assertFn(() => {
-		if (!dontAssertStartLine && changes.length > 0) {
-			if (changes[0].modified.startLineNumber !== changes[0].original.startLineNumber) {
-				return false;
-			}
-			if (modifiedLines.length - changes[changes.length - 1].modified.endLineNumberExclusive !== originalLines.length - changes[changes.length - 1].original.endLineNumberExclusive) {
-				return false;
-			}
-		}
-		return checkAdjacentItems(changes,
-			(m1, m2) => m2.original.startLineNumber - m1.original.endLineNumberExclusive === m2.modified.startLineNumber - m1.modified.endLineNumberExclusive &&
-				// There has to be an unchanged line in between (otherwise both diffs should have been joined)
-				m1.original.endLineNumberExclusive < m2.original.startLineNumber &&
-				m1.modified.endLineNumberExclusive < m2.modified.startLineNumber,
-		);
-	});
-
-	return changes;
-}
-
-export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: string[], modifiedLines: string[]): DetailedLineRangeMapping {
-	let lineStartDelta = 0;
-	let lineEndDelta = 0;
-
-	// rangeMapping describes the edit that replaces `rangeMapping.originalRange` with `newText := getText(modifiedLines, rangeMapping.modifiedRange)`.
-
-	// original: ]xxx \n <- this line is not modified
-	// modified: ]xx  \n
-	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1
-		&& rangeMapping.originalRange.startLineNumber + lineStartDelta <= rangeMapping.originalRange.endLineNumber
-		&& rangeMapping.modifiedRange.startLineNumber + lineStartDelta <= rangeMapping.modifiedRange.endLineNumber) {
-		// We can only do this if the range is not empty yet
-		lineEndDelta = -1;
-	}
-
-	// original: xxx[ \n <- this line is not modified
-	// modified: xxx[ \n
-	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
-		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length
-		&& rangeMapping.originalRange.startLineNumber <= rangeMapping.originalRange.endLineNumber + lineEndDelta
-		&& rangeMapping.modifiedRange.startLineNumber <= rangeMapping.modifiedRange.endLineNumber + lineEndDelta) {
-		// We can only do this if the range is not empty yet
-		lineStartDelta = 1;
-	}
-
-	const originalLineRange = new LineRange(
-		rangeMapping.originalRange.startLineNumber + lineStartDelta,
-		rangeMapping.originalRange.endLineNumber + 1 + lineEndDelta
-	);
-	const modifiedLineRange = new LineRange(
-		rangeMapping.modifiedRange.startLineNumber + lineStartDelta,
-		rangeMapping.modifiedRange.endLineNumber + 1 + lineEndDelta
-	);
-
-	return new DetailedLineRangeMapping(originalLineRange, modifiedLineRange, [rangeMapping]);
 }
 
 function toLineRangeMapping(sequenceDiff: SequenceDiff) {

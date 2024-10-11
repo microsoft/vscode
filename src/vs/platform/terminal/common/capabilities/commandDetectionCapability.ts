@@ -3,18 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { debounce } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
-import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
-import { PromptInputModel, type IPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { debounce } from '../../../../base/common/decorators.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, MandatoryMutableDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../log/common/log.js';
+import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, IXtermMarker, TerminalCapability } from './capabilities.js';
+import { ITerminalOutputMatcher } from '../terminal.js';
+import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from './commandDetection/terminalCommand.js';
+import { PromptInputModel, type IPromptInputModel } from './commandDetection/promptInputModel.js';
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 interface ITerminalDimensions {
@@ -47,6 +44,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	// TODO: as is unsafe here and it duplicates behavor of executingCommand
 	get executingCommandObject(): ITerminalCommand | undefined {
 		if (this._currentCommand.commandStartMarker) {
+			// eslint-disable-next-line local/code-no-dangerous-type-assertions
 			return { marker: this._currentCommand.commandStartMarker } as ITerminalCommand;
 		}
 		return undefined;
@@ -433,6 +431,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._currentCommand.commandStartX = e.startX;
 				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._cwd = e.cwd;
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
 			}
@@ -514,6 +513,7 @@ class UnixPtyHeuristics extends Disposable {
 		}
 		this._hooks.commandMarkers.length = 0;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._hooks.onCommandStartedEmitter.fire({ marker: options?.marker || currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', currentCommand.commandStartX, currentCommand.commandStartMarker?.line);
 	}
@@ -773,6 +773,7 @@ class WindowsPtyHeuristics extends Disposable {
 				this._capability.currentCommand.commandStartLineContent = line.translateToString(true);
 			}
 		}
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		this._hooks.onCommandStartedEmitter.fire({ marker: this._capability.currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._capability.currentCommand.commandStartX, this._capability.currentCommand.commandStartMarker?.line);
 	}

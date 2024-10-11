@@ -116,12 +116,9 @@ export class TypeScriptServerSpawner {
 				return CompositeServerType.Single;
 
 			case SyntaxServerConfiguration.Auto:
-				if (version.apiVersion?.gte(API.v340)) {
-					return version.apiVersion?.gte(API.v400)
-						? CompositeServerType.DynamicSeparateSyntax
-						: CompositeServerType.SeparateSyntax;
-				}
-				return CompositeServerType.Single;
+				return version.apiVersion?.gte(API.v400)
+					? CompositeServerType.DynamicSeparateSyntax
+					: CompositeServerType.SeparateSyntax;
 		}
 	}
 
@@ -271,12 +268,20 @@ export class TypeScriptServerSpawner {
 
 		args.push('--noGetErrOnBackgroundUpdate');
 
+		const configUseVsCodeWatcher = configuration.useVsCodeWatcher;
+		const isYarnPnp = apiVersion.isYarnPnp();
 		if (
 			apiVersion.gte(API.v544)
-			&& configuration.useVsCodeWatcher
-			&& !apiVersion.isYarnPnp() // Disable for yarn pnp as it currently breaks with the VS Code watcher
+			&& configUseVsCodeWatcher
+			&& !isYarnPnp // Disable for yarn pnp as it currently breaks with the VS Code watcher
 		) {
 			args.push('--canUseWatchEvents');
+		} else {
+			if (!configUseVsCodeWatcher) {
+				this._logger.info(`<${kind}> Falling back to legacy node.js based file watching because of user settings.`);
+			} else if (isYarnPnp) {
+				this._logger.info(`<${kind}> Falling back to legacy node.js based file watching because of Yarn PnP.`);
+			}
 		}
 
 		args.push('--validateDefaultNpmLocation');

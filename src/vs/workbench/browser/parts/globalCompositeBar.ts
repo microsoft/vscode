@@ -3,47 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { IActivity, IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CompositeBarActionViewItem, CompositeBarAction, IActivityHoverOptions, ICompositeBarActionViewItemOptions, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { Lazy } from 'vs/base/common/lazy';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
-import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSessionAccount, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-import { isString } from 'vs/base/common/types';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
-import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { localize } from '../../../nls.js';
+import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
+import { IActivity, IActivityService, NumberBadge } from '../../services/activity/common/activity.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
+import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { CompositeBarActionViewItem, CompositeBarAction, IActivityHoverOptions, ICompositeBarActionViewItemOptions, ICompositeBarColors } from './compositeBarActions.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
+import { Action, IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
+import { IMenu, IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
+import { AnchorAlignment, AnchorAxisAlignment } from '../../../base/browser/ui/contextview/contextview.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { createAndFillInActionBarActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { ISecretStorageService } from '../../../platform/secrets/common/secrets.js';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from '../../services/authentication/browser/authenticationService.js';
+import { AuthenticationSessionAccount, IAuthenticationService } from '../../services/authentication/common/authentication.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { ILifecycleService, LifecyclePhase } from '../../services/lifecycle/common/lifecycle.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { DEFAULT_ICON } from '../../services/userDataProfile/common/userDataProfileIcons.js';
+import { isString } from '../../../base/common/types.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../common/theme.js';
+import { IBaseActionViewItemOptions } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -602,8 +602,7 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		}
 
 		show(this.profileBadge);
-		this.profileBadgeContent.classList.toggle('profile-text-overlay', true);
-		this.profileBadgeContent.classList.toggle('profile-icon-overlay', false);
+		this.profileBadgeContent.classList.add('profile-text-overlay');
 		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
 	}
 
