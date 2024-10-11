@@ -166,4 +166,5 @@ steps:
     displayName: TSA Upload
     continueOnError: true
     inputs:
+      GdnPublishTsaOnboard: true
       GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json'
