@@ -58,7 +58,7 @@ export class ChatAttachmentModel extends Disposable {
 		this._onDidChangeContext.fire();
 	}
 
-	async attachScreenshot(): Promise<void> {
+	async addVSCodeScreenshot(): Promise<void> {
 		this.clear();
 		const variable = await getScreenshotAsVariable();
 		if (!variable) {
