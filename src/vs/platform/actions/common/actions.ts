@@ -638,7 +638,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	disposables.push(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		metadata: command.metadata,
+		metadata: command.metadata ?? { description: action.desc.title }
 	}));
 
 	// menu
