@@ -5,6 +5,7 @@
 
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { localize } from '../../../nls.js';
 
 interface IBoundingBox {
 	x: number;
@@ -32,7 +33,22 @@ class BoundingBox implements IBoundingBox {
 	get bottom() { return this.y + this.height; }
 }
 
-export async function generateFocusedWindowScreenshot(): Promise<Uint8Array | undefined> {
+export async function getScreenshotAsVariable(): Promise<IScreenshotVariableEntry | undefined> {
+	const screenshot = await generateFocusedWindowScreenshot();
+	if (!screenshot) {
+		return;
+	}
+
+	return {
+		id: 'screenshot-focused-window',
+		name: localize('screenshot', 'Screenshot'),
+		value: new Uint8Array(screenshot),
+		isImage: true,
+		isDynamic: true
+	};
+}
+
+export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | undefined> {
 	try {
 		const windowBounds = getActiveWindowBounds();
 		if (!windowBounds) {
@@ -45,7 +61,7 @@ export async function generateFocusedWindowScreenshot(): Promise<Uint8Array | un
 	}
 }
 
-async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<Uint8Array | undefined> {
+async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<ArrayBuffer | undefined> {
 	const windowBounds = getActiveWindowBounds();
 	if (!windowBounds) {
 		return undefined;
@@ -104,9 +120,8 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<U
 			throw new Error('Failed to create blob from canvas');
 		}
 
-		// Convert the Blob to an ArrayBuffer and then return it as a Uint8Array
-		const arrayBuffer = await blob.arrayBuffer();
-		return new Uint8Array(arrayBuffer);
+		// Convert the Blob to an ArrayBuffer
+		return blob.arrayBuffer();
 
 	} catch (error) {
 		console.error('Error taking screenshot:', error);
@@ -136,4 +151,12 @@ function getActiveWindowBounds(): IBoundingBox | undefined {
 		Math.round(window.innerWidth * window.devicePixelRatio),
 		Math.round(window.innerHeight * window.devicePixelRatio),
 	);
+}
+
+interface IScreenshotVariableEntry {
+	id: string;
+	name: string;
+	value: Uint8Array;
+	isDynamic?: boolean;
+	isImage?: boolean;
 }

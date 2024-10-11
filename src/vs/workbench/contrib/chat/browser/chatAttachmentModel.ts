@@ -5,12 +5,11 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { generateFocusedWindowScreenshot } from '../../../../platform/screenshot/browser/screenshot.js';
+import { getScreenshotAsVariable } from '../../../../platform/screenshot/browser/screenshot.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IRange } from '../../../../base/common/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
-import { localize } from '../../../../nls.js';
 
 export class ChatAttachmentModel extends Disposable {
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
@@ -61,17 +60,11 @@ export class ChatAttachmentModel extends Disposable {
 
 	async attachScreenshot(): Promise<void> {
 		this.clear();
-		const imageData = await generateFocusedWindowScreenshot();
-		if (!imageData) {
+		const variable = await getScreenshotAsVariable();
+		if (!variable) {
 			return;
 		}
-		this.addContext({
-			id: 'screenshot-focused-window',
-			name: localize('screenshot', 'Screenshot'),
-			value: imageData,
-			isImage: true,
-			isDynamic: true
-		});
+		this.addContext(variable);
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {

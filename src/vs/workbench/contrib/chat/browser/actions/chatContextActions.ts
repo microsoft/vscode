@@ -44,7 +44,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { SearchView } from '../../../search/browser/searchView.js';
-import { generateFocusedWindowScreenshot } from '../../../../../platform/screenshot/browser/screenshot.js';
+import { getScreenshotAsVariable } from '../../../../../platform/screenshot/browser/screenshot.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -340,16 +340,11 @@ export class AttachContextAction extends Action2 {
 					chatEditingService?.addFileToWorkingSet(result.resource);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
-				const imageData = await generateFocusedWindowScreenshot();
-				if (imageData) {
-					toAttach.push({
-						id: 'screenshot-focused-window',
-						name: localize('screenshot', 'Screenshot'),
-						value: imageData,
-						isImage: true,
-						isDynamic: true
-					});
+				const variable = await getScreenshotAsVariable();
+				if (!variable) {
+					return;
 				}
+				toAttach.push(variable);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
