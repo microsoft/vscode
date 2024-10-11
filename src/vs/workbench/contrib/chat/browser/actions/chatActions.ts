@@ -38,6 +38,7 @@ import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
+import { getScreenshotAsVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -114,7 +115,10 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.attachScreenshot) {
-			await chatWidget.attachmentModel.addVSCodeScreenshot();
+			const screenshot = await getScreenshotAsVariable();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(screenshot);
+			}
 		}
 		if (opts?.query) {
 			if (opts.isPartialQuery) {

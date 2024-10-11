@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
-import { getScreenshotAsVariable } from './contrib/screenshot.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 
 export class ChatAttachmentModel extends Disposable {
@@ -56,15 +55,6 @@ export class ChatAttachmentModel extends Disposable {
 		}
 
 		this._onDidChangeContext.fire();
-	}
-
-	async addVSCodeScreenshot(): Promise<void> {
-		this.clear();
-		const variable = await getScreenshotAsVariable();
-		if (!variable) {
-			return;
-		}
-		this.addContext(variable);
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {
