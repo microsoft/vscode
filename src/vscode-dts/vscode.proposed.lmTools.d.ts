@@ -165,12 +165,6 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
-		 * A human-readable name for this tool that may be used to describe it in the UI.
-		 * TODO@API keep?
-		 */
-		readonly displayName: string | undefined;
-
-		/**
 		 * A description of this tool that may be passed to a language model.
 		 */
 		readonly description: string;
