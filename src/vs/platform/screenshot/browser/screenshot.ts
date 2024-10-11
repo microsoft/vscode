@@ -32,8 +32,7 @@ class BoundingBox implements IBoundingBox {
 	get bottom() { return this.y + this.height; }
 }
 
-
-export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | undefined> {
+export async function generateFocusedWindowScreenshot(): Promise<Uint8Array | undefined> {
 	try {
 		const windowBounds = getActiveWindowBounds();
 		if (!windowBounds) {
@@ -46,7 +45,7 @@ export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | u
 	}
 }
 
-async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<ArrayBuffer | undefined> {
+async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<Uint8Array | undefined> {
 	const windowBounds = getActiveWindowBounds();
 	if (!windowBounds) {
 		return undefined;
@@ -106,7 +105,8 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 		}
 
 		// Convert the Blob to an ArrayBuffer and then return it as a Uint8Array
-		return blob.arrayBuffer();
+		const arrayBuffer = await blob.arrayBuffer();
+		return new Uint8Array(arrayBuffer);
 
 	} catch (error) {
 		console.error('Error taking screenshot:', error);

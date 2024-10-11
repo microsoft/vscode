@@ -227,7 +227,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	) {
 		super();
 
-		this._attachmentModel = this._register(new ChatAttachmentModel(fileService, nativeEnvironmentService));
+		this._attachmentModel = this._register(new ChatAttachmentModel());
 		this.getInputState = (): IChatInputState => {
 			// Get input state from widget contribs, merge with attachments
 			return {
