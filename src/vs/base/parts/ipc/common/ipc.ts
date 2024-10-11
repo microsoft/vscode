@@ -637,7 +637,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				e(new CancellationError());
 			};
 
-			disposable = combinedDisposable(cancellationToken.onCancellationRequested(cancel));
+			disposable = cancellationToken.onCancellationRequested(cancel);
 			disposableWithRequestCancel = {
 				dispose: createSingleCallFunction(() => {
 					cancel();
