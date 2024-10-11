@@ -54,7 +54,6 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		video.play();
 
 		// Wait for the video to load properly before capturing the screenshot
-
 		const store = new DisposableStore();
 		await Promise.all([
 			new Promise<void>(r => store.add(addDisposableListener(video, 'loadedmetadata', () => r()))),
@@ -105,7 +104,7 @@ function generateIdUsingDateTime(): string {
 	const seconds = String(now.getSeconds()).padStart(2, '0');
 	const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
 
-	return `${year}${month}${day}${hours}${minutes}${seconds}${milliseconds}`;
+	return `${year}-${month}-${day}_${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
 function getActiveWindowBounds(): { width: number; height: number; x: number; y: number } | undefined {
