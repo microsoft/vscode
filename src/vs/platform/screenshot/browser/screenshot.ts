@@ -113,9 +113,8 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 			0, 0, cropDimensions.width, cropDimensions.height,
 		);
 
-		// TODO: jpg is probably the better format
-		// Convert the canvas to a Blob (PNG format)
-		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
+		// Convert the canvas to a Blob (JPEG format), use .95 for quality
+		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95));
 		if (!blob) {
 			throw new Error('Failed to create blob from canvas');
 		}
@@ -135,6 +134,7 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 		}
 	}
 }
+
 
 function getActiveWindowBounds(): IBoundingBox | undefined {
 	const window = getActiveWindow();
