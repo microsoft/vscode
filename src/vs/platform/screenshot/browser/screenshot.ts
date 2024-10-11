@@ -5,29 +5,31 @@
 
 import { IFileService } from '../../files/common/files.js';
 import { URI } from '../../../base/common/uri.js';
-import { getActiveWindow } from '../../../base/browser/dom.js';
+import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import * as path from '../../../base/common/path.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
 		const tmpDir = nativeEnvironmentService.tmpDir;
 		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
 
-		const bounds = getActiveWindowBounds();
-		if (!bounds) {
+		const windowBounds = getActiveWindowBounds();
+		if (!windowBounds) {
 			return;
 		}
 
-		const screenshot = await takeScreenshotAndCrop(bounds.x, bounds.y, bounds.width, bounds.height);
+		// TODO: Get display bounds and subtract from window bounds to get display-relative bounds
+
+		const screenshot = await takeScreenshotAndCrop(windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height);
 		if (!screenshot) {
 			return;
 		}
 
 		await fileService.createFolder(URI.file(path.dirname(imgPath)));
 		await fileService.writeFile(URI.file(imgPath), VSBuffer.wrap(screenshot));
-		console.log('created screenshot');
 		const uniqueId = generateIdUsingDateTime();
 		return { id: uniqueId, name: 'screenshot-' + uniqueId + '.jpg', value: URI.file(imgPath), isDynamic: true, isImage: true };
 	} catch (err) {
@@ -49,25 +51,29 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 
 		// Set the stream as the source of the video element
 		video.srcObject = stream;
+		video.play();
 
-		// Wait for the video to load metadata and ensure it can start playing
-		await new Promise<void>((resolve) => {
-			video.onloadedmetadata = () => {
-				video.play();
-				video.oncanplay = () => resolve();
-			};
-		});
+		// Wait for the video to load properly before capturing the screenshot
+
+		const store = new DisposableStore();
+		await Promise.all([
+			new Promise<void>(r => store.add(addDisposableListener(video, 'loadedmetadata', () => r()))),
+			new Promise<void>(r => store.add(addDisposableListener(video, 'canplaythrough', () => r())))
+		]);
+		store.dispose();
 
 		// Create a canvas element with the size of the cropped region
 		const canvas = document.createElement('canvas');
 		canvas.width = width;
 		canvas.height = height;
-		const context = canvas.getContext('2d');
 
-		if (context) {
-			// Draw the portion of the video (x, y) with the specified width and height
-			context.drawImage(video, x, y, width, height);
+		const ctx = canvas.getContext('2d');
+		if (!ctx) {
+			return undefined;
 		}
+
+		// Draw the portion of the video (x, y) with the specified width and height
+		ctx.drawImage(video, x, y, width, height);
 
 		// Stop the screen stream once the screenshot is taken
 		stream.getTracks().forEach((track) => track.stop());
