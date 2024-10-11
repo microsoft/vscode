@@ -191,8 +191,8 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-			if (isFromCore(details.requestingUrl) && allowedPermissionsInCore.has(permission)) {
-				return true;
+			if (isFromCore(details.requestingUrl)) {
+				return allowedPermissionsInCore.has(permission);
 			}
 
 			return false;
