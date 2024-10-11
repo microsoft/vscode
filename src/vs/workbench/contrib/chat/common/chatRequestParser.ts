@@ -159,7 +159,7 @@ export class ChatRequestParser {
 		}
 
 		const tool = this.toolsService.getToolByName(name);
-		if (tool && tool.canBeReferencedInPrompt && (!usedAgent || usedAgent.agent.supportsToolReferences)) {
+		if (tool && tool.canBeReferencedInPrompt) {
 			return new ChatRequestToolPart(varRange, varEditorRange, name, tool.id, tool.displayName, tool.icon);
 		}
 
