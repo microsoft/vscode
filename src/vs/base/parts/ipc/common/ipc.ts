@@ -10,7 +10,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../common/canc
 import { memoize } from '../../../common/decorators.js';
 import { CancellationError, ErrorNoTelemetry } from '../../../common/errors.js';
 import { Emitter, Event, EventMultiplexer, Relay } from '../../../common/event.js';
-import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { createSingleCallFunction } from '../../../common/functional.js';
+import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { revive } from '../../../common/marshalling.js';
 import * as strings from '../../../common/strings.js';
 import { isFunction, isUndefinedOrNull } from '../../../common/types.js';
@@ -580,6 +581,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 		}
 
 		let disposable: IDisposable;
+		let disposableWithRequestCancel: IDisposable;
 
 		const result = new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
@@ -635,13 +637,20 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				e(new CancellationError());
 			};
 
-			disposable = cancellationToken.onCancellationRequested(cancel);
-			this.activeRequests.add(disposable);
+			disposable = combinedDisposable(cancellationToken.onCancellationRequested(cancel));
+			disposableWithRequestCancel = {
+				dispose: createSingleCallFunction(() => {
+					cancel();
+					disposable.dispose();
+				})
+			};
+
+			this.activeRequests.add(disposableWithRequestCancel);
 		});
 
 		return result.finally(() => {
 			disposable.dispose();
-			this.activeRequests.delete(disposable);
+			this.activeRequests.delete(disposableWithRequestCancel);
 		});
 	}
 
