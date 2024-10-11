@@ -7,7 +7,7 @@
 
 (function () {
 
-	const { ipcRenderer, webFrame, contextBridge, webUtils, desktopCapturer } = require('electron');
+	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
 	type ISandboxConfiguration = import('vs/base/parts/sandbox/common/sandboxTypes.js').ISandboxConfiguration;
 
@@ -243,8 +243,7 @@
 			async resolveConfiguration(): Promise<ISandboxConfiguration> {
 				return resolveConfiguration;
 			}
-		},
-		desktopCapturer
+		}
 	};
 
 	// Use `contextBridge` APIs to expose globals to VSCode
