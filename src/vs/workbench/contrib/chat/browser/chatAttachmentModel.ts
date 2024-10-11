@@ -5,10 +5,10 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { IChatRequestVariableEntry } from '../common/chatModel.js';
 
 export class ChatAttachmentModel extends Disposable {
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
