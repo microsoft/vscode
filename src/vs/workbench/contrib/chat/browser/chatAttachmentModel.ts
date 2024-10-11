@@ -10,6 +10,7 @@ import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IRange } from '../../../../base/common/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
+import { localize } from '../../../../nls.js';
 
 export class ChatAttachmentModel extends Disposable {
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
@@ -66,7 +67,7 @@ export class ChatAttachmentModel extends Disposable {
 		}
 		this.addContext({
 			id: 'screenshot-focused-window',
-			name: 'Screenshot',
+			name: localize('screenshot', 'Screenshot'),
 			value: imageData
 		});
 	}
