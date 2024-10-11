@@ -36,6 +36,7 @@ export interface IChatEditingService {
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(id: string): void;
+	getSnapshotUri(id: string, uri: URI): URI | undefined;
 	restoreSnapshot(id: string): Promise<void>;
 }
 
