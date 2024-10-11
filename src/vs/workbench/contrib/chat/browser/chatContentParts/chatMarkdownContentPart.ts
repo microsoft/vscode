@@ -30,6 +30,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
@@ -136,7 +137,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					return ref.object.element;
 				} else {
 					const requestId = isRequestVM(element) ? element.id : element.requestId;
-					const ref = this.renderCodeBlockPill(requestId, codeBlockInfo.codemapperUri, isCodeBlockComplete);
+					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, isCodeBlockComplete);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
@@ -177,8 +178,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(requestId: string, codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, requestId);
+	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri, !isCodeBlockComplete);
 		}
@@ -275,10 +276,12 @@ class CollapsedCodeBlock extends Disposable {
 	private isStreaming: boolean | undefined;
 
 	constructor(
+		private readonly sessionId: string,
 		private readonly requestId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
+		@IChatService private readonly chatService: IChatService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
@@ -287,11 +290,19 @@ class CollapsedCodeBlock extends Disposable {
 		this.element.classList.add('show-file-icons');
 		this._register(dom.addDisposableListener(this.element, 'click', async () => {
 			if (this.uri) {
-				const snapshot = this.chatEditingService.getSnapshotUri(this.requestId, this.uri);
-				if (snapshot) {
-					const editor = await this.editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Working Set History)', basename(this.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
-					if (isCodeEditor(editor)) {
-						editor.updateOptions({ readOnly: true });
+				const chatModel = this.chatService.getSession(this.sessionId);
+				const requests = chatModel?.getRequests();
+				if (!requests) {
+					return;
+				}
+				const snapshotRequestId = requests?.find((v, i) => i > 0 && requests[i - 1]?.id === this.requestId)?.id;
+				if (snapshotRequestId) {
+					const snapshot = this.chatEditingService.getSnapshotUri(snapshotRequestId, this.uri);
+					if (snapshot) {
+						const editor = await this.editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Working Set History)', basename(this.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+						if (isCodeEditor(editor)) {
+							editor.updateOptions({ readOnly: true });
+						}
 					}
 				} else {
 					this.editorService.openEditor({ resource: this.uri });

@@ -202,8 +202,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._currentSessionObs.get()?.createSnapshot(requestId);
 	}
 
-	public async restoreSnapshot(id: string): Promise<void> {
-		await this._currentSessionObs.get()?.restoreSnapshot(id);
+	public async restoreSnapshot(requestId: string | undefined): Promise<void> {
+		await this._currentSessionObs.get()?.restoreSnapshot(requestId);
 	}
 
 	private installAutoApplyObserver(sessionId: string): IDisposable {
@@ -434,16 +434,16 @@ class ChatEditingTextModelContentProvider implements ITextModelContentProvider {
 	}
 }
 
-type ChatEditingSnapshotTextModelContentQueryData = { requestId: string };
+type ChatEditingSnapshotTextModelContentQueryData = { requestId: string | undefined };
 
 class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentProvider {
 	public static readonly scheme = 'chat-editing-snapshot-text-model';
 
-	public static getSnapshotFileURI(requestId: string, path: string): URI {
+	public static getSnapshotFileURI(requestId: string | undefined, path: string): URI {
 		return URI.from({
 			scheme: ChatEditingSnapshotTextModelContentProvider.scheme,
 			path,
-			query: JSON.stringify({ requestId }),
+			query: JSON.stringify({ requestId: requestId ?? '' }),
 		});
 	}
 
@@ -461,7 +461,7 @@ class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentPr
 		const data: ChatEditingSnapshotTextModelContentQueryData = JSON.parse(resource.query);
 
 		const session = this._currentSessionObs.get();
-		if (!session) {
+		if (!session || !data.requestId) {
 			return null;
 		}
 
@@ -546,12 +546,16 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		}
 	}
 
-	public createSnapshot(requestId: string): void {
+	public createSnapshot(requestId: string | undefined): void {
 		const snapshot = this._createSnapshot(requestId);
-		this._snapshots.set(requestId, snapshot);
+		if (requestId) {
+			this._snapshots.set(requestId, snapshot);
+		} else {
+			this._pendingSnapshot = snapshot;
+		}
 	}
 
-	private _createSnapshot(requestId: string): IChatEditingSessionSnapshot {
+	private _createSnapshot(requestId: string | undefined): IChatEditingSessionSnapshot {
 		const workingSet = Array.from(this._workingSet.values());
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
@@ -583,14 +587,34 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		return snapshotEntries?.get(uri);
 	}
 
-	public async restoreSnapshot(requestId: string): Promise<void> {
-		const snapshot = this._snapshots.get(requestId);
-		if (snapshot) {
-			await this._restoreSnapshot(snapshot);
+	public async restoreSnapshot(requestId: string | undefined): Promise<void> {
+		if (requestId !== undefined) {
+			const snapshot = this._snapshots.get(requestId);
+			if (snapshot) {
+				await this._restoreSnapshot(snapshot);
+			}
+		} else {
+			await this._restoreSnapshot(undefined);
 		}
 	}
 
-	private async _restoreSnapshot(snapshot: IChatEditingSessionSnapshot): Promise<void> {
+	/**
+	 * A snapshot representing the state of the working set before a new request has been sent
+	 */
+	private _pendingSnapshot: IChatEditingSessionSnapshot | undefined;
+	private async _restoreSnapshot(snapshot: IChatEditingSessionSnapshot | undefined): Promise<void> {
+		if (!snapshot) {
+			if (!this._pendingSnapshot) {
+				return; // We don't have a pending snapshot that we can restore
+			}
+			// Restore pending snapshot
+			snapshot = this._pendingSnapshot;
+			this._pendingSnapshot = undefined;
+		} else {
+			// Create and save a pending snapshot
+			this.createSnapshot(undefined);
+		}
+
 		this._workingSet = new ResourceSet(snapshot.workingSet);
 		this._workingSetObs.set([...this._workingSet.values()], undefined);
 
@@ -918,7 +942,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
 	}
 
-	createSnapshot(requestId: string): ISnapshotEntry {
+	createSnapshot(requestId: string | undefined): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),

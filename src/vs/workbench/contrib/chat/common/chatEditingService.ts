@@ -37,7 +37,7 @@ export interface IChatEditingService {
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(requestId: string): void;
 	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
-	restoreSnapshot(requestId: string): Promise<void>;
+	restoreSnapshot(requestId: string | undefined): Promise<void>;
 }
 
 export interface IChatEditingSession {

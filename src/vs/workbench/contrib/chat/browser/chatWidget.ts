@@ -837,14 +837,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (e.kind === 'addRequest') {
 				if (this._location.location === ChatAgentLocation.EditingSession) {
-					const requests = model.getRequests();
-					for (let i = 0; i < requests.length - 1; i++) {
-						if (requests[i + 1].id === e.request.id) {
-							// Capture a snapshot for the request right before the one that was just added
-							this.chatEditingService.createSnapshot(requests[i].id);
-							break;
-						}
-					}
+					this.chatEditingService.createSnapshot(e.request.id);
 				}
 			}
 		}));

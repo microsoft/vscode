@@ -216,7 +216,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 				// Reset the snapshot
-				const snapshotRequest = chatRequests[itemIndex - 1];
+				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
 					await chatEditingService.restoreSnapshot(snapshotRequest.id);
 				}
