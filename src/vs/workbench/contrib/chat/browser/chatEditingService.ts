@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -487,11 +487,10 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private _entries: ModifiedFileEntry[] = [];
 
-	private _workingSetObs = observableValue<readonly URI[]>(this, []);
-	private _workingSet = new ResourceSet();
+	private _workingSet = new ResourceMap<WorkingSetEntryState>();
 	get workingSet() {
 		this._assertNotDisposed();
-		return this._workingSetObs;
+		return this._workingSet;
 	}
 
 	get state(): IObservable<ChatEditingSessionState> {
@@ -529,9 +528,12 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	) {
 		super();
 
-		// Add the currently active editor to the working set
 		const widget = chatWidgetService.getWidgetBySessionId(chatSessionId);
+		if (!widget) {
+			return; // Shouldn't happen
+		}
 
+		// Add the currently active editor to the working set
 		let activeEditorControl = this._editorService.activeTextEditorControl;
 		if (activeEditorControl) {
 			if (isDiffEditor(activeEditorControl)) {
@@ -539,9 +541,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			}
 			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
 				const uri = activeEditorControl.getModel().uri;
-				this._workingSet.add(uri);
-				widget?.attachmentModel.addFile(uri);
-				this._workingSetObs.set([...this._workingSet.values()], undefined);
+				this._workingSet.set(uri, WorkingSetEntryState.Attached);
+				widget.attachmentModel.addFile(uri);
 			}
 		}
 	}
@@ -550,13 +551,19 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		const snapshot = this._createSnapshot(requestId);
 		if (requestId) {
 			this._snapshots.set(requestId, snapshot);
+			for (const workingSetItem of this._workingSet.keys()) {
+				this._workingSet.set(workingSetItem, WorkingSetEntryState.Sent);
+			}
 		} else {
 			this._pendingSnapshot = snapshot;
 		}
 	}
 
 	private _createSnapshot(requestId: string | undefined): IChatEditingSessionSnapshot {
-		const workingSet = Array.from(this._workingSet.values());
+		const workingSet = new ResourceMap<WorkingSetEntryState>();
+		for (const [file, state] of this._workingSet) {
+			workingSet.set(file, state);
+		}
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
 			entries.set(entry.modifiedURI, entry.createSnapshot(requestId));
@@ -615,8 +622,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			this.createSnapshot(undefined);
 		}
 
-		this._workingSet = new ResourceSet(snapshot.workingSet);
-		this._workingSetObs.set([...this._workingSet.values()], undefined);
+		this._workingSet = new ResourceMap();
+		snapshot.workingSet.forEach((state, uri) => this._workingSet.set(uri, state));
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
@@ -655,7 +662,6 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			return; // noop
 		}
 
-		this._workingSetObs.set([...this._workingSet.values()], undefined);
 		this._onDidChange.fire();
 	}
 
@@ -784,8 +790,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	addFileToWorkingSet(resource: URI) {
 		if (!this._workingSet.has(resource)) {
-			this._workingSet.add(resource);
-			this._workingSetObs.set([...this._workingSet.values()], undefined);
+			this._workingSet.set(resource, WorkingSetEntryState.Attached);
 			this._onDidChange.fire();
 		}
 	}
@@ -1120,7 +1125,7 @@ export interface IModifiedEntryTelemetryInfo {
 }
 
 export interface IChatEditingSessionSnapshot {
-	workingSet: URI[];
+	workingSet: ResourceMap<WorkingSetEntryState>;
 	entries: ResourceMap<ISnapshotEntry>;
 }
 
