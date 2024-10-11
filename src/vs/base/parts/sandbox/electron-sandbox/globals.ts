@@ -5,7 +5,7 @@
 
 import { INodeProcess, IProcessEnvironment } from '../../../common/platform.js';
 import { ISandboxConfiguration } from '../common/sandboxTypes.js';
-import { DesktopCapturer, IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils } from './electronTypes.js';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils } from './electronTypes.js';
 
 /**
  * In Electron renderers we cannot expose all of the `process` global of node.js
@@ -122,7 +122,6 @@ export const webFrame: WebFrame = vscodeGlobal.webFrame;
 export const process: ISandboxNodeProcess = vscodeGlobal.process;
 export const context: ISandboxContext = vscodeGlobal.context;
 export const webUtils: WebUtils = vscodeGlobal.webUtils;
-export const desktopCapturer: DesktopCapturer = vscodeGlobal.desktopCapturer;
 
 /**
  * A set of globals only available to main windows that depend
@@ -135,7 +134,6 @@ export interface IMainWindowSandboxGlobals {
 	readonly process: ISandboxNodeProcess;
 	readonly context: ISandboxContext;
 	readonly webUtils: WebUtils;
-	readonly desktopCapturer: DesktopCapturer;
 }
 
 /**

@@ -800,8 +800,7 @@ export default tseslint.config(
 						'@xterm/xterm',
 						'yauzl',
 						'yazl',
-						'zlib',
-
+						'zlib'
 					]
 				},
 				{
@@ -872,7 +871,7 @@ export default tseslint.config(
 						'tas-client-umd', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless', // node module allowed even in /common/
+						'@xterm/headless' // node module allowed even in /common/
 					]
 				},
 				{
