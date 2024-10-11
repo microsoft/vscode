@@ -191,8 +191,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Messages shown in the chat view when a tool needs confirmation from the user to run. These messages will be shown with
-	 * buttons that say Continue and Cancel.
+	 * When this is returned in {@link PreparedToolInvocation}, the user will be asked to confirm before running the tool. These
+	 * messages will be shown with buttons that say "Continue" and "Cancel".
 	 */
 	export interface LanguageModelToolConfirmationMessages {
 		/**
@@ -201,10 +201,7 @@ declare module 'vscode' {
 		title: string;
 
 		/**
-		 * The body of the confirmation message. This should be phrased as an action of the participant that is invoking the tool
-		 * from {@link LanguageModelToolInvocationPrepareOptions.participantName}. An example of a good message would be
-		 * `${participantName} will run the command ${echo 'hello world'} in the terminal.`
-		 * TODO@API keep this?
+		 * The body of the confirmation message.
 		 */
 		message: string | MarkdownString;
 	}
@@ -213,12 +210,6 @@ declare module 'vscode' {
 	 * Options for {@link LanguageModelTool.prepareToolInvocation}.
 	 */
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
-		/**
-		 * The name of the participant invoking the tool.
-		 * TODO@API keep this?
-		 */
-		participantName: string;
-
 		/**
 		 * The parameters that the tool is being invoked with.
 		 */
@@ -235,8 +226,8 @@ declare module 'vscode' {
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
 		/**
-		 * Called once before a tool is invoked. May be implemented to customize the progress message that appears while the tool
-		 * is running, and the messages that appear when the tool needs confirmation.
+		 * Called once before a tool is invoked. May be implemented to signal that a tool needs user confirmation before running,
+		 * and to customize the progress message that appears while the tool is running.
 		 */
 		prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 	}
@@ -251,7 +242,7 @@ declare module 'vscode' {
 		invocationMessage?: string;
 
 		/**
-		 * Customized messages to show when asking for user confirmation to run the tool.
+		 * The presence of this property indicates that the user should be asked to confirm before running the tool.
 		 */
 		confirmationMessages?: LanguageModelToolConfirmationMessages;
 	}

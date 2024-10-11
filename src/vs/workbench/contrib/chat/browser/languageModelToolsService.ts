@@ -147,37 +147,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const prepared = tool.impl.prepareToolInvocation ?
 				await tool.impl.prepareToolInvocation(participantName, dto.parameters, token)
 				: undefined;
-			const confirmationMessages = tool.data.requiresConfirmation ?
-				prepared?.confirmationMessages ?? {
-					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
-					message: localize('toolConfirmMessage', "{0} will use {1}.", participantName, `"${tool.data.displayName ?? tool.data.id}"`),
-				}
-				: undefined;
 
 			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
 			const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-			toolInvocation = new ChatToolInvocation(invocationMessage, confirmationMessages);
+			toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
 			token.onCancellationRequested(() => {
 				toolInvocation!.confirmed.complete(false);
 			});
 			model.acceptResponseProgress(request, toolInvocation);
-			if (tool.data.requiresConfirmation) {
+			if (prepared?.confirmationMessages) {
 				const userConfirmed = await toolInvocation.confirmed.p;
 				if (!userConfirmed) {
 					throw new CancellationError();
 				}
 			}
-		} else if (tool.data.requiresConfirmation) {
+		} else {
 			const prepared = tool.impl.prepareToolInvocation ?
 				await tool.impl.prepareToolInvocation('Some Extension', dto.parameters, token)
 				: undefined;
 
-			const confirmationMessages = prepared?.confirmationMessages ?? {
-				title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
-				message: localize('toolConfirmMessage', "{0} will use {1}.", 'Some Extension', `"${tool.data.displayName ?? tool.data.id}"`),
-			};
-
-			await this._dialogService.confirm({ message: confirmationMessages.title, detail: renderStringAsPlaintext(confirmationMessages.message) });
+			if (prepared?.confirmationMessages) {
+				await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+			}
 		}
 
 		try {

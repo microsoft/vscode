@@ -25,7 +25,6 @@ export interface IToolData {
 	parametersSchema?: IJSONSchema;
 	canBeInvokedManually?: boolean;
 	supportedContentTypes: string[];
-	requiresConfirmation?: boolean;
 }
 
 export interface IToolInvocation {
