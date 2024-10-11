@@ -342,9 +342,15 @@ export class AttachContextAction extends Action2 {
 					chatEditingService?.addFileToWorkingSet(result.resource);
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
-				const screenshot = await generateFocusedWindowScreenshot(fileService, nativeEnvironmentService);
-				if (screenshot) {
-					toAttach.push(screenshot);
+				const imageData = await generateFocusedWindowScreenshot();
+				if (imageData) {
+					toAttach.push({
+						id: 'screenshot-focused-window',
+						name: 'Screenshot focused window',
+						value: imageData,
+						isImage: true,
+						isDynamic: true
+					});
 				}
 			} else {
 				// Anything else is an attachment

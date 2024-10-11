@@ -5,21 +5,13 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { generateFocusedWindowScreenshot } from '../../../../platform/screenshot/browser/screenshot.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IRange } from '../../../../base/common/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
 
 export class ChatAttachmentModel extends Disposable {
-	constructor(
-		@IFileService private readonly _fileService: IFileService,
-		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
-	) {
-		super();
-	}
 	private _attachments = new Map<string, IChatRequestVariableEntry>();
 	get attachments(): ReadonlyArray<IChatRequestVariableEntry> {
 		return Array.from(this._attachments.values());
@@ -68,11 +60,15 @@ export class ChatAttachmentModel extends Disposable {
 
 	async attachScreenshot(): Promise<void> {
 		this.clear();
-		const screenshot = await generateFocusedWindowScreenshot(this._fileService, this._environmentService);
-		if (!screenshot) {
+		const imageData = await generateFocusedWindowScreenshot();
+		if (!imageData) {
 			return;
 		}
-		this.addContext(screenshot);
+		this.addContext({
+			id: 'screenshot-focused-window',
+			name: 'Screenshot focused window',
+			value: imageData
+		});
 	}
 
 	clearAndSetContext(...attachments: IChatRequestVariableEntry[]) {

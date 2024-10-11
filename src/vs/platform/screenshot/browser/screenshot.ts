@@ -3,12 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IFileService } from '../../files/common/files.js';
 import { URI } from '../../../base/common/uri.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
-import * as path from '../../../base/common/path.js';
-import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 
 interface IBoundingBox {
@@ -38,35 +34,20 @@ class BoundingBox implements IBoundingBox {
 }
 
 
-export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
+export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | undefined> {
 	try {
-		const tmpDir = nativeEnvironmentService.tmpDir;
-		const imgPath = path.join(tmpDir.path, 'screenshot.jpg');
-
 		const windowBounds = getActiveWindowBounds();
 		if (!windowBounds) {
 			return;
 		}
-		console.log('windowBounds', windowBounds);
-
-		// TODO: Get display bounds and subtract from window bounds to get display-relative bounds
-		const screenshot = await takeScreenshotOfDisplay(windowBounds);
-		if (!screenshot) {
-			return;
-		}
-
-		// TODO: We must delete this file, can we just pass back the blob instead?
-		await fileService.createFolder(URI.file(path.dirname(imgPath)));
-		await fileService.writeFile(URI.file(imgPath), VSBuffer.wrap(screenshot));
-		const uniqueId = generateIdUsingDateTime();
-		return { id: uniqueId, name: 'screenshot-' + uniqueId + '.jpg', value: URI.file(imgPath), isDynamic: true, isImage: true };
+		return takeScreenshotOfDisplay(windowBounds);
 	} catch (err) {
 		console.error('Error taking screenshot:', err);
 		return undefined;
 	}
 }
 
-async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<Uint8Array | undefined> {
+async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<ArrayBuffer | undefined> {
 	const windowBounds = getActiveWindowBounds();
 	if (!windowBounds) {
 		return undefined;
@@ -128,26 +109,12 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<U
 		}
 
 		// Convert the Blob to an ArrayBuffer and then return it as a Uint8Array
-		const arrayBuffer = await blob.arrayBuffer();
-		return new Uint8Array(arrayBuffer);
+		return blob.arrayBuffer();
 
 	} catch (error) {
 		console.error('Error taking screenshot:', error);
 		return undefined;
 	}
-}
-
-function generateIdUsingDateTime(): string {
-	const now = new Date();
-	const year = now.getFullYear();
-	const month = String(now.getMonth() + 1).padStart(2, '0');
-	const day = String(now.getDate()).padStart(2, '0');
-	const hours = String(now.getHours()).padStart(2, '0');
-	const minutes = String(now.getMinutes()).padStart(2, '0');
-	const seconds = String(now.getSeconds()).padStart(2, '0');
-	const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
-
-	return `${year}-${month}-${day}_${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
 function getActiveWindowBounds(): IBoundingBox | undefined {
