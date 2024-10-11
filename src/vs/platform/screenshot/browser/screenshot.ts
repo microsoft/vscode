@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../base/common/uri.js';
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 
@@ -132,12 +131,4 @@ function getActiveWindowBounds(): IBoundingBox | undefined {
 		Math.round(window.innerWidth * window.devicePixelRatio),
 		Math.round(window.innerHeight * window.devicePixelRatio),
 	);
-}
-
-export interface IScreenShotContext {
-	id: string;
-	name: string;
-	value: URI;
-	isDynamic: boolean;
-	isImage: true;
 }
