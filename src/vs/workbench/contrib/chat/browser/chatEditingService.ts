@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -41,6 +41,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { IChatAgentResult } from '../common/chatAgents.js';
 import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatResponseModel } from '../common/chatModel.js';
@@ -89,6 +90,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super();
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
 		textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs));
+		textModelService.registerTextModelContentProvider(ChatEditingSnapshotTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider, this._currentSessionObs));
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._currentSessionObs.read(reader);
 			if (!currentSession) {
@@ -109,6 +111,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				void this._currentSessionObs.get()?.stop();
 			}
 		}));
+	}
+
+	getSnapshotUri(id: string, uri: URI) {
+		const session = this._currentSessionObs.get();
+		if (!session) {
+			return undefined;
+		}
+		return session.getSnapshot(id, uri)?.snapshotUri;
 	}
 
 	getEditingSession(resource: URI): IChatEditingSession | null {
@@ -187,6 +197,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			};
 			await this._codeMapperService.mapCodeFromResponse(responseModel, codeMapperResponse, token);
 		}, { silent: true });
+	}
+
+	public createSnapshot(id: string): void {
+		this._currentSessionObs.get()?.createSnapshot(id);
+	}
+
+	public async restoreSnapshot(id: string): Promise<void> {
+		await this._currentSessionObs.get()?.restoreSnapshot(id);
 	}
 
 	private installAutoApplyObserver(sessionId: string): IDisposable {
@@ -398,8 +416,50 @@ class ChatEditingTextModelContentProvider implements ITextModelContentProvider {
 	}
 }
 
+type ChatEditingSnapshotTextModelContentQueryData = { requestId: string };
+
+class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentProvider {
+	public static readonly scheme = 'chat-editing-snapshot-text-model';
+
+	public static getSnapshotFileURI(requestId: string, path: string): URI {
+		return URI.from({
+			scheme: ChatEditingSnapshotTextModelContentProvider.scheme,
+			path,
+			query: JSON.stringify({ requestId }),
+		});
+	}
+
+	constructor(
+		private readonly _currentSessionObs: IObservable<ChatEditingSession | null>,
+		@IModelService private readonly _modelService: IModelService,
+	) { }
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
+		}
+
+		const data: ChatEditingSnapshotTextModelContentQueryData = JSON.parse(resource.query);
+
+		const session = this._currentSessionObs.get();
+		if (!session) {
+			return null;
+		}
+
+		return session.getSnapshotModel(data.requestId, resource);
+	}
+}
+
 class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
+
+	/**
+	 * Contains the contents of a file when the AI first began doing edits to it.
+	 */
+	private readonly _initialFileContents = new ResourceMap<string>();
+	private readonly _snapshots = new Map<string, IChatEditingSessionSnapshot>();
+
 	private readonly _entriesObs = observableValue<readonly ModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly ModifiedFileEntry[]> {
 		this._assertNotDisposed();
@@ -441,6 +501,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		public readonly chatSessionId: string,
 		private editorPane: MultiDiffEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -464,6 +526,78 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 				this._workingSetObs.set([...this._workingSet.values()], undefined);
 			}
 		}
+	}
+
+	public createSnapshot(requestId: string): void {
+		const snapshot = this._createSnapshot(requestId);
+		this._snapshots.set(requestId, snapshot);
+	}
+
+	private _createSnapshot(requestId: string): IChatEditingSessionSnapshot {
+		const workingSet = Array.from(this._workingSet.values());
+		const entries = new ResourceMap<ISnapshotEntry>();
+		for (const entry of this._entriesObs.get()) {
+			entries.set(entry.modifiedURI, entry.createSnapshot(requestId));
+		}
+		return {
+			workingSet,
+			entries
+		};
+	}
+
+	public async getSnapshotModel(requestId: string, snapshotUri: URI): Promise<ITextModel | null> {
+		const entries = this._snapshots.get(requestId)?.entries;
+		if (!entries) {
+			return null;
+		}
+
+		const snapshotEntry = [...entries.values()].find((e) => e.snapshotUri.toString() === snapshotUri.toString());
+		if (!snapshotEntry) {
+			return null;
+		}
+
+		return this._modelService.createModel(snapshotEntry.current, this._languageService.createById(snapshotEntry.languageId), snapshotUri, false);
+	}
+
+	public getSnapshot(requestId: string, uri: URI) {
+		const snapshot = this._snapshots.get(requestId);
+		const snapshotEntries = snapshot?.entries;
+		return snapshotEntries?.get(uri);
+	}
+
+	public async restoreSnapshot(requestId: string): Promise<void> {
+		const snapshot = this._snapshots.get(requestId);
+		if (snapshot) {
+			await this._restoreSnapshot(snapshot);
+		}
+	}
+
+	private async _restoreSnapshot(snapshot: IChatEditingSessionSnapshot): Promise<void> {
+		this._workingSet = new ResourceSet(snapshot.workingSet);
+		this._workingSetObs.set([...this._workingSet.values()], undefined);
+
+		// Reset all the files which are modified in this session state
+		// but which are not found in the snapshot
+		for (const entry of this._entries) {
+			const snapshotEntry = snapshot.entries.get(entry.modifiedURI);
+			if (!snapshotEntry) {
+				const initialContents = this._initialFileContents.get(entry.modifiedURI);
+				if (typeof initialContents === 'string') {
+					entry.resetToInitialValue(initialContents);
+				}
+				entry.dispose();
+			}
+		}
+
+		const entriesArr: ModifiedFileEntry[] = [];
+		// Restore all entries from the snapshot
+		for (const snapshotEntry of snapshot.entries.values()) {
+			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
+			entriesArr.push(entry);
+		}
+
+		this._entries = entriesArr;
+		this._entriesObs.set(this._entries, undefined);
 	}
 
 	remove(...uris: URI[]): void {
@@ -619,7 +753,13 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): Promise<void> {
-		const entry = await this._getOrCreateModifiedFileEntry(resource, responseModel);
+		const entry = await this._getOrCreateModifiedFileEntry(resource, {
+			agentId: responseModel.agent?.id,
+			command: responseModel.slashCommand?.name,
+			sessionId: responseModel.session.sessionId,
+			requestId: responseModel.requestId,
+			result: responseModel.result
+		});
 		entry.applyEdits(textEdits);
 		await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
@@ -629,7 +769,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this._onDidChange.fire();
 	}
 
-	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IChatResponseModel): Promise<ModifiedFileEntry> {
+	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ModifiedFileEntry> {
 		const existingEntry = this._entries.find(e => e.resource.toString() === resource.toString());
 		if (existingEntry) {
 			return existingEntry;
@@ -637,6 +777,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		const entry = await this._createModifiedFileEntry(resource, responseModel);
 		this._register(entry);
+		this._initialFileContents.set(resource, entry.modifiedModel.getValue());
 		this._entries = [...this._entries, entry];
 		this._entriesObs.set(this._entries, undefined);
 		this._onDidChange.fire();
@@ -644,7 +785,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		return entry;
 	}
 
-	private async _createModifiedFileEntry(resource: URI, responseModel: IChatResponseModel, mustExist = false): Promise<ModifiedFileEntry> {
+	private async _createModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo, mustExist = false): Promise<ModifiedFileEntry> {
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
 			return this._instantiationService.createInstance(ModifiedFileEntry, resource, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel);
@@ -710,7 +851,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
-		private readonly _responseModel: IChatResponseModel,
+		private readonly _telemetryInfo: IModifiedEntryTelemetryInfo,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -742,6 +883,28 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this._register(resourceRef);
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+	}
+
+	createSnapshot(requestId: string): ISnapshotEntry {
+		return {
+			resource: this.modifiedURI,
+			languageId: this.modifiedModel.getLanguageId(),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(requestId, this.modifiedURI.path),
+			original: this.originalModel.getValue(),
+			current: this.modifiedModel.getValue(),
+			state: this.state.get(),
+			telemetryInfo: this._telemetryInfo
+		};
+	}
+
+	restoreFromSnapshot(snapshot: ISnapshotEntry) {
+		this.docSnapshot.setValue(snapshot.original);
+		this._setDocValue(snapshot.current);
+		this._stateObs.set(snapshot.state, undefined);
+	}
+
+	resetToInitialValue(value: string) {
+		this._setDocValue(value);
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
@@ -880,14 +1043,18 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			return;
 		}
 
-		this.doc.pushStackElement();
-		const edit = EditOperation.replace(this.doc.getFullModelRange(), this.docSnapshot.getValue());
-		this.doc.pushEditOperations(null, [edit], () => null);
-		this.doc.pushStackElement();
+		this._setDocValue(this.docSnapshot.getValue());
 
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('rejected');
+	}
+
+	private _setDocValue(value: string): void {
+		this.doc.pushStackElement();
+		const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
+		this.doc.pushEditOperations(null, [edit], () => null);
+		this.doc.pushStackElement();
 	}
 
 	async collapse(transaction: ITransaction | undefined): Promise<void> {
@@ -897,13 +1064,36 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	private _notifyAction(outcome: 'accepted' | 'rejected') {
 		this._chatService.notifyUserAction({
 			action: { kind: 'chatEditingSessionAction', uri: this.resource, hasRemainingEdits: false, outcome },
-			agentId: this._responseModel.agent?.id,
-			command: this._responseModel.slashCommand?.name,
-			sessionId: this._responseModel.session.sessionId,
-			requestId: this._responseModel.requestId,
-			result: this._responseModel.result
+			agentId: this._telemetryInfo.agentId,
+			command: this._telemetryInfo.command,
+			sessionId: this._telemetryInfo.sessionId,
+			requestId: this._telemetryInfo.requestId,
+			result: this._telemetryInfo.result
 		});
 	}
+}
+
+export interface IModifiedEntryTelemetryInfo {
+	agentId: string | undefined;
+	command: string | undefined;
+	sessionId: string;
+	requestId: string;
+	result: IChatAgentResult | undefined;
+}
+
+export interface IChatEditingSessionSnapshot {
+	workingSet: URI[];
+	entries: ResourceMap<ISnapshotEntry>;
+}
+
+export interface ISnapshotEntry {
+	readonly resource: URI;
+	readonly languageId: string;
+	readonly snapshotUri: URI;
+	readonly original: string;
+	readonly current: string;
+	readonly state: WorkingSetEntryState;
+	telemetryInfo: IModifiedEntryTelemetryInfo;
 }
 
 const lineRangeAsRange = (lineRange: LineRange, model: ITextModel) => {
