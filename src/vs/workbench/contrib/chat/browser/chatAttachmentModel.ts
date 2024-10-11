@@ -5,11 +5,11 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { getScreenshotAsVariable } from '../../../../platform/screenshot/browser/screenshot.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IRange } from '../../../../base/common/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
+import { getScreenshotAsVariable } from './contrib/screenshot.js';
 
 export class ChatAttachmentModel extends Disposable {
 	private _attachments = new Map<string, IChatRequestVariableEntry>();

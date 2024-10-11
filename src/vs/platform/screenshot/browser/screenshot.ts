@@ -5,7 +5,6 @@
 
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { localize } from '../../../nls.js';
 
 interface IBoundingBox {
 	x: number;
@@ -31,21 +30,6 @@ class BoundingBox implements IBoundingBox {
 	get top() { return this.y; }
 	get right() { return this.x + this.width; }
 	get bottom() { return this.y + this.height; }
-}
-
-export async function getScreenshotAsVariable(): Promise<IScreenshotVariableEntry | undefined> {
-	const screenshot = await generateFocusedWindowScreenshot();
-	if (!screenshot) {
-		return;
-	}
-
-	return {
-		id: 'screenshot-focused-window',
-		name: localize('screenshot', 'Screenshot'),
-		value: new Uint8Array(screenshot),
-		isImage: true,
-		isDynamic: true
-	};
 }
 
 export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | undefined> {
@@ -153,10 +137,3 @@ function getActiveWindowBounds(): IBoundingBox | undefined {
 	);
 }
 
-interface IScreenshotVariableEntry {
-	id: string;
-	name: string;
-	value: Uint8Array;
-	isDynamic?: boolean;
-	isImage?: boolean;
-}

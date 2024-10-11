@@ -44,7 +44,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { SearchView } from '../../../search/browser/searchView.js';
-import { getScreenshotAsVariable } from '../../../../../platform/screenshot/browser/screenshot.js';
+import { getScreenshotAsVariable } from '../contrib/screenshot.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
