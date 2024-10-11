@@ -99,7 +99,7 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<U
 
 		// TODO: jpg is probably the better format
 		// Convert the canvas to a Blob (PNG format)
-		const blob = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
+		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
 		if (!blob) {
 			throw new Error('Failed to create blob from canvas');
 		}
