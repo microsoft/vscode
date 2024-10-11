@@ -75,6 +75,9 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<U
 		// Create a video element to play the captured screen source
 		const video = document.createElement('video');
 
+		// TODO: This needs to get the stream for the actual window when strictly taking a
+		//       screenshot of the window, so as to not leak windows in the foreground (eg. a always
+		//       on top video)
 		// Create a stream from the screen source (capture screen without audio)
 		const stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
