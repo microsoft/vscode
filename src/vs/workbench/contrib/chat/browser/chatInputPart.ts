@@ -875,15 +875,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modifiedFiles.add(attachment.value);
 			}
 		}
-		chatEditingSession?.workingSet.get().forEach((file) => {
+		for (const [file, state] of chatEditingSession.workingSet.entries()) {
 			if (!modifiedFiles.has(file)) {
 				entries.unshift({
 					reference: file,
-					state: WorkingSetEntryState.Attached,
+					state: state,
 					kind: 'reference',
 				});
 			}
-		});
+		}
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
 				if (a.state === b.state || a.state === undefined || b.state === undefined) {

@@ -59,7 +59,6 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			icon: Codicon.close,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				// when: ContextKeyExpr.false(), // TODO@joyceerhl enable this when attachments are stored as part of the chat input
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached),
 				order: 0,
 				group: 'navigation'
