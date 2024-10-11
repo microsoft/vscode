@@ -72,11 +72,22 @@ declare module 'vscode' {
 
 	// Tool registration/invoking between extensions
 
+	export class LanguageModelToolResultItem<T> {
+		static text(content: string): LanguageModelToolResultItem<string>;
+		static promptTsx(content: string): LanguageModelToolResultItem<Object>; // ???
+		static png(content: Uint8Array): LanguageModelToolResultItem<Uint8Array>;
+
+		// TODO@API - I prefer contentType over mimeType, but notebooks use 'mime'. I prefer 'mimeType' over 'mime' at least...
+		mime: string;
+		data: T;
+
+		constructor(data: T, mime: string);
+	}
+
 	/**
 	 * A result returned from a tool invocation.
 	 */
-	// TODO@API should we align this with NotebookCellOutput and NotebookCellOutputItem
-	export interface LanguageModelToolResult {
+	export class LanguageModelToolResult {
 		/**
 		 * The result can contain arbitrary representations of the content. A tool user can set
 		 * {@link LanguageModelToolInvocationOptions.requested} to request particular types, and a tool implementation should only
@@ -84,7 +95,15 @@ declare module 'vscode' {
 		 * any text-based content. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the
 		 * `contentType` exported by that library.
 		 */
-		[contentType: string]: any;
+
+		// TODO@API- we could have a list
+		items: LanguageModelToolResultItem<unknown>[];
+
+		// or items keyed by mimeType so that text/plain can be typed for the tool caller
+		items2: {
+			[mimeType: string]: LanguageModelToolResultItem<unknown> | undefined;
+			'text/plain'?: LanguageModelToolResultItem<string>;
+		};
 	}
 
 	export namespace lm {
