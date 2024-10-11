@@ -1,5 +1,5 @@
 {
-	"codebaseName": "devdiv_$(Build.Repository.Name)",
+	"codebaseName": "devdiv_microsoft_vscode",
 	"serviceTreeID": "79c048b2-322f-4ed5-a1ea-252a1250e4b3",
 	"instanceUrl": "https://devdiv.visualstudio.com/defaultcollection",
 	"projectName": "DevDiv",
