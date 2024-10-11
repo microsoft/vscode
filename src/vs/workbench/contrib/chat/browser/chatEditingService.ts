@@ -1009,19 +1009,25 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		const myDiffOperationId = ++this._diffOperationIds;
 		Promise.resolve(this._diffOperation).then(() => {
 			if (this._diffOperationIds === myDiffOperationId) {
-				this._diffOperation = this._calculateDocumentChanges();
+				this._diffOperation = this._updateDiffInfo(myDiffOperationId);
 			}
 		});
 	}
 
-	private async _calculateDocumentChanges(): Promise<void> {
-		const [diff] = await Promise.all([this._editorWorkerService.computeDiff(
+	private async _updateDiffInfo(operationId: number): Promise<void> {
+
+		const startTime = Date.now();
+		const diff = await this._editorWorkerService.computeDiff(
 			this.docSnapshot.uri,
 			this.doc.uri,
 			{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
 			'advanced'
-		), timeout(1000)]);
+		);
 
+		if (operationId !== this._diffOperationIds) {
+			// wait a bit more if another diff has been requested
+			await timeout(1000 - (Date.now() - startTime));
+		}
 		this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
 	}
 
