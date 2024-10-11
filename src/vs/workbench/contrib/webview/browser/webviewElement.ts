@@ -222,7 +222,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleNoCspFound();
 		}));
 
-		this._register(this.on('did-click-link', ({ uri }) => {
+		this._register(this.on('did-click-link', (data) => {
+			// MEMBRANE: fix for T-1173
+			const uri = typeof data === 'string' ? data : data.uri;
 			this._onDidClickLink.fire(uri);
 		}));
 

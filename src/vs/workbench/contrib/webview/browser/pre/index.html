@@ -552,6 +552,8 @@
 							event.view.scrollTo(0, 0);
 						}
 					} else {
+						// MEMBRANE: note - an outdated version of this file is being served from the CDN
+						// MEMBRANE: see T-1173 for more detail
 						hostMessaging.postMessage('did-click-link', { uri: node.href.baseVal || node.href });
 					}
 					event.preventDefault();

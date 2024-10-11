@@ -332,11 +332,12 @@ document.addEventListener('click', event => {
 
 			let hrefText = node.getAttribute('data-href');
 			if (!hrefText) {
+				// MEMBRANE: already fixed upstream in https://github.com/microsoft/vscode/pull/228633
+				hrefText = node.getAttribute('href');
 				// Pass through known schemes
-				if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
+				if (passThroughLinkSchemes.some(scheme => hrefText.startsWith(scheme))) {
 					return;
 				}
-				hrefText = node.getAttribute('href');
 			}
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve

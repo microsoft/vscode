@@ -19,7 +19,8 @@ type KeyEvent = {
 
 export type FromWebviewMessage = {
 	'onmessage': { message: any; transfer?: ArrayBuffer[] };
-	'did-click-link': { uri: string };
+	// MEMBRANE: fix for T-1173
+	'did-click-link': { uri: string } | string;
 	'did-scroll': { scrollYPercentage: number };
 	'did-focus': void;
 	'did-blur': void;
