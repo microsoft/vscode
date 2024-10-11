@@ -321,7 +321,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	updatePreviewIndicator(element: SettingsTreeSettingElement) {
 		const isPreviewSetting = element.tags?.has('preview');
-		const isExperimentalSetting = element.tags?.has('experimental');
+		// Hide experimental indicators for now until further review and experimental -> onExP migration.
+		const isExperimentalSetting = false; // element.tags?.has('experimental');
 		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
 		this.previewIndicator.label.text = isPreviewSetting ?
 			localize('previewLabel', "Preview") :
