@@ -198,8 +198,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		}, { silent: true });
 	}
 
-	public createSnapshot(id: string): void {
-		this._currentSessionObs.get()?.createSnapshot(id);
+	public createSnapshot(requestId: string): void {
+		this._currentSessionObs.get()?.createSnapshot(requestId);
 	}
 
 	public async restoreSnapshot(id: string): Promise<void> {
