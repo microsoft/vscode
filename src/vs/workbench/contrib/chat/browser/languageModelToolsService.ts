@@ -142,10 +142,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
 			const request = model.getRequests().at(-1)!;
 
-			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
-
 			const prepared = tool.impl.prepareToolInvocation ?
-				await tool.impl.prepareToolInvocation(participantName, dto.parameters, token)
+				await tool.impl.prepareToolInvocation(dto.parameters, token)
 				: undefined;
 
 			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
@@ -163,7 +161,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		} else {
 			const prepared = tool.impl.prepareToolInvocation ?
-				await tool.impl.prepareToolInvocation('Some Extension', dto.parameters, token)
+				await tool.impl.prepareToolInvocation(dto.parameters, token)
 				: undefined;
 
 			if (prepared?.confirmationMessages) {

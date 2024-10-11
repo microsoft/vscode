@@ -121,7 +121,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return extensionResult;
 	}
 
-	async $prepareToolInvocation(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+	async $prepareToolInvocation(toolId: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const item = this._registeredTools.get(toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${toolId}`);
@@ -131,7 +131,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
-		const result = await item.tool.prepareToolInvocation({ participantName, parameters }, token);
+		const result = await item.tool.prepareToolInvocation({ parameters }, token);
 		if (!result) {
 			return undefined;
 		}

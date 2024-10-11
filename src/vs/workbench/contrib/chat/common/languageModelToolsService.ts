@@ -56,7 +56,7 @@ export interface IPreparedToolInvocation {
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation?(participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
