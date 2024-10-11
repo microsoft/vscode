@@ -11,6 +11,33 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 
+interface IBoundingBox {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+}
+
+class BoundingBox implements IBoundingBox {
+	constructor(
+		public readonly x: number,
+		public readonly y: number,
+		public readonly width: number,
+		public readonly height: number,
+	) { }
+
+	get left() { return this.x; }
+	get top() { return this.y; }
+	get right() { return this.x + this.width; }
+	get bottom() { return this.y + this.height; }
+}
+
+
 export async function generateFocusedWindowScreenshot(fileService: IFileService, nativeEnvironmentService: INativeEnvironmentService): Promise<IScreenShotContext | undefined> {
 	try {
 		const tmpDir = nativeEnvironmentService.tmpDir;
@@ -20,14 +47,15 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 		if (!windowBounds) {
 			return;
 		}
+		console.log('windowBounds', windowBounds);
 
 		// TODO: Get display bounds and subtract from window bounds to get display-relative bounds
-
-		const screenshot = await takeScreenshotAndCrop(windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height);
+		const screenshot = await takeScreenshotOfDisplay(windowBounds);
 		if (!screenshot) {
 			return;
 		}
 
+		// TODO: We must delete this file, can we just pass back the blob instead?
 		await fileService.createFolder(URI.file(path.dirname(imgPath)));
 		await fileService.writeFile(URI.file(imgPath), VSBuffer.wrap(screenshot));
 		const uniqueId = generateIdUsingDateTime();
@@ -38,7 +66,11 @@ export async function generateFocusedWindowScreenshot(fileService: IFileService,
 	}
 }
 
-async function takeScreenshotAndCrop(x: number, y: number, width: number, height: number): Promise<Uint8Array | undefined> {
+async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<Uint8Array | undefined> {
+	const windowBounds = getActiveWindowBounds();
+	if (!windowBounds) {
+		return undefined;
+	}
 	try {
 		// Create a video element to play the captured screen source
 		const video = document.createElement('video');
@@ -62,9 +94,12 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		store.dispose();
 
 		// Create a canvas element with the size of the cropped region
+		if (!cropDimensions) {
+			cropDimensions = new BoundingBox(0, 0, video.videoWidth, video.videoHeight);
+		}
 		const canvas = document.createElement('canvas');
-		canvas.width = width;
-		canvas.height = height;
+		canvas.width = cropDimensions.width;
+		canvas.height = cropDimensions.height;
 
 		const ctx = canvas.getContext('2d');
 		if (!ctx) {
@@ -72,8 +107,14 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 		}
 
 		// Draw the portion of the video (x, y) with the specified width and height
-		ctx.drawImage(video, x, y, width, height);
+		ctx.drawImage(video,
+			// Source
+			cropDimensions.x, cropDimensions.y, cropDimensions.width, cropDimensions.height,
+			// Dest
+			0, 0, cropDimensions.width, cropDimensions.height,
+		);
 
+		// TODO: Move to finally
 		// Stop the screen stream once the screenshot is taken
 		stream.getTracks().forEach((track) => track.stop());
 
@@ -93,7 +134,6 @@ async function takeScreenshotAndCrop(x: number, y: number, width: number, height
 	}
 }
 
-
 function generateIdUsingDateTime(): string {
 	const now = new Date();
 	const year = now.getFullYear();
@@ -107,16 +147,21 @@ function generateIdUsingDateTime(): string {
 	return `${year}-${month}-${day}_${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
-function getActiveWindowBounds(): { width: number; height: number; x: number; y: number } | undefined {
-	const activeWindow = getActiveWindow();
-	if (!activeWindow) {
-		return undefined;
-	}
+function getActiveWindowBounds(): IBoundingBox | undefined {
 	const window = getActiveWindow();
 	if (!window) {
 		return;
 	}
-	return { width: activeWindow.innerWidth, height: activeWindow.innerHeight, x: activeWindow.screenX, y: activeWindow.screenY };
+	const displayOffsetX = 'availLeft' in window.screen && typeof window.screen.availLeft === 'number' ? window.screen.availLeft : 0;
+	const displayOffsetY = 'availTop' in window.screen && typeof window.screen.availTop === 'number' ? window.screen.availTop : 0;
+	// This handling of dimensions is flaky, if the the active windoow is on the first monitor and
+	// DPRs differ this may not work properly.
+	return new BoundingBox(
+		Math.round((window.screenX - displayOffsetX) * window.devicePixelRatio),
+		Math.round((window.screenY - displayOffsetY) * window.devicePixelRatio),
+		Math.round(window.innerWidth * window.devicePixelRatio),
+		Math.round(window.innerHeight * window.devicePixelRatio),
+	);
 }
 
 export interface IScreenShotContext {
