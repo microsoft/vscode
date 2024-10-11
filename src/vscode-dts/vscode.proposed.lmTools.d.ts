@@ -32,9 +32,9 @@ declare module 'vscode' {
 	export class LanguageModelToolCallPart {
 		name: string;
 		toolCallId: string;
-		parameters: any;
+		parameters: Object;
 
-		constructor(name: string, toolCallId: string, parameters: any);
+		constructor(name: string, toolCallId: string, parameters: Object);
 	}
 
 	// LM -> USER: text chunk
@@ -102,7 +102,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<unknown>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<Object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
