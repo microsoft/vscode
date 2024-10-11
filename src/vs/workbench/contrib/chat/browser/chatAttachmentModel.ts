@@ -66,7 +66,7 @@ export class ChatAttachmentModel extends Disposable {
 		}
 		this.addContext({
 			id: 'screenshot-focused-window',
-			name: 'Screenshot focused window',
+			name: 'Screenshot',
 			value: imageData
 		});
 	}

@@ -346,7 +346,7 @@ export class AttachContextAction extends Action2 {
 				if (imageData) {
 					toAttach.push({
 						id: 'screenshot-focused-window',
-						name: 'Screenshot focused window',
+						name: 'Screenshot',
 						value: imageData,
 						isImage: true,
 						isDynamic: true
