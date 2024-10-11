@@ -112,7 +112,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getToolByName(name: string): IToolData | undefined {
 		for (const toolData of this.getTools()) {
-			if (toolData.name === name) {
+			if (toolData.name2 === name) {
 				return toolData;
 			}
 		}

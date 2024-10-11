@@ -578,9 +578,9 @@ class VariableCompletions extends Disposable {
 				if (!usedAgent || usedAgent.agent.supportsToolReferences) {
 					toolItems.push(...Array.from(toolsService.getTools())
 						.filter(t => t.canBeInvokedManually)
-						.filter(t => !usedToolNames.has(t.name ?? ''))
+						.filter(t => !usedToolNames.has(t.name2 ?? ''))
 						.map((t): CompletionItem => {
-							const withLeader = `${chatVariableLeader}${t.name}`;
+							const withLeader = `${chatVariableLeader}${t.name2}`;
 							return {
 								label: withLeader,
 								range,

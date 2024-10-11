@@ -459,7 +459,7 @@ export class AttachContextAction extends Action2 {
 					if (tool.canBeInvokedManually) {
 						const item: IToolQuickPickItem = {
 							kind: 'tool',
-							label: tool.displayName ?? tool.name ?? '',
+							label: tool.displayName ?? tool.name2 ?? '',
 							id: tool.id,
 							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined // TODO need to support icon path?
 						};

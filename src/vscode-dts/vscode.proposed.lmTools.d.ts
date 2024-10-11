@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 8
+// version: 9
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -12,10 +12,9 @@ declare module 'vscode' {
 
 	// API -> LM: an tool/function that is available to the language model
 	export interface LanguageModelChatTool {
-		// TODO@API should use "id" here to match vscode tools, or keep name to match OpenAI? Align everything.
 		name: string;
 		description: string;
-		parametersSchema?: JSONSchema;
+		parametersSchema?: Object;
 	}
 
 	// API -> LM: add tools as request option
@@ -93,7 +92,7 @@ declare module 'vscode' {
 		 * point. A registered tool is available in the {@link lm.tools} list for any extension to see. But in order for it to
 		 * be seen by a language model, it must be passed in the list of available tools in {@link LanguageModelChatRequestOptions.tools}.
 		 */
-		export function registerTool<T>(id: string, tool: LanguageModelTool<T>): Disposable;
+		export function registerTool<T>(name: string, tool: LanguageModelTool<T>): Disposable;
 
 		/**
 		 * A list of all available tools.
@@ -155,19 +154,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a JSON Schema.
-	 * TODO@API - is this worth it?
-	 */
-	export type JSONSchema = Object;
-
-	/**
 	 * A description of an available tool.
 	 */
 	export interface LanguageModelToolDescription {
 		/**
-		 * A unique identifier for the tool.
+		 * A unique name for the tool.
 		 */
-		readonly id: string;
+		readonly name: string;
 
 		/**
 		 * A human-readable name for this tool that may be used to describe it in the UI.
@@ -183,7 +176,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
-		readonly parametersSchema?: JSONSchema;
+		readonly parametersSchema?: Object;
 
 		/**
 		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.

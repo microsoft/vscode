@@ -15,7 +15,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export interface IToolData {
 	id: string;
-	name?: string;
+	name2?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];

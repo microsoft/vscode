@@ -1491,9 +1491,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
 			},
-			registerTool<T>(toolId: string, tool: vscode.LanguageModelTool<T>) {
+			registerTool<T>(name: string, tool: vscode.LanguageModelTool<T>) {
 				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
+				return extHostLanguageModelTools.registerTool(extension, name, tool);
 			},
 			invokeTool<T>(toolId: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'lmTools');
