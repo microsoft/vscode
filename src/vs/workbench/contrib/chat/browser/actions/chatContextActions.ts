@@ -44,7 +44,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { SearchView } from '../../../search/browser/searchView.js';
-import { getScreenshotAsVariable } from '../contrib/screenshot.js';
+import { getScreenshotAsVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -503,10 +503,10 @@ export class AttachContextAction extends Action2 {
 			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
 				quickPickItems.push({
 					kind: 'screenshot',
-					id: 'screenshot',
+					id: ScreenshotVariableId,
 					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
 					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-					label: localize('chatContext.attachScreenshot.label', 'Screenshot the focused window'),
+					label: localize('chatContext.attachScreenshot.label', 'Image of Current VS Code Window'),
 				});
 			}
 			if (widget.location === ChatAgentLocation.Notebook) {
