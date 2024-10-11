@@ -611,6 +611,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		// Restore all entries from the snapshot
 		for (const snapshotEntry of snapshot.entries.values()) {
 			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, snapshotEntry.telemetryInfo);
+			entry.restoreFromSnapshot(snapshotEntry);
 			entriesArr.push(entry);
 		}
 
