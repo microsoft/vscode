@@ -45,7 +45,7 @@ export interface IChatRequestVariableEntry {
 	isImage?: boolean;
 	/**
 	 * True if a screenshot has been requested for this variable
-	 * Note that name and ID will be created for the screenshot
+	 * Note that name and ID will be overwritten
 	 */
 	isScreenShotRequested?: boolean;
 }
