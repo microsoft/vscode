@@ -38,6 +38,7 @@ import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
+import { getScreenshotAsVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -58,9 +59,9 @@ export interface IChatViewOpenOptions {
 	previousRequests?: IChatViewOpenRequestEntry[];
 
 	/**
-	 * The image(s) to include in the request
+	 * Whether a screenshot of the focused window should be taken and attached
 	 */
-	images?: IChatImageAttachment[];
+	attachScreenshot?: boolean;
 }
 
 export interface IChatImageAttachment {
@@ -113,14 +114,10 @@ class OpenChatGlobalAction extends Action2 {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
 			}
 		}
-		if (opts?.images) {
-			chatWidget.attachmentModel.clear();
-			for (const image of opts.images) {
-				chatWidget.attachmentModel.addContext({
-					...image,
-					isDynamic: true,
-					isImage: true
-				});
+		if (opts?.attachScreenshot) {
+			const screenshot = await getScreenshotAsVariable();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(screenshot);
 			}
 		}
 		if (opts?.query) {
