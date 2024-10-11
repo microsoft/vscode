@@ -5,7 +5,7 @@
 
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { commonPrefixLength } from '../../../base/common/strings.js';
+import { commonPrefixLength, commonSuffixLength } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
 import { LineRange } from './lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
@@ -273,6 +273,19 @@ export class SingleTextEdit {
 		const newText = normalizedModifiedText.substring(commonPrefixLen);
 		const range = Range.fromPositions(start, this.range.getEndPosition());
 		return new SingleTextEdit(range, newText);
+	}
+
+	public isEffectiveDeletion(text: AbstractText): boolean {
+		let newText = this.text.replaceAll('\r\n', '\n');
+		let existingText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
+		const l = commonPrefixLength(newText, existingText);
+		newText = newText.substring(l);
+		existingText = existingText.substring(l);
+		const r = commonSuffixLength(newText, existingText);
+		newText = newText.substring(0, newText.length - r);
+		existingText = existingText.substring(0, existingText.length - r);
+
+		return newText === '';
 	}
 }
 
