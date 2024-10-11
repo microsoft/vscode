@@ -14,7 +14,7 @@ declare module 'vscode' {
 	export interface LanguageModelChatTool {
 		name: string;
 		description: string;
-		parametersSchema?: Object;
+		parametersSchema?: object;
 	}
 
 	// API -> LM: add tools as request option
@@ -32,9 +32,9 @@ declare module 'vscode' {
 	export class LanguageModelToolCallPart {
 		name: string;
 		toolCallId: string;
-		parameters: Object;
+		parameters: object;
 
-		constructor(name: string, toolCallId: string, parameters: Object);
+		constructor(name: string, toolCallId: string, parameters: object);
 	}
 
 	// LM -> USER: text chunk
@@ -102,7 +102,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<Object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
@@ -172,7 +172,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
-		readonly parametersSchema?: Object;
+		readonly parametersSchema?: object;
 
 		/**
 		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
