@@ -4,22 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { isResponseVM } from '../common/chatViewModel.js';
+import { IChatService } from '../common/chatService.js';
+import { isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { IChatWidget, IChatWidgetService } from './chat.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
 
 abstract class WorkingSetAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
@@ -295,11 +299,8 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 				id: MenuId.ChatMessageFooter,
 				group: 'navigation',
 				order: 1000,
-				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession),
-					CONTEXT_RESPONSE,
-					ContextKeyExpr.notIn(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key)
-				)
+				when: ContextKeyExpr.false()
+				// when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_RESPONSE, ContextKeyExpr.notIn(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key)
 			}
 		});
 	}
@@ -312,13 +313,110 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 		}
 
 		const { session, requestId } = item.model;
-		if (requestId === session.checkpoint?.id) {
+		const shouldUnsetCheckpoint = requestId === session.checkpoint?.id;
+		if (shouldUnsetCheckpoint) {
 			// Unset the existing checkpoint
 			session.setCheckpoint(undefined);
 		} else {
 			session.setCheckpoint(requestId);
 		}
 
-		chatEditingService.restoreSnapshot(requestId);
+		// The next request is associated with the working set snapshot representing
+		// the 'good state' from this checkpointed request
+		const chatService = accessor.get(IChatService);
+		const chatModel = chatService.getSession(item.sessionId);
+		const chatRequests = chatModel?.getRequests();
+		const snapshot = chatRequests?.find((v, i) => i > 0 && chatRequests[i - 1]?.id === requestId);
+		if (!shouldUnsetCheckpoint && snapshot !== undefined) {
+			chatEditingService.restoreSnapshot(snapshot.id);
+		} else if (shouldUnsetCheckpoint) {
+			chatEditingService.restoreSnapshot(undefined);
+		}
+	}
+});
+
+registerAction2(class RemoveAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.undoEdits',
+			title: localize2('chat.undoEdits.label', "Undo Edits"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.trashcan,
+			keybinding: {
+				primary: KeyCode.Delete,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+				},
+				when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()),
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_RESPONSE)
+				},
+				{
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_REQUEST)
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		if (!isResponseVM(item)) {
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const widget = chatWidgetService.lastFocusedWidget;
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const chatModel = chatService.getSession(item.sessionId);
+		if (chatModel?.initialLocation !== ChatAgentLocation.EditingSession) {
+			return;
+		}
+
+		const requestId = isRequestVM(item) ? item.id :
+			isResponseVM(item) ? item.requestId : undefined;
+
+		if (requestId) {
+			const dialogService = accessor.get(IDialogService);
+			const chatEditingService = accessor.get(IChatEditingService);
+			const chatRequests = chatModel.getRequests();
+			const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+			const editsToUndo = chatRequests.length - itemIndex;
+
+			const confirmation = await dialogService.confirm({
+				title: editsToUndo === 1
+					? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
+					: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
+				message: editsToUndo === 1
+					? localize('chat.removeLast.confirmation.message', "This will remove your last request and undo the edits it made to your working set.")
+					: localize('chat.remove.confirmation.message', "This will remove all subsequent requests and undo the edits they made to your working set."),
+				primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+				type: 'info'
+			});
+
+			if (confirmation.confirmed) {
+				// Restore the snapshot to what it was before the request(s) that we deleted
+				const snapshotRequestId = chatRequests[itemIndex].id;
+				await chatEditingService.restoreSnapshot(snapshotRequestId);
+
+				// Remove the request and all that come after it
+				for (const request of chatRequests.slice(itemIndex)) {
+					await chatService.removeRequest(item.sessionId, request.id);
+				}
+			}
+		}
 	}
 });

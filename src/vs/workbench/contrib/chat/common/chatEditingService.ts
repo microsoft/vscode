@@ -35,9 +35,9 @@ export interface IChatEditingService {
 	addFileToWorkingSet(resource: URI): Promise<void>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
-	createSnapshot(id: string): void;
-	getSnapshotUri(id: string, uri: URI): URI | undefined;
-	restoreSnapshot(id: string): Promise<void>;
+	createSnapshot(requestId: string): void;
+	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+	restoreSnapshot(requestId: string | undefined): Promise<void>;
 }
 
 export interface IChatEditingSession {
