@@ -159,7 +159,17 @@ export class ChatViewPane extends ViewPane {
 				ChatWidget,
 				this.chatOptions.location,
 				{ viewId: this.id },
-				{ renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel, supportsFileReferences: true, supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel, rendererOptions: { renderCodeBlockPills: this.chatOptions.location === ChatAgentLocation.EditingSession } },
+				{
+					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
+					supportsFileReferences: true,
+					supportsAdditionalParticipants: this.chatOptions.location === ChatAgentLocation.Panel,
+					rendererOptions: {
+						renderCodeBlockPills: this.chatOptions.location === ChatAgentLocation.EditingSession,
+						renderTextEditsAsSummary: (uri) => {
+							return this.chatOptions.location === ChatAgentLocation.EditingSession;
+						},
+					}
+				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: locationBasedColors.background,
