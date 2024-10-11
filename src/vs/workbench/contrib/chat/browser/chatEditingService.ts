@@ -221,10 +221,29 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			}
 		};
 
-		const openCodeBlockUris = (responseModel: IChatResponseModel) => {
+		const allSeenEdits = new ResourceMap<number>;
+
+		const handleResponseParts = (responseModel: IChatResponseModel) => {
 			for (const part of responseModel.response.value) {
 				if (part.kind === 'codeblockUri') {
 					this._editorService.openEditor({ resource: part.uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+
+				} else if (part.kind === 'textEditGroup') {
+					// again ensure editor is open
+					this._editorService.openEditor({ resource: part.uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+
+					const seen = allSeenEdits.get(part.uri) ?? 0;
+					const newEdits = part.edits.slice(seen);
+					allSeenEdits.set(part.uri, seen + newEdits.length);
+
+					if (newEdits.length > 0) {
+
+						this._continueEditingSession(async (builder, token) => {
+							for (const group of newEdits) {
+								builder.textEdits(part.uri, group, responseModel);
+							}
+						}, { silent: true });
+					}
 				}
 			}
 		};
@@ -234,11 +253,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 				const responseModel = e.request.response;
 				if (responseModel) {
 					if (responseModel.isComplete) {
-						openCodeBlockUris(responseModel);
+						handleResponseParts(responseModel);
 						onResponseComplete(responseModel);
 					} else {
 						const disposable = responseModel.onDidChange(() => {
-							openCodeBlockUris(responseModel);
+							handleResponseParts(responseModel);
 							if (responseModel.isComplete) {
 								onResponseComplete(responseModel);
 								disposable.dispose();
@@ -760,7 +779,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			result: responseModel.result
 		});
 		entry.applyEdits(textEdits);
-		await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
+		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
 	private async _resolve(): Promise<void> {
