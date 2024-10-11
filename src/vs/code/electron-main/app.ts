@@ -163,7 +163,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
-		const isFromCore = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
+		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
 		const allowedPermissionsInWebview = new Set([
@@ -180,7 +180,7 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (isFromCore(details.requestingUrl)) {
+			if (isUrlFromWindow(details.requestingUrl)) {
 				return callback(allowedPermissionsInCore.has(permission));
 			}
 
@@ -191,13 +191,11 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-			if (isFromCore(details.requestingUrl)) {
+			if (isUrlFromWindow(details.requestingUrl)) {
 				return allowedPermissionsInCore.has(permission);
 			}
-
 			return false;
 		});
-
 		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
 
 			// Get the currently focused window
