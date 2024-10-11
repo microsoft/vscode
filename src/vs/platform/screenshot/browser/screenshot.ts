@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 
 interface IBoundingBox {
 	x: number;
@@ -51,15 +51,18 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 	if (!windowBounds) {
 		return undefined;
 	}
-	try {
-		// Create a video element to play the captured screen source
-		const video = document.createElement('video');
+	const store = new DisposableStore();
 
+	// Create a video element to play the captured screen source
+	const video = document.createElement('video');
+	store.add(toDisposable(() => video.remove()));
+	let stream: MediaStream | undefined;
+	try {
 		// TODO: This needs to get the stream for the actual window when strictly taking a
 		//       screenshot of the window, so as to not leak windows in the foreground (eg. a always
 		//       on top video)
 		// Create a stream from the screen source (capture screen without audio)
-		const stream = await navigator.mediaDevices.getDisplayMedia({
+		stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
 			video: true
 		});
@@ -69,12 +72,10 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 		video.play();
 
 		// Wait for the video to load properly before capturing the screenshot
-		const store = new DisposableStore();
 		await Promise.all([
 			new Promise<void>(r => store.add(addDisposableListener(video, 'loadedmetadata', () => r()))),
 			new Promise<void>(r => store.add(addDisposableListener(video, 'canplaythrough', () => r())))
 		]);
-		store.dispose();
 
 		// Create a canvas element with the size of the cropped region
 		if (!cropDimensions) {
@@ -97,10 +98,7 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 			0, 0, cropDimensions.width, cropDimensions.height,
 		);
 
-		// TODO: Move to finally
-		// Stop the screen stream once the screenshot is taken
-		stream.getTracks().forEach((track) => track.stop());
-
+		// TODO: jpg is probably the better format
 		// Convert the canvas to a Blob (PNG format)
 		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/png'));
 		if (!blob) {
@@ -113,6 +111,13 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 	} catch (error) {
 		console.error('Error taking screenshot:', error);
 		return undefined;
+	} finally {
+		store.dispose();
+		if (stream) {
+			for (const track of stream.getTracks()) {
+				track.stop();
+			}
+		}
 	}
 }
 
