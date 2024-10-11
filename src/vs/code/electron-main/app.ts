@@ -180,8 +180,8 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (isFromCore(details.requestingUrl) && allowedPermissionsInCore.has(permission)) {
-				return callback(true);
+			if (isFromCore(details.requestingUrl)) {
+				return callback(allowedPermissionsInCore.has(permission));
 			}
 
 			return callback(false);
