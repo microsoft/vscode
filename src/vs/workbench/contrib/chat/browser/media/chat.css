@@ -950,6 +950,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
+.disabled-overlay {
+	display: none;
+}
+
+.disabled-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(128, 128, 128, 0.2);
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 1;
+}
+
 .interactive-response  .interactive-response-codicon-details {
 	display: flex;
 	align-items: start;

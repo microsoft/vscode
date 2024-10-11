@@ -8,22 +8,27 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
@@ -130,7 +135,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					orderedDisposablesList.push(ref);
 					return ref.object.element;
 				} else {
-					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, isCodeBlockComplete);
+					const requestId = isRequestVM(element) ? element.id : element.requestId;
+					const ref = this.renderCodeBlockPill(requestId, codeBlockInfo.codemapperUri, isCodeBlockComplete);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
@@ -171,8 +177,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock);
+	private renderCodeBlockPill(requestId: string, codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, requestId);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri, !isCodeBlockComplete);
 		}
@@ -269,17 +275,27 @@ class CollapsedCodeBlock extends Disposable {
 	private isStreaming: boolean | undefined;
 
 	constructor(
+		private readonly requestId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
 		this.element.classList.add('show-file-icons');
-		this._register(dom.addDisposableListener(this.element, 'click', () => {
+		this._register(dom.addDisposableListener(this.element, 'click', async () => {
 			if (this.uri) {
-				this.editorService.openEditor({ resource: this.uri });
+				const snapshot = this.chatEditingService.getSnapshotUri(this.requestId, this.uri);
+				if (snapshot) {
+					const editor = await this.editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Working Set History)', basename(this.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+					if (isCodeEditor(editor)) {
+						editor.updateOptions({ readOnly: true });
+					}
+				} else {
+					this.editorService.openEditor({ resource: this.uri });
+				}
 			}
 		}));
 	}

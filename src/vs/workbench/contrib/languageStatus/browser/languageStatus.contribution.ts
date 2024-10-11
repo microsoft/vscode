@@ -218,7 +218,7 @@ class LanguageStatus {
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
 				command: ShowTooltipCommand,
-				text: isOneBusy ? `${text}\u00A0\u00A0$(sync~spin)` : text,
+				text: isOneBusy ? `${text}\u00A0\u00A0$(loading~spin)` : text,
 			};
 			if (!this._combinedEntry) {
 				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
@@ -305,7 +305,7 @@ class LanguageStatus {
 		const label = document.createElement('span');
 		label.classList.add('label');
 		const labelValue = typeof status.label === 'string' ? status.label : status.label.value;
-		dom.append(label, ...renderLabelWithIcons(status.busy ? `$(sync~spin)\u00A0\u00A0${labelValue}` : labelValue));
+		dom.append(label, ...renderLabelWithIcons(status.busy ? `$(loading~spin)\u00A0\u00A0${labelValue}` : labelValue));
 		left.appendChild(label);
 
 		const detail = document.createElement('span');
@@ -410,7 +410,7 @@ class LanguageStatus {
 
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
-			text: item.busy ? `${textValue}\u00A0\u00A0$(sync~spin)` : textValue,
+			text: item.busy ? `${textValue}\u00A0\u00A0$(loading~spin)` : textValue,
 			ariaLabel: LanguageStatus._accessibilityInformation(item).label,
 			role: item.accessibilityInfo?.role,
 			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
