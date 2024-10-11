@@ -405,9 +405,9 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .setting-indicators-container .setting-indicator.setting-item-preview {
-	background: rgb(214, 63, 38);
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
 	font-style: italic;
-	margin-left: 4px;
 	margin-right: 4px;
 	padding: 0px 4px 2px;
 	border-radius: 4px;
