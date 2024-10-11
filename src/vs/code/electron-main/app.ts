@@ -218,12 +218,18 @@ export class CodeApplication extends Disposable {
 			for (const display of displays) {
 				const displayBounds = display.bounds;
 
-				// Check if the window is within the display's bounds
+				// Check if the window is within the display's bounds. The center of the window is
+				// used since maximizing actually causes the window to go beyond the screen. There
+				// is also the case where a window could be spread across multiple screens.
+				const windowCenter = {
+					x: windowBounds.x + windowBounds.width / 2,
+					y: windowBounds.y + windowBounds.height / 2,
+				};
 				if (
-					windowBounds.x >= displayBounds.x &&
-					windowBounds.x + windowBounds.width <= displayBounds.x + displayBounds.width &&
-					windowBounds.y >= displayBounds.y &&
-					windowBounds.y + windowBounds.height <= displayBounds.y + displayBounds.height
+					windowCenter.x >= displayBounds.x &&
+					windowCenter.x <= displayBounds.x + displayBounds.width &&
+					windowCenter.y >= displayBounds.y &&
+					windowCenter.y <= displayBounds.y + displayBounds.height
 				) {
 					// Match the display to the screen source
 					for (const source of screens) {
