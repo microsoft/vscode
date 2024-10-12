@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,6 +33,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { editorSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IEditorCloseEvent } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -533,17 +534,64 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			return; // Shouldn't happen
 		}
 
-		// Add the currently active editor to the working set
-		let activeEditorControl = this._editorService.activeTextEditorControl;
-		if (activeEditorControl) {
+		// Add the currently active editors to the working set
+		this._trackCurrentEditorsInWorkingSet();
+		this._register(this._editorService.onDidActiveEditorChange(() => {
+			this._trackCurrentEditorsInWorkingSet();
+		}));
+		this._register(this._editorService.onDidCloseEditor((e) => {
+			this._trackCurrentEditorsInWorkingSet(e);
+		}));
+	}
+
+	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
+		const closedEditor = e?.editor.resource?.toString();
+
+		const existingTransientEntries = new ResourceSet();
+		for (const file of this._workingSet.keys()) {
+			if (this._workingSet.get(file) === WorkingSetEntryState.Transient) {
+				existingTransientEntries.add(file);
+			}
+		}
+		if (existingTransientEntries.size === 0 && this._workingSet.size > 0) {
+			// The user manually added or removed attachments, don't inherit the visible editors
+			return;
+		}
+
+		const activeEditors = new ResourceSet();
+		this._editorGroupsService.groups.forEach((group) => {
+			if (!group.activeEditorPane) {
+				return;
+			}
+			let activeEditorControl = group.activeEditorPane.getControl();
 			if (isDiffEditor(activeEditorControl)) {
 				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 			}
 			if (isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
 				const uri = activeEditorControl.getModel().uri;
-				this._workingSet.set(uri, WorkingSetEntryState.Attached);
-				widget.attachmentModel.addFile(uri);
+				if (closedEditor === uri.toString()) {
+					// The editor group service sees recently closed editors?
+					// Continue, since we want this to be deleted from the working set
+				} else if (existingTransientEntries.has(uri)) {
+					existingTransientEntries.delete(uri);
+				} else {
+					activeEditors.add(uri);
+				}
 			}
+		});
+
+		let didChange = false;
+		for (const entry of existingTransientEntries) {
+			didChange ||= this._workingSet.delete(entry);
+		}
+
+		for (const entry of activeEditors) {
+			this._workingSet.set(entry, WorkingSetEntryState.Transient);
+			didChange = true;
+		}
+
+		if (didChange) {
+			this._onDidChange.fire();
 		}
 	}
 
@@ -655,7 +703,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		let didRemoveUris = false;
 		for (const uri of uris) {
-			didRemoveUris = didRemoveUris || this._workingSet.delete(uri);
+			didRemoveUris ||= this._workingSet.delete(uri);
 		}
 
 		if (!didRemoveUris) {
@@ -791,6 +839,14 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	addFileToWorkingSet(resource: URI) {
 		if (!this._workingSet.has(resource)) {
 			this._workingSet.set(resource, WorkingSetEntryState.Attached);
+
+			// Convert all transient entries to attachments
+			for (const file of this._workingSet.keys()) {
+				if (this._workingSet.get(file) === WorkingSetEntryState.Transient) {
+					this._workingSet.set(file, WorkingSetEntryState.Attached);
+				}
+			}
+
 			this._onDidChange.fire();
 		}
 	}

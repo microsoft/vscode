@@ -59,7 +59,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			icon: Codicon.close,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached),
+				when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
 				order: 0,
 				group: 'navigation'
 			}],

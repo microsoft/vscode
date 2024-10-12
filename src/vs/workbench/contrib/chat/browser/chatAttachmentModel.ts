@@ -38,13 +38,17 @@ export class ChatAttachmentModel extends Disposable {
 	}
 
 	addFile(uri: URI, range?: IRange) {
-		this.addContext({
+		this.addContext(this.asVariableEntry(uri, range));
+	}
+
+	asVariableEntry(uri: URI, range?: IRange) {
+		return {
 			value: uri,
 			id: uri.toString() + (range?.toString() ?? ''),
 			name: basename(uri),
 			isFile: true,
 			isDynamic: true
-		});
+		};
 	}
 
 	addContext(...attachments: IChatRequestVariableEntry[]) {
