@@ -34,8 +34,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
-import { IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 
 
@@ -369,7 +368,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 
 function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
 	return getElementsToOperateOn(viewer, currElement, sortConfig)
-		.map((renderableMatch) => ((renderableMatch instanceof Match) ? null : renderableMatch.resource))
+		.map((renderableMatch) => ((isSearchMatch(renderableMatch)) ? null : renderableMatch.resource))
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
 }
 

@@ -13,10 +13,9 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { IFileInstanceMatch, IFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource, isTextSearchHeading, ITextSearchHeading } from './searchTreeCommon.js';
+import { IFileInstanceMatch, IFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource, isSearchMatch, isTextSearchHeading, ITextSearchHeading } from './searchTreeCommon.js';
 import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch } from './searchTreeCommon.js';
 
-import { Match } from './searchTreeCommon.js';
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl, TextSearchHeadingImpl } from './textSearchHeading.js';
 
@@ -88,7 +87,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 
 				if (isFileInstanceMatch(elem)) {
 					await elem.parent().replace(elem);
-				} else if (elem instanceof Match) {
+				} else if (isSearchMatch(elem)) {
 					await elem.parent().replace(elem);
 				} else if (isFolderMatch(elem)) {
 					await elem.replaceAll();

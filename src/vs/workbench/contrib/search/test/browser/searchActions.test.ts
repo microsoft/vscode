@@ -21,10 +21,11 @@ import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorServ
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { IFileInstanceMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
-import { Match } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FileMatchOrMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
+import { MatchImpl } from '../../browser/searchTreeModel/match.js';
 
 suite('Search Actions', () => {
 
@@ -136,9 +137,9 @@ suite('Search Actions', () => {
 		return fileMatch;
 	}
 
-	function aMatch(fileMatch: IFileInstanceMatch): Match {
+	function aMatch(fileMatch: IFileInstanceMatch): ISearchMatch {
 		const line = ++counter;
-		const match = new Match(
+		const match = new MatchImpl(
 			fileMatch,
 			['some match'],
 			{

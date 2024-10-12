@@ -32,7 +32,7 @@ import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FolderMatchImpl, FolderMatchWorkspaceRootImpl, FolderMatchNoRootImpl } from './searchTreeModel/folderMatch.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch, AI_TEXT_SEARCH_RESULT_ID } from './searchTreeModel/searchTreeCommon.js';
 import { ITextSearchHeading, IFolderMatch, IFileInstanceMatch, isFileInstanceMatch, isFolderMatch, isTextSearchHeading, ISearchModel } from './searchTreeModel/searchTreeCommon.js';
 
@@ -85,7 +85,7 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 			return FolderMatchRenderer.TEMPLATE_ID;
 		} else if (isFileInstanceMatch(element)) {
 			return FileMatchRenderer.TEMPLATE_ID;
-		} else if (element instanceof Match) {
+		} else if (isSearchMatch(element)) {
 			return MatchRenderer.TEMPLATE_ID;
 		} else if (isTextSearchHeading(element)) {
 			return TextSearchResultRenderer.TEMPLATE_ID;
@@ -343,7 +343,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	}
 }
 
-export class MatchRenderer extends Disposable implements ICompressibleTreeRenderer<Match, void, IMatchTemplate> {
+export class MatchRenderer extends Disposable implements ICompressibleTreeRenderer<ISearchMatch, void, IMatchTemplate> {
 	static readonly TEMPLATE_ID = 'match';
 
 	readonly templateId = MatchRenderer.TEMPLATE_ID;
@@ -358,7 +358,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	) {
 		super();
 	}
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Match>, void>, index: number, templateData: IMatchTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchMatch>, void>, index: number, templateData: IMatchTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible.');
 	}
 
@@ -404,7 +404,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		};
 	}
 
-	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
+	renderElement(node: ITreeNode<ISearchMatch, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
 		const preview = match.preview();
 		const replace = this.searchView.model.isReplaceActive() &&
@@ -440,7 +440,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.disposables.dispose();
 	}
 
-	private getMatchTitle(match: Match, showLineNumbers: boolean): string {
+	private getMatchTitle(match: ISearchMatch, showLineNumbers: boolean): string {
 		const startLine = match.range().startLineNumber;
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 
@@ -482,8 +482,8 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
-		if (element instanceof Match) {
-			const match = <Match>element;
+		if (isSearchMatch(element)) {
+			const match = <ISearchMatch>element;
 			const searchModel: ISearchModel = this.searchView.model;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();

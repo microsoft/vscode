@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { IFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
 
 export const IReplaceService = createDecorator<IReplaceService>('replaceService');
@@ -18,7 +18,7 @@ export interface IReplaceService {
 	/**
 	 * Replaces the given match in the file that match belongs to
 	 */
-	replace(match: Match): Promise<any>;
+	replace(match: ISearchMatch): Promise<any>;
 
 	/**
 	 *	Replace all the matches from the given file matches in the files

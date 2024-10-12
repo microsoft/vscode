@@ -17,13 +17,14 @@ import { IReplaceService } from './../replace.js';
 import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions, resultIsMatch } from '../../../../services/search/common/search.js';
 
 import { FileMatchImpl } from './fileMatch.js';
-import { IChangeEvent, textSearchResultToMatches } from './searchTreeCommon.js';
+import { IChangeEvent } from './searchTreeCommon.js';
 import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchNoRoot as IFolderMatchNoRoot, IFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWorkspaceRoot, ITextSearchHeading, isFolderMatchNoRoot } from './searchTreeCommon.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { isINotebookFileMatchNoModel } from '../../common/searchNotebookHelpers.js';
 import { NotebookCompatibleFileMatch } from '../notebookSearch/notebookSearchModel.js';
 import { isINotebookFileMatchWithModel, getIDFromINotebookCellMatch } from '../notebookSearch/searchNotebookHelpers.js';
 import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
+import { textSearchResultToMatches } from './match.js';
 
 
 export class FolderMatchImpl extends Disposable implements IFolderMatch {

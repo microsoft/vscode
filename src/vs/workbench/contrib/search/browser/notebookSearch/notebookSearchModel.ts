@@ -22,16 +22,16 @@ import { CellSearchModel } from '../../common/cellSearchModel';
 import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers';
 import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers';
 import { IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon';
-import { Match } from '../searchTreeModel/searchTreeCommon';
+import { ISearchMatch } from '../searchTreeModel/searchTreeCommon';
 import { IReplaceService } from '../replace';
 import { FileMatchImpl } from '../searchTreeModel/fileMatch';
-import { textSearchResultToMatches } from '../searchTreeModel/searchTreeCommon';
-import { INotebookFileInstanceMatch } from './notebookSearchModelBase';
+import { ICellMatch, IMatchInNotebook, INotebookFileInstanceMatch } from './notebookSearchModelBase';
+import { MatchImpl, textSearchResultToMatches } from '../searchTreeModel/match';
 
-export class MatchInNotebook extends Match {
+export class MatchInNotebook extends MatchImpl implements IMatchInNotebook {
 	private _webviewIndex: number | undefined;
 
-	constructor(private readonly _cellParent: CellMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, webviewIndex?: number) {
+	constructor(private readonly _cellParent: ICellMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, webviewIndex?: number) {
 		super(_cellParent.parent, _fullPreviewLines, _fullPreviewRange, _documentRange, false);
 		this._id = this._parent.id() + '>' + this._cellParent.cellIndex + (webviewIndex ? '_' + webviewIndex : '') + '_' + this.notebookMatchTypeString() + this._range + this.getMatchString();
 		this._webviewIndex = webviewIndex;
@@ -41,7 +41,7 @@ export class MatchInNotebook extends Match {
 		return this._cellParent.parent;
 	}
 
-	get cellParent(): CellMatch {
+	get cellParent(): ICellMatch {
 		return this._cellParent;
 	}
 
@@ -70,7 +70,7 @@ export class MatchInNotebook extends Match {
 	}
 }
 
-export class CellMatch {
+export class CellMatch implements ICellMatch {
 	private _contentMatches: Map<string, MatchInNotebook>;
 	private _webviewMatches: Map<string, MatchInNotebook>;
 	private _context: Map<number, string>;
@@ -176,12 +176,10 @@ export class CellMatch {
 export class NotebookCompatibleFileMatch extends FileMatchImpl implements INotebookFileInstanceMatch {
 
 
-	// #region notebook fields
 	private _notebookEditorWidget: NotebookEditorWidget | null = null;
 	private _editorWidgetListener: IDisposable | null = null;
 	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _lastEditorWidgetIdForUpdate: string | undefined;
-	// #endregion
 
 	constructor(
 		_query: IPatternInfo,
@@ -197,10 +195,10 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
-		this._cellMatches = new Map<string, CellMatch>();
+		this._cellMatches = new Map<string, ICellMatch>();
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
 	}
-	private _cellMatches: Map<string, CellMatch>;
+	private _cellMatches: Map<string, ICellMatch>;
 	public get cellContext(): Map<string, Map<number, string>> {
 		const cellContext = new Map<string, Map<number, string>>();
 		this._cellMatches.forEach(cellMatch => {
@@ -209,7 +207,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		return cellContext;
 	}
 
-	getCellMatch(cellID: string): CellMatch | undefined {
+	getCellMatch(cellID: string): ICellMatch | undefined {
 		return this._cellMatches.get(cellID);
 	}
 
@@ -315,7 +313,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 			return;
 		}
 
-		const oldCellMatches = new Map<string, CellMatch>(this._cellMatches);
+		const oldCellMatches = new Map<string, ICellMatch>(this._cellMatches);
 		if (this._notebookEditorWidget.getId() !== this._lastEditorWidgetIdForUpdate) {
 			this._cellMatches.clear();
 			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
@@ -346,7 +344,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
 
-	private setNotebookFindMatchDecorationsUsingCellMatches(cells: CellMatch[]): void {
+	private setNotebookFindMatchDecorationsUsingCellMatches(cells: ICellMatch[]): void {
 		if (!this._findMatchDecorationModel) {
 			return;
 		}
@@ -378,7 +376,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 			return;
 		}
 
-		this._textMatches = new Map<string, Match>();
+		this._textMatches = new Map<string, ISearchMatch>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const allMatches = await this._notebookEditorWidget
@@ -415,11 +413,11 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 	}
 
 
-	override matches(): Match[] {
+	override matches(): ISearchMatch[] {
 		const matches = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
 		return [...super.matches(), ...matches];
 	}
-	override removeMatch(match: Match) {
+	override removeMatch(match: ISearchMatch) {
 
 		if (match instanceof MatchInNotebook) {
 			match.cellParent.remove(match);
@@ -440,7 +438,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		}
 	}
 
-	cellMatches() {
+	cellMatches(): ICellMatch[] {
 		return Array.from(this._cellMatches.values());
 	}
 
@@ -479,7 +477,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		return super.hasChildren || this._cellMatches.size > 0;
 	}
 
-	override setSelectedMatch(match: Match | null): void {
+	override setSelectedMatch(match: ISearchMatch | null): void {
 		if (match) {
 
 			if (!this.isMatchSelected(match)) {

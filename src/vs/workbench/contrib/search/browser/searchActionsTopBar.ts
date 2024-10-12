@@ -18,7 +18,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { SearchStateKey, SearchUIState } from '../common/search.js';
 import { category, getSearchView } from './searchActionsBase.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 import { ISearchResult, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 
@@ -305,7 +305,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 				if (isTextSearchHeading(node)) {
 					continue;
 				}
-				if (node instanceof Match) {
+				if (isSearchMatch(node)) {
 					canCollapseFileMatchLevel = true;
 					break;
 				}
@@ -315,7 +315,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					if (isFolderMatch(node)) {
 						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so `!(compressionStartNode instanceof Match)` should always be true here. Same with `!(compressionStartNode instanceof TextSearchResult)`
-						nodeToTest = compressionStartNode && !(compressionStartNode instanceof Match) && !isTextSearchHeading(compressionStartNode) && !(isSearchResult(compressionStartNode)) ? compressionStartNode : node;
+						nodeToTest = compressionStartNode && !(isSearchMatch(compressionStartNode)) && !isTextSearchHeading(compressionStartNode) && !(isSearchResult(compressionStartNode)) ? compressionStartNode : node;
 					}
 
 					const immediateParent = nodeToTest.parent();
@@ -344,7 +344,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					if (isFolderMatch(node)) {
 						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so !(compressionStartNode instanceof Match) should always be true here
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(isSearchResult(compressionStartNode)) ? compressionStartNode : node);
+						nodeToTest = (compressionStartNode && !(isSearchMatch(compressionStartNode)) && !(isSearchResult(compressionStartNode)) ? compressionStartNode : node);
 					}
 					const immediateParent = nodeToTest.parent();
 

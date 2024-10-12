@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { IMatch } from '../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { basenameOrAuthority, dirname } from '../../../../../base/common/resources.js';
@@ -32,10 +31,12 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { Sequencer } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Match } from '../searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch } from '../searchTreeModel/searchTreeCommon.js';
 import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
-import { SearchModelLocation, RenderableMatch, searchComparer } from '../searchTreeModel/searchTreeCommon.js';
+import { SearchModelLocation, RenderableMatch } from '../searchTreeModel/searchTreeCommon.js';
 import { IFileInstanceMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
+import { searchComparer } from '../searchMatchComparer.js';
+import { IMatch } from '../../../../../base/common/filters.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -52,7 +53,7 @@ const MAX_RESULTS_PER_FILE = 10;
 const DEBOUNCE_DELAY = 75;
 
 interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
-	match?: Match;
+	match?: ISearchMatch;
 }
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearchQuickAccessItem> {
 
@@ -284,7 +285,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				},
 			});
 
-			const results: Match[] = iFileInstanceMatch.matches() ?? [];
+			const results: ISearchMatch[] = iFileInstanceMatch.matches() ?? [];
 			for (let matchIndex = 0; matchIndex < results.length; matchIndex++) {
 				const element = results[matchIndex];
 

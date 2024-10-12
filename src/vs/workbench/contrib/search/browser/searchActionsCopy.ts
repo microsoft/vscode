@@ -13,9 +13,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
-import { searchMatchComparer } from './searchView.js';
+import { searchMatchComparer } from './searchMatchComparer.js';
 import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
@@ -137,7 +137,7 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	const labelService = accessor.get(ILabelService);
 
 	let text: string | undefined;
-	if (match instanceof Match) {
+	if (isSearchMatch(match)) {
 		text = matchToString(match);
 	} else if (isFileInstanceMatch(match)) {
 		text = fileMatchToString(match, labelService).text;
@@ -164,7 +164,7 @@ async function copyAllCommand(accessor: ServicesAccessor) {
 	}
 }
 
-function matchToString(match: Match, indent = 0): string {
+function matchToString(match: ISearchMatch, indent = 0): string {
 	const getFirstLinePrefix = () => `${match.range().startLineNumber},${match.range().startColumn}`;
 	const getOtherLinePrefix = (i: number) => match.range().startLineNumber + i + '';
 

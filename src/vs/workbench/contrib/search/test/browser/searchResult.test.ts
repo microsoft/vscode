@@ -39,9 +39,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 import { ISearchResult, IFolderMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
-import { Match } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
+import { MatchImpl } from '../../browser/searchTreeModel/match.js';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -72,7 +72,7 @@ suite('SearchResult', () => {
 
 	test('Line Match', function () {
 		const fileMatch = aFileMatch('folder/file.txt', null!);
-		const lineMatch = new Match(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5), false);
+		const lineMatch = new MatchImpl(fileMatch, ['0 foo bar'], new OneLineRange(0, 2, 5), new OneLineRange(1, 0, 5), false);
 		assert.strictEqual(lineMatch.text(), '0 foo bar');
 		assert.strictEqual(lineMatch.range().startLineNumber, 2);
 		assert.strictEqual(lineMatch.range().endLineNumber, 2);
@@ -180,7 +180,7 @@ suite('SearchResult', () => {
 		const searchResult = instantiationService.createInstance(SearchResultImpl, searchModel);
 		store.add(searchResult);
 		const fileMatch = aFileMatch('far/boo', searchResult);
-		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
+		const lineMatch = new MatchImpl(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
 
 		assert(lineMatch.parent() === fileMatch);
 		assert(fileMatch.parent() === searchResult.folderMatches()[0]);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchMatch, ITextSearchResult, OneLineRange, SearchSortOrder } from '../../../../services/search/common/search.js';
+import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation';
 import { URI } from '../../../../../base/common/uri';
 import { ITextModel } from '../../../../../editor/common/model';
@@ -14,13 +14,10 @@ import { ReplacePattern } from '../../../../services/search/common/replace';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget';
 import { RangeHighlightDecorations } from './rangeDecorations';
 import { Event } from '../../../../../base/common/event.js';
-import { memoize } from '../../../../../base/common/decorators';
-import { lcut } from '../../../../../base/common/strings';
-import { searchMatchComparer } from '../searchView.js';
 
-export type FileMatchOrMatch = IFileInstanceMatch | Match;
+export type FileMatchOrMatch = IFileInstanceMatch | ISearchMatch;
 
-export type RenderableMatch = ITextSearchHeading | IFolderMatch | IFileInstanceMatch | Match;
+export type RenderableMatch = ITextSearchHeading | IFolderMatch | IFileInstanceMatch | ISearchMatch;
 export function arrayContainsElementOrParent(element: RenderableMatch, testArray: RenderableMatch[]): boolean {
 	do {
 		if (testArray.includes(element)) {
@@ -46,30 +43,6 @@ export enum SearchModelLocation {
 
 export const PLAIN_TEXT_SEARCH__RESULT_ID = 'plainTextSearch';
 export const AI_TEXT_SEARCH_RESULT_ID = 'aiTextSearch';
-
-export function searchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
-	const elemAParents = createParentList(elementA);
-	const elemBParents = createParentList(elementB);
-
-	let i = elemAParents.length - 1;
-	let j = elemBParents.length - 1;
-	while (i >= 0 && j >= 0) {
-		if (elemAParents[i].id() !== elemBParents[j].id()) {
-			return searchMatchComparer(elemAParents[i], elemBParents[j], sortOrder);
-		}
-		i--;
-		j--;
-	}
-	const elemAAtEnd = i === 0;
-	const elemBAtEnd = j === 0;
-
-	if (elemAAtEnd && !elemBAtEnd) {
-		return 1;
-	} else if (!elemAAtEnd && elemBAtEnd) {
-		return -1;
-	}
-	return 0;
-}
 
 export function createParentList(element: RenderableMatch): RenderableMatch[] {
 	const parentArray: RenderableMatch[] = [];
@@ -107,13 +80,6 @@ export function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
 	return retEvent;
 }
 
-export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: IFileInstanceMatch, isAiContributed: boolean): Match[] {
-	const previewLines = rawMatch.previewText.split('\n');
-	return rawMatch.rangeLocations.map((rangeLocation) => {
-		const previewRange: ISearchRange = rangeLocation.preview;
-		return new Match(fileMatch, previewLines, previewRange, rangeLocation.source, isAiContributed);
-	});
-}
 export interface ISearchModel {
 	readonly onReplaceTermChanged: Event<void>;
 	readonly onSearchResultChanged: Event<IChangeEvent>;
@@ -275,23 +241,23 @@ export interface IFileInstanceMatch {
 	name(): string;
 	count(): number;
 	hasOnlyReadOnlyMatches(): boolean;
-	matches(): Match[];
+	matches(): ISearchMatch[];
 	updateHighlights(): void;
-	getSelectedMatch(): Match | null;
+	getSelectedMatch(): ISearchMatch | null;
 	parent(): IFolderMatch;
 	bindModel(model: ITextModel): void;
 	hasReadonlyMatches(): boolean;
 	addContext(results: ITextSearchResult[] | undefined): void;
-	add(match: Match, trigger?: boolean): void;
-	replace(toReplace: Match): Promise<void>;
-	remove(matches: Match | Match[]): void;
-	setSelectedMatch(match: Match | null): void;
+	add(match: ISearchMatch, trigger?: boolean): void;
+	replace(toReplace: ISearchMatch): Promise<void>;
+	remove(matches: ISearchMatch | ISearchMatch[]): void;
+	setSelectedMatch(match: ISearchMatch | null): void;
 	fileStat: IFileStatWithPartialMetadata | undefined;
 	resolveFileStat(fileService: IFileService): Promise<void>;
-	textMatches(): Match[];
+	textMatches(): ISearchMatch[];
 	readonly context: Map<number, string>;
 	readonly closestRoot: IFolderMatchWorkspaceRoot | null;
-	isMatchSelected(match: Match): boolean;
+	isMatchSelected(match: ISearchMatch): boolean;
 	dispose(): void;
 }
 // Type checker for ISearchModel
@@ -453,142 +419,33 @@ export function isFileInstanceMatch(obj: any): obj is IFileInstanceMatch {
 		typeof obj.remove === 'function' &&
 		typeof obj.dispose === 'function';
 }
-export class Match {
 
-	private static readonly MAX_PREVIEW_CHARS = 250;
-	protected _id: string;
-	protected _range: Range;
-	private _oneLinePreviewText: string;
-	private _rangeInPreviewText: ISearchRange;
-	// For replace
-	private _fullPreviewRange: ISearchRange;
-
-	constructor(protected _parent: IFileInstanceMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, public readonly aiContributed: boolean) {
-		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
-		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
-			_fullPreviewRange.endColumn :
-			this._oneLinePreviewText.length;
-		this._rangeInPreviewText = new OneLineRange(1, _fullPreviewRange.startColumn + 1, adjustedEndCol + 1);
-
-		this._range = new Range(
-			_documentRange.startLineNumber + 1,
-			_documentRange.startColumn + 1,
-			_documentRange.endLineNumber + 1,
-			_documentRange.endColumn + 1);
-
-		this._fullPreviewRange = _fullPreviewRange;
-
-		this._id = this._parent.id() + '>' + this._range + this.getMatchString();
-	}
-
-	id(): string {
-		return this._id;
-	}
-
-	parent(): IFileInstanceMatch {
-		return this._parent;
-	}
-
-	text(): string {
-		return this._oneLinePreviewText;
-	}
-
-	range(): Range {
-		return this._range;
-	}
-
-	@memoize
-	preview(): { before: string; fullBefore: string; inside: string; after: string; } {
-		const fullBefore = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1), before = lcut(fullBefore, 26, '…');
-
-		let inside = this.getMatchString(), after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
-
-		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
-		inside = inside.substr(0, charsRemaining);
-		charsRemaining -= inside.length;
-		after = after.substr(0, charsRemaining);
-
-		return {
-			before,
-			fullBefore,
-			inside,
-			after,
-		};
-	}
-
-	get replaceString(): string {
-		const searchModel = this.parent().parent().searchModel;
-		if (!searchModel.replacePattern) {
-			throw new Error('searchModel.replacePattern must be set before accessing replaceString');
-		}
-
-		const fullMatchText = this.fullMatchText();
-		let replaceString = searchModel.replacePattern.getReplaceString(fullMatchText, searchModel.preserveCase);
-		if (replaceString !== null) {
-			return replaceString;
-		}
-
-		// Search/find normalize line endings - check whether \r prevents regex from matching
-		const fullMatchTextWithoutCR = fullMatchText.replace(/\r\n/g, '\n');
-		if (fullMatchTextWithoutCR !== fullMatchText) {
-			replaceString = searchModel.replacePattern.getReplaceString(fullMatchTextWithoutCR, searchModel.preserveCase);
-			if (replaceString !== null) {
-				return replaceString;
-			}
-		}
-
-		// If match string is not matching then regex pattern has a lookahead expression
-		const contextMatchTextWithSurroundingContent = this.fullMatchText(true);
-		replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithSurroundingContent, searchModel.preserveCase);
-		if (replaceString !== null) {
-			return replaceString;
-		}
-
-		// Search/find normalize line endings, this time in full context
-		const contextMatchTextWithoutCR = contextMatchTextWithSurroundingContent.replace(/\r\n/g, '\n');
-		if (contextMatchTextWithoutCR !== contextMatchTextWithSurroundingContent) {
-			replaceString = searchModel.replacePattern.getReplaceString(contextMatchTextWithoutCR, searchModel.preserveCase);
-			if (replaceString !== null) {
-				return replaceString;
-			}
-		}
-
-		// Match string is still not matching. Could be unsupported matches (multi-line).
-		return searchModel.replacePattern.pattern;
-	}
-
-	fullMatchText(includeSurrounding = false): string {
-		let thisMatchPreviewLines: string[];
-		if (includeSurrounding) {
-			thisMatchPreviewLines = this._fullPreviewLines;
-		} else {
-			thisMatchPreviewLines = this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
-			thisMatchPreviewLines[thisMatchPreviewLines.length - 1] = thisMatchPreviewLines[thisMatchPreviewLines.length - 1].slice(0, this._fullPreviewRange.endColumn);
-			thisMatchPreviewLines[0] = thisMatchPreviewLines[0].slice(this._fullPreviewRange.startColumn);
-		}
-
-		return thisMatchPreviewLines.join('\n');
-	}
-
-	rangeInPreview() {
-		// convert to editor's base 1 positions.
-		return {
-			...this._fullPreviewRange,
-			startColumn: this._fullPreviewRange.startColumn + 1,
-			endColumn: this._fullPreviewRange.endColumn + 1
-		};
-	}
-
-	fullPreviewLines(): string[] {
-		return this._fullPreviewLines.slice(this._fullPreviewRange.startLineNumber, this._fullPreviewRange.endLineNumber + 1);
-	}
-
-	getMatchString(): string {
-		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
-	}
-
-	public isReadonly() {
-		return this.aiContributed;
-	}
+export interface ISearchMatch {
+	id(): string;
+	parent(): IFileInstanceMatch;
+	text(): string;
+	range(): Range;
+	preview(): { before: string; fullBefore: string; inside: string; after: string; };
+	replaceString: string;
+	fullMatchText(includeSurrounding?: boolean): string;
+	rangeInPreview(): ISearchRange;
+	fullPreviewLines(): string[];
+	getMatchString(): string;
+	isReadonly(): boolean;
 }
 
+export function isSearchMatch(obj: any): obj is ISearchMatch {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		typeof obj.parent === 'function' &&
+		typeof obj.text === 'function' &&
+		typeof obj.range === 'function' &&
+		typeof obj.preview === 'function' &&
+		typeof obj.replaceString === 'string' &&
+		typeof obj.fullMatchText === 'function' &&
+		typeof obj.rangeInPreview === 'function' &&
+		Array.isArray(obj.fullPreviewLines) &&
+		typeof obj.getMatchString === 'function' &&
+		typeof obj.isReadonly === 'function';
+}

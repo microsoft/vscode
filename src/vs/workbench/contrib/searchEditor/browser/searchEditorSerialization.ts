@@ -13,11 +13,10 @@ import { localize } from '../../../../nls.js';
 import type { SearchConfiguration } from './searchEditorInput.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { CellMatch } from '../../search/browser/notebookSearch/notebookSearchModel.js';
 import { IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
-import { Match } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
-import { searchMatchComparer } from '../../search/browser/searchView.js';
-import { isNotebookFileMatch } from '../../search/browser/notebookSearch/notebookSearchModelBase.js';
+import { ISearchMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { searchMatchComparer } from '../../search/browser/searchMatchComparer.js';
+import { ICellMatch, isNotebookFileMatch } from '../../search/browser/notebookSearch/notebookSearchModelBase.js';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -27,7 +26,7 @@ const translateRangeLines =
 		(range: Range) =>
 			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
 
-const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { line: string; ranges: Range[]; lineNumber: string }[] => {
+const matchToSearchResultFormat = (match: ISearchMatch, longestLineNumber: number): { line: string; ranges: Range[]; lineNumber: string }[] => {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
 
 	const fullMatchLines = match.fullPreviewLines();
@@ -71,7 +70,7 @@ function fileMatchToSearchResultFormat(fileMatch: IFileInstanceMatch, labelForma
 
 	return [textSerializations, ...cellSerializations].filter(x => !!x) as SearchResultSerialization[];
 }
-function matchesToSearchResultFormat(resource: URI, sortedMatches: Match[], matchContext: Map<number, string>, labelFormatter: (x: URI) => string, shouldUseHeader = true): SearchResultSerialization {
+function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchMatch[], matchContext: Map<number, string>, labelFormatter: (x: URI) => string, shouldUseHeader = true): SearchResultSerialization {
 	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
 
 	const text: string[] = shouldUseHeader ? [`${labelFormatter(resource)}:`] : [];
@@ -116,7 +115,7 @@ function matchesToSearchResultFormat(resource: URI, sortedMatches: Match[], matc
 	return { text, matchRanges };
 }
 
-function cellMatchToSearchResultFormat(cellMatch: CellMatch, labelFormatter: (x: URI) => string, shouldUseHeader: boolean): SearchResultSerialization {
+function cellMatchToSearchResultFormat(cellMatch: ICellMatch, labelFormatter: (x: URI) => string, shouldUseHeader: boolean): SearchResultSerialization {
 	return matchesToSearchResultFormat(cellMatch.cell?.uri ?? cellMatch.parent.resource, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, shouldUseHeader);
 }
 

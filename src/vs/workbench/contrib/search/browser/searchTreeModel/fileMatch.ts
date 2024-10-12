@@ -20,9 +20,9 @@ import { editorMatchesToTextSearchResults, getTextSearchMatchWithModelContext } 
 import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel';
 import { IReplaceService } from '../replace';
 import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot } from './searchTreeCommon';
-import { Match } from './searchTreeCommon';
+import { ISearchMatch } from './searchTreeCommon';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { textSearchResultToMatches } from './searchTreeCommon';
+import { textSearchResultToMatches } from './match';
 
 export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 
@@ -71,10 +71,10 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 	private _fileStat?: IFileStatWithPartialMetadata;
 	private _model: ITextModel | null = null;
 	private _modelListener: IDisposable | null = null;
-	protected _textMatches: Map<string, Match>;
+	protected _textMatches: Map<string, ISearchMatch>;
 
 	private _removedTextMatches: Set<string>;
-	protected _selectedMatch: Match | null = null;
+	protected _selectedMatch: ISearchMatch | null = null;
 	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
@@ -99,7 +99,7 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
-		this._textMatches = new Map<string, Match>();
+		this._textMatches = new Map<string, ISearchMatch>();
 		this._removedTextMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
@@ -164,7 +164,7 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		if (!this._model) {
 			return;
 		}
-		this._textMatches = new Map<string, Match>();
+		this._textMatches = new Map<string, ISearchMatch>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model
@@ -246,15 +246,15 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		return this._textMatches.size > 0;
 	}
 
-	matches(): Match[] {
+	matches(): ISearchMatch[] {
 		return [...this._textMatches.values()];
 	}
 
-	textMatches(): Match[] {
+	textMatches(): ISearchMatch[] {
 		return Array.from(this._textMatches.values());
 	}
 
-	remove(matches: Match | Match[]): void {
+	remove(matches: ISearchMatch | ISearchMatch[]): void {
 		if (!Array.isArray(matches)) {
 			matches = [matches];
 		}
@@ -268,14 +268,14 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 	}
 
 	private replaceQ = Promise.resolve();
-	async replace(toReplace: Match): Promise<void> {
+	async replace(toReplace: ISearchMatch): Promise<void> {
 		return this.replaceQ = this.replaceQ.finally(async () => {
 			await this.replaceService.replace(toReplace);
 			await this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
 		});
 	}
 
-	setSelectedMatch(match: Match | null): void {
+	setSelectedMatch(match: ISearchMatch | null): void {
 		if (match) {
 
 			if (!this._textMatches.has(match.id())) {
@@ -290,11 +290,11 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		this.updateHighlights();
 	}
 
-	getSelectedMatch(): Match | null {
+	getSelectedMatch(): ISearchMatch | null {
 		return this._selectedMatch;
 	}
 
-	isMatchSelected(match: Match): boolean {
+	isMatchSelected(match: ISearchMatch): boolean {
 		return !!this._selectedMatch && this._selectedMatch.id() === match.id();
 	}
 
@@ -320,14 +320,14 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		return contexts.forEach(context => this._context.set(context.lineNumber, context.text));
 	}
 
-	add(match: Match, trigger?: boolean) {
+	add(match: ISearchMatch, trigger?: boolean) {
 		this._textMatches.set(match.id(), match);
 		if (trigger) {
 			this._onChange.fire({ forceUpdateModel: true });
 		}
 	}
 
-	protected removeMatch(match: Match) {
+	protected removeMatch(match: ISearchMatch) {
 		this._textMatches.delete(match.id());
 		if (this.isMatchSelected(match)) {
 			this.setSelectedMatch(null);

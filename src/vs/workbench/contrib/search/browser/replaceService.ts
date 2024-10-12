@@ -31,7 +31,7 @@ import { CellUri, IResolvedNotebookEditorModel } from '../../notebook/common/not
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
 import { IFileInstanceMatch, isFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
 
 const REPLACE_PREVIEW = 'replacePreview';
@@ -111,7 +111,7 @@ export class ReplaceService implements IReplaceService {
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService
 	) { }
 
-	replace(match: Match): Promise<any>;
+	replace(match: ISearchMatch): Promise<any>;
 	replace(files: IFileInstanceMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
 	replace(match: FileMatchOrMatch, progress?: IProgress<IProgressStep>, resource?: URI): Promise<any>;
 	async replace(arg: any, progress: IProgress<IProgressStep> | undefined = undefined, resource: URI | null = null): Promise<any> {
@@ -140,7 +140,7 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const fileMatch = element instanceof Match ? element.parent() : element;
+		const fileMatch = element instanceof IMatch ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
 			original: { resource: fileMatch.resource },
@@ -161,7 +161,7 @@ export class ReplaceService implements IReplaceService {
 		await this.updateReplacePreview(fileMatch);
 		if (editor) {
 			const editorControl = editor.getControl();
-			if (element instanceof Match && editorControl) {
+			if (element instanceof IMatch && editorControl) {
 				editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 			}
 		}
@@ -203,14 +203,14 @@ export class ReplaceService implements IReplaceService {
 	private createEdits(arg: FileMatchOrMatch | IFileInstanceMatch[], resource: URI | null = null): ResourceTextEdit[] {
 		const edits: ResourceTextEdit[] = [];
 
-		if (arg instanceof Match) {
+		if (arg instanceof IMatch) {
 			if (!arg.isReadonly()) {
 				if (arg instanceof MatchInNotebook) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
 					const match = <MatchInNotebook>arg;
 					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
 				} else {
-					const match = <Match>arg;
+					const match = <ISearchMatch>arg;
 					edits.push(this.createEdit(match, match.replaceString, resource));
 				}
 			}
@@ -233,7 +233,7 @@ export class ReplaceService implements IReplaceService {
 		return edits;
 	}
 
-	private createEdit(match: Match, text: string, resource: URI | null = null): ResourceTextEdit {
+	private createEdit(match: ISearchMatch, text: string, resource: URI | null = null): ResourceTextEdit {
 		const fileMatch: IFileInstanceMatch = match.parent();
 		return new ResourceTextEdit(
 			resource ?? fileMatch.resource,

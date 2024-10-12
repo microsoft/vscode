@@ -26,9 +26,8 @@ import { IFolderMatch, ISearchResult, ITextSearchHeading } from '../../browser/s
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
-import { Match } from '../../browser/searchTreeModel/searchTreeCommon.js';
-import { searchComparer } from '../../browser/searchTreeModel/searchTreeCommon.js';
-import { searchMatchComparer } from '../../browser/searchView.js';
+import { searchComparer, searchMatchComparer } from '../../browser/searchMatchComparer.js';
+import { MatchImpl } from '../../browser/searchTreeModel/match.js';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -99,9 +98,9 @@ suite('Search - Viewlet', () => {
 		const fileMatch1 = aFileMatch('/foo');
 		const fileMatch2 = aFileMatch('/with/path');
 		const fileMatch3 = aFileMatch('/with/path/foo');
-		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
-		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
-		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
+		const lineMatch1 = new MatchImpl(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
+		const lineMatch2 = new MatchImpl(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
+		const lineMatch3 = new MatchImpl(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
 		assert(searchMatchComparer(fileMatch2, fileMatch1) > 0);
@@ -137,13 +136,13 @@ suite('Search - Viewlet', () => {
 		const fileMatch2 = aFileMatch('/with/path.c', folderMatch2);
 		const fileMatch3 = aFileMatch('/with/path/bar.b', folderMatch2);
 
-		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
-		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
+		const lineMatch1 = new MatchImpl(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
+		const lineMatch2 = new MatchImpl(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
-		const lineMatch3 = new Match(fileMatch2, ['barfoo'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
-		const lineMatch4 = new Match(fileMatch2, ['fooooo'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
+		const lineMatch3 = new MatchImpl(fileMatch2, ['barfoo'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1), false);
+		const lineMatch4 = new MatchImpl(fileMatch2, ['fooooo'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
-		const lineMatch5 = new Match(fileMatch3, ['foobar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
+		const lineMatch5 = new MatchImpl(fileMatch3, ['foobar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1), false);
 
 		/***
 		 * Structure would take the following form:

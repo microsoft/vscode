@@ -10,9 +10,10 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/br
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SearchView } from './searchView.js';
 import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
-import { RenderableMatch, searchComparer } from './searchTreeModel/searchTreeCommon.js';
+import { isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 import { ISearchResult, isFileInstanceMatch, isFolderMatch } from './searchTreeModel/searchTreeCommon.js';
+import { searchComparer } from './searchMatchComparer.js';
 
 export const category = nls.localize2('search', "Search");
 
@@ -54,10 +55,10 @@ export function shouldRefocus(elements: RenderableMatch[], focusElement: Rendera
 
 function hasDownstreamMatch(elements: RenderableMatch[], focusElement: RenderableMatch) {
 	for (const elem of elements) {
-		if ((isFileInstanceMatch(elem) && focusElement instanceof Match && elem.matches().includes(focusElement)) ||
+		if ((isFileInstanceMatch(elem) && isSearchMatch(focusElement) && elem.matches().includes(focusElement)) ||
 			(isFolderMatch(elem) && (
 				(isFileInstanceMatch(focusElement) && elem.getDownstreamFileMatch(focusElement.resource)) ||
-				(focusElement instanceof Match && elem.getDownstreamFileMatch(focusElement.parent().resource))
+				(isSearchMatch(focusElement) && elem.getDownstreamFileMatch(focusElement.parent().resource))
 			))) {
 			return true;
 		}

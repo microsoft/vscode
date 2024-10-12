@@ -81,13 +81,12 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
 import { RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
 import { IFileInstanceMatch, IFolderMatch, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch } from './notebookSearch/notebookSearchModelBase.js';
-import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
-import { Range } from '../../../../editor/common/core/range.js';
+import { searchMatchComparer } from './searchMatchComparer.js';
 
 const $ = dom.$;
 
@@ -737,7 +736,7 @@ export class SearchView extends ViewPane {
 	private originalShouldCollapse(match: RenderableMatch) {
 		const collapseResults = this.searchConfig.collapseResults;
 		return (collapseResults === 'alwaysCollapse' ||
-			(!(match instanceof Match) && match.count() > 10 && collapseResults !== 'alwaysExpand')) ?
+			(!(isSearchMatch(match)) && match.count() > 10 && collapseResults !== 'alwaysExpand')) ?
 			ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 	}
 
@@ -912,7 +911,7 @@ export class SearchView extends ViewPane {
 					if (isFileInstanceMatch(element)) {
 						return element.resource;
 					}
-					if (element instanceof Match) {
+					if (isSearchMatch(element)) {
 						return withSelection(element.parent().resource, element.range());
 					}
 					return null;
@@ -938,8 +937,8 @@ export class SearchView extends ViewPane {
 		this._register(this.tree.onDidChangeModel(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
-			if (options.element instanceof Match) {
-				const selectedMatch: Match = options.element;
+			if (isSearchMatch(options.element)) {
+				const selectedMatch: ISearchMatch = options.element;
 				this.currentSelectedFileMatch?.setSelectedMatch(null);
 				this.currentSelectedFileMatch = selectedMatch.parent();
 				this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
@@ -951,7 +950,7 @@ export class SearchView extends ViewPane {
 		this._register(Event.debounce(this.tree.onDidChangeFocus, (last, event) => event, DEBOUNCE_DELAY, true)(() => {
 			const selection = this.tree.getSelection();
 			const focus = this.tree.getFocus()[0];
-			if (selection.length > 1 && focus instanceof Match) {
+			if (selection.length > 1 && isSearchMatch(focus)) {
 				this.onFocus(focus, true);
 			}
 		}));
@@ -965,7 +964,7 @@ export class SearchView extends ViewPane {
 				this.fileMatchOrMatchFocused.set(!!focus);
 				this.fileMatchFocused.set(isFileInstanceMatch(focus));
 				this.folderMatchFocused.set(isFolderMatch(focus));
-				this.matchFocused.set(focus instanceof Match);
+				this.matchFocused.set(isSearchMatch(focus));
 				this.fileMatchOrFolderMatchFocus.set(isFileInstanceMatch(focus) || isFolderMatch(focus));
 				this.fileMatchOrFolderMatchWithResourceFocus.set(isFileInstanceMatch(focus) || isFolderMatchWithResource(focus));
 				this.folderMatchWithResourceFocused.set(isFolderMatchWithResource(focus));
@@ -973,7 +972,7 @@ export class SearchView extends ViewPane {
 			}
 
 			let editable = false;
-			if (focus instanceof Match) {
+			if (isSearchMatch(focus)) {
 				editable = !focus.isReadonly();
 			} else if (isFileInstanceMatch(focus)) {
 				editable = !focus.hasOnlyReadOnlyMatches();
@@ -1033,7 +1032,7 @@ export class SearchView extends ViewPane {
 		const [selected] = this.tree.getSelection();
 
 		// Expand the initial selected node, if needed
-		if (selected && !(selected instanceof Match)) {
+		if (selected && !(isSearchMatch(selected))) {
 			if (this.tree.isCollapsed(selected)) {
 				await this.tree.expand(selected);
 			}
@@ -1047,7 +1046,7 @@ export class SearchView extends ViewPane {
 		}
 
 		// Expand until first child is a Match
-		while (next && !(next instanceof Match)) {
+		while (next && !(isSearchMatch(next))) {
 			if (this.tree.isCollapsed(next)) {
 				await this.tree.expand(next);
 			}
@@ -1081,7 +1080,7 @@ export class SearchView extends ViewPane {
 		let prev = navigator.previous();
 
 		// Select previous until find a Match or a collapsed item
-		while (!prev || (!(prev instanceof Match) && !this.tree.isCollapsed(prev))) {
+		while (!prev || (!(isSearchMatch(prev)) && !this.tree.isCollapsed(prev))) {
 			const nextPrev = prev ? navigator.previous() : navigator.last();
 
 			if (!prev && !nextPrev) {
@@ -1092,7 +1091,7 @@ export class SearchView extends ViewPane {
 		}
 
 		// Expand until last child is a Match
-		while (prev && !(prev instanceof Match)) {
+		while (prev && !(isSearchMatch(prev))) {
 			const nextItem = navigator.next();
 			if (!nextItem) {
 				break;
@@ -1959,16 +1958,16 @@ export class SearchView extends ViewPane {
 		this.currentSelectedFileMatch = undefined;
 	}
 
-	private shouldOpenInNotebookEditor(match: Match, uri: URI): boolean {
+	private shouldOpenInNotebookEditor(match: ISearchMatch, uri: URI): boolean {
 		// Untitled files will return a false positive for getContributedNotebookTypes.
 		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
 		return match instanceof MatchInNotebook || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
-	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
+	private onFocus(lineMatch: ISearchMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
-		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<IFileInstanceMatch>lineMatch).resource;
+		const resource = isSearchMatch(lineMatch) ? lineMatch.parent().resource : (<IFileInstanceMatch>lineMatch).resource;
 		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
@@ -1976,8 +1975,8 @@ export class SearchView extends ViewPane {
 
 	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean, resourceInput?: URI): Promise<void> {
 		const selection = getEditorSelectionFromMatch(element, this.viewModel);
-		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
-		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<IFileInstanceMatch>element).resource);
+		const oldParentMatches = isSearchMatch(element) ? element.parent().matches() : [];
+		const resource = resourceInput ?? (isSearchMatch(element) ? element.parent().resource : (<IFileInstanceMatch>element).resource);
 		let editor: IEditorPane | undefined;
 
 		const options = {
@@ -1994,7 +1993,7 @@ export class SearchView extends ViewPane {
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 			const editorControl = editor?.getControl();
-			if (element instanceof Match && preserveFocus && isCodeEditor(editorControl)) {
+			if (isSearchMatch(element) && preserveFocus && isCodeEditor(editorControl)) {
 				this.viewModel.searchResult.getRangeHighlightDecorations().highlightRange(
 					editorControl.getModel()!,
 					element.range()
@@ -2009,7 +2008,7 @@ export class SearchView extends ViewPane {
 
 		if (editor instanceof NotebookEditor) {
 			const elemParent = element.parent() as INotebookFileInstanceMatch;
-			if (element instanceof Match) {
+			if (isSearchMatch(element)) {
 				if (element instanceof MatchInNotebook) {
 					element.parent().showMatch(element);
 				} else {
@@ -2038,7 +2037,7 @@ export class SearchView extends ViewPane {
 	}
 
 	openEditorWithMultiCursor(element: FileMatchOrMatch): Promise<void> {
-		const resource = element instanceof Match ? element.parent().resource : (<IFileInstanceMatch>element).resource;
+		const resource = isSearchMatch(element) ? element.parent().resource : (<IFileInstanceMatch>element).resource;
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -2052,7 +2051,7 @@ export class SearchView extends ViewPane {
 				if (isFileInstanceMatch(element)) {
 					fileMatch = element;
 				}
-				else if (element instanceof Match) {
+				else if (isSearchMatch(element)) {
 					fileMatch = element.parent();
 				}
 
@@ -2257,8 +2256,8 @@ class SearchLinkButton extends Disposable {
 }
 
 export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: ISearchModel) {
-	let match: Match | null = null;
-	if (element instanceof Match) {
+	let match: ISearchMatch | null = null;
+	if (isSearchMatch(element)) {
 		match = element;
 	}
 	if (isFileInstanceMatch(element) && element.count() > 0) {
@@ -2388,13 +2387,13 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		return matches;
 	}
 
-	private createFileIterator(fileMatch: IFileInstanceMatch): Iterable<Match> {
+	private createFileIterator(fileMatch: IFileInstanceMatch): Iterable<ISearchMatch> {
 		const matches = fileMatch.matches().sort(searchMatchComparer);
 		return matches;
 	}
 
 	hasChildren(element: RenderableMatch): boolean {
-		if (element instanceof Match) {
+		if (isSearchMatch(element)) {
 			return false;
 		}
 
@@ -2431,101 +2430,3 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		return parent;
 	}
 }
-let elemAIndex: number = -1;
-let elemBIndex: number = -1;
-/**
- * Compares instances of the same match type. Different match types should not be siblings
- * and their sort order is undefined.
- */
-export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
-
-	if (isFileInstanceMatch(elementA) && isFolderMatch(elementB)) {
-		return 1;
-	}
-
-	if (isFileInstanceMatch(elementB) && isFolderMatch(elementA)) {
-		return -1;
-	}
-
-	if (isFolderMatch(elementA) && isFolderMatch(elementB)) {
-		elemAIndex = elementA.index();
-		elemBIndex = elementB.index();
-		if (elemAIndex !== -1 && elemBIndex !== -1) {
-			return elemAIndex - elemBIndex;
-		}
-
-		switch (sortOrder) {
-			case SearchSortOrder.CountDescending:
-				return elementB.count() - elementA.count();
-			case SearchSortOrder.CountAscending:
-				return elementA.count() - elementB.count();
-			case SearchSortOrder.Type:
-				return compareFileExtensions(elementA.name(), elementB.name());
-			case SearchSortOrder.FileNames:
-				return compareFileNames(elementA.name(), elementB.name());
-			// Fall through otherwise
-			default:
-				if (!elementA.resource || !elementB.resource) {
-					return 0;
-				}
-				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
-		}
-	}
-
-	if (isFileInstanceMatch(elementA) && isFileInstanceMatch(elementB)) {
-		switch (sortOrder) {
-			case SearchSortOrder.CountDescending:
-				return elementB.count() - elementA.count();
-			case SearchSortOrder.CountAscending:
-				return elementA.count() - elementB.count();
-			case SearchSortOrder.Type:
-				return compareFileExtensions(elementA.name(), elementB.name());
-			case SearchSortOrder.FileNames:
-				return compareFileNames(elementA.name(), elementB.name());
-			case SearchSortOrder.Modified: {
-				const fileStatA = elementA.fileStat;
-				const fileStatB = elementB.fileStat;
-				if (fileStatA && fileStatB) {
-					return fileStatB.mtime - fileStatA.mtime;
-
-				}
-			}
-			// Fall through otherwise
-			default:
-				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
-		}
-	}
-
-	if (elementA instanceof MatchInNotebook && elementB instanceof MatchInNotebook) {
-		return compareNotebookPos(elementA, elementB);
-	}
-
-	if (elementA instanceof Match && elementB instanceof Match) {
-		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
-	}
-
-	return 0;
-}
-
-export function compareNotebookPos(match1: MatchInNotebook, match2: MatchInNotebook): number {
-	if (match1.cellIndex === match2.cellIndex) {
-
-		if (match1.webviewIndex !== undefined && match2.webviewIndex !== undefined) {
-			return match1.webviewIndex - match2.webviewIndex;
-		} else if (match1.webviewIndex === undefined && match2.webviewIndex === undefined) {
-			return Range.compareRangesUsingStarts(match1.range(), match2.range());
-		} else {
-			// webview matches should always be after content matches
-			if (match1.webviewIndex !== undefined) {
-				return 1;
-			} else {
-				return -1;
-			}
-		}
-	} else if (match1.cellIndex < match2.cellIndex) {
-		return -1;
-	} else {
-		return 1;
-	}
-}
-

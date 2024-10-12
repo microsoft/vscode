@@ -22,9 +22,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from './searchActionsBase.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { ISearchResult, isFileInstanceMatch, isFolderMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, isFileInstanceMatch, isFolderMatch, isSearchMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { arrayContainsElementOrParent, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
-import { Match } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
 
 
@@ -305,7 +305,7 @@ async function performReplace(accessor: ServicesAccessor,
 			viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 
-			if (nextFocusElement instanceof Match) {
+			if (isSearchMatch(nextFocusElement)) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
@@ -323,7 +323,7 @@ async function performReplace(accessor: ServicesAccessor,
 }
 
 function hasToOpenFile(accessor: ServicesAccessor, currBottomElem: RenderableMatch): boolean {
-	if (!(currBottomElem instanceof Match)) {
+	if (!(isSearchMatch(currBottomElem))) {
 		return false;
 	}
 	const activeEditor = accessor.get(IEditorService).activeEditor;
@@ -335,15 +335,15 @@ function hasToOpenFile(accessor: ServicesAccessor, currBottomElem: RenderableMat
 }
 
 function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
-	if (elem1 instanceof Match) {
-		if (elem2 instanceof Match) {
+	if (isSearchMatch(elem1)) {
+		if (isSearchMatch(elem2)) {
 			return 0;
 		} else {
 			return -1;
 		}
 
 	} else if (isFileInstanceMatch(elem1)) {
-		if (elem2 instanceof Match) {
+		if (isSearchMatch(elem2)) {
 			return 1;
 		} else if (isFileInstanceMatch(elem2)) {
 			return 0;
@@ -379,7 +379,7 @@ export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibl
 			await viewer.expand(navigator.current());
 		}
 	} else {
-		while (navigator.next() && (!(navigator.current() instanceof Match) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+		while (navigator.next() && (!isSearchMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
 			await viewer.expand(navigator.current());
 		}
 	}

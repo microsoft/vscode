@@ -13,11 +13,9 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IReplaceService } from '../replace.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { AI_TEXT_SEARCH_RESULT_ID, IChangeEvent } from './searchTreeCommon.js';
 import { RangeHighlightDecorations } from './rangeDecorations.js';
-import { Match } from './searchTreeCommon.js';
 import { FolderMatchNoRootImpl, FolderMatchWorkspaceRootImpl } from './folderMatch.js';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isFileInstanceMatch, isFolderMatch, ITextSearchHeading } from './searchTreeCommon.js';
+import { AI_TEXT_SEARCH_RESULT_ID, IChangeEvent, IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isFileInstanceMatch, isFolderMatch, ITextSearchHeading, ISearchMatch } from './searchTreeCommon.js';
 import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 
 
@@ -256,7 +254,7 @@ export class TextSearchHeadingImpl extends Disposable implements ITextSearchHead
 			return;
 		}
 		this._showHighlights = value;
-		let selectedMatch: Match | null = null;
+		let selectedMatch: ISearchMatch | null = null;
 		this.matches().forEach((fileMatch: IFileInstanceMatch) => {
 			fileMatch.updateHighlights();
 			if (isNotebookFileMatch(fileMatch)) {
@@ -269,8 +267,8 @@ export class TextSearchHeadingImpl extends Disposable implements ITextSearchHead
 		if (this._showHighlights && selectedMatch) {
 			// TS?
 			this._rangeHighlightDecorations.highlightRange(
-				(<Match>selectedMatch).parent().resource,
-				(<Match>selectedMatch).range()
+				(<ISearchMatch>selectedMatch).parent().resource,
+				(<ISearchMatch>selectedMatch).range()
 			);
 		} else {
 			this._rangeHighlightDecorations.removeHighlightRange();
