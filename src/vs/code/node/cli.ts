@@ -146,7 +146,7 @@ export async function main(argv: string[]): Promise<any> {
 		let source: string | undefined;
 		let target: string | undefined;
 		try {
-			const argsContents = JSON.parse(readFileSync(argsFile, 'utf8'));
+			const argsContents: { source: string; target: string } = JSON.parse(readFileSync(argsFile, 'utf8'));
 			source = argsContents.source;
 			target = argsContents.target;
 		} catch (error) {

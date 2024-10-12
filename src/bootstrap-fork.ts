@@ -19,7 +19,7 @@ function pipeLoggingToParent(): void {
 	 * Prevent circular stringify and convert arguments to real array
 	 */
 	function safeToString(args: ArrayLike<unknown>): string {
-		const seen: string[] = [];
+		const seen: unknown[] = [];
 		const argsArray: unknown[] = [];
 
 		// Massage some arguments with special treatment
@@ -50,7 +50,7 @@ function pipeLoggingToParent(): void {
 		}
 
 		try {
-			const res = JSON.stringify(argsArray, function (key, value) {
+			const res = JSON.stringify(argsArray, function (key, value: unknown) {
 
 				// Objects get special treatment to prevent circles
 				if (isObject(value) || Array.isArray(value)) {

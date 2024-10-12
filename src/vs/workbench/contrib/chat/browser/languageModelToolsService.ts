@@ -57,11 +57,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw new Error(`Tool "${toolData.id}" is already registered.`);
 		}
 
-		// Ensure that text/plain is supported
-		if (!toolData.supportedContentTypes.includes('text/plain')) {
-			toolData.supportedContentTypes.push('text/plain');
-		}
-
 		this._tools.set(toolData.id, { data: toolData });
 		this._onDidChangeToolsScheduler.schedule();
 

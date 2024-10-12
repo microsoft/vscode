@@ -44,6 +44,7 @@ import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from
 import { isQuickChat } from '../chatWidget.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { SearchView } from '../../../search/browser/searchView.js';
+import { getScreenshotAsVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -54,7 +55,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem;
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem | IScreenShotQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -93,6 +94,12 @@ function isISearchResultsQuickPickItem(obj: unknown): obj is ISearchResultsQuick
 	return (
 		typeof obj === 'object'
 		&& (obj as ISearchResultsQuickPickItem).kind === 'search-results');
+}
+
+function isScreenshotQuickPickItem(obj: unknown): obj is IScreenShotQuickPickItem {
+	return (
+		typeof obj === 'object'
+		&& (obj as IScreenShotQuickPickItem).kind === 'screenshot');
 }
 
 interface IImageQuickPickItem extends IQuickPickItem {
@@ -137,6 +144,12 @@ interface IOpenEditorsQuickPickItem extends IQuickPickItem {
 
 interface ISearchResultsQuickPickItem extends IQuickPickItem {
 	kind: 'search-results';
+	id: string;
+	icon?: ThemeIcon;
+}
+
+interface IScreenShotQuickPickItem extends IQuickPickItem {
+	kind: 'screenshot';
 	id: string;
 	icon?: ThemeIcon;
 }
@@ -326,6 +339,12 @@ export class AttachContextAction extends Action2 {
 					});
 					chatEditingService?.addFileToWorkingSet(result.resource);
 				}
+			} else if (isScreenshotQuickPickItem(pick)) {
+				const variable = await getScreenshotAsVariable();
+				if (!variable) {
+					return;
+				}
+				toAttach.push(variable);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -481,7 +500,15 @@ export class AttachContextAction extends Action2 {
 				prefix: SymbolsQuickAccessProvider.PREFIX,
 				id: 'symbol'
 			});
-
+			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+				quickPickItems.push({
+					kind: 'screenshot',
+					id: ScreenshotVariableId,
+					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+					label: localize('chatContext.attachScreenshot.label', 'Image of the Current VS Code Window'),
+				});
+			}
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',

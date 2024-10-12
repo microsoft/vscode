@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.95.0",
-  "distro": "388bd7fe1d02a9631b51f2ab0d57300f0e028c47",
+  "distro": "fd8f1c3e49c4bea1e956ad61fe2b77ac40fa58aa",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -205,10 +205,14 @@
     "os-browserify": "^0.3.0",
     "p-all": "^1.0.0",
     "path-browserify": "^1.0.1",
+
 <
     "postcss": "^8.4.45",
 =======
     "postcss": "^8.4.39",
+
+=======
+    "postcss": "^8.4.40",
 
     "postcss-nesting": "^12.0.2",
     "pump": "^1.0.1",
@@ -229,10 +233,14 @@
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4",
     "webpack-stream": "^7.0.0",
+
 <
     "xml2js": "^0.6.2",
 =======
     "xml2js": "^0.6.0",
+
+=======
+    "xml2js": "^0.6.1",
 
     "yaserver": "^0.4.0"
   },

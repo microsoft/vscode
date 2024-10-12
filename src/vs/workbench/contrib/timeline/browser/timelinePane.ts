@@ -227,7 +227,7 @@ class LoadMoreCommand {
 	}
 
 	get themeIcon(): ThemeIcon | undefined {
-		return undefined; //this.loading ? { id: 'sync~spin' } : undefined;
+		return undefined;
 	}
 }
 
