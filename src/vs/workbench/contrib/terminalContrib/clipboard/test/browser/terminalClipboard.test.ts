@@ -37,53 +37,53 @@ suite('TerminalClipboard', function () {
 		}
 
 		test('Single line string', async () => {
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined, ''), true);
 
 			setConfigValue('always');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined, ''), true);
 
 			setConfigValue('never');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined, ''), true);
 		});
 		test('Single line string with trailing new line', async () => {
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined, ''), true);
 
 			setConfigValue('always');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined, ''), false);
 
 			setConfigValue('never');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined, ''), true);
 		});
 		test('Multi-line string', async () => {
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
 
 			setConfigValue('always');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
 
 			setConfigValue('never');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), true);
 		});
 		test('Bracketed paste mode', async () => {
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 
 			setConfigValue('always');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), false);
 
 			setConfigValue('never');
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 		});
 		test('Legacy config', async () => {
 			setConfigValue(true); // 'auto'
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), false);
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 
 			setConfigValue(false); // 'never'
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 		});
 		test('Invalid config', async () => {
 			setConfigValue(123);
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), false);
-			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 		});
 	});
 });
