@@ -23,67 +23,99 @@ suite('TerminalClipboard', function () {
 		setup(async () => {
 			instantiationService = store.add(new TestInstantiationService());
 			configurationService = new TestConfigurationService({
-				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto'
+				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto',
+				[TerminalSettingId.AllowSmartPaste]: false
 			});
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IDialogService, new TestDialogService(undefined, { result: { confirmed: false } }));
 		});
 
-		function setConfigValue(value: unknown) {
+		function setConfigValue(multiLinePaste: unknown, smartPaste: boolean) {
 			configurationService = new TestConfigurationService({
-				[TerminalSettingId.EnableMultiLinePasteWarning]: value
+				[TerminalSettingId.EnableMultiLinePasteWarning]: multiLinePaste,
+				[TerminalSettingId.AllowSmartPaste]: smartPaste
 			});
 			instantiationService.stub(IConfigurationService, configurationService);
+		}
+
+		async function testSmartPaste(path: string) {
+			const shouldPaste = await instantiationService.invokeFunction(
+				shouldPasteTerminalText, path, undefined, 'gitbash'
+			);
+
+			if (typeof shouldPaste === 'object') {
+				return shouldPaste.modifiedText;
+			}
+
+			return shouldPaste;
 		}
 
 		test('Single line string', async () => {
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined, ''), true);
 
-			setConfigValue('always');
+			setConfigValue('always', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined, ''), true);
 
-			setConfigValue('never');
+			setConfigValue('never', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo', undefined, ''), true);
 		});
 		test('Single line string with trailing new line', async () => {
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined, ''), true);
 
-			setConfigValue('always');
+			setConfigValue('always', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined, ''), false);
 
-			setConfigValue('never');
+			setConfigValue('never', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\n', undefined, ''), true);
 		});
 		test('Multi-line string', async () => {
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
 
-			setConfigValue('always');
+			setConfigValue('always', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
 
-			setConfigValue('never');
+			setConfigValue('never', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), true);
 		});
 		test('Bracketed paste mode', async () => {
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 
-			setConfigValue('always');
+			setConfigValue('always', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), false);
 
-			setConfigValue('never');
+			setConfigValue('never', false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 		});
 		test('Legacy config', async () => {
-			setConfigValue(true); // 'auto'
+			setConfigValue(true, false); // 'auto'
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 
-			setConfigValue(false); // 'never'
+			setConfigValue(false, false); // 'never'
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
 		});
 		test('Invalid config', async () => {
-			setConfigValue(123);
+			setConfigValue(123, false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined, ''), false);
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true, ''), true);
+		});
+
+		/* Smart paste test cases */
+		test('Smart paste windows', async () => {
+			setConfigValue('auto', true);
+			strictEqual(await testSmartPaste('Z:\\Path Space'), '\"Z:\\\\Path Space\"');
+			strictEqual(await testSmartPaste('Z:/Path Space'), '\"Z:/Path Space\"');
+
+			setConfigValue('auto', false);
+			strictEqual(await testSmartPaste('Z:\\Path Space'), true);
+			strictEqual(await testSmartPaste('Z:/Path Space'), true);
+		});
+		test('Smart paste unix', async () => {
+			setConfigValue('auto', true);
+			strictEqual(await testSmartPaste('/home/path space'), '\"/home/path space\"');
+
+			setConfigValue('auto', false);
+			strictEqual(await testSmartPaste('/home/path space'), true);
 		});
 	});
 });
