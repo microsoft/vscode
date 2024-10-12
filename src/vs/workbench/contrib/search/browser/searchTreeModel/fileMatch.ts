@@ -19,8 +19,7 @@ import { IFileMatch, IPatternInfo, ITextSearchPreviewOptions, resultIsMatch, DEF
 import { editorMatchesToTextSearchResults, getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers';
 import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel';
 import { IReplaceService } from '../replace';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot } from './searchTreeCommon';
-import { ISearchMatch } from './searchTreeCommon';
+import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot, ISearchMatch } from './searchTreeCommon';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { textSearchResultToMatches } from './match';
 

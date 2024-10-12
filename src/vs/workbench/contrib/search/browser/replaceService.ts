@@ -29,10 +29,8 @@ import { Promises } from '../../../../base/common/async.js';
 import { SaveSourceRegistry } from '../../../common/editor.js';
 import { CellUri, IResolvedNotebookEditorModel } from '../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
-import { IFileInstanceMatch, isFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
-import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
-import { ISearchMatch } from './searchTreeModel/searchTreeCommon.js';
-import { FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
+import { IFileInstanceMatch, isFileInstanceMatch, ISearchMatch, FileMatchOrMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
+import { isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -140,7 +138,7 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
-		const fileMatch = element instanceof IMatch ? element.parent() : element;
+		const fileMatch = isSearchMatch(element) ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
 			original: { resource: fileMatch.resource },
@@ -161,7 +159,7 @@ export class ReplaceService implements IReplaceService {
 		await this.updateReplacePreview(fileMatch);
 		if (editor) {
 			const editorControl = editor.getControl();
-			if (element instanceof IMatch && editorControl) {
+			if (isSearchMatch(element) && editorControl) {
 				editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 			}
 		}
@@ -203,11 +201,11 @@ export class ReplaceService implements IReplaceService {
 	private createEdits(arg: FileMatchOrMatch | IFileInstanceMatch[], resource: URI | null = null): ResourceTextEdit[] {
 		const edits: ResourceTextEdit[] = [];
 
-		if (arg instanceof IMatch) {
+		if (isSearchMatch(arg)) {
 			if (!arg.isReadonly()) {
-				if (arg instanceof MatchInNotebook) {
+				if (isIMatchInNotebook(arg)) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
-					const match = <MatchInNotebook>arg;
+					const match = arg;
 					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
 				} else {
 					const match = <ISearchMatch>arg;

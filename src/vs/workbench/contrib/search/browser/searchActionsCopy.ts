@@ -13,10 +13,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { ISearchMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
-import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 import { searchMatchComparer } from './searchMatchComparer.js';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch, ISearchMatch, isSearchMatch, IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class CopyMatchCommandAction extends Action2 {

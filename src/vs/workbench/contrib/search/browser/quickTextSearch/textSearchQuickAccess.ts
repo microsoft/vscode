@@ -31,10 +31,8 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { Sequencer } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ISearchMatch } from '../searchTreeModel/searchTreeCommon.js';
 import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
-import { SearchModelLocation, RenderableMatch } from '../searchTreeModel/searchTreeCommon.js';
-import { IFileInstanceMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
+import { SearchModelLocation, RenderableMatch, IFileInstanceMatch, ISearchMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
 import { searchComparer } from '../searchMatchComparer.js';
 import { IMatch } from '../../../../../base/common/filters.js';
 

@@ -80,12 +80,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
-import { ISearchMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
-import { IFileInstanceMatch, IFolderMatch, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
-import { INotebookFileInstanceMatch } from './notebookSearch/notebookSearchModelBase.js';
+import { ISearchMatch, isSearchMatch, RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch, IFileInstanceMatch, IFolderMatch, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchMatchComparer.js';
 
 const $ = dom.$;
@@ -1961,7 +1958,7 @@ export class SearchView extends ViewPane {
 	private shouldOpenInNotebookEditor(match: ISearchMatch, uri: URI): boolean {
 		// Untitled files will return a false positive for getContributedNotebookTypes.
 		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
-		return match instanceof MatchInNotebook || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
+		return isIMatchInNotebook(match) || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
 	private onFocus(lineMatch: ISearchMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
@@ -2009,7 +2006,7 @@ export class SearchView extends ViewPane {
 		if (editor instanceof NotebookEditor) {
 			const elemParent = element.parent() as INotebookFileInstanceMatch;
 			if (isSearchMatch(element)) {
-				if (element instanceof MatchInNotebook) {
+				if (isIMatchInNotebook(element)) {
 					element.parent().showMatch(element);
 				} else {
 					const editorWidget = editor.getControl();
@@ -2023,7 +2020,7 @@ export class SearchView extends ViewPane {
 						const matches = elemParent.matches();
 						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
-						if (match instanceof MatchInNotebook) {
+						if (isIMatchInNotebook(match)) {
 							elemParent.showMatch(match);
 							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
 								this.tree.setSelection([match], getSelectionKeyboardEvent());

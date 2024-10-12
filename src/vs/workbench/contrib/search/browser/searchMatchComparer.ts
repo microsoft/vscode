@@ -1,8 +1,13 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers';
 import { SearchSortOrder } from '../../../services/search/common/search';
-import { MatchInNotebook } from './notebookSearch/notebookSearchModel';
 import { RenderableMatch, isFileInstanceMatch, isFolderMatch, createParentList, isSearchMatch } from './searchTreeModel/searchTreeCommon';
 import { Range } from '../../../../editor/common/core/range.js';
+import { IMatchInNotebook, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase';
 
 let elemAIndex: number = -1;
 let elemBIndex: number = -1;
@@ -69,7 +74,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		}
 	}
 
-	if (elementA instanceof MatchInNotebook && elementB instanceof MatchInNotebook) {
+	if (isIMatchInNotebook(elementA) && isIMatchInNotebook(elementB)) {
 		return compareNotebookPos(elementA, elementB);
 	}
 
@@ -80,7 +85,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	return 0;
 }
 
-export function compareNotebookPos(match1: MatchInNotebook, match2: MatchInNotebook): number {
+export function compareNotebookPos(match1: IMatchInNotebook, match2: IMatchInNotebook): number {
 	if (match1.cellIndex === match2.cellIndex) {
 
 		if (match1.webviewIndex !== undefined && match2.webviewIndex !== undefined) {
@@ -125,3 +130,4 @@ export function searchComparer(elementA: RenderableMatch, elementB: RenderableMa
 	}
 	return 0;
 }
+
