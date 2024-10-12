@@ -13,8 +13,7 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { IFileInstanceMatch, IFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource, isSearchMatch, isTextSearchHeading, ITextSearchHeading } from './searchTreeCommon.js';
-import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch } from './searchTreeCommon.js';
+import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, IFileInstanceMatch, IFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource, isSearchMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl, TextSearchHeadingImpl } from './textSearchHeading.js';
