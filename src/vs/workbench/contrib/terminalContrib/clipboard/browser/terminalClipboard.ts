@@ -17,7 +17,7 @@ class SmartPasteUtils {
 	 */
 	static isPath(string: string): boolean {
 		// Regex to detect common path formats
-		const windowsPathPattern = /^[a-zA-Z]:\\/;  // Windows absolute path
+		const windowsPathPattern = /^[a-zA-Z]:(\\|\/)/;  // Windows absolute path
 		const uncPathPattern = /^\\\\/;             // Windows UNC path
 		const unixPathPattern = /^\/|(\w+\/)/;      // Unix/Linux/macOS paths
 
@@ -76,14 +76,17 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 	// If the clipboard has only one line, a warning should never show
 	const textForLines = text.split(/\r?\n/);
 
+	const isSmartPasteAllowed = configurationService.getValue(TerminalSettingId.AllowSmartPaste);
 	// If the string is a path process it depending on the shell type
 	// multi line strings aren't handled
-	const modifiedText = SmartPasteUtils.handleSmartPaste(text, shellType);
+	let modifiedText = text;
+
+	if (isSmartPasteAllowed) {
+		modifiedText = SmartPasteUtils.handleSmartPaste(text, shellType);
+	}
 
 	if (textForLines.length === 1) {
-		return {
-			modifiedText: modifiedText
-		};
+		return text === modifiedText ? true : { modifiedText: modifiedText };
 	}
 
 	// Get config value
