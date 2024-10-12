@@ -26,6 +26,10 @@
 	flex: initial; /* helps to show decorations right next to the label and not at the end while still preserving text overflow ellipsis */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .label-container > .title-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name{
+	line-height: calc(var(--editor-group-tab-height) + 0.1em);
+}
+
 /* Breadcrumbs (inline next to single editor tab) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .single-tab.title-label {
