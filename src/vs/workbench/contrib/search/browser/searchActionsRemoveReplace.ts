@@ -22,9 +22,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from './searchActionsBase.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { ISearchResult, isFileInstanceMatch, isFolderMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
+import { ISearchResult, isFileInstanceMatch, isFolderMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { arrayContainsElementOrParent, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
-import { Match } from './searchTreeModel/match.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
 
 

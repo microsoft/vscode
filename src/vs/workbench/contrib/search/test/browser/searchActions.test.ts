@@ -20,8 +20,8 @@ import { INotebookEditorService } from '../../../notebook/browser/services/noteb
 import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
-import { IFileInstanceMatch } from '../../browser/searchTreeModel/ISearchTreeBase.js';
-import { Match } from '../../browser/searchTreeModel/match.js';
+import { IFileInstanceMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { Match } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FileMatchOrMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';

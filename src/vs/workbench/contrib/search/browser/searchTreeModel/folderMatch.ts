@@ -18,7 +18,7 @@ import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions, result
 
 import { FileMatchImpl } from './fileMatch.js';
 import { IChangeEvent, textSearchResultToMatches } from './searchTreeCommon.js';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchNoRoot as IFolderMatchNoRoot, IFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWorkspaceRoot, ITextSearchHeading, isFolderMatchNoRoot } from './ISearchTreeBase.js';
+import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchNoRoot as IFolderMatchNoRoot, IFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWorkspaceRoot, ITextSearchHeading, isFolderMatchNoRoot } from './searchTreeCommon.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { isINotebookFileMatchNoModel } from '../../common/searchNotebookHelpers.js';
 import { NotebookCompatibleFileMatch } from '../notebookSearch/notebookSearchModel.js';

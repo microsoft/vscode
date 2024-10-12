@@ -29,9 +29,9 @@ import { Promises } from '../../../../base/common/async.js';
 import { SaveSourceRegistry } from '../../../common/editor.js';
 import { CellUri, IResolvedNotebookEditorModel } from '../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../notebook/common/notebookEditorModelResolverService.js';
-import { IFileInstanceMatch, isFileInstanceMatch } from './searchTreeModel/ISearchTreeBase.js';
+import { IFileInstanceMatch, isFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
-import { Match } from './searchTreeModel/match.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
 
 const REPLACE_PREVIEW = 'replacePreview';

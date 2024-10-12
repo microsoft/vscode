@@ -21,7 +21,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileMatch } from '../../../../services/search/common/search.js';
 import { TestEditorGroupsService, TestEditorService } from '../../../../test/browser/workbenchTestServices.js';
-import { ISearchResult } from '../../browser/searchTreeModel/ISearchTreeBase.js';
+import { ISearchResult } from '../../browser/searchTreeModel/searchTreeCommon.js';
 
 export function createFileUriFromPathFromRoot(path?: string): URI {
 	const rootName = getRootName();

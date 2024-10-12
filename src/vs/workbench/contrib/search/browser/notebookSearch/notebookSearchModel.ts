@@ -21,8 +21,8 @@ import { NotebookCellsChangeType } from '../../../notebook/common/notebookCommon
 import { CellSearchModel } from '../../common/cellSearchModel';
 import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers';
 import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers';
-import { IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/ISearchTreeBase';
-import { Match } from '../searchTreeModel/match';
+import { IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon';
+import { Match } from '../searchTreeModel/searchTreeCommon';
 import { IReplaceService } from '../replace';
 import { FileMatchImpl } from '../searchTreeModel/fileMatch';
 import { textSearchResultToMatches } from '../searchTreeModel/searchTreeCommon';

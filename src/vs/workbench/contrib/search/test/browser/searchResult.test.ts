@@ -38,8 +38,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
-import { ISearchResult, IFolderMatch } from '../../browser/searchTreeModel/ISearchTreeBase.js';
-import { Match } from '../../browser/searchTreeModel/match.js';
+import { ISearchResult, IFolderMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { Match } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
 

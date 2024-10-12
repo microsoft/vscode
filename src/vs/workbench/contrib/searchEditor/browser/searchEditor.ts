@@ -64,7 +64,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { SearchContext } from '../../search/common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ISearchResult } from '../../search/browser/searchTreeModel/ISearchTreeBase.js';
+import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;

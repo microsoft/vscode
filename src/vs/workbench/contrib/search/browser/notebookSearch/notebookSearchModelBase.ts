@@ -5,7 +5,7 @@
 
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget';
 import { INotebookCellMatchNoModel } from '../../common/searchNotebookHelpers';
-import { IFileInstanceMatch, isFileInstanceMatch } from '../searchTreeModel/ISearchTreeBase';
+import { IFileInstanceMatch, isFileInstanceMatch } from '../searchTreeModel/searchTreeCommon';
 import { CellMatch, MatchInNotebook } from './notebookSearchModel';
 import { INotebookCellMatchWithModel } from './searchNotebookHelpers';
 

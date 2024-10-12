@@ -32,9 +32,9 @@ import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FolderMatchImpl, FolderMatchWorkspaceRootImpl, FolderMatchNoRootImpl } from './searchTreeModel/folderMatch.js';
-import { Match } from './searchTreeModel/match.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch, AI_TEXT_SEARCH_RESULT_ID } from './searchTreeModel/searchTreeCommon.js';
-import { ITextSearchHeading, IFolderMatch, IFileInstanceMatch, isFileInstanceMatch, isFolderMatch, isTextSearchHeading, ISearchModel } from './searchTreeModel/ISearchTreeBase.js';
+import { ITextSearchHeading, IFolderMatch, IFileInstanceMatch, isFileInstanceMatch, isFolderMatch, isTextSearchHeading, ISearchModel } from './searchTreeModel/searchTreeCommon.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;

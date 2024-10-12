@@ -32,10 +32,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { Sequencer } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Match } from '../searchTreeModel/match.js';
+import { Match } from '../searchTreeModel/searchTreeCommon.js';
 import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
 import { SearchModelLocation, RenderableMatch, searchComparer } from '../searchTreeModel/searchTreeCommon.js';
-import { IFileInstanceMatch, ISearchResult } from '../searchTreeModel/ISearchTreeBase.js';
+import { IFileInstanceMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 

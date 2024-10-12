@@ -10,9 +10,9 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/br
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SearchView } from './searchView.js';
 import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
-import { Match } from './searchTreeModel/match.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch, searchComparer } from './searchTreeModel/searchTreeCommon.js';
-import { ISearchResult, isFileInstanceMatch, isFolderMatch } from './searchTreeModel/ISearchTreeBase.js';
+import { ISearchResult, isFileInstanceMatch, isFolderMatch } from './searchTreeModel/searchTreeCommon.js';
 
 export const category = nls.localize2('search', "Search");
 

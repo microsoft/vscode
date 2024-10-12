@@ -20,7 +20,7 @@ import { ReplacePattern } from '../../../../services/search/common/replace.js';
 import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchStats, QueryType, SearchCompletionExitCode } from '../../../../services/search/common/search.js';
 import { IChangeEvent, mergeSearchResultEvents, SearchModelLocation } from './searchTreeCommon.js';
 import { SearchResultImpl } from './searchResult.js';
-import { ISearchModel, ISearchResult } from './ISearchTreeBase.js';
+import { ISearchModel, ISearchResult } from './searchTreeCommon.js';
 import { ISearchViewModelWorkbenchService } from './searchViewModelWorkbenchService.js';
 
 export class SearchModelImpl extends Disposable implements ISearchModel {

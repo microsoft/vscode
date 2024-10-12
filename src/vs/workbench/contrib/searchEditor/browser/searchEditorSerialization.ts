@@ -14,9 +14,9 @@ import type { SearchConfiguration } from './searchEditorInput.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { CellMatch } from '../../search/browser/notebookSearch/notebookSearchModel.js';
-import { IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/ISearchTreeBase.js';
-import { Match } from '../../search/browser/searchTreeModel/match.js';
-import { searchMatchComparer } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { Match } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { searchMatchComparer } from '../../search/browser/searchView.js';
 import { isNotebookFileMatch } from '../../search/browser/notebookSearch/notebookSearchModelBase.js';
 
 // Using \r\n on Windows inserts an extra newline between results.

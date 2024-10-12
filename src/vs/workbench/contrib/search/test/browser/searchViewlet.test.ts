@@ -22,12 +22,13 @@ import { TestContextService } from '../../../../test/common/workbenchTestService
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { createFileUriFromPathFromRoot, getRootName, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFolderMatch, ISearchResult, ITextSearchHeading } from '../../browser/searchTreeModel/ISearchTreeBase.js';
+import { IFolderMatch, ISearchResult, ITextSearchHeading } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
-import { Match } from '../../browser/searchTreeModel/match.js';
-import { searchMatchComparer, searchComparer } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { Match } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { searchComparer } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { searchMatchComparer } from '../../browser/searchView.js';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;

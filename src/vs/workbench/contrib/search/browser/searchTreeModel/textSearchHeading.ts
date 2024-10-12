@@ -15,9 +15,9 @@ import { IReplaceService } from '../replace.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
 import { AI_TEXT_SEARCH_RESULT_ID, IChangeEvent } from './searchTreeCommon.js';
 import { RangeHighlightDecorations } from './rangeDecorations.js';
-import { Match } from './match.js';
+import { Match } from './searchTreeCommon.js';
 import { FolderMatchNoRootImpl, FolderMatchWorkspaceRootImpl } from './folderMatch.js';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isFileInstanceMatch, isFolderMatch, ITextSearchHeading } from './ISearchTreeBase.js';
+import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isFileInstanceMatch, isFolderMatch, ITextSearchHeading } from './searchTreeCommon.js';
 import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 
 

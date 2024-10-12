@@ -18,9 +18,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { SearchStateKey, SearchUIState } from '../common/search.js';
 import { category, getSearchView } from './searchActionsBase.js';
-import { Match } from './searchTreeModel/match.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
-import { ISearchResult, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
+import { ISearchResult, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class ClearSearchHistoryCommandAction extends Action2 {

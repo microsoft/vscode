@@ -34,8 +34,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
-import { IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch } from './searchTreeModel/ISearchTreeBase.js';
-import { Match } from './searchTreeModel/match.js';
+import { IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 
 

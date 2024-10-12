@@ -25,7 +25,7 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
 import { ISearchConfigurationProperties } from '../../../services/search/common/search.js';
-import { ISearchResult } from '../../search/browser/searchTreeModel/ISearchTreeBase.js';
+import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);

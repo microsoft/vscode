@@ -5,8 +5,8 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
-import { IFileInstanceMatch } from './searchTreeModel/ISearchTreeBase.js';
-import { Match } from './searchTreeModel/match.js';
+import { IFileInstanceMatch } from './searchTreeModel/searchTreeCommon.js';
+import { Match } from './searchTreeModel/searchTreeCommon.js';
 import { FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
 
 export const IReplaceService = createDecorator<IReplaceService>('replaceService');
