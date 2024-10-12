@@ -575,7 +575,7 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('reveal after first udpate', () => {
+	test('reveal after first update', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		const expected = {
@@ -607,7 +607,7 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('reveal after second udpate', () => {
+	test('reveal after second update', () => {
 		const revealTarget = sinon.spy(target, '$reveal');
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aCompleteNodeTreeDataProvider() }, extensionsDescription);
 		return loadCompleteTree('treeDataProvider')
