@@ -144,6 +144,9 @@ export interface IFolderMatch extends Disposable {
 	bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): Promise<void>;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
 	hasOnlyReadOnlyMatches(): boolean;
+	fileMatchesIterator(): IterableIterator<IFileInstanceMatch>;
+	folderMatchesIterator(): IterableIterator<IFolderMatchWithResource>;
+	readonly closestRoot: IFolderMatchWorkspaceRoot | null;
 	dispose(): void;
 }
 
@@ -171,6 +174,7 @@ export interface IFileInstanceMatch extends Disposable {
 		forceUpdateModel?: boolean;
 	}>;
 	hasChildren: boolean;
+	readonly onDispose: Event<void>
 	name(): string;
 	count(): number;
 	hasOnlyReadOnlyMatches(): boolean;
@@ -187,6 +191,10 @@ export interface IFileInstanceMatch extends Disposable {
 	setSelectedMatch(match: Match | null): void
 	fileStat: IFileStatWithPartialMetadata | undefined;
 	resolveFileStat(fileService: IFileService): Promise<void>;
+	textMatches(): Match[];
+	readonly context: Map<number, string>;
+	readonly closestRoot: IFolderMatchWorkspaceRoot | null;
+	isMatchSelected(match: Match): boolean;
 	dispose(): void;
 }
 

@@ -12,7 +12,6 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/br
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
-import { FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from './searchTreeModel/searchModel.js';
 import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
 import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -25,6 +24,8 @@ import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRege
 import { category, getSearchView, openSearchView } from './searchActionsBase.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import { FileMatchOrMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, isFolderMatch } from './searchTreeModel/ISearchTreeBase.js';
 
 //#region Actions: Changing Search Input Options
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
@@ -174,11 +175,11 @@ registerAction2(class OpenMatchAction extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> = searchView.getControl();
 			const viewer = searchView.getControl();
 			const focus = tree.getFocus()[0];
 
-			if (focus instanceof FolderMatch) {
+			if (isFolderMatch(focus)) {
 				viewer.toggleCollapsed(focus);
 			} else {
 				searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, false, true);
@@ -206,7 +207,7 @@ registerAction2(class OpenMatchToSideAction extends Action2 {
 	run(accessor: ServicesAccessor) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> = searchView.getControl();
 			searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, true, true);
 		}
 	}
@@ -229,7 +230,7 @@ registerAction2(class AddCursorsAtSearchResultsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<any> {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const tree: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> = searchView.getControl();
+			const tree: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> = searchView.getControl();
 			searchView.openEditorWithMultiCursor(<FileMatchOrMatch>tree.getFocus()[0]);
 		}
 	}

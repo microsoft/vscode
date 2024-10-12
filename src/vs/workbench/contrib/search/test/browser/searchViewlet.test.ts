@@ -15,13 +15,19 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModelImpl, SearchResult, TextSearchHeading } from '../../browser/searchTreeModel/searchModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from '../../../../services/search/common/search.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { createFileUriFromPathFromRoot, getRootName, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFolderMatch, ISearchResult, ITextSearchHeading } from '../../browser/searchTreeModel/ISearchTreeBase.js';
+import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
+import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
+import { Match } from '../../browser/searchTreeModel/match.js';
+import { searchMatchComparer, searchComparer } from '../../browser/searchTreeModel/searchTreeCommon.js';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -48,7 +54,7 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Data Source', function () {
-		const result: SearchResult = aSearchResult();
+		const result: ISearchResult = aSearchResult();
 		result.query = {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
@@ -175,12 +181,12 @@ suite('Search - Viewlet', () => {
 		assert(searchComparer(fileMatch3, lineMatch4, SearchSortOrder.Type) < 0);
 	});
 
-	function aFileMatch(path: string, parentFolder?: FolderMatch, ...lineMatches: ITextSearchMatch[]): FileMatch {
+	function aFileMatch(path: string, parentFolder?: IFolderMatch, ...lineMatches: ITextSearchMatch[]): INotebookFileInstanceMatch {
 		const rawMatch: IFileMatch = {
 			resource: URI.file('/' + path),
 			results: lineMatches
 		};
-		const fileMatch = instantiation.createInstance(FileMatch, {
+		const fileMatch = instantiation.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
 		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
 		fileMatch.createMatches(false);
@@ -188,10 +194,10 @@ suite('Search - Viewlet', () => {
 		return fileMatch;
 	}
 
-	function aFolderMatch(path: string, index: number, parent?: TextSearchHeading): FolderMatch {
+	function aFolderMatch(path: string, index: number, parent?: ITextSearchHeading): IFolderMatch {
 		const searchModel = instantiation.createInstance(SearchModelImpl);
 		store.add(searchModel);
-		const folderMatch = instantiation.createInstance(FolderMatch, createFileUriFromPathFromRoot(path), path, index, {
+		const folderMatch = instantiation.createInstance(FolderMatchImpl, createFileUriFromPathFromRoot(path), path, index, {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
@@ -200,7 +206,7 @@ suite('Search - Viewlet', () => {
 		return folderMatch;
 	}
 
-	function aSearchResult(): SearchResult {
+	function aSearchResult(): ISearchResult {
 		const searchModel = instantiation.createInstance(SearchModelImpl);
 		store.add(searchModel);
 

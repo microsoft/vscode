@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IAITextQuery, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextQuery, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from '../../../../services/search/common/search.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { CellMatch, MatchInNotebook, SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
@@ -41,6 +41,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CellMatch, MatchInNotebook } from '../../browser/notebookSearch/notebookSearchModel.js';
 
 const nullEvent = new class {
 	id: number = -1;

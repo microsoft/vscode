@@ -33,9 +33,8 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FolderMatchImpl, FolderMatchWorkspaceRootImpl, FolderMatchNoRootImpl } from './searchTreeModel/folderMatch.js';
 import { Match } from './searchTreeModel/match.js';
-import { SearchModelImpl } from './searchTreeModel/searchModel.js';
 import { RenderableMatch, AI_TEXT_SEARCH_RESULT_ID } from './searchTreeModel/searchTreeCommon.js';
-import { ITextSearchHeading, IFolderMatch, IFileInstanceMatch, isFileInstanceMatch, isFolderMatch, isTextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
+import { ITextSearchHeading, IFolderMatch, IFileInstanceMatch, isFileInstanceMatch, isFolderMatch, isTextSearchHeading, ISearchModel } from './searchTreeModel/ISearchTreeBase.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -485,7 +484,7 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 
 		if (element instanceof Match) {
 			const match = <Match>element;
-			const searchModel: SearchModelImpl = this.searchView.model;
+			const searchModel: ISearchModel = this.searchView.model;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();

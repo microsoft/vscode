@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { INotebookSearchService } from '../../common/notebookSearch.js';
@@ -21,6 +21,7 @@ import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigu
 import { IChangeEvent, mergeSearchResultEvents, SearchModelLocation } from './searchTreeCommon.js';
 import { SearchResultImpl } from './searchResult.js';
 import { ISearchModel, ISearchResult } from './ISearchTreeBase.js';
+import { ISearchViewModelWorkbenchService } from './searchViewModelWorkbenchService.js';
 
 export class SearchModelImpl extends Disposable implements ISearchModel {
 
@@ -421,13 +422,4 @@ export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenc
 		this._searchModel = searchModel;
 	}
 }
-
-export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModelWorkbenchService>('searchViewModelWorkbenchService');
-
-export interface ISearchViewModelWorkbenchService {
-	readonly _serviceBrand: undefined;
-
-	searchModel: SearchModelImpl;
-}
-
 

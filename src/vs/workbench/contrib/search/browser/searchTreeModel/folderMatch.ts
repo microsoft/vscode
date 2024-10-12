@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -22,8 +21,9 @@ import { IChangeEvent, textSearchResultToMatches } from './searchTreeCommon.js';
 import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchNoRoot as IFolderMatchNoRoot, IFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWorkspaceRoot, ITextSearchHeading, isFolderMatchNoRoot } from './ISearchTreeBase.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { isINotebookFileMatchNoModel } from '../../common/searchNotebookHelpers.js';
-import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModel.js';
+import { NotebookCompatibleFileMatch } from '../notebookSearch/notebookSearchModel.js';
 import { isINotebookFileMatchWithModel, getIDFromINotebookCellMatch } from '../notebookSearch/searchNotebookHelpers.js';
+import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 
 
 export class FolderMatchImpl extends Disposable implements IFolderMatch {
@@ -483,15 +483,17 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 	}
 
 	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: IFolderMatch, rawFileMatch: IFileMatch, closestRoot: IFolderMatchWorkspaceRoot | null, searchInstanceID: string): FileMatchImpl {
+		// TODO: can probably just create FileMatchImpl if we don't expect cell results from the file.
 		const fileMatch =
 			this.instantiationService.createInstance(
-				FileMatchImpl,
+				NotebookCompatibleFileMatch,
 				query,
 				previewOptions,
 				maxResults,
 				parent,
 				rawFileMatch,
-				closestRoot
+				closestRoot,
+				searchInstanceID
 			);
 		fileMatch.createMatches(this._ai);
 		parent.doAddFile(fileMatch);
@@ -548,13 +550,15 @@ export class FolderMatchNoRootImpl extends FolderMatchImpl implements IFolderMat
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): IFileInstanceMatch {
+		// TODO: can probably just create FileMatchImpl if we don't expect cell results from the file.
 		const fileMatch = this._register(this.instantiationService.createInstance(
-			FileMatchImpl,
+			NotebookCompatibleFileMatch,
 			this._query.contentPattern,
 			this._query.previewOptions,
 			this._query.maxResults,
 			this, rawFileMatch,
-			null));
+			null,
+			searchInstanceID));
 		fileMatch.createMatches(false); // currently, no support for AI results in out-of-workspace files
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));

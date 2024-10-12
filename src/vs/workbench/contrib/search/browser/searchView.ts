@@ -80,11 +80,12 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { INotebookFileInstanceMatch, MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
+import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
 import { Match } from './searchTreeModel/match.js';
-import { SearchModelImpl, ISearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
+import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
 import { RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch, searchMatchComparer } from './searchTreeModel/searchTreeCommon.js';
-import { IFileInstanceMatch, IFolderMatch, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
+import { IFileInstanceMatch, IFolderMatch, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
+import { INotebookFileInstanceMatch } from './notebookSearch/notebookSearchModelBase.js';
 
 const $ = dom.$;
 
@@ -103,7 +104,7 @@ export class SearchView extends ViewPane {
 
 	private container!: HTMLElement;
 	private queryBuilder: QueryBuilder;
-	private viewModel: SearchModelImpl;
+	private viewModel: ISearchModel;
 	private memento: Memento;
 
 	private viewletVisible: IContextKey<boolean>;
@@ -333,7 +334,7 @@ export class SearchView extends ViewPane {
 		return this.viewModel && this.viewModel.searchResult;
 	}
 
-	get model(): SearchModelImpl {
+	get model(): ISearchModel {
 		return this.viewModel;
 	}
 
@@ -369,7 +370,7 @@ export class SearchView extends ViewPane {
 		this.pauseSearching = false;
 	}
 
-	public async replaceSearchModel(searchModel: SearchModelImpl, asyncResults: Promise<ISearchComplete>): Promise<void> {
+	public async replaceSearchModel(searchModel: ISearchModel, asyncResults: Promise<ISearchComplete>): Promise<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
@@ -2253,7 +2254,7 @@ class SearchLinkButton extends Disposable {
 	}
 }
 
-export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModelImpl) {
+export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: ISearchModel) {
 	let match: Match | null = null;
 	if (element instanceof Match) {
 		match = element;

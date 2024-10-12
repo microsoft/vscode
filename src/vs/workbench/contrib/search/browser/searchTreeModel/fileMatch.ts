@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { OverviewRulerLane } from 'vscode';
 import { RunOnceScheduler } from '../../../../../base/common/async';
 import { Lazy } from '../../../../../base/common/lazy';
@@ -248,7 +253,6 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 	textMatches(): Match[] {
 		return Array.from(this._textMatches.values());
 	}
-
 
 	remove(matches: Match | Match[]): void {
 		if (!Array.isArray(matches)) {

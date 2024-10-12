@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
@@ -9,12 +13,12 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IReplaceService } from '../replace.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModel.js';
 import { AI_TEXT_SEARCH_RESULT_ID, IChangeEvent } from './searchTreeCommon.js';
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { Match } from './match.js';
 import { FolderMatchNoRootImpl, FolderMatchWorkspaceRootImpl } from './folderMatch.js';
 import { IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, IFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isFileInstanceMatch, isFolderMatch, ITextSearchHeading } from './ISearchTreeBase.js';
+import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 
 
 export class TextSearchHeadingImpl extends Disposable implements ITextSearchHeading {

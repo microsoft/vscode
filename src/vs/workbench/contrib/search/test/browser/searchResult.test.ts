@@ -5,7 +5,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Match, FileMatch, SearchResult, SearchModelImpl, FolderMatch, CellMatch } from '../../browser/searchTreeModel/searchModel.js';
+import { SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -36,6 +36,12 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
+import { ISearchResult, IFolderMatch } from '../../browser/searchTreeModel/ISearchTreeBase.js';
+import { Match } from '../../browser/searchTreeModel/match.js';
+import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
+import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -171,7 +177,7 @@ suite('SearchResult', () => {
 
 		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
-		const searchResult = instantiationService.createInstance(SearchResult, searchModel);
+		const searchResult = instantiationService.createInstance(SearchResultImpl, searchModel);
 		store.add(searchResult);
 		const fileMatch = aFileMatch('far/boo', searchResult);
 		const lineMatch = new Match(fileMatch, ['foo bar'], new OneLineRange(0, 0, 3), new OneLineRange(1, 0, 3), false);
@@ -245,7 +251,7 @@ suite('SearchResult', () => {
 
 		sinon.stub(CellMatch.prototype, 'addContext');
 
-		const addFileMatch = sinon.spy(FolderMatch.prototype, "addFileMatch");
+		const addFileMatch = sinon.spy(FolderMatchImpl.prototype, "addFileMatch");
 		const fileMatch1 = aRawFileMatchWithCells('/1',
 			{
 				cell: cell1,
@@ -520,7 +526,7 @@ suite('SearchResult', () => {
 
 	});
 
-	function aFileMatch(path: string, searchResult: SearchResult | undefined, ...lineMatches: ITextSearchMatch[]): FileMatch {
+	function aFileMatch(path: string, searchResult: ISearchResult | undefined, ...lineMatches: ITextSearchMatch[]): INotebookFileInstanceMatch {
 		if (!searchResult) {
 			searchResult = aSearchResult();
 		}
@@ -529,7 +535,7 @@ suite('SearchResult', () => {
 			results: lineMatches
 		};
 		const root = searchResult?.folderMatches()[0];
-		const fileMatch = instantiationService.createInstance(FileMatch, {
+		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
 		}, undefined, undefined, root, rawMatch, null, '');
 		fileMatch.createMatches(false);
@@ -538,7 +544,7 @@ suite('SearchResult', () => {
 		return fileMatch;
 	}
 
-	function aSearchResult(): SearchResult {
+	function aSearchResult(): ISearchResult {
 		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
 		searchModel.searchResult.query = {
@@ -669,11 +675,11 @@ suite('SearchResult', () => {
 		return testObject;
 	}
 
-	function getFolderMatchAtIndex(parent: FolderMatch, index: number) {
+	function getFolderMatchAtIndex(parent: IFolderMatch, index: number) {
 		return Array.from(parent.folderMatchesIterator())[index];
 	}
 
-	function getFileMatchAtIndex(parent: FolderMatch, index: number) {
+	function getFileMatchAtIndex(parent: IFolderMatch, index: number) {
 		return Array.from(parent.fileMatchesIterator())[index];
 	}
 });

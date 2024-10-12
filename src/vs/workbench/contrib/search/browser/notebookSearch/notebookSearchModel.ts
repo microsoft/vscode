@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { coalesce } from '../../../../../base/common/arrays';
 import { RunOnceScheduler } from '../../../../../base/common/async';
 import { CancellationToken } from '../../../../../base/common/cancellation';
@@ -16,30 +21,12 @@ import { NotebookCellsChangeType } from '../../../notebook/common/notebookCommon
 import { CellSearchModel } from '../../common/cellSearchModel';
 import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers';
 import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot, isFileInstanceMatch } from '../searchTreeModel/ISearchTreeBase';
+import { IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/ISearchTreeBase';
 import { Match } from '../searchTreeModel/match';
 import { IReplaceService } from '../replace';
 import { FileMatchImpl } from '../searchTreeModel/fileMatch';
 import { textSearchResultToMatches } from '../searchTreeModel/searchTreeCommon';
-
-export interface INotebookFileInstanceMatch extends IFileInstanceMatch {
-	bindNotebookEditorWidget(editor: NotebookEditorWidget): void;
-	updateMatchesForEditorWidget(): Promise<void>;
-	unbindNotebookEditorWidget(editor: NotebookEditorWidget): void;
-	updateNotebookHighlights(): void;
-	getCellMatch(cellID: string): CellMatch | undefined;
-	addCellMatch(rawCell: INotebookCellMatchNoModel | INotebookCellMatchWithModel): void;
-	showMatch(match: MatchInNotebook): Promise<void>;
-}
-
-export function isNotebookFileMatch(obj: any): obj is INotebookFileInstanceMatch {
-	return obj &&
-		typeof obj.bindNotebookEditorWidget === 'function' &&
-		typeof obj.updateMatchesForEditorWidget === 'function' &&
-		typeof obj.unbindNotebookEditorWidget === 'function' &&
-		typeof obj.updateNotebookHighlights === 'function'
-		&& isFileInstanceMatch(obj);
-}
+import { INotebookFileInstanceMatch } from './notebookSearchModelBase';
 
 export class MatchInNotebook extends Match {
 	private _webviewIndex: number | undefined;
@@ -50,7 +37,7 @@ export class MatchInNotebook extends Match {
 		this._webviewIndex = webviewIndex;
 	}
 
-	override parent(): NotebookCompatibleFileMatch { // visible parent in search tree
+	override parent(): INotebookFileInstanceMatch { // visible parent in search tree
 		return this._cellParent.parent;
 	}
 
@@ -89,7 +76,7 @@ export class CellMatch {
 	private _context: Map<number, string>;
 
 	constructor(
-		private readonly _parent: NotebookCompatibleFileMatch,
+		private readonly _parent: INotebookFileInstanceMatch,
 		private _cell: ICellViewModel | undefined,
 		private readonly _cellIndex: number,
 	) {
@@ -168,7 +155,7 @@ export class CellMatch {
 		this._cell = cell;
 	}
 
-	get parent(): NotebookCompatibleFileMatch {
+	get parent(): INotebookFileInstanceMatch {
 		return this._parent;
 	}
 
@@ -453,7 +440,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		}
 	}
 
-	private cellMatches() {
+	cellMatches() {
 		return Array.from(this._cellMatches.values());
 	}
 

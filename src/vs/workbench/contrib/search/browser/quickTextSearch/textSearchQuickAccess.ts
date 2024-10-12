@@ -21,7 +21,6 @@ import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickIn
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
-import { FileMatch, Match, RenderableMatch, SearchModelImpl, SearchModelLocation, SearchResult, searchComparer } from '../searchTreeModel/searchModel.js';
 import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -33,6 +32,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { Sequencer } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Match } from '../searchTreeModel/match.js';
+import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
+import { SearchModelLocation, RenderableMatch, searchComparer } from '../searchTreeModel/searchTreeCommon.js';
+import { IFileInstanceMatch, ISearchResult } from '../searchTreeModel/ISearchTreeBase.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -178,8 +181,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	}
 
 	private doSearch(contentPattern: string, token: CancellationToken): {
-		syncResults: FileMatch[];
-		asyncResults: Promise<FileMatch[]>;
+		syncResults: IFileInstanceMatch[];
+		asyncResults: Promise<IFileInstanceMatch[]>;
 	} | undefined {
 		if (contentPattern === '') {
 			return undefined;
@@ -218,7 +221,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		this.searchModel = this._instantiationService.createInstance(SearchModelImpl);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
-		const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = viewlet?.getControl();
+		const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = viewlet?.getControl();
 		if (currentElem) {
 			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
 			viewer.setSelection([currentElem], getSelectionKeyboardEvent());
@@ -229,7 +232,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	}
 
 
-	private _getPicksFromMatches(matches: FileMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
+	private _getPicksFromMatches(matches: IFileInstanceMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
 		matches = matches.sort((a, b) => {
 			if (firstFile) {
 				if (firstFile === a.resource) {
@@ -261,10 +264,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				break;
 			}
 
-			const fileMatch = files[fileIndex];
+			const iFileInstanceMatch = files[fileIndex];
 
-			const label = basenameOrAuthority(fileMatch.resource);
-			const description = this._labelService.getUriLabel(dirname(fileMatch.resource), { relative: true });
+			const label = basenameOrAuthority(iFileInstanceMatch.resource);
+			const description = this._labelService.getUriLabel(dirname(iFileInstanceMatch.resource), { relative: true });
 
 
 			picks.push({
@@ -276,12 +279,12 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					tooltip: localize('QuickSearchOpenInFile', "Open File")
 				}],
 				trigger: async (): Promise<TriggerAction> => {
-					await this.handleAccept(fileMatch, {});
+					await this.handleAccept(iFileInstanceMatch, {});
 					return TriggerAction.CLOSE_PICKER;
 				},
 			});
 
-			const results: Match[] = fileMatch.matches() ?? [];
+			const results: Match[] = iFileInstanceMatch.matches() ?? [];
 			for (let matchIndex = 0; matchIndex < results.length; matchIndex++) {
 				const element = results[matchIndex];
 
@@ -313,7 +316,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 					}],
 					ariaLabel: `Match at location ${element.range().startLineNumber}:${element.range().startColumn} - ${previewText}`,
 					accept: async (keyMods, event) => {
-						await this.handleAccept(fileMatch, {
+						await this.handleAccept(iFileInstanceMatch, {
 							keyMods,
 							selection: getEditorSelectionFromMatch(element, this.searchModel),
 							preserveFocus: event.inBackground,
@@ -331,7 +334,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		return picks;
 	}
 
-	private async handleAccept(fileMatch: FileMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
+	private async handleAccept(iFileInstanceMatch: IFileInstanceMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
 		const editorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
@@ -342,7 +345,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		const targetGroup = options.keyMods?.alt || (this.configuration.openEditorPinned && options.keyMods?.ctrlCmd) || options.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP;
 
 		await this._editorService.openEditor({
-			resource: fileMatch.resource,
+			resource: iFileInstanceMatch.resource,
 			options: editorOptions
 		}, targetGroup);
 	}

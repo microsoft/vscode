@@ -13,7 +13,6 @@ import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult, TextSearchHeading } from './searchTreeModel/searchModel.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -23,11 +22,15 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from './searchActionsBase.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { ISearchResult, isFileInstanceMatch, isFolderMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
+import { arrayContainsElementOrParent, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
+import { Match } from './searchTreeModel/match.js';
+import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
 
 
 //#region Interfaces
 export interface ISearchActionContext {
-	readonly viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>;
+	readonly viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>;
 	readonly element: RenderableMatch;
 }
 
@@ -106,7 +109,7 @@ registerAction2(class RemoveAction extends Action2 {
 			return;
 		}
 
-		if (!focusElement || (focusElement instanceof SearchResult)) {
+		if (!focusElement || (isSearchResult(focusElement))) {
 			focusElement = element;
 		}
 
@@ -261,7 +264,7 @@ async function performReplace(accessor: ServicesAccessor,
 	const viewsService = accessor.get(IViewsService);
 
 	const viewlet: SearchView | undefined = getSearchView(viewsService);
-	const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
+	const viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch> | undefined = context?.viewer ?? viewlet?.getControl();
 
 	if (!viewer) {
 		return;
@@ -272,7 +275,7 @@ async function performReplace(accessor: ServicesAccessor,
 	const elementsToReplace = getElementsToOperateOn(viewer, element ?? undefined, configurationService.getValue<ISearchConfigurationProperties>('search'));
 	let focusElement = viewer.getFocus()[0];
 
-	if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (focusElement instanceof SearchResult)) {
+	if (!focusElement || (focusElement && !arrayContainsElementOrParent(focusElement, elementsToReplace)) || (isSearchResult(focusElement))) {
 		focusElement = element;
 	}
 
@@ -309,7 +312,7 @@ async function performReplace(accessor: ServicesAccessor,
 				} else {
 					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
 				}
-			} else if (nextFocusElement instanceof FileMatch) {
+			} else if (isFileInstanceMatch(nextFocusElement)) {
 				viewlet?.open(nextFocusElement, true);
 			}
 		}
@@ -339,27 +342,24 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 			return -1;
 		}
 
-	} else if (elem1 instanceof FileMatch) {
+	} else if (isFileInstanceMatch(elem1)) {
 		if (elem2 instanceof Match) {
 			return 1;
-		} else if (elem2 instanceof FileMatch) {
+		} else if (isFileInstanceMatch(elem2)) {
 			return 0;
 		} else {
 			return -1;
 		}
-
-	} else if (elem2 instanceof FolderMatch) {
-		// FolderMatch
-		if (elem2 instanceof TextSearchHeading) {
+	} else if (isFolderMatch(elem1)) {
+		if (isTextSearchHeading(elem2)) {
 			return -1;
-		} else if (elem2 instanceof FolderMatch) {
+		} else if (isFolderMatch(elem2)) {
 			return 0;
 		} else {
 			return 1;
 		}
 	} else {
-		// textSearchResult
-		if (elem2 instanceof TextSearchHeading) {
+		if (isTextSearchHeading(elem2)) {
 			return 0;
 		} else {
 			return 1;
@@ -370,12 +370,12 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 /**
  * Returns element to focus after removing the given element
  */
-export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
+export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
-	if (element instanceof FolderMatch) {
-		while (!!navigator.next() && (!(navigator.current() instanceof FolderMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
-	} else if (element instanceof FileMatch) {
-		while (!!navigator.next() && (!(navigator.current() instanceof FileMatch) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+	if (isFolderMatch(element)) {
+		while (!!navigator.next() && (!isFolderMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
+	} else if (isFileInstanceMatch(element)) {
+		while (!!navigator.next() && (!isFileInstanceMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
 			await viewer.expand(navigator.current());
 		}
 	} else {
@@ -389,7 +389,7 @@ export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibl
 /***
  * Finds the last element in the tree with the same type as `element`
  */
-export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>, element: RenderableMatch): Promise<RenderableMatch | undefined> {
+export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>, element: RenderableMatch): Promise<RenderableMatch | undefined> {
 	let lastElem: RenderableMatch | null = viewer.lastVisibleElement ?? null;
 
 	while (lastElem) {
@@ -402,7 +402,7 @@ export async function getLastNodeFromSameType(viewer: WorkbenchCompressibleAsync
 			lastElem = viewer.lastVisibleElement;
 		} else if (compareVal === 1) {
 			const potentialLastElem = viewer.getParentElement(lastElem);
-			if (potentialLastElem instanceof SearchResult) {
+			if (isSearchResult(potentialLastElem)) {
 				break;
 			} else {
 				lastElem = potentialLastElem;

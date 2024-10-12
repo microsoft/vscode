@@ -10,10 +10,14 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Range } from '../../../../editor/common/core/range.js';
 import type { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
-import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch, CellMatch } from '../../search/browser/searchTreeModel/searchModel.js';
 import type { SearchConfiguration } from './searchEditorInput.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { CellMatch } from '../../search/browser/notebookSearch/notebookSearchModel.js';
+import { IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/ISearchTreeBase.js';
+import { Match } from '../../search/browser/searchTreeModel/match.js';
+import { searchMatchComparer } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { isNotebookFileMatch } from '../../search/browser/notebookSearch/notebookSearchModelBase.js';
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';
@@ -60,10 +64,10 @@ const matchToSearchResultFormat = (match: Match, longestLineNumber: number): { l
 
 type SearchResultSerialization = { text: string[]; matchRanges: Range[] };
 
-function fileMatchToSearchResultFormat(fileMatch: FileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization[] {
+function fileMatchToSearchResultFormat(fileMatch: IFileInstanceMatch, labelFormatter: (x: URI) => string): SearchResultSerialization[] {
 
 	const textSerializations = fileMatch.textMatches().length > 0 ? matchesToSearchResultFormat(fileMatch.resource, fileMatch.textMatches().sort(searchMatchComparer), fileMatch.context, labelFormatter) : undefined;
-	const cellSerializations = fileMatch.cellMatches().sort((a, b) => a.cellIndex - b.cellIndex).sort().filter(cellMatch => cellMatch.contentMatches.length > 0).map((cellMatch, index) => cellMatchToSearchResultFormat(cellMatch, labelFormatter, index === 0));
+	const cellSerializations = (isNotebookFileMatch(fileMatch)) ? fileMatch.cellMatches().sort((a, b) => a.cellIndex - b.cellIndex).sort().filter(cellMatch => cellMatch.contentMatches.length > 0).map((cellMatch, index) => cellMatchToSearchResultFormat(cellMatch, labelFormatter, index === 0)) : [];
 
 	return [textSerializations, ...cellSerializations].filter(x => !!x) as SearchResultSerialization[];
 }
@@ -234,7 +238,7 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 };
 
 export const serializeSearchResultForEditor =
-	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[]; text: string; config: Partial<SearchConfiguration> } => {
+	(searchResult: ISearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[]; text: string; config: Partial<SearchConfiguration> } => {
 		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
 		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 
@@ -251,7 +255,7 @@ export const serializeSearchResultForEditor =
 		}
 		info.push('');
 
-		const matchComparer = (a: FileMatch | FolderMatch, b: FileMatch | FolderMatch) => searchMatchComparer(a, b, sortOrder);
+		const matchComparer = (a: IFileInstanceMatch | IFolderMatch, b: IFileInstanceMatch | IFolderMatch) => searchMatchComparer(a, b, sortOrder);
 
 		const allResults =
 			flattenSearchResultSerializations(
