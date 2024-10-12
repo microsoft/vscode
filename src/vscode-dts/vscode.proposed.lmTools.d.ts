@@ -10,16 +10,31 @@ declare module 'vscode' {
 
 	// TODO@API capabilities
 
-	// API -> LM: an tool/function that is available to the language model
+	/**
+	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}.
+	 */
 	export interface LanguageModelChatTool {
+		/**
+		 * The name of the tool.
+		 */
 		name: string;
+
+		/**
+		 * The description of the tool.
+		 */
 		description: string;
+
+		/**
+		 * A JSON schema for the parameters this tool accepts.
+		 */
 		parametersSchema?: object;
 	}
 
-	// API -> LM: add tools as request option
 	export interface LanguageModelChatRequestOptions {
 		// TODO@API this will be a heterogeneous array of different types of tools
+		/**
+		 * An optional list of tools that are available to the language model.
+		 */
 		tools?: LanguageModelChatTool[];
 
 		/**
@@ -28,30 +43,62 @@ declare module 'vscode' {
 		toolChoice?: string;
 	}
 
-	// LM -> USER: function that should be used
+	/**
+	 * A language model response part indicating a tool call, returned from a {@link LanguageModelChatResponse}, and also can be
+	 * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a
+	 * chat request.
+	 */
 	export class LanguageModelToolCallPart {
+		/**
+		 * The name of the tool to call.
+		 */
 		name: string;
+
+		/**
+		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
+		 */
 		toolCallId: string;
+
+		/**
+		 * The parameters with which to call the tool.
+		 */
 		parameters: object;
 
 		constructor(name: string, toolCallId: string, parameters: object);
 	}
 
-	// LM -> USER: text chunk
+	/**
+	 * A language model response part containing a piece of text, returned from a {@link LanguageModelChatResponse}.
+	 */
 	export class LanguageModelTextPart {
+		/**
+		 * The text content of the part.
+		 */
 		value: string;
 
 		constructor(value: string);
 	}
 
 	export interface LanguageModelChatResponse {
+		/**
+		 * A stream of parts that make up the response. Could be extended with more types in the future.
+		 * TODO@API add "| unknown"?
+		 */
 		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart>;
 	}
 
-
-	// USER -> LM: the result of a function call
+	/**
+	 * The result of a tool call. Can only be included in the content of a User message.
+	 */
 	export class LanguageModelToolResultPart {
+		/**
+		 * The ID of the tool call.
+		 */
 		toolCallId: string;
+
+		/**
+		 * The content of the tool result.
+		 */
 		content: string;
 
 		constructor(toolCallId: string, content: string);
@@ -59,12 +106,8 @@ declare module 'vscode' {
 
 	export interface LanguageModelChatMessage {
 		/**
-		 * A heterogeneous array of other things that a message can contain as content.
-		 * Some parts would be message-type specific for some models and wouldn't go together,
-		 * but it's up to the chat provider to decide what to do about that.
-		 * Can drop parts that are not valid for the message type.
-		 * LanguageModelToolResultPart: only on User messages
-		 * LanguageModelToolCallPart: only on Assistant messages
+		 * A heterogeneous array of other things that a message can contain as content. Some parts may be message-type specific
+		 * for some models.
 		 */
 		content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 	}
