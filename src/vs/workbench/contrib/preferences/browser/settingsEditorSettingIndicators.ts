@@ -19,7 +19,7 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { SettingsTreeSettingElement } from './settingsTreeModels.js';
-import { POLICY_SETTING_TAG } from '../common/preferences.js';
+import { EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
@@ -328,9 +328,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			localize('previewLabel', "Preview") :
 			localize('experimentalLabel', "Experimental");
 
-		const content = isPreviewSetting ?
-			localize('previewSettingDescription', "The setting is in the process of becoming stable.") :
-			localize('experimentalSettingDescription', "The setting is experimental and may change names or be removed.");
+		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
 		const showHover = (focus: boolean) => {
 			return this.hoverService.showHover({
 				...this.defaultHoverOptions,
