@@ -16,7 +16,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { EditorsOrder } from '../../../common/editor.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { getSearchView } from '../../search/browser/searchActionsBase.js';
-import { SearchResult } from '../../search/browser/searchModel.js';
+import { SearchResult } from '../../search/browser/searchTreeModel/searchModel.js';
 import { SearchEditor } from './searchEditor.js';
 import { OpenSearchEditorArgs } from './searchEditor.contribution.js';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from './searchEditorInput.js';

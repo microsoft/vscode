@@ -25,7 +25,7 @@ import { SearchView } from './searchView.js';
 import { registerContributions as searchWidgetContributions } from './searchWidget.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { ISearchHistoryService, SearchHistoryService } from '../common/searchHistoryService.js';
-import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from './searchModel.js';
+import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS } from '../../../services/search/common/search.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { assertType } from '../../../../base/common/types.js';

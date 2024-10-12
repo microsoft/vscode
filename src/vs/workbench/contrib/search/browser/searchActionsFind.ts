@@ -12,7 +12,7 @@ import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
-import { FileMatch, FolderMatchWithResource, Match, RenderableMatch, SearchResult } from './searchModel.js';
+import { FileMatch, FolderMatchWithResource, Match, RenderableMatch, SearchResult } from './searchTreeModel/searchModel.js';
 import { OpenSearchEditorArgs } from '../../searchEditor/browser/searchEditor.contribution.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { URI } from '../../../../base/common/uri.js';

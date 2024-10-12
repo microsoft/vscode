@@ -13,7 +13,7 @@ import { searchRemoveIcon, searchReplaceIcon } from './searchIcons.js';
 import { SearchView } from './searchView.js';
 import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult, TextSearchResult } from './searchModel.js';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, MatchInNotebook, RenderableMatch, SearchResult, TextSearchHeading } from './searchTreeModel/searchModel.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ISearchConfiguration, ISearchConfigurationProperties } from '../../../services/search/common/search.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -350,7 +350,7 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 
 	} else if (elem2 instanceof FolderMatch) {
 		// FolderMatch
-		if (elem2 instanceof TextSearchResult) {
+		if (elem2 instanceof TextSearchHeading) {
 			return -1;
 		} else if (elem2 instanceof FolderMatch) {
 			return 0;
@@ -359,7 +359,7 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
 		}
 	} else {
 		// textSearchResult
-		if (elem2 instanceof TextSearchResult) {
+		if (elem2 instanceof TextSearchHeading) {
 			return 0;
 		} else {
 			return 1;

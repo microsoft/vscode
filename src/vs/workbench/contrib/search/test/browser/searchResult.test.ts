@@ -5,7 +5,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { Match, FileMatch, SearchResult, SearchModel, FolderMatch, CellMatch } from '../../browser/searchModel.js';
+import { Match, FileMatch, SearchResult, SearchModelImpl, FolderMatch, CellMatch } from '../../browser/searchTreeModel/searchModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from '../../../../services/search/common/search.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -169,7 +169,7 @@ suite('SearchResult', () => {
 
 	test('Match -> FileMatch -> SearchResult hierarchy exists', function () {
 
-		const searchModel = instantiationService.createInstance(SearchModel);
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
 		const searchResult = instantiationService.createInstance(SearchResult, searchModel);
 		store.add(searchResult);
@@ -539,7 +539,7 @@ suite('SearchResult', () => {
 	}
 
 	function aSearchResult(): SearchResult {
-		const searchModel = instantiationService.createInstance(SearchModel);
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
 		searchModel.searchResult.query = {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {

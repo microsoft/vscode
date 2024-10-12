@@ -12,7 +12,7 @@ import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/br
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
 import * as SearchEditorConstants from '../../searchEditor/browser/constants.js';
-import { FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from './searchModel.js';
+import { FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult } from './searchTreeModel/searchModel.js';
 import { SearchEditor } from '../../searchEditor/browser/searchEditor.js';
 import { SearchEditorInput } from '../../searchEditor/browser/searchEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';

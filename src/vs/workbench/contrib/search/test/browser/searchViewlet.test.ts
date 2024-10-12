@@ -15,7 +15,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
-import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModel, SearchResult, TextSearchResult } from '../../browser/searchModel.js';
+import { FileMatch, FolderMatch, Match, searchComparer, searchMatchComparer, SearchModelImpl, SearchResult, TextSearchHeading } from '../../browser/searchTreeModel/searchModel.js';
 import { MockLabelService } from '../../../../services/label/test/common/mockLabelService.js';
 import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from '../../../../services/search/common/search.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
@@ -188,8 +188,8 @@ suite('Search - Viewlet', () => {
 		return fileMatch;
 	}
 
-	function aFolderMatch(path: string, index: number, parent?: TextSearchResult): FolderMatch {
-		const searchModel = instantiation.createInstance(SearchModel);
+	function aFolderMatch(path: string, index: number, parent?: TextSearchHeading): FolderMatch {
+		const searchModel = instantiation.createInstance(SearchModelImpl);
 		store.add(searchModel);
 		const folderMatch = instantiation.createInstance(FolderMatch, createFileUriFromPathFromRoot(path), path, index, {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
@@ -201,7 +201,7 @@ suite('Search - Viewlet', () => {
 	}
 
 	function aSearchResult(): SearchResult {
-		const searchModel = instantiation.createInstance(SearchModel);
+		const searchModel = instantiation.createInstance(SearchModelImpl);
 		store.add(searchModel);
 
 		searchModel.searchResult.query = {

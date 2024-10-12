@@ -13,7 +13,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { IFileMatch, QueryType } from '../../../../services/search/common/search.js';
 import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from '../../browser/searchActionsRemoveReplace.js';
-import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from '../../browser/searchModel.js';
+import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModelImpl } from '../../browser/searchTreeModel/searchModel.js';
 import { MockObjectTree } from './mockSearchTree.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
@@ -114,7 +114,7 @@ suite('Search Actions', () => {
 			results: []
 		};
 
-		const searchModel = instantiationService.createInstance(SearchModel);
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
 		store.add(searchModel);
 		const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {

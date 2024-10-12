@@ -43,7 +43,7 @@ import { ExcludePatternInputWidget, IncludePatternInputWidget } from '../../sear
 import { SearchWidget } from '../../search/browser/searchWidget.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { getOutOfWorkspaceEditorResources } from '../../search/common/search.js';
-import { SearchModel, SearchResult } from '../../search/browser/searchModel.js';
+import { SearchModelImpl, SearchResult } from '../../search/browser/searchTreeModel/searchModel.js';
 import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId } from './constants.js';
 import type { SearchConfiguration, SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
@@ -92,7 +92,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private searchHistoryDelayer: Delayer<void>;
 	private readonly messageDisposables: DisposableStore;
 	private container: HTMLElement;
-	private searchModel: SearchModel;
+	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
 	private updatingModelForSearch: boolean = false;
 
@@ -126,7 +126,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 
-		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
+		this.searchModel = this._register(this.instantiationService.createInstance(SearchModelImpl));
 	}
 
 	protected override createEditor(parent: HTMLElement) {

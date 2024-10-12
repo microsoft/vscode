@@ -11,7 +11,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
 import * as Constants from '../common/constants.js';
 import { ISearchHistoryService } from '../common/searchHistoryService.js';
-import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, RenderableMatch, SearchResult, TextSearchResult } from './searchModel.js';
+import { FileMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, Match, RenderableMatch, SearchResult, TextSearchHeading } from './searchTreeModel/searchModel.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -297,12 +297,12 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 		do {
 			node = navigator.next();
-		} while (node instanceof TextSearchResult);
+		} while (node instanceof TextSearchHeading);
 		// go to the first non-TextSearchResult node
 
 		if (node instanceof FolderMatchWorkspaceRoot || searchView.isTreeLayoutViewVisible) {
 			while (node = navigator.next()) {
-				if (node instanceof TextSearchResult) {
+				if (node instanceof TextSearchHeading) {
 					continue;
 				}
 				if (node instanceof Match) {
@@ -315,12 +315,12 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					if (node instanceof FolderMatch) {
 						const compressionStartNode = viewer.getCompressedTreeNode(node)?.elements[0].element;
 						// Match elements should never be compressed, so `!(compressionStartNode instanceof Match)` should always be true here. Same with `!(compressionStartNode instanceof TextSearchResult)`
-						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof TextSearchResult) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
+						nodeToTest = (compressionStartNode && !(compressionStartNode instanceof Match) && !(compressionStartNode instanceof TextSearchHeading) && !(compressionStartNode instanceof SearchResult)) ? compressionStartNode : node;
 					}
 
 					const immediateParent = nodeToTest.parent();
 
-					if (!(immediateParent instanceof TextSearchResult || immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
+					if (!(immediateParent instanceof TextSearchHeading || immediateParent instanceof FolderMatchWorkspaceRoot || immediateParent instanceof FolderMatchNoRoot || immediateParent instanceof SearchResult)) {
 						canCollapseFirstLevel = true;
 					}
 				}
@@ -357,7 +357,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 					}
 				} while (node = navigator.next());
 			}
-		} else if (navigator.first() instanceof TextSearchResult) {
+		} else if (navigator.first() instanceof TextSearchHeading) {
 			// if AI results are visible, just collapse everything under the TextSearchResult.
 			node = navigator.first();
 			do {
@@ -366,7 +366,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 				}
 
-				if (viewer.getParentElement(node) instanceof TextSearchResult) {
+				if (viewer.getParentElement(node) instanceof TextSearchHeading) {
 					viewer.collapse(node);
 				}
 			} while (node = navigator.next());

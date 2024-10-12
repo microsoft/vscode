@@ -10,7 +10,7 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Range } from '../../../../editor/common/core/range.js';
 import type { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
-import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch, CellMatch } from '../../search/browser/searchModel.js';
+import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch, CellMatch } from '../../search/browser/searchTreeModel/searchModel.js';
 import type { SearchConfiguration } from './searchEditorInput.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';

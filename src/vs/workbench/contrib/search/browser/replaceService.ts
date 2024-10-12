@@ -11,7 +11,7 @@ import { IReplaceService } from './replace.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { Match, FileMatch, FileMatchOrMatch, ISearchViewModelWorkbenchService, MatchInNotebook } from './searchModel.js';
+import { Match, FileMatch, FileMatchOrMatch, ISearchViewModelWorkbenchService, MatchInNotebook } from './searchTreeModel/searchModel.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
 import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';

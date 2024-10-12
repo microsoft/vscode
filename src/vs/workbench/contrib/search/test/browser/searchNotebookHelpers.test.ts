@@ -11,7 +11,7 @@ import { ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind } from '../../../notebook/common/notebookCommon.js';
 import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from '../../browser/notebookSearch/searchNotebookHelpers.js';
 import { CellFindMatchModel } from '../../../notebook/browser/contrib/find/findModel.js';
-import { CellMatch, FileMatch, FolderMatch, SearchModel, textSearchMatchesToNotebookMatches } from '../../browser/searchModel.js';
+import { CellMatch, FileMatch, FolderMatch, SearchModelImpl, textSearchMatchesToNotebookMatches } from '../../browser/searchTreeModel/searchModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
@@ -207,7 +207,7 @@ suite('searchNotebookHelpers', () => {
 				results: []
 			};
 
-			const searchModel = instantiationService.createInstance(SearchModel);
+			const searchModel = instantiationService.createInstance(SearchModelImpl);
 			store.add(searchModel);
 			const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
 				type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {

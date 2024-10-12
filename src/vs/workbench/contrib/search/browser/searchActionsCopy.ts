@@ -8,7 +8,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import * as Constants from '../common/constants.js';
-import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer } from './searchModel.js';
+import { FileMatch, FolderMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer } from './searchTreeModel/searchModel.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';

@@ -68,7 +68,6 @@ import * as Constants from '../common/constants.js';
 import { IReplaceService } from './replace.js';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from '../common/search.js';
 import { ISearchHistoryService, ISearchHistoryValues, SearchHistoryService } from '../common/searchHistoryService.js';
-import { AI_TEXT_SEARCH_RESULT_ID, FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchNoRoot, FolderMatchWithResource, FolderMatchWorkspaceRoot, IChangeEvent, ISearchViewModelWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchModelLocation, SearchResult, TextSearchResult } from './searchModel.js';
 import { createEditorFromSearchResult } from '../../searchEditor/browser/searchEditorActions.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
@@ -81,6 +80,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { INotebookFileInstanceMatch, MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
+import { Match } from './searchTreeModel/match.js';
+import { SearchModelImpl, ISearchViewModelWorkbenchService } from './searchTreeModel/searchModel.js';
+import { RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch, searchMatchComparer } from './searchTreeModel/searchTreeCommon.js';
+import { IFileInstanceMatch, IFolderMatch, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/ISearchTreeBase.js';
 
 const $ = dom.$;
 
@@ -99,7 +103,7 @@ export class SearchView extends ViewPane {
 
 	private container!: HTMLElement;
 	private queryBuilder: QueryBuilder;
-	private viewModel: SearchModel;
+	private viewModel: SearchModelImpl;
 	private memento: Memento;
 
 	private viewletVisible: IContextKey<boolean>;
@@ -124,7 +128,7 @@ export class SearchView extends ViewPane {
 	private hasFilePatternKey: IContextKey<boolean>;
 	private hasSomeCollapsibleResultKey: IContextKey<boolean>;
 
-	private tree!: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>;
+	private tree!: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>;
 	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
 	private messagesElement!: HTMLElement;
@@ -138,7 +142,7 @@ export class SearchView extends ViewPane {
 	private inputPatternIncludes!: IncludePatternInputWidget;
 	private resultsElement!: HTMLElement;
 
-	private currentSelectedFileMatch: FileMatch | undefined;
+	private currentSelectedFileMatch: IFileInstanceMatch | undefined;
 
 	private delayedRefresh: Delayer<void>;
 	private changedWhileHidden: boolean;
@@ -325,11 +329,11 @@ export class SearchView extends ViewPane {
 		return this.container;
 	}
 
-	get searchResult(): SearchResult {
+	get searchResult(): ISearchResult {
 		return this.viewModel && this.viewModel.searchResult;
 	}
 
-	get model(): SearchModel {
+	get model(): SearchModelImpl {
 		return this.viewModel;
 	}
 
@@ -365,7 +369,7 @@ export class SearchView extends ViewPane {
 		this.pauseSearching = false;
 	}
 
-	public async replaceSearchModel(searchModel: SearchModel, asyncResults: Promise<ISearchComplete>): Promise<void> {
+	public async replaceSearchModel(searchModel: SearchModelImpl, asyncResults: Promise<ISearchComplete>): Promise<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
@@ -716,7 +720,7 @@ export class SearchView extends ViewPane {
 
 					await this.tree.updateChildren(undefined);
 				} else {
-					// FileMatch modified, refresh those elements
+					// IFileMatchInstance modified, refresh those elements
 					await Promise.all(event.elements.map(async element => {
 						await this.tree.updateChildren(element);
 						this.tree.rerender(element);
@@ -878,14 +882,14 @@ export class SearchView extends ViewPane {
 
 		this.searchDataSource = this.instantiationService.createInstance(SearchViewDataSource, this);
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility }));
-		this.tree = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch>,
+		this.tree = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>,
 			'SearchView',
 			this.resultsElement,
 			delegate,
 			{
 				isIncompressible: (element: RenderableMatch) => {
 
-					if (element instanceof FolderMatch && !(element.parent() instanceof TextSearchResult) && !(element.parent() instanceof FolderMatchWorkspaceRoot) && !(element.parent() instanceof FolderMatchNoRoot)) {
+					if (isFolderMatch(element) && !isTextSearchHeading(element.parent()) && !(isFolderMatchWorkspaceRoot(element.parent())) && !(isFolderMatchNoRoot(element.parent()))) {
 						return false;
 					}
 					return true;
@@ -902,7 +906,7 @@ export class SearchView extends ViewPane {
 				identityProvider,
 				accessibilityProvider: this.treeAccessibilityProvider,
 				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, element => {
-					if (element instanceof FileMatch) {
+					if (isFileInstanceMatch(element)) {
 						return element.resource;
 					}
 					if (element instanceof Match) {
@@ -956,21 +960,21 @@ export class SearchView extends ViewPane {
 				const firstElem = this.tree.getFirstElementChild(this.tree.getInput());
 				this.firstMatchFocused.set(firstElem === focus);
 				this.fileMatchOrMatchFocused.set(!!focus);
-				this.fileMatchFocused.set(focus instanceof FileMatch);
-				this.folderMatchFocused.set(focus instanceof FolderMatch);
+				this.fileMatchFocused.set(isFileInstanceMatch(focus));
+				this.folderMatchFocused.set(isFolderMatch(focus));
 				this.matchFocused.set(focus instanceof Match);
-				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
-				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
-				this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
+				this.fileMatchOrFolderMatchFocus.set(isFileInstanceMatch(focus) || isFolderMatch(focus));
+				this.fileMatchOrFolderMatchWithResourceFocus.set(isFileInstanceMatch(focus) || isFolderMatchWithResource(focus));
+				this.folderMatchWithResourceFocused.set(isFolderMatchWithResource(focus));
 				this.lastFocusState = 'tree';
 			}
 
 			let editable = false;
 			if (focus instanceof Match) {
 				editable = !focus.isReadonly();
-			} else if (focus instanceof FileMatch) {
+			} else if (isFileInstanceMatch(focus)) {
 				editable = !focus.hasOnlyReadOnlyMatches();
-			} else if (focus instanceof FolderMatch) {
+			} else if (isFolderMatch(focus)) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			}
 			this.isEditableItem.set(editable);
@@ -1009,7 +1013,7 @@ export class SearchView extends ViewPane {
 		let node = navigator.first();
 		const shouldShowAI = this.shouldShowAIResults();
 		do {
-			if (node && !viewer.isCollapsed(node) && (!shouldShowAI || !(node instanceof TextSearchResult))) {
+			if (node && !viewer.isCollapsed(node) && (!shouldShowAI || !(isTextSearchHeading(node)))) {
 				// ignore the ai text search result id
 				return true;
 			}
@@ -1961,7 +1965,7 @@ export class SearchView extends ViewPane {
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
-		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<FileMatch>lineMatch).resource;
+		const resource = lineMatch instanceof Match ? lineMatch.parent().resource : (<IFileInstanceMatch>lineMatch).resource;
 		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
@@ -1970,7 +1974,7 @@ export class SearchView extends ViewPane {
 	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean, resourceInput?: URI): Promise<void> {
 		const selection = getEditorSelectionFromMatch(element, this.viewModel);
 		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
-		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
+		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<IFileInstanceMatch>element).resource);
 		let editor: IEditorPane | undefined;
 
 		const options = {
@@ -2001,7 +2005,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const elemParent = element.parent() as FileMatch;
+			const elemParent = element.parent() as INotebookFileInstanceMatch;
 			if (element instanceof Match) {
 				if (element instanceof MatchInNotebook) {
 					element.parent().showMatch(element);
@@ -2031,7 +2035,7 @@ export class SearchView extends ViewPane {
 	}
 
 	openEditorWithMultiCursor(element: FileMatchOrMatch): Promise<void> {
-		const resource = element instanceof Match ? element.parent().resource : (<FileMatch>element).resource;
+		const resource = element instanceof Match ? element.parent().resource : (<IFileInstanceMatch>element).resource;
 		return this.editorService.openEditor({
 			resource: resource,
 			options: {
@@ -2042,7 +2046,7 @@ export class SearchView extends ViewPane {
 		}).then(editor => {
 			if (editor) {
 				let fileMatch = null;
-				if (element instanceof FileMatch) {
+				if (isFileInstanceMatch(element)) {
 					fileMatch = element;
 				}
 				else if (element instanceof Match) {
@@ -2199,7 +2203,7 @@ export class SearchView extends ViewPane {
 		await Promise.all(files);
 	}
 
-	private async updateFileStats(elements: FileMatch[]): Promise<void> {
+	private async updateFileStats(elements: IFileInstanceMatch[]): Promise<void> {
 		const files = elements.map(f => f.resolveFileStat(this.fileService));
 		await Promise.all(files);
 	}
@@ -2249,12 +2253,12 @@ class SearchLinkButton extends Disposable {
 	}
 }
 
-export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModel) {
+export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel: SearchModelImpl) {
 	let match: Match | null = null;
 	if (element instanceof Match) {
 		match = element;
 	}
-	if (element instanceof FileMatch && element.count() > 0) {
+	if (isFileInstanceMatch(element) && element.count() > 0) {
 		match = element.matches()[element.matches().length - 1];
 	}
 	if (match) {
@@ -2324,7 +2328,7 @@ export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeE
 	return searchText;
 }
 
-class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableMatch> {
+class SearchViewDataSource implements IAsyncDataSource<ISearchResult, RenderableMatch> {
 
 	constructor(
 		private searchView: SearchView,
@@ -2336,9 +2340,9 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
 
-	private createSearchResultIterator(searchResult: SearchResult): Iterable<RenderableMatch> {
+	private createSearchResultIterator(searchResult: ISearchResult): Iterable<RenderableMatch> {
 
-		const ret: TextSearchResult[] = [];
+		const ret: ITextSearchHeading[] = [];
 
 		if (!searchResult.plainTextSearchResult.isEmpty()) {
 			if (!this.searchView.shouldShowAIResults()) {
@@ -2358,7 +2362,7 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 
 	}
 
-	private createTextSearchResultIterator(textSearchResult: TextSearchResult): Iterable<FolderMatch | FileMatch> {
+	private createTextSearchResultIterator(textSearchResult: ITextSearchHeading): Iterable<IFolderMatch | IFileInstanceMatch> {
 		const folderMatches = textSearchResult.folderMatches()
 			.filter(fm => !fm.isEmpty())
 			.sort(searchMatchComparer);
@@ -2369,7 +2373,11 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 		return folderMatches;
 	}
 
-	private createFolderIterator(folderMatch: FolderMatch): Iterable<FolderMatch | FileMatch> {
+	private createFolderIterator(folderMatch: IFolderMatch): Iterable<IFolderMatch | IFileInstanceMatch> {
+		// if (folderMatch.parent().id() === AI_TEXT_SEARCH_RESULT_ID) {
+		// 	// return matches in the order they were added
+		// 	return folderMatch.allDownstreamFileMatchesAsAIResults();
+		// }
 
 		const matchArray = this.searchView.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, this.searchConfig.sortOrder));
@@ -2377,7 +2385,7 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 		return matches;
 	}
 
-	private createFileIterator(fileMatch: FileMatch): Iterable<Match> {
+	private createFileIterator(fileMatch: IFileInstanceMatch): Iterable<Match> {
 		const matches = fileMatch.matches().sort(searchMatchComparer);
 		return matches;
 	}
@@ -2387,7 +2395,7 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 			return false;
 		}
 
-		if (element instanceof TextSearchResult && element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+		if (isTextSearchHeading(element) && element.id() === AI_TEXT_SEARCH_RESULT_ID) {
 			return true;
 		}
 
@@ -2395,17 +2403,17 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 		return hasChildren;
 	}
 
-	getChildren(element: RenderableMatch | SearchResult): Iterable<RenderableMatch> | Promise<Iterable<RenderableMatch>> {
-		if (element instanceof SearchResult) {
+	getChildren(element: RenderableMatch | ISearchResult): Iterable<RenderableMatch> | Promise<Iterable<RenderableMatch>> {
+		if (isSearchResult(element)) {
 			return this.createSearchResultIterator(element);
-		} else if (element instanceof TextSearchResult) {
+		} else if (isTextSearchHeading(element)) {
 			if (element.id() === AI_TEXT_SEARCH_RESULT_ID && !this.searchView.model.hasAIResults) {
 				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
 			}
 			return this.createTextSearchResultIterator(element);
-		} else if (element instanceof FolderMatch) {
+		} else if (isFolderMatch(element)) {
 			return this.createFolderIterator(element);
-		} else if (element instanceof FileMatch) {
+		} else if (isFileInstanceMatch(element)) {
 			return this.createFileIterator(element);
 		}
 
@@ -2414,7 +2422,7 @@ class SearchViewDataSource implements IAsyncDataSource<SearchResult, RenderableM
 	}
 	getParent(element: RenderableMatch): RenderableMatch {
 		const parent = element.parent();
-		if (parent instanceof SearchResult) {
+		if (isSearchResult(parent)) {
 			throw new Error('Invalid element passed to getParent');
 		}
 		return parent;

@@ -17,7 +17,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookEditorWidgetService } from '../../../notebook/browser/services/notebookEditorServiceImpl.js';
-import { SearchResult } from '../../browser/searchModel.js';
+import { SearchResult } from '../../browser/searchTreeModel/searchModel.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileMatch } from '../../../../services/search/common/search.js';

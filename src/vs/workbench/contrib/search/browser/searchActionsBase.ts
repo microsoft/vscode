@@ -9,7 +9,7 @@ import * as nls from '../../../../nls.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SearchView } from './searchView.js';
-import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer, SearchResult } from './searchModel.js';
+import { FileMatch, FolderMatch, Match, RenderableMatch, searchComparer, SearchResult } from './searchTreeModel/searchModel.js';
 import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
 
 export const category = nls.localize2('search', "Search");

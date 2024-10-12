@@ -21,7 +21,7 @@ import { IKeyMods, IQuickPick, IQuickPickItem, QuickInputButtonLocation, QuickIn
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEditorConfiguration } from '../../../../common/editor.js';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from '../searchIcons.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, SearchResult, searchComparer } from '../searchModel.js';
+import { FileMatch, Match, RenderableMatch, SearchModelImpl, SearchModelLocation, SearchResult, searchComparer } from '../searchTreeModel/searchModel.js';
 import { SearchView, getEditorSelectionFromMatch } from '../searchView.js';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from '../../common/search.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -55,7 +55,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 
 	private editorSequencer: Sequencer;
 	private queryBuilder: QueryBuilder;
-	private searchModel: SearchModel;
+	private searchModel: SearchModelImpl;
 	private currentAsyncSearch: Promise<ISearchComplete> = Promise.resolve({
 		results: [],
 		messages: []
@@ -89,7 +89,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
-		this.searchModel = this._register(this._instantiationService.createInstance(SearchModel));
+		this.searchModel = this._register(this._instantiationService.createInstance(SearchModelImpl));
 		this.editorViewState = this._register(this._instantiationService.createInstance(PickerEditorState));
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 		this.editorSequencer = new Sequencer();
@@ -215,7 +215,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
 		await viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
 
-		this.searchModel = this._instantiationService.createInstance(SearchModel);
+		this.searchModel = this._instantiationService.createInstance(SearchModelImpl);
 		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
 		const viewer: WorkbenchCompressibleAsyncDataTree<SearchResult, RenderableMatch> | undefined = viewlet?.getControl();

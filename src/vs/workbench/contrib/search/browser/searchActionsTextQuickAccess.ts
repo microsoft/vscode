@@ -5,7 +5,7 @@
 import * as nls from '../../../../nls.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import * as Constants from '../common/constants.js';
-import { RenderableMatch } from './searchModel.js';
+import { RenderableMatch } from './searchTreeModel/searchModel.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { category } from './searchActionsBase.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
