@@ -56,7 +56,7 @@ class SmartPasteUtils {
 				}
 				return string;
 
-			case 'powershell':
+			case 'pwsh':
 				// Simply wrap in quotes if spaces are present
 				if (string.includes(' ')) {
 					return `"${string}"`;
