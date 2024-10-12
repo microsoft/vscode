@@ -27,11 +27,12 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
+import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -39,12 +40,11 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { SearchView } from '../../../search/browser/searchView.js';
 import { getScreenshotAsVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -296,14 +296,17 @@ export class AttachContextAction extends Action2 {
 					});
 				} else {
 					// file attachment
-					toAttach.push({
-						id: this._getFileContextId({ resource: pick.resource }),
-						value: pick.resource,
-						name: pick.label,
-						isFile: true,
-						isDynamic: true,
-					});
-					chatEditingService?.addFileToWorkingSet(pick.resource);
+					if (chatEditingService) {
+						chatEditingService.addFileToWorkingSet(pick.resource);
+					} else {
+						toAttach.push({
+							id: this._getFileContextId({ resource: pick.resource }),
+							value: pick.resource,
+							name: pick.label,
+							isFile: true,
+							isDynamic: true,
+						});
+					}
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
@@ -317,27 +320,33 @@ export class AttachContextAction extends Action2 {
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
 				for (const editor of editorService.editors) {
 					if (editor.resource) {
-						toAttach.push({
-							id: this._getFileContextId({ resource: editor.resource }),
-							value: editor.resource,
-							name: labelService.getUriBasenameLabel(editor.resource),
-							isFile: true,
-							isDynamic: true
-						});
-						chatEditingService?.addFileToWorkingSet(editor.resource);
+						if (chatEditingService) {
+							chatEditingService.addFileToWorkingSet(editor.resource);
+						} else {
+							toAttach.push({
+								id: this._getFileContextId({ resource: editor.resource }),
+								value: editor.resource,
+								name: labelService.getUriBasenameLabel(editor.resource),
+								isFile: true,
+								isDynamic: true
+							});
+						}
 					}
 				}
 			} else if (isISearchResultsQuickPickItem(pick)) {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
-					toAttach.push({
-						id: this._getFileContextId({ resource: result.resource }),
-						value: result.resource,
-						name: labelService.getUriBasenameLabel(result.resource),
-						isFile: true,
-						isDynamic: true
-					});
-					chatEditingService?.addFileToWorkingSet(result.resource);
+					if (chatEditingService) {
+						chatEditingService.addFileToWorkingSet(result.resource);
+					} else {
+						toAttach.push({
+							id: this._getFileContextId({ resource: result.resource }),
+							value: result.resource,
+							name: labelService.getUriBasenameLabel(result.resource),
+							isFile: true,
+							isDynamic: true
+						});
+					}
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				const variable = await getScreenshotAsVariable();
@@ -580,6 +589,11 @@ export class AttachContextAction extends Action2 {
 			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
+				if (chatEditingService) {
+					for (const file of chatEditingService.currentEditingSessionObs.get()?.workingSet.keys() ?? []) {
+						attachedContext.add(this._getFileContextId({ resource: file }));
+					}
+				}
 
 				if (isIOpenEditorsQuickPickItem(item)) {
 					for (const editor of editorService.editors) {
