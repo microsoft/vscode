@@ -931,12 +931,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
+			const attachedContext = [...this.attachmentModel.attachments];
+			if (this.location === ChatAgentLocation.EditingSession) {
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				if (currentEditingSession?.workingSet) {
+					for (const [file, _] of currentEditingSession?.workingSet) {
+						attachedContext.push(this.attachmentModel.asVariableEntry(file));
+					}
+				}
+			}
+
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
 				userSelectedModelId: this.inputPart.currentLanguageModel,
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: [...this.attachmentModel.attachments]
+				attachedContext: attachedContext
 			});
 
 			if (result) {

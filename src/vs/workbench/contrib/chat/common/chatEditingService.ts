@@ -63,6 +63,7 @@ export const enum WorkingSetEntryState {
 	Modified,
 	Accepted,
 	Rejected,
+	Transient,
 	Attached,
 	Sent,
 }
