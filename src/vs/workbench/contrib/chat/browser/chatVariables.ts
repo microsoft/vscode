@@ -85,7 +85,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}
 					}).catch(onUnexpectedExternalError));
 				} else if (attachment.isDynamic || attachment.isTool) {
-					resolvedAttachedContext[i] = { ...attachment };
+					resolvedAttachedContext[i] = attachment;
 				}
 			});
 

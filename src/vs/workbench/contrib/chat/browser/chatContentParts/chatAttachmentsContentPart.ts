@@ -167,4 +167,3 @@ export class ChatAttachmentsContentPart extends Disposable {
 		hoverElement.appendChild(img);
 	}
 }
-

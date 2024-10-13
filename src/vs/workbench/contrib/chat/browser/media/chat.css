@@ -479,6 +479,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	padding: 0 6px 6px 6px; /* top padding is inside the editor widget */
+	max-width: 100%;
 }
 
 .interactive-session .chat-editing-session {
@@ -763,6 +764,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 	overflow: hidden;
+	font-size: 11px;
+	padding: 0 4px 0 2px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	height: 18px;
+	max-width: 100%;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
@@ -782,6 +789,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
 	display: flex;
+
+	.monaco-icon-suffix-container {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
@@ -804,6 +816,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
+	cursor: default;
 }
 
 .interactive-session .interactive-input-part.compact .chat-attached-context {
@@ -817,13 +830,35 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: -8px;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment {
-	font-size: 11px;
-	padding: 0 4px 0 2px;
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
-	height: 18px;
-	max-width: 100%;
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {
+	display: flex;
+	gap: 4px;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit .chat-implicit-hint {
+	opacity: 0.7;
+	font-size: .9em;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled {
+	border-style: dashed;
+	cursor: pointer;
+	padding-right: 26px;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-icon-label .label-name {
+	text-decoration: line-through;
+	font-style: italic;
+	opacity: 0.8;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
