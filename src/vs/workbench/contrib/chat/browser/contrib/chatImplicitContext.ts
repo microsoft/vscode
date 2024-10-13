@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { Location } from '../../../../../editor/common/languages.js';
@@ -57,8 +58,27 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
 	readonly id = 'vscode.implicit';
-	readonly name = 'implicit';
+
+	get name(): string {
+		if (URI.isUri(this.value)) {
+			return `file:${basename(this.value)}`;
+		} else if (this.value) {
+			return `file:${basename(this.value.uri)}`;
+		} else {
+			return 'implicit';
+		}
+	}
+
 	readonly kind = 'implicit';
+
+	get modelDescription(): string {
+		if (URI.isUri(this.value)) {
+			return `User's active file`;
+		} else {
+			return `User's active selection`;
+		}
+	}
+
 	readonly isDynamic = true;
 	readonly isFile = true;
 
@@ -101,7 +121,8 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 			name: this.name,
 			value: this.value,
 			isFile: true,
-			isDynamic: true
+			isDynamic: true,
+			modelDescription: this.modelDescription
 		};
 	}
 }

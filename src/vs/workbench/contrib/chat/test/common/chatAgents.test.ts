@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { ChatAgentImplicitContextMode, ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
+import { ChatAgentService, IChatAgentData, IChatAgentImplementation } from '../../common/chatAgents.js';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {
@@ -21,7 +21,6 @@ const testAgentData: IChatAgentData = {
 	metadata: {},
 	slashCommands: [],
 	disambiguation: [],
-	implicitContextMode: ChatAgentImplicitContextMode.Off
 };
 
 class TestingContextKeyService extends MockContextKeyService {

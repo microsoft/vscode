@@ -23,7 +23,7 @@ import { isProposedApiEnabled } from '../../../services/extensions/common/extens
 import * as extensionsRegistry from '../../../services/extensions/common/extensionsRegistry.js';
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
-import { ChatAgentImplicitContextMode, ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { CHAT_VIEW_ID } from './chat.js';
@@ -257,10 +257,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 									[ChatAgentLocation.Panel],
 								slashCommands: providerDescriptor.commands ?? [],
 								disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
-								implicitContextMode: providerDescriptor.implicitContextMode === 'off' ? ChatAgentImplicitContextMode.Off :
-									providerDescriptor.implicitContextMode === 'disabledByDefault' ? ChatAgentImplicitContextMode.DisabledByDefault :
-										providerDescriptor.implicitContextMode === 'enabledByDefault' ? ChatAgentImplicitContextMode.EnabledByDefault :
-											ChatAgentImplicitContextMode.Off
 							} satisfies IChatAgentData));
 
 						this._participantRegistrationDisposables.set(

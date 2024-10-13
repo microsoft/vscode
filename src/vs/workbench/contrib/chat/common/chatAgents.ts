@@ -57,12 +57,6 @@ export namespace ChatAgentLocation {
 	}
 }
 
-export enum ChatAgentImplicitContextMode {
-	Off,
-	EnabledByDefault,
-	DisabledByDefault
-}
-
 export interface IChatAgentData {
 	id: string;
 	name: string;
@@ -83,7 +77,6 @@ export interface IChatAgentData {
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
-	implicitContextMode: ChatAgentImplicitContextMode;
 }
 
 export interface IChatWelcomeMessageContent {
@@ -563,7 +556,6 @@ export class MergedChatAgent implements IChatAgent {
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
 	get disambiguation(): { category: string; description: string; examples: string[] }[] { return this.data.disambiguation; }
-	get implicitContextMode(): ChatAgentImplicitContextMode { return this.data.implicitContextMode; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
 		return this.impl.invoke(request, progress, history, token);

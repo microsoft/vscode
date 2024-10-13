@@ -479,6 +479,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	padding: 0 6px 6px 6px; /* top padding is inside the editor widget */
+	max-width: 100%;
 }
 
 .interactive-session .chat-editing-session {
@@ -945,7 +946,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 	border-radius: 2px;
 	padding: 0 4px 0 6px;
-	max-width: 100%;
 }
 
 .quick-input-widget .interactive-list {

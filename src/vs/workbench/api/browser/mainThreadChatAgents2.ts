@@ -24,7 +24,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
-import { ChatAgentImplicitContextMode, ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
@@ -191,7 +191,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					slashCommands: [],
 					disambiguation: [],
 					locations: [ChatAgentLocation.Panel], // TODO all dynamic participants are panel only?
-					implicitContextMode: ChatAgentImplicitContextMode.Off,
 				},
 				impl);
 		} else {
