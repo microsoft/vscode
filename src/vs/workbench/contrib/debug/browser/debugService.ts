@@ -841,6 +841,10 @@ export class DebugService implements IDebugService {
 			}
 		};
 
+		for (const breakpoint of this.model.getBreakpoints({ triggeredOnly: true })) {
+			breakpoint.setSessionDidTrigger(session.getId(), false);
+		}
+
 		// For debug sessions spawned by test runs, cancel the test run and stop
 		// the session, then start the test run again; tests have no notion of restarts.
 		if (session.correlatedTestRun) {

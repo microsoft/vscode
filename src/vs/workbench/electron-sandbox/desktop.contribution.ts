@@ -239,7 +239,8 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-s
 				'type': 'boolean',
 				'included': isLinux,
 				'markdownDescription': localize('window.experimentalControlOverlay', "Show the native window controls when {0} is set to `custom` (Linux only).", '`#window.titleBarStyle#`'),
-				'default': true
+				'default': true,
+				'scope': ConfigurationScope.APPLICATION,
 			},
 			'window.customTitleBarVisibility': {
 				'type': 'string',

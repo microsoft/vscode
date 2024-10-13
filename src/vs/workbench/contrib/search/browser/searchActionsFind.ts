@@ -34,6 +34,7 @@ import { IHistoryService } from '../../../services/history/common/history.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { forcedExpandRecursively } from './searchActionsTopBar.js';
 
 
 //#region Interfaces
@@ -304,7 +305,7 @@ async function expandSelectSubtree(accessor: ServicesAccessor) {
 	if (searchView) {
 		const viewer = searchView.getControl();
 		const selected = viewer.getFocus()[0];
-		await viewer.expand(selected, true);
+		await forcedExpandRecursively(viewer, selected);
 	}
 }
 

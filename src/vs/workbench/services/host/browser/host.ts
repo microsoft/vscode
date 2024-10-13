@@ -122,9 +122,4 @@ export interface IHostService {
 
 	//#endregion
 
-	//#region File
-
-	getPathForFile(file: File): string | undefined;
-
-	//#endregion
 }

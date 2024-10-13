@@ -182,7 +182,8 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
-	 *  - Use `experimental` tag for marking the setting as experimental. **Note:** Defaults of experimental settings can be changed by the running experiments.
+	 *  - Use `experimental` tag for marking the setting as experimental.
+	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 

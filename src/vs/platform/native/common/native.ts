@@ -6,7 +6,7 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import { MessageBoxOptions, MessageBoxReturnValue, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -179,7 +179,7 @@ export interface ICommonNativeHostService {
 	exit(code: number): Promise<void>;
 
 	// Development
-	openDevTools(options?: INativeHostOptions): Promise<void>;
+	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 
 	// Perf Introspection

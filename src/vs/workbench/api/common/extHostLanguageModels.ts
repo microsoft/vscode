@@ -37,13 +37,13 @@ type LanguageModelData = {
 
 class LanguageModelResponseStream {
 
-	readonly stream = new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 
 	constructor(
 		readonly option: number,
-		stream?: AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>
+		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
 	) {
-		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 	}
 }
 
@@ -52,7 +52,7 @@ class LanguageModelResponse {
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
-	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 	private _isDone: boolean = false;
 
 	constructor() {
@@ -100,7 +100,7 @@ class LanguageModelResponse {
 			this._responseStreams.set(fragment.index, res);
 		}
 
-		let out: vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart;
+		let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
 		if (fragment.part.type === 'text') {
 			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
 		} else {

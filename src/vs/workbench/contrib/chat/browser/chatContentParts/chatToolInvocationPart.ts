@@ -92,9 +92,16 @@ class ChatToolInvocationSubPart extends Disposable {
 				kind: 'progressMessage',
 				content: { value: message }
 			};
-			const iconOverride = toolInvocation.isConfirmed === false ? Codicon.error : undefined;
+			const iconOverride = toolInvocation.isConfirmed === false ?
+				Codicon.error :
+				toolInvocation.isComplete ?
+					Codicon.check : undefined;
 			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, progressMessage, renderer, context, undefined, true, iconOverride));
 			this.domNode = progressPart.domNode;
+		}
+
+		if (toolInvocation.kind === 'toolInvocation' && !toolInvocation.isComplete) {
+			toolInvocation.isCompleteDeferred.p.then(() => this._onNeedsRerender.fire());
 		}
 	}
 }

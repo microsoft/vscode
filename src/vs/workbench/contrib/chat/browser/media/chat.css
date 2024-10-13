@@ -508,8 +508,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inherit;
 }
 
+.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar.modified::after {
+	content: "E";
+	padding-right: 4px;
+	color: var(--vscode-chat-editedFileForeground);
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container .monaco-list .monaco-list-row .monaco-icon-name-container.modified {
+	font-weight: bold;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
@@ -556,12 +566,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-actions-group {
 	display: flex;
 	flex-direction: row;
+	flex-wrap: wrap;
 	gap: 6px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close {
-	width: 22px;
-	height: 22px;
+	width: 17px;
+	height: 17px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -588,6 +599,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover,
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button,
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button {
+	overflow: hidden;
+	text-wrap: nowrap;
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
@@ -933,6 +950,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
+.disabled-overlay {
+	display: none;
+}
+
+.disabled-overlay.disabled {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(128, 128, 128, 0.2);
+	pointer-events: none;
+	display: flex;
+	cursor: default;
+	z-index: 1;
+}
+
 .interactive-response  .interactive-response-codicon-details {
 	display: flex;
 	align-items: start;
@@ -1109,8 +1141,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attached-context-hover .chat-attached-context-image {
 	height: auto;
-	max-height: 500px;
-	max-width: 400px;
+	max-height: 512px;
+	max-width: 512px;
 	width: 100%;
 	display: block;
 }
@@ -1119,7 +1151,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	display: inline-flex;
 	align-items: center;
-	padding: 0 4px 0 2px;
+	padding: 2px 0 2px 0px;
 	border-radius: 2px;
 	margin-right: 1px;
 	user-select: none;
@@ -1128,8 +1160,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 	border-radius: 2px;
 }
 
@@ -1138,57 +1170,4 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
-}
-
-.interactive-session .chat-welcome-view {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	overflow: hidden;
-
-	& > .chat-welcome-view-icon .codicon {
-		font-size: 40px;
-	}
-
-	& > .chat-welcome-view-title {
-		font-size: 24px;
-		margin-top: 10px;
-		font-weight: 500;
-	}
-
-	& > .chat-welcome-view-message {
-		color: var(--vscode-descriptionForeground);
-		text-align: center;
-		max-width: 350px;
-		padding: 0 20px;
-		margin-top: 15px;
-
-		a {
-			color: var(--vscode-textLink-foreground);
-		}
-	}
-
-	& > .chat-welcome-view-tips {
-		color: var(--vscode-descriptionForeground);
-		max-width: 250px;
-		margin-top: 10px;
-
-		.rendered-markdown {
-			gap: 6px;
-			display: flex;
-			align-items: start;
-			flex-direction: column;
-		}
-
-		.rendered-markdown p {
-			display: flex;
-			gap: 6px;
-			margin: 6px 0 0 0;
-
-			.codicon {
-				padding-top: 1px;
-			}
-		}
-	}
 }

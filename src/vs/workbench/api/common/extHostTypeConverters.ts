@@ -2516,7 +2516,7 @@ export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
 		// Work around type-narrowing confusion between vscode.Uri and URI
 		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
-		const isSymbolInformation = (x: any): x is vscode.SymbolInformation => x instanceof types.SymbolInformation;
+		const isSymbolInformation = (thing: object): thing is vscode.SymbolInformation => 'name' in thing;
 
 		return {
 			kind: 'inlineReference',
@@ -2805,7 +2805,7 @@ export namespace ChatPromptReference {
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 			value: isUriComponents(value) ? URI.revive(value) :
 				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
-					Location.to(revive(value)) : value,
+					Location.to(revive(value)) : variable.isImage ? new types.ChatReferenceBinaryData(variable.mimeType ?? 'image/png', () => Promise.resolve(new Uint8Array(Object.values(value)))) : value,
 			modelDescription: variable.modelDescription
 		};
 	}
@@ -2878,6 +2878,8 @@ export namespace ChatAgentUserActionEvent {
 			return { action: followupAction, result: ehResult };
 		} else if (event.action.kind === 'inlineChat') {
 			return { action: { kind: 'editor', accepted: event.action.action === 'accepted' }, result: ehResult };
+		} else if (event.action.kind === 'chatEditingSessionAction') {
+			return { action: { kind: 'chatEditingSessionAction', outcome: event.action.outcome === 'accepted' ? types.ChatEditingSessionActionOutcome.Accepted : types.ChatEditingSessionActionOutcome.Rejected, uri: URI.revive(event.action.uri), hasRemainingEdits: event.action.hasRemainingEdits }, result: ehResult };
 		} else {
 			return { action: event.action, result: ehResult };
 		}
@@ -2935,11 +2937,12 @@ export namespace DebugTreeItem {
 export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
-			id: item.id,
-			modelDescription: item.modelDescription,
+			// Note- the reason this is a unique 'name' is just to avoid confusion with the toolCallId
+			name: item.id,
+			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
-			displayName: item.displayName,
 			supportedContentTypes: item.supportedContentTypes,
+			tags: item.tags ?? [],
 		};
 	}
 }
