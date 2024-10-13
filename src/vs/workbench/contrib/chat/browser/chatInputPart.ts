@@ -761,7 +761,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			if (file) {
 				widget.style.cursor = 'pointer';
-				store.add(dom.addDisposableListener(widget, dom.EventType.CLICK, (e: MouseEvent) => {
+				store.add(dom.addDisposableListener(widget, dom.EventType.DBLCLICK, (e: MouseEvent) => {
 					dom.EventHelper.stop(e, true);
 					const options: Mutable<OpenInternalOptions> = {
 						fromUserGesture: true
@@ -774,6 +774,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						} as ITextEditorOptions as any;
 					}
 					this.openerService.open(file, options);
+				}));
+
+				store.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const event =
+						new StandardKeyboardEvent(e);
+					if (event.equals(KeyCode.Enter)) {
+						dom.EventHelper.stop(e, true);
+						const options: Mutable<OpenInternalOptions> = {
+							fromUserGesture: true
+						};
+						if (range) {
+							// eslint-disable-next-line local/code-no-dangerous-type-assertions
+							options.editorOptions = {
+								selection: range
+							} as ITextEditorOptions as any;
+						}
+						this.openerService.open(file, options);
+					}
 				}));
 			}
 
