@@ -15,17 +15,16 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 export interface IToolData {
 	id: string;
-	name?: string;
+	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];
-	displayName?: string;
+	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
-	canBeInvokedManually?: boolean;
+	canBeReferencedInPrompt?: boolean;
 	supportedContentTypes: string[];
-	requiresConfirmation?: boolean;
 }
 
 export interface IToolInvocation {
@@ -57,7 +56,7 @@ export interface IPreparedToolInvocation {
 
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
-	prepareToolInvocation?(participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');

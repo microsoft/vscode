@@ -149,10 +149,6 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						}
 					}
 				},
-				supportsToolReferences: {
-					description: localize('chatParticipantSupportsToolReferences', "Whether this participant supports {0}.", 'ChatRequest#toolReferences'),
-					type: 'boolean'
-				}
 			}
 		}
 	},
@@ -261,7 +257,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 									[ChatAgentLocation.Panel],
 								slashCommands: providerDescriptor.commands ?? [],
 								disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
-								supportsToolReferences: providerDescriptor.supportsToolReferences,
 								implicitContextMode: providerDescriptor.implicitContextMode === 'off' ? ChatAgentImplicitContextMode.Off :
 									providerDescriptor.implicitContextMode === 'disabledByDefault' ? ChatAgentImplicitContextMode.DisabledByDefault :
 										providerDescriptor.implicitContextMode === 'enabledByDefault' ? ChatAgentImplicitContextMode.EnabledByDefault :

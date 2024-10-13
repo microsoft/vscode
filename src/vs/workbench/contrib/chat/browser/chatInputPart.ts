@@ -202,6 +202,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private readonly _chatEditsActionsDisposables = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables = this._register(new DisposableStore());
+	private _chatEditingSession: IChatEditingSession | undefined;
 	private _chatEditsProgress: ProgressBar | undefined;
 	private _chatEditsListPool: CollapsibleListPool;
 	private _chatEditList: IDisposableReference<WorkbenchList<IChatCollapsibleListItem>> | undefined;
@@ -243,10 +244,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._attachmentModel = this._register(new ChatAttachmentModel());
 		this.getInputState = (): IChatInputState => {
-			// Get input state from widget contribs, merge with attachments
+			// Get input state from widget contribs, merge with attachments and working set
+			const chatWorkingSet: { uri: URI; state: WorkingSetEntryState }[] = [];
+			for (const [uri, state] of this._chatEditingSession?.workingSet.entries() ?? []) {
+				chatWorkingSet.push({ uri, state });
+			}
 			return {
 				...getContribsInputState(),
 				chatContextAttachments: this._attachmentModel.attachments,
+				chatWorkingSet: chatWorkingSet
 			};
 		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
@@ -384,6 +390,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.history.previous() : this.history.next();
 
 		const historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+		this._chatEditingSession?.workingSet.clear();
+		for (const entry of historyEntry.state?.chatWorkingSet ?? []) {
+			this._chatEditingSession?.workingSet.set(entry.uri, entry.state);
+		}
 		this._attachmentModel.clearAndSetContext(...historyAttachments);
 
 		aria.status(historyEntry.text);
@@ -868,9 +878,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
 			this._chatEditsProgress?.dispose();
+			this._chatEditingSession = undefined;
 			return;
 		}
 
+		this._chatEditingSession = chatEditingSession;
 		const currentChatEditingState = chatEditingSession.state.get();
 		if (this._chatEditList && !chatWidget?.viewModel?.requestInProgress && (currentChatEditingState === ChatEditingSessionState.Idle || currentChatEditingState === ChatEditingSessionState.Initial)) {
 			this._chatEditsProgress?.stop();
@@ -897,15 +909,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modifiedFiles.add(attachment.value);
 			}
 		}
-		chatEditingSession?.workingSet.get().forEach((file) => {
+		for (const [file, state] of chatEditingSession.workingSet.entries()) {
 			if (!modifiedFiles.has(file)) {
 				entries.unshift({
 					reference: file,
-					state: WorkingSetEntryState.Attached,
+					state: state,
 					kind: 'reference',
 				});
 			}
-		});
+		}
 		entries.sort((a, b) => {
 			if (a.kind === 'reference' && b.kind === 'reference') {
 				if (a.state === b.state || a.state === undefined || b.state === undefined) {
@@ -941,13 +953,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') });
 		}));
 		dom.append(actionsContainer, button.element);
-
-		const clearButton = this._chatEditsActionsDisposables.add(new Button(actionsContainer, { supportIcons: true }));
-		clearButton.icon = Codicon.close;
-		this._chatEditsActionsDisposables.add(clearButton.onDidClick((e) => {
-			this.commandService.executeCommand('workbench.action.chat.newEditSession');
-		}));
-		dom.append(actionsContainer, clearButton.element);
 
 		if (!chatEditingSession) {
 			return;

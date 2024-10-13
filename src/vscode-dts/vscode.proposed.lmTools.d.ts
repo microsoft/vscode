@@ -3,24 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 8
+// version: 9
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
 
 	// TODO@API capabilities
 
-	// API -> LM: an tool/function that is available to the language model
+	/**
+	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}.
+	 */
 	export interface LanguageModelChatTool {
-		// TODO@API should use "id" here to match vscode tools, or keep name to match OpenAI? Align everything.
+		/**
+		 * The name of the tool.
+		 */
 		name: string;
+
+		/**
+		 * The description of the tool.
+		 */
 		description: string;
-		parametersSchema?: JSONSchema;
+
+		/**
+		 * A JSON schema for the parameters this tool accepts.
+		 */
+		parametersSchema?: object;
 	}
 
-	// API -> LM: add tools as request option
 	export interface LanguageModelChatRequestOptions {
 		// TODO@API this will be a heterogeneous array of different types of tools
+		/**
+		 * An optional list of tools that are available to the language model.
+		 */
 		tools?: LanguageModelChatTool[];
 
 		/**
@@ -29,30 +43,62 @@ declare module 'vscode' {
 		toolChoice?: string;
 	}
 
-	// LM -> USER: function that should be used
+	/**
+	 * A language model response part indicating a tool call, returned from a {@link LanguageModelChatResponse}, and also can be
+	 * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a
+	 * chat request.
+	 */
 	export class LanguageModelToolCallPart {
+		/**
+		 * The name of the tool to call.
+		 */
 		name: string;
-		toolCallId: string;
-		parameters: any;
 
-		constructor(name: string, toolCallId: string, parameters: any);
+		/**
+		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
+		 */
+		toolCallId: string;
+
+		/**
+		 * The parameters with which to call the tool.
+		 */
+		parameters: object;
+
+		constructor(name: string, toolCallId: string, parameters: object);
 	}
 
-	// LM -> USER: text chunk
+	/**
+	 * A language model response part containing a piece of text, returned from a {@link LanguageModelChatResponse}.
+	 */
 	export class LanguageModelTextPart {
+		/**
+		 * The text content of the part.
+		 */
 		value: string;
 
 		constructor(value: string);
 	}
 
 	export interface LanguageModelChatResponse {
+		/**
+		 * A stream of parts that make up the response. Could be extended with more types in the future.
+		 * TODO@API add "| unknown"?
+		 */
 		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart>;
 	}
 
-
-	// USER -> LM: the result of a function call
+	/**
+	 * The result of a tool call. Can only be included in the content of a User message.
+	 */
 	export class LanguageModelToolResultPart {
+		/**
+		 * The ID of the tool call.
+		 */
 		toolCallId: string;
+
+		/**
+		 * The content of the tool result.
+		 */
 		content: string;
 
 		constructor(toolCallId: string, content: string);
@@ -60,12 +106,8 @@ declare module 'vscode' {
 
 	export interface LanguageModelChatMessage {
 		/**
-		 * A heterogeneous array of other things that a message can contain as content.
-		 * Some parts would be message-type specific for some models and wouldn't go together,
-		 * but it's up to the chat provider to decide what to do about that.
-		 * Can drop parts that are not valid for the message type.
-		 * LanguageModelToolResultPart: only on User messages
-		 * LanguageModelToolCallPart: only on Assistant messages
+		 * A heterogeneous array of other things that a message can contain as content. Some parts may be message-type specific
+		 * for some models.
 		 */
 		content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 	}
@@ -93,7 +135,7 @@ declare module 'vscode' {
 		 * point. A registered tool is available in the {@link lm.tools} list for any extension to see. But in order for it to
 		 * be seen by a language model, it must be passed in the list of available tools in {@link LanguageModelChatRequestOptions.tools}.
 		 */
-		export function registerTool<T>(id: string, tool: LanguageModelTool<T>): Disposable;
+		export function registerTool<T>(name: string, tool: LanguageModelTool<T>): Disposable;
 
 		/**
 		 * A list of all available tools.
@@ -103,7 +145,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool<T>(id: string, options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
@@ -120,6 +162,8 @@ declare module 'vscode' {
 		 * {@link ChatRequest.toolInvocationToken}. In that case, a progress bar will be automatically shown for the tool
 		 * invocation in the chat response view, and if the tool requires user confirmation, it will show up inline in the chat
 		 * view. If the tool is being invoked outside of a chat request, `undefined` should be passed instead.
+		 *
+		 * If a tool invokes another tool during its invocation, it can pass along the `toolInvocationToken` that it received.
 		 */
 		toolInvocationToken: ChatParticipantToolToken | undefined;
 
@@ -155,25 +199,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a JSON Schema.
-	 * TODO@API - is this worth it?
-	 */
-	export type JSONSchema = Object;
-
-	/**
 	 * A description of an available tool.
 	 */
 	export interface LanguageModelToolDescription {
 		/**
-		 * A unique identifier for the tool.
+		 * A unique name for the tool.
 		 */
-		readonly id: string;
-
-		/**
-		 * A human-readable name for this tool that may be used to describe it in the UI.
-		 * TODO@API keep?
-		 */
-		readonly displayName: string | undefined;
+		readonly name: string;
 
 		/**
 		 * A description of this tool that may be passed to a language model.
@@ -183,7 +215,7 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
-		readonly parametersSchema?: JSONSchema;
+		readonly parametersSchema?: object;
 
 		/**
 		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
@@ -198,8 +230,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Messages shown in the chat view when a tool needs confirmation from the user to run. These messages will be shown with
-	 * buttons that say Continue and Cancel.
+	 * When this is returned in {@link PreparedToolInvocation}, the user will be asked to confirm before running the tool. These
+	 * messages will be shown with buttons that say "Continue" and "Cancel".
 	 */
 	export interface LanguageModelToolConfirmationMessages {
 		/**
@@ -208,10 +240,7 @@ declare module 'vscode' {
 		title: string;
 
 		/**
-		 * The body of the confirmation message. This should be phrased as an action of the participant that is invoking the tool
-		 * from {@link LanguageModelToolInvocationPrepareOptions.participantName}. An example of a good message would be
-		 * `${participantName} will run the command ${echo 'hello world'} in the terminal.`
-		 * TODO@API keep this?
+		 * The body of the confirmation message.
 		 */
 		message: string | MarkdownString;
 	}
@@ -220,12 +249,6 @@ declare module 'vscode' {
 	 * Options for {@link LanguageModelTool.prepareToolInvocation}.
 	 */
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
-		/**
-		 * The name of the participant invoking the tool.
-		 * TODO@API keep this?
-		 */
-		participantName: string;
-
 		/**
 		 * The parameters that the tool is being invoked with.
 		 */
@@ -242,8 +265,8 @@ declare module 'vscode' {
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
 		/**
-		 * Called once before a tool is invoked. May be implemented to customize the progress message that appears while the tool
-		 * is running, and the messages that appear when the tool needs confirmation.
+		 * Called once before a tool is invoked. May be implemented to signal that a tool needs user confirmation before running,
+		 * and to customize the progress message that appears while the tool is running.
 		 */
 		prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 	}
@@ -258,7 +281,7 @@ declare module 'vscode' {
 		invocationMessage?: string;
 
 		/**
-		 * Customized messages to show when asking for user confirmation to run the tool.
+		 * The presence of this property indicates that the user should be asked to confirm before running the tool.
 		 */
 		confirmationMessages?: LanguageModelToolConfirmationMessages;
 	}
