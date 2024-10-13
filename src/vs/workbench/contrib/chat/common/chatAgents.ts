@@ -77,7 +77,6 @@ export interface IChatAgentData {
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
-	supportsToolReferences?: boolean;
 }
 
 export interface IChatWelcomeMessageContent {

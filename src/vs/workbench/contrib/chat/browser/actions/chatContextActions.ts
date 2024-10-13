@@ -482,23 +482,21 @@ export class AttachContextAction extends Action2 {
 				}
 			}
 
-			if (!usedAgent || usedAgent.agent.supportsToolReferences) {
-				for (const tool of languageModelToolsService.getTools()) {
-					if (tool.canBeInvokedManually) {
-						const item: IToolQuickPickItem = {
-							kind: 'tool',
-							label: tool.displayName ?? tool.name ?? '',
-							id: tool.id,
-							icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined // TODO need to support icon path?
-						};
-						if (ThemeIcon.isThemeIcon(tool.icon)) {
-							item.iconClass = ThemeIcon.asClassName(tool.icon);
-						} else if (tool.icon) {
-							item.iconPath = tool.icon;
-						}
-
-						quickPickItems.push(item);
+			for (const tool of languageModelToolsService.getTools()) {
+				if (tool.canBeReferencedInPrompt) {
+					const item: IToolQuickPickItem = {
+						kind: 'tool',
+						label: tool.displayName ?? '',
+						id: tool.id,
+						icon: ThemeIcon.isThemeIcon(tool.icon) ? tool.icon : undefined // TODO need to support icon path?
+					};
+					if (ThemeIcon.isThemeIcon(tool.icon)) {
+						item.iconClass = ThemeIcon.asClassName(tool.icon);
+					} else if (tool.icon) {
+						item.iconPath = tool.icon;
 					}
+
+					quickPickItems.push(item);
 				}
 			}
 
