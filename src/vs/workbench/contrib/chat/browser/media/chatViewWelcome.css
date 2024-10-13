@@ -30,7 +30,7 @@
 	display: none;
 }
 
-.pane-body .chat-welcome-view {
+div.chat-welcome-view {
 	display: flex;
 	flex-direction: column;
 	align-items: center;

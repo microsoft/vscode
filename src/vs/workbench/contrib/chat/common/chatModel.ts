@@ -47,7 +47,6 @@ export interface IBaseChatRequestVariableEntry {
 }
 
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
-	// readonly onDidChangeValue: Event<void>;
 	readonly kind: 'implicit';
 	readonly value: URI | Location | undefined;
 	enabled: boolean;

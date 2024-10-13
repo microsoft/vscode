@@ -137,7 +137,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
 
-	private readonly _implicitContext = new ChatImplicitContext();
+	private readonly _implicitContext = this._register(new ChatImplicitContext());
 	public get implicitContext(): ChatImplicitContext {
 		return this._implicitContext;
 	}
@@ -520,9 +520,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
-		this.initAttachedContext(this.attachedContextContainer);
-		this._register(this._implicitContext.onDidChangeValue(() => this.initAttachedContext(this.attachedContextContainer)));
-		this._register(this._attachmentModel.onDidChangeContext(() => this.initAttachedContext(this.attachedContextContainer)));
+		this.renderAttachedContext();
+		this._register(this._implicitContext.onDidChangeValue(() => this.renderAttachedContext()));
+		this._register(this._attachmentModel.onDidChangeContext(() => this.renderAttachedContext()));
 		this.renderChatEditingSessionState(null, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -688,7 +688,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 	}
 
-	private async initAttachedContext(container: HTMLElement, isLayout = false) {
+	private async renderAttachedContext(isLayout = false) {
+		const container = this.attachedContextContainer;
 		this.attachedContextDisposables.clear();
 		const store = new DisposableStore;
 		this.attachedContextDisposables.value = store;
@@ -701,7 +702,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 		}
 
-		if (this.implicitContext.value) {
+		if (this.implicitContext.value && this.location === ChatAgentLocation.Panel) {
 			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
 			container.appendChild(implicitPart.domNode);
 		}
@@ -1069,7 +1070,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
-		this.initAttachedContext(this.attachedContextContainer, true);
+		this.renderAttachedContext(true);
 
 		const data = this.getLayoutData();
 		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);

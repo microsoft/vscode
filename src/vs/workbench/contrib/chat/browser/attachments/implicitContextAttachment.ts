@@ -30,11 +30,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		super();
 
 		this.domNode = dom.$('.chat-attached-context-attachment.show-file-icons.implicit');
-
-		// this._register(Event.runAndSubscribe(
-		// 	attachment.onDidChangeValue,
-		// 	() => this.render()
-		// ));
 		this.render();
 	}
 
@@ -52,15 +47,16 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const friendlyName = `${fileBasename} ${fileDirname}`;
 		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
 
-		const uriLabel = this.labelService.getUriLabel(file);
-		const openEditor = localize('openEditor', "Open Editor");
-		const inactive = localize('inactive', "inactive");
-		const openEditorHint = openEditor + (this.attachment.enabled ? '' : ` (${inactive})`);
+		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
+		const currentFile = localize('openEditor', "Current File");
+		const inactive = localize('enableHint', "click to enable");
+		const currentFileHint = currentFile + (this.attachment.enabled ? '' : ` (${inactive})`);
+		const tip = localize('tip', "This context may or may not be used by a chat participant, and it may use other kinds of context automatically");
 		label.setFile(file, {
 			fileKind: FileKind.FILE,
 			hidePath: true,
 			range,
-			title: `${openEditorHint}\n${uriLabel}`
+			title: `${currentFileHint}\n${uriLabel}\n${tip}`,
 		});
 		this.domNode.ariaLabel = ariaLabel;
 		this.domNode.tabIndex = 0;

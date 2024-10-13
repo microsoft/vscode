@@ -2783,8 +2783,7 @@ export namespace ChatLocation {
 }
 
 export namespace ChatPromptReference {
-	export function to
-		(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');

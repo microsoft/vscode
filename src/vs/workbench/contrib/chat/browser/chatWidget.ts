@@ -1147,7 +1147,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentSupportsModelPicker.set(!currentAgent || !!currentAgent.agent.supportsModelPicker);
 		if (currentAgent?.agent.id !== this.previousAgent?.id) {
 			if (currentAgent?.agent.implicitContextMode === ChatAgentImplicitContextMode.Off) {
-				// Needs to be sticky, somehow
 				this.input.implicitContext.value = undefined;
 				this.input.implicitContext.enabled = false;
 			} else if (currentAgent?.agent.implicitContextMode === ChatAgentImplicitContextMode.DisabledByDefault) {
@@ -1161,18 +1160,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 }
 
-export class ChatWidgetService implements IChatWidgetService {
+export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _widgets: ChatWidget[] = [];
 	private _lastFocusedWidget: ChatWidget | undefined = undefined;
 
+	private readonly _onDidAddWidget = this._register(new Emitter<ChatWidget>());
+	readonly onDidAddWidget: Event<IChatWidget> = this._onDidAddWidget.event;
+
 	get lastFocusedWidget(): IChatWidget | undefined {
 		return TerminalChatController.activeChatController?.chatWidget ?? this._lastFocusedWidget;
 	}
-
-	constructor() { }
 
 	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
 		return this._widgets.filter(w => w.location === location);
@@ -1204,6 +1204,7 @@ export class ChatWidgetService implements IChatWidgetService {
 		}
 
 		this._widgets.push(newWidget);
+		this._onDidAddWidget.fire(newWidget);
 
 		return combinedDisposable(
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),

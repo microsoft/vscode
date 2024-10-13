@@ -12,7 +12,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IBaseChatRequestVariableEntry, IChatRequestImplicitVariableEntry } from '../../common/chatModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 
 export class ChatImplicitContextContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.implicitContext';
@@ -37,9 +37,10 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 				this.updateImplicitContext();
 			})));
+		this._register(chatWidgetService.onDidAddWidget(widget => this.updateImplicitContext(widget)));
 	}
 
-	private updateImplicitContext(): void {
+	private updateImplicitContext(updateWidget?: IChatWidget): void {
 		const codeEditor = this.codeEditorService.getActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
@@ -47,14 +48,15 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			(selection && !selection?.isEmpty() ? { uri: model.uri, range: selection } satisfies Location : model.uri) :
 			undefined;
 
-		for (const widget of this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel)) {
+		const widgets = updateWidget ? [updateWidget] : this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel);
+		for (const widget of widgets) {
 			widget.input.implicitContext.value = newValue;
 		}
 	}
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
-	readonly id = 'implicit';
+	readonly id = 'vscode.implicit';
 	readonly name = 'implicit';
 	readonly kind = 'implicit';
 	readonly isDynamic = true;
