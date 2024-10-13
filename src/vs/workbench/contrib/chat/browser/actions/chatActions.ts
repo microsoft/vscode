@@ -24,6 +24,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -444,6 +445,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.commentDiscussion,
 	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
 	order: 10001,
+});
+
+registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('chat.commandCenter.enabled', localize('toggle.chatControl', 'Chat Controls'), localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false, ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter')));
+	}
 });
 
 export class ChatCommandCenterRendering implements IWorkbenchContribution {
