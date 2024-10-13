@@ -5,8 +5,10 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, ITransaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
@@ -25,6 +27,8 @@ export interface IChatEditingService {
 	 */
 	readonly onDidChangeEditingSession: Event<void>;
 
+	readonly currentEditingSessionObs: IObservable<IChatEditingSession | null>;
+
 	readonly currentEditingSession: IChatEditingSession | null;
 	readonly currentAutoApplyOperation: CancellationTokenSource | null;
 
@@ -32,6 +36,9 @@ export interface IChatEditingService {
 	addFileToWorkingSet(resource: URI): Promise<void>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
+	createSnapshot(requestId: string): void;
+	getSnapshotUri(requestId: string, uri: URI): URI | undefined;
+	restoreSnapshot(requestId: string | undefined): Promise<void>;
 }
 
 export interface IChatEditingSession {
@@ -39,8 +46,8 @@ export interface IChatEditingSession {
 	readonly onDidChange: Event<void>;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
-	readonly workingSet: IObservable<readonly URI[]>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	readonly workingSet: ResourceMap<WorkingSetEntryState>;
 	readonly isVisible: boolean;
 	show(): Promise<void>;
 	remove(...uris: URI[]): void;
@@ -56,7 +63,9 @@ export const enum WorkingSetEntryState {
 	Modified,
 	Accepted,
 	Rejected,
+	Transient,
 	Attached,
+	Sent,
 }
 
 export interface IModifiedFileEntry {
@@ -64,6 +73,7 @@ export interface IModifiedFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly diffInfo: IObservable<IDocumentDiff>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 }
@@ -86,3 +96,4 @@ export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>(
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
+export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);

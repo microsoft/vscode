@@ -27,11 +27,12 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
+import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
@@ -39,11 +40,11 @@ import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
 import { IChatVariableData, IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
+import { getScreenshotAsVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { SearchView } from '../../../search/browser/searchView.js';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -54,7 +55,7 @@ export function registerChatContextActions() {
 /**
  * We fill the quickpick with these types, and enable some quick access providers
  */
-type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem;
+type IAttachmentQuickPickItem = ICommandVariableQuickPickItem | IQuickAccessQuickPickItem | IToolQuickPickItem | IImageQuickPickItem | IVariableQuickPickItem | IOpenEditorsQuickPickItem | ISearchResultsQuickPickItem | IScreenShotQuickPickItem;
 
 /**
  * These are the types that we can get out of the quick pick
@@ -93,6 +94,12 @@ function isISearchResultsQuickPickItem(obj: unknown): obj is ISearchResultsQuick
 	return (
 		typeof obj === 'object'
 		&& (obj as ISearchResultsQuickPickItem).kind === 'search-results');
+}
+
+function isScreenshotQuickPickItem(obj: unknown): obj is IScreenShotQuickPickItem {
+	return (
+		typeof obj === 'object'
+		&& (obj as IScreenShotQuickPickItem).kind === 'screenshot');
 }
 
 interface IImageQuickPickItem extends IQuickPickItem {
@@ -137,6 +144,12 @@ interface IOpenEditorsQuickPickItem extends IQuickPickItem {
 
 interface ISearchResultsQuickPickItem extends IQuickPickItem {
 	kind: 'search-results';
+	id: string;
+	icon?: ThemeIcon;
+}
+
+interface IScreenShotQuickPickItem extends IQuickPickItem {
+	kind: 'screenshot';
 	id: string;
 	icon?: ThemeIcon;
 }
@@ -283,14 +296,17 @@ export class AttachContextAction extends Action2 {
 					});
 				} else {
 					// file attachment
-					toAttach.push({
-						id: this._getFileContextId({ resource: pick.resource }),
-						value: pick.resource,
-						name: pick.label,
-						isFile: true,
-						isDynamic: true,
-					});
-					chatEditingService?.addFileToWorkingSet(pick.resource);
+					if (chatEditingService) {
+						chatEditingService.addFileToWorkingSet(pick.resource);
+					} else {
+						toAttach.push({
+							id: this._getFileContextId({ resource: pick.resource }),
+							value: pick.resource,
+							name: pick.label,
+							isFile: true,
+							isDynamic: true,
+						});
+					}
 				}
 			} else if (isIGotoSymbolQuickPickItem(pick) && pick.uri && pick.range) {
 				toAttach.push({
@@ -304,28 +320,40 @@ export class AttachContextAction extends Action2 {
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
 				for (const editor of editorService.editors) {
 					if (editor.resource) {
-						toAttach.push({
-							id: this._getFileContextId({ resource: editor.resource }),
-							value: editor.resource,
-							name: labelService.getUriBasenameLabel(editor.resource),
-							isFile: true,
-							isDynamic: true
-						});
-						chatEditingService?.addFileToWorkingSet(editor.resource);
+						if (chatEditingService) {
+							chatEditingService.addFileToWorkingSet(editor.resource);
+						} else {
+							toAttach.push({
+								id: this._getFileContextId({ resource: editor.resource }),
+								value: editor.resource,
+								name: labelService.getUriBasenameLabel(editor.resource),
+								isFile: true,
+								isDynamic: true
+							});
+						}
 					}
 				}
 			} else if (isISearchResultsQuickPickItem(pick)) {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
-					toAttach.push({
-						id: this._getFileContextId({ resource: result.resource }),
-						value: result.resource,
-						name: labelService.getUriBasenameLabel(result.resource),
-						isFile: true,
-						isDynamic: true
-					});
-					chatEditingService?.addFileToWorkingSet(result.resource);
+					if (chatEditingService) {
+						chatEditingService.addFileToWorkingSet(result.resource);
+					} else {
+						toAttach.push({
+							id: this._getFileContextId({ resource: result.resource }),
+							value: result.resource,
+							name: labelService.getUriBasenameLabel(result.resource),
+							isFile: true,
+							isDynamic: true
+						});
+					}
 				}
+			} else if (isScreenshotQuickPickItem(pick)) {
+				const variable = await getScreenshotAsVariable();
+				if (!variable) {
+					return;
+				}
+				toAttach.push(variable);
 			} else {
 				// Anything else is an attachment
 				const attachmentPick = pick as IAttachmentQuickPickItem;
@@ -481,7 +509,15 @@ export class AttachContextAction extends Action2 {
 				prefix: SymbolsQuickAccessProvider.PREFIX,
 				id: 'symbol'
 			});
-
+			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+				quickPickItems.push({
+					kind: 'screenshot',
+					id: ScreenshotVariableId,
+					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+					label: localize('chatContext.attachScreenshot.label', 'Image of the Current VS Code Window'),
+				});
+			}
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',
@@ -553,6 +589,11 @@ export class AttachContextAction extends Action2 {
 			filter: (item: IChatContextQuickPickItem | IQuickPickSeparator) => {
 				// Avoid attaching the same context twice
 				const attachedContext = widget.attachmentModel.getAttachmentIDs();
+				if (chatEditingService) {
+					for (const file of chatEditingService.currentEditingSessionObs.get()?.workingSet.keys() ?? []) {
+						attachedContext.add(this._getFileContextId({ resource: file }));
+					}
+				}
 
 				if (isIOpenEditorsQuickPickItem(item)) {
 					for (const editor of editorService.editors) {

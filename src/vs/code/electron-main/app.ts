@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, desktopCapturer, protocol, session, Session, systemPreferences, screen, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -163,6 +163,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
+		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
 		const allowedPermissionsInWebview = new Set([
@@ -170,9 +171,17 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
+		const allowedPermissionsInCore = new Set([
+			'media'
+		]);
+
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
+			}
+
+			if (isUrlFromWindow(details.requestingUrl)) {
+				return callback(allowedPermissionsInCore.has(permission));
 			}
 
 			return callback(false);
@@ -182,8 +191,59 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-
+			if (isUrlFromWindow(details.requestingUrl)) {
+				return allowedPermissionsInCore.has(permission);
+			}
 			return false;
+		});
+		session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
+
+			// Get the currently focused window
+			const focusedWindow = BrowserWindow.getFocusedWindow();
+
+			if (!focusedWindow) {
+				return;
+			}
+
+			// Get the bounds (position and size) of the focused window
+			const windowBounds = focusedWindow.getBounds();
+
+			// Get all the screen sources
+			const screens = await desktopCapturer.getSources({ types: ['screen'] });
+
+			// Get the display that contains the focused window
+			const displays = screen.getAllDisplays();
+
+			// Find the screen that contains the focused window
+			for (const display of displays) {
+				const displayBounds = display.bounds;
+
+				// Check if the window is within the display's bounds. The center of the window is
+				// used since maximizing actually causes the window to go beyond the screen. There
+				// is also the case where a window could be spread across multiple screens.
+				const windowCenter = {
+					x: windowBounds.x + windowBounds.width / 2,
+					y: windowBounds.y + windowBounds.height / 2,
+				};
+				if (
+					windowCenter.x >= displayBounds.x &&
+					windowCenter.x <= displayBounds.x + displayBounds.width &&
+					windowCenter.y >= displayBounds.y &&
+					windowCenter.y <= displayBounds.y + displayBounds.height
+				) {
+					// Match the display to the screen source
+					for (const source of screens) {
+						if (source.display_id === display.id.toString()) {
+							// Found the screen containing the focused window
+							callback({ video: source, audio: 'loopback' });
+							return;
+						}
+					}
+				}
+			}
+
+			// Fallback: if no matching screen is found, return the first screen
+			callback({ video: screens[0], audio: 'loopback' });
 		});
 
 		//#endregion
