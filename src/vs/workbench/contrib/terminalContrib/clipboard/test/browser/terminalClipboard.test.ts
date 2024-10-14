@@ -12,6 +12,7 @@ import { TestDialogService } from '../../../../../../platform/dialogs/test/commo
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TerminalSettingId } from '../../../../../../platform/terminal/common/terminal.js';
 import { shouldPasteTerminalText } from '../../browser/terminalClipboard.js';
+import { TerminalClipboardSettingId } from '../../common/terminalClipboardConfiguration.js';
 
 suite('TerminalClipboard', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -24,7 +25,7 @@ suite('TerminalClipboard', function () {
 			instantiationService = store.add(new TestInstantiationService());
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto',
-				[TerminalSettingId.EnableSmartPaste]: false
+				[TerminalClipboardSettingId.EnableSmartPaste]: false
 			});
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IDialogService, new TestDialogService(undefined, { result: { confirmed: false } }));
@@ -33,7 +34,7 @@ suite('TerminalClipboard', function () {
 		function setConfigValue(multiLinePaste: unknown, smartPaste: boolean) {
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: multiLinePaste,
-				[TerminalSettingId.EnableSmartPaste]: smartPaste
+				[TerminalClipboardSettingId.EnableSmartPaste]: smartPaste
 			});
 			instantiationService.stub(IConfigurationService, configurationService);
 		}
