@@ -39,7 +39,7 @@ import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolData } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
@@ -2934,5 +2934,11 @@ export namespace LanguageModelToolDescription {
 			supportedContentTypes: item.supportedContentTypes,
 			tags: item.tags ?? [],
 		};
+	}
+}
+
+export namespace LanguageModelToolResult {
+	export function to(result: IToolResult): vscode.LanguageModelToolResult {
+		return new types.LanguageModelToolResult(result.items.map(item => new types.LanguageModelToolResultItem(item.data, item.mime)));
 	}
 }

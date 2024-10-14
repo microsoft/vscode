@@ -41,7 +41,12 @@ export interface IToolInvocationContext {
 }
 
 export interface IToolResult {
-	[contentType: string]: any;
+	items: IToolResultItem[];
+}
+
+export interface IToolResultItem {
+	mime: string;
+	data: any;
 }
 
 export interface IToolConfirmationMessages {

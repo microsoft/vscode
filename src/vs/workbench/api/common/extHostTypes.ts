@@ -4703,6 +4703,18 @@ export class LanguageModelError extends Error {
 
 }
 
+export class LanguageModelToolResultItem {
+	static text(content: string): LanguageModelToolResultItem {
+		return new LanguageModelToolResultItem(content, 'text/plain');
+	}
+
+	constructor(public data: any, public mime: string) { }
+}
+
+export class LanguageModelToolResult {
+	constructor(public items: LanguageModelToolResultItem[]) { }
+}
+
 //#endregion
 
 //#region ai

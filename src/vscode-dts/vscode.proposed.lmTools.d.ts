@@ -114,16 +114,15 @@ declare module 'vscode' {
 
 	// Tool registration/invoking between extensions
 
-	export class LanguageModelToolResultItem<T> {
-		static text(content: string): LanguageModelToolResultItem<string>;
-		static promptTsx(content: string): LanguageModelToolResultItem<Object>; // ???
-		static png(content: Uint8Array): LanguageModelToolResultItem<Uint8Array>;
+	export class LanguageModelToolResultItem {
+		static text(content: string): LanguageModelToolResultItem;
 
 		// TODO@API - I prefer contentType over mimeType, but notebooks use 'mime'. I prefer 'mimeType' over 'mime' at least...
 		mime: string;
-		data: T;
+		data: any;
 
-		constructor(data: T, mime: string);
+		// TODO@API - the notebook output item has fields in this order, but I think mimeType first is more intuitive
+		constructor(data: any, mime: string);
 	}
 
 	/**
@@ -138,14 +137,9 @@ declare module 'vscode' {
 		 * `contentType` exported by that library.
 		 */
 
-		// TODO@API- we could have a list
-		items: LanguageModelToolResultItem<unknown>[];
+		items: LanguageModelToolResultItem[];
 
-		// or items keyed by mimeType so that text/plain can be typed for the tool caller
-		items2: {
-			[mimeType: string]: LanguageModelToolResultItem<unknown> | undefined;
-			'text/plain'?: LanguageModelToolResultItem<string>;
-		};
+		constructor(items: LanguageModelToolResultItem[]);
 	}
 
 	export namespace lm {
