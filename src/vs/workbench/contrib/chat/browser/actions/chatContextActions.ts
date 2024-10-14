@@ -45,7 +45,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { isQuickChat } from '../chatWidget.js';
-import { getScreenshotAsVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
+import { convertBufferToScreenshotVariable, ScreenshotVariableId } from '../contrib/screenshot.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export function registerChatContextActions() {
@@ -351,22 +351,9 @@ export class AttachContextAction extends Action2 {
 					}
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
-				// TODO: Ensure this works properly when falling back
 				const blob = await hostService.getScreenshot();
 				if (blob) {
-					toAttach.push({
-						id: 'screenshot-focused-window',
-						name: localize('screenshot', 'Screenshot'),
-						value: new Uint8Array(blob),
-						isImage: true,
-						isDynamic: true
-					});
-				} else {
-					const variable = await getScreenshotAsVariable();
-					if (!variable) {
-						return;
-					}
-					toAttach.push(variable);
+					toAttach.push(convertBufferToScreenshotVariable(blob));
 				}
 			} else {
 				// Anything else is an attachment
