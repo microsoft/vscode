@@ -671,9 +671,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			runtime: layoutRuntimeState,
 		};
 
-		const isNewWindow = lifecycleService.startupKind === StartupKind.NewWindow;
-		const activityBarNotDefault = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
-
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
 
@@ -693,15 +690,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.initialization.views.containerToRestore.sideBar = viewContainerToRestore;
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
-			}
-		}
-		// Side bar is hidden and a new window is opened with activity bar not visible (not default)
-		else if (isNewWindow && activityBarNotDefault) {
-			// Open side bar if there is a view container to restore
-			const viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
-			if (viewContainerToRestore) {
-				this.state.initialization.views.containerToRestore.sideBar = viewContainerToRestore;
-				this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, false);
 			}
 		}
 

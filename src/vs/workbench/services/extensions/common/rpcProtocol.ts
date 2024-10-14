@@ -483,7 +483,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 			disposable.add(cancellationToken.onCancellationRequested(() => {
 				const msg = MessageIO.serializeCancel(req);
 				this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
-				this._protocol.send(MessageIO.serializeCancel(req));
+				this._protocol.send(msg);
 			}));
 		}
 

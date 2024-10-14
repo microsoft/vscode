@@ -743,8 +743,10 @@ class ProfileTreeDataSource implements IAsyncDataSource<AbstractUserDataProfileE
 				children.push({ element: 'copyFrom', root: element });
 				children.push({ element: 'contents', root: element });
 			} else if (element instanceof UserDataProfileElement) {
-				children.push({ element: 'name', root: element });
-				children.push({ element: 'icon', root: element });
+				if (!element.profile.isDefault) {
+					children.push({ element: 'name', root: element });
+					children.push({ element: 'icon', root: element });
+				}
 				children.push({ element: 'useAsDefault', root: element });
 				children.push({ element: 'contents', root: element });
 				children.push({ element: 'workspaces', root: element });
