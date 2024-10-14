@@ -5,8 +5,17 @@
 
 import { addDisposableListener } from '../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { isElectron } from '../../../base/common/platform.js';
 
+/**
+ * Gets a screenshot from the browser. This gets the screenshot via the browser's display media API
+ * which will typically offer a picker of all available screens and windows for the user to select.
+ */
 export async function getScreenshotViaDisplayMedia(): Promise<ArrayBuffer | undefined> {
+	if (isElectron) {
+		throw new Error('This method is not supported in Electron');
+	}
+
 	const store = new DisposableStore();
 
 	// Create a video element to play the captured screen source
@@ -14,9 +23,6 @@ export async function getScreenshotViaDisplayMedia(): Promise<ArrayBuffer | unde
 	store.add(toDisposable(() => video.remove()));
 	let stream: MediaStream | undefined;
 	try {
-		// TODO: This needs to get the stream for the actual window when strictly taking a
-		//       screenshot of the window, so as to not leak windows in the foreground (eg. a always
-		//       on top video)
 		// Create a stream from the screen source (capture screen without audio)
 		stream = await navigator.mediaDevices.getDisplayMedia({
 			audio: false,
