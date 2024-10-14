@@ -112,7 +112,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	getToolByName(name: string): IToolData | undefined {
 		for (const toolData of this.getTools()) {
-			if (toolData.name === name) {
+			if (toolData.toolReferenceName === name) {
 				return toolData;
 			}
 		}
@@ -142,42 +142,31 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			const model = this._chatService.getSession(dto.context?.sessionId) as ChatModel;
 			const request = model.getRequests().at(-1)!;
 
-			const participantName = request.response?.agent?.fullName ?? ''; // This should always be set in this scenario with a new live request
-
 			const prepared = tool.impl.prepareToolInvocation ?
-				await tool.impl.prepareToolInvocation(participantName, dto.parameters, token)
-				: undefined;
-			const confirmationMessages = tool.data.requiresConfirmation ?
-				prepared?.confirmationMessages ?? {
-					title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
-					message: localize('toolConfirmMessage', "{0} will use {1}.", participantName, `"${tool.data.displayName ?? tool.data.id}"`),
-				}
+				await tool.impl.prepareToolInvocation(dto.parameters, token)
 				: undefined;
 
-			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName ?? tool.data.id}"`);
+			const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${tool.data.displayName}"`);
 			const invocationMessage = prepared?.invocationMessage ?? defaultMessage;
-			toolInvocation = new ChatToolInvocation(invocationMessage, confirmationMessages);
+			toolInvocation = new ChatToolInvocation(invocationMessage, prepared?.confirmationMessages);
 			token.onCancellationRequested(() => {
 				toolInvocation!.confirmed.complete(false);
 			});
 			model.acceptResponseProgress(request, toolInvocation);
-			if (tool.data.requiresConfirmation) {
+			if (prepared?.confirmationMessages) {
 				const userConfirmed = await toolInvocation.confirmed.p;
 				if (!userConfirmed) {
 					throw new CancellationError();
 				}
 			}
-		} else if (tool.data.requiresConfirmation) {
+		} else {
 			const prepared = tool.impl.prepareToolInvocation ?
-				await tool.impl.prepareToolInvocation('Some Extension', dto.parameters, token)
+				await tool.impl.prepareToolInvocation(dto.parameters, token)
 				: undefined;
 
-			const confirmationMessages = prepared?.confirmationMessages ?? {
-				title: localize('toolConfirmTitle', "Use {0}?", `"${tool.data.displayName ?? tool.data.id}"`),
-				message: localize('toolConfirmMessage', "{0} will use {1}.", 'Some Extension', `"${tool.data.displayName ?? tool.data.id}"`),
-			};
-
-			await this._dialogService.confirm({ message: confirmationMessages.title, detail: renderStringAsPlaintext(confirmationMessages.message) });
+			if (prepared?.confirmationMessages) {
+				await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+			}
 		}
 
 		try {

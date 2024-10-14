@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -17,7 +16,6 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -50,6 +48,8 @@ import { ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from '.
 import { ChatEditorOptions } from './chatOptions.js';
 import './media/chat.css';
 import './media/chatAgentHover.css';
+import './media/chatViewWelcome.css';
+import { ChatViewWelcomePart } from './viewsWelcome/chatViewWelcomeController.js';
 
 const $ = dom.$;
 
@@ -393,7 +393,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderStyle = this.viewOptions.renderStyle;
 
 		this.container = dom.append(parent, $('.interactive-session'));
-		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view', { style: 'display: none' }));
+		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this.renderWelcomeViewContentIfNeeded();
 		if (renderInputOnTop) {
 			this.createInput(this.container, { renderFollowups, renderStyle });
@@ -521,22 +521,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private renderWelcomeViewContentIfNeeded() {
 		const welcomeContent = this.viewModel?.model.welcomeMessage ?? this.persistedWelcomeMessage;
 		if (welcomeContent && this.welcomeMessageContainer.children.length === 0 && !this.viewOptions.renderStyle) {
-			const icon = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-icon'));
-			const title = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-title'));
-			const message = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-message'));
-			const tips = dom.append(this.welcomeMessageContainer!, $('.chat-welcome-view-tips'));
-
-			icon.appendChild(renderIcon(welcomeContent.icon));
-			title.textContent = welcomeContent.title;
-			const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-			const messageResult = this._register(renderer.render(welcomeContent.message));
-			dom.append(message, messageResult.element);
-
-			const tipsString = this.viewOptions.supportsAdditionalParticipants
+			const tips = this.viewOptions.supportsAdditionalParticipants
 				? new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(mention)'), { supportThemeIcons: true })
 				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} to attach context", '$(attach)'), { supportThemeIcons: true });
-			const tipsResult = this._register(renderer.render(tipsString));
-			tips.appendChild(tipsResult.element);
+			const welcomePart = this._register(this.instantiationService.createInstance(
+				ChatViewWelcomePart,
+				{ ...welcomeContent, tips, },
+				{}
+			));
+			dom.append(this.welcomeMessageContainer, welcomePart.element);
 		}
 
 		if (!this.viewOptions.renderStyle && this.viewModel) {
@@ -946,7 +939,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: attachedContext
+				attachedContext: this.inputPart.getAttachedAndImplicitContext()
 			});
 
 			if (result) {
@@ -1154,18 +1147,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 }
 
-export class ChatWidgetService implements IChatWidgetService {
+export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _widgets: ChatWidget[] = [];
 	private _lastFocusedWidget: ChatWidget | undefined = undefined;
 
+	private readonly _onDidAddWidget = this._register(new Emitter<ChatWidget>());
+	readonly onDidAddWidget: Event<IChatWidget> = this._onDidAddWidget.event;
+
 	get lastFocusedWidget(): IChatWidget | undefined {
 		return TerminalChatController.activeChatController?.chatWidget ?? this._lastFocusedWidget;
 	}
 
-	constructor() { }
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
+		return this._widgets.filter(w => w.location === location);
+	}
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
@@ -1193,6 +1191,7 @@ export class ChatWidgetService implements IChatWidgetService {
 		}
 
 		this._widgets.push(newWidget);
+		this._onDidAddWidget.fire(newWidget);
 
 		return combinedDisposable(
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),

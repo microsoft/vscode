@@ -29,6 +29,7 @@ import { ChatModelInitState, IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
+import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -36,17 +37,15 @@ interface IViewPaneState extends IChatViewState {
 
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
 export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
-export class ChatViewPane extends ViewPane {
+export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
 	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
 	private readonly viewState: IViewPaneState;
-	private didProviderRegistrationFail = false;
+	private defaultParticipantRegistrationFailed = false;
 	private didUnregisterProvider = false;
-	// check to display the welcome view right away while awaiting chat agents to register
-	private isInitialized = false;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -72,7 +71,6 @@ export class ChatViewPane extends ViewPane {
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + (this.chatOptions.location === ChatAgentLocation.EditingSession ? `-edits` : ''), this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
-			this.isInitialized = true;
 			if (this.chatAgentService.getDefaultAgent(this.chatOptions?.location)) {
 				if (!this._widget?.viewModel) {
 					const sessionId = this.getSessionId();
@@ -85,7 +83,7 @@ export class ChatViewPane extends ViewPane {
 					try {
 						this._widget.setVisible(false);
 						this.updateModel(model);
-						this.didProviderRegistrationFail = false;
+						this.defaultParticipantRegistrationFailed = false;
 						this.didUnregisterProvider = false;
 						this._onDidChangeViewWelcomeState.fire();
 					} finally {
@@ -130,12 +128,10 @@ export class ChatViewPane extends ViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		if (!this.chatAgentService.getContributedDefaultAgent(this.chatOptions.location)) {
-			return true;
-		}
-
 		const noPersistedSessions = !this.chatService.hasSessions();
-		return this.didUnregisterProvider || !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail) || !this.isInitialized;
+		const shouldShow = this.didUnregisterProvider || !this._widget?.viewModel && noPersistedSessions || this.defaultParticipantRegistrationFailed;
+		this.logService.trace(`ChatViewPane#shouldShowWelcome(${this.chatOptions.location}) = ${shouldShow}: didUnregister=${this.didUnregisterProvider} || noViewModel:${!this._widget?.viewModel} && noPersistedSessions=${noPersistedSessions} || defaultParticipantRegistrationFailed=${this.defaultParticipantRegistrationFailed}`);
+		return shouldShow;
 	}
 
 	private getSessionId() {
@@ -152,6 +148,8 @@ export class ChatViewPane extends ViewPane {
 	protected override renderBody(parent: HTMLElement): void {
 		try {
 			super.renderBody(parent);
+
+			this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this));
 
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			const locationBasedColors = this.getLocationBasedColors();
@@ -185,15 +183,14 @@ export class ChatViewPane extends ViewPane {
 			this._widget.render(parent);
 
 			const sessionId = this.getSessionId();
-			// Render the welcome view if this session gets disposed at any point,
-			// including if the provider registration fails
-			const disposeListener = sessionId ? this._register(this.chatService.onDidDisposeSession((e) => {
+			const disposeListener = this._register(this.chatService.onDidDisposeSession((e) => {
+				// Render the welcome view if provider registration fails, eg when signed out. This activates for any session, but the problem is the same regardless
 				if (e.reason === 'initializationFailed') {
-					this.didProviderRegistrationFail = true;
+					this.defaultParticipantRegistrationFailed = true;
 					disposeListener?.dispose();
 					this._onDidChangeViewWelcomeState.fire();
 				}
-			})) : undefined;
+			}));
 			const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 
 			this.updateModel(model);

@@ -33,13 +33,10 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control {
+	line-height: var(--editor-group-tab-height);
 	flex: 1 50%;
 	overflow: hidden;
 	margin-left: .45em;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item {
-	font-size: 0.9em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.preview .monaco-breadcrumb-item {
@@ -85,6 +82,10 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
 	height: 18px;
 	padding-right: 2px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-icon-label .label-name {
+	font-size: 0.9em;
 }
 
 /* Editor Actions Toolbar (via title actions) */
