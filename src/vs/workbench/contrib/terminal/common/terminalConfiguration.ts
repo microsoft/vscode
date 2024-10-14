@@ -406,8 +406,8 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.AllowSmartPaste]: {
-			markdownDescription: localize('terminal.integrated.allowSmartPaste', "Whether or not to allow smart paste to automatically wrap file path with double quotes"),
+		[TerminalSettingId.EnableSmartPaste]: {
+			markdownDescription: localize('terminal.integrated.enableSmartPaste', "Whether or not to allow smart paste to automatically wrap file path with double quotes"),
 			type: 'boolean',
 			default: false
 		},

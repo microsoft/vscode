@@ -24,7 +24,7 @@ suite('TerminalClipboard', function () {
 			instantiationService = store.add(new TestInstantiationService());
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto',
-				[TerminalSettingId.AllowSmartPaste]: false
+				[TerminalSettingId.EnableSmartPaste]: false
 			});
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IDialogService, new TestDialogService(undefined, { result: { confirmed: false } }));
@@ -33,7 +33,7 @@ suite('TerminalClipboard', function () {
 		function setConfigValue(multiLinePaste: unknown, smartPaste: boolean) {
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: multiLinePaste,
-				[TerminalSettingId.AllowSmartPaste]: smartPaste
+				[TerminalSettingId.EnableSmartPaste]: smartPaste
 			});
 			instantiationService.stub(IConfigurationService, configurationService);
 		}
