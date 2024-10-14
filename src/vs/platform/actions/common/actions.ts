@@ -229,8 +229,7 @@ export class MenuId {
 	static readonly ChatEditingSessionWidgetToolbar = new MenuId('ChatEditingSession');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
-	static readonly ChatControlsCommandCenter = new MenuId('ChatControllsCommandCenter');
-	static readonly ChatInstallCommandCenter = new MenuId('ChatInstallCommandCenter');
+	static readonly ChatCommandCenter = new MenuId('ChatCommandCenter');
 	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');

@@ -87,8 +87,9 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: OpenChatGlobalAction.TITLE,
-			icon: Codicon.commentDiscussion,
+			icon: Codicon.copilot,
 			f1: true,
+			precondition: CONTEXT_CHAT_ENABLED,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -98,7 +99,7 @@ class OpenChatGlobalAction extends Action2 {
 				}
 			},
 			menu: {
-				id: MenuId.ChatControlsCommandCenter,
+				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
 				order: 1
 			}
@@ -430,7 +431,8 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(InstallChatGlobalAction);
+	registerAction2(InstallChatWithPromptAction);
+	registerAction2(InstallChatWithoutPromptAction);
 	registerAction2(LearnMoreChatAction);
 }
 
@@ -443,19 +445,40 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 }
 
 
-// --- command center chat controls
+// --- command center chat
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.ChatControlsCommandCenter,
+	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
-	icon: Codicon.commentDiscussion,
-	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
+	icon: Codicon.copilot,
+	when: ContextKeyExpr.or(
+		// Copilot installed: show when `chat.commandCenter.enabled`
+		ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
+		// Copilot not installed: show when `chat.experimental.offerInstall`
+		ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall'))
+	),
 	order: 10001,
 });
 
 registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 	constructor() {
-		super('chat.commandCenter.enabled', localize('toggle.chatControl', 'Chat Controls'), localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false, ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter')));
+		super(
+			'chat.commandCenter.enabled',
+			localize('toggle.chatControl', 'Chat Controls'),
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
+			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter'))
+		);
+	}
+});
+
+registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
+	constructor() {
+		super(
+			'chat.experimental.offerInstall',
+			localize('toggle.chatControl', 'Chat Controls'),
+			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
+			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.window.commandCenter'))
+		);
 	}
 });
 
@@ -471,91 +494,23 @@ export class ChatControlsCommandCenterRendering implements IWorkbenchContributio
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatControlsCommandCenter, (action, options) => {
-
-			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
-			if (!agent?.metadata.themeIcon) {
-				return undefined;
-			}
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
 
 			const dropdownAction = toAction({
-				id: agent.id,
+				id: 'more',
 				label: localize('more', "More..."),
 				run() { }
 			});
-
-			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: CHAT_OPEN_ACTION_ID,
-				title: OpenChatGlobalAction.TITLE,
-				icon: agent.metadata.themeIcon,
-			}, undefined, undefined, undefined, undefined);
-
-			return instantiationService.createInstance(
-				DropdownWithPrimaryActionViewItem,
-				primaryAction, dropdownAction, action.actions,
-				'', options
-			);
-
-		}, agentService.onDidChangeAgents));
-	}
-
-	dispose() {
-		this._store.dispose();
-	}
-}
-
-// --- command center chat installation
-
-MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.ChatInstallCommandCenter,
-	title: localize('title4', "Chat"),
-	icon: Codicon.copilot,
-	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall')),
-	order: 10001,
-});
-
-registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
-	constructor() {
-		super('chat.experimental.offerInstall', localize('toggle.chatInstall', 'Chat Installation'), localize('toggle.chatInstallDescription', "Toggle visibility of the Chat Install button in title bar"), 3, false, ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.window.commandCenter')));
-	}
-});
-
-export class ChatInstallCommandCenterRendering implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.install.commandCenterRendering';
-
-	private readonly _store = new DisposableStore();
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IChatAgentService agentService: IChatAgentService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatInstallCommandCenter, (action, options) => {
 
 			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
-			if (agent) {
-				return undefined;
-			}
-
-			if (!(action instanceof SubmenuItemAction)) {
-				return undefined;
-			}
-
-			const dropdownAction = toAction({
-				id: 'agent.id',
-				label: localize('more', "More..."),
-				run() { }
-			});
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: InstallChatGlobalAction.ID,
-				title: InstallChatGlobalAction.TITLE,
+				id: agent ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
+				title: agent ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
 				icon: Codicon.copilot,
 			}, undefined, undefined, undefined, undefined);
 
@@ -573,31 +528,54 @@ export class ChatInstallCommandCenterRendering implements IWorkbenchContribution
 	}
 }
 
-class InstallChatGlobalAction extends Action2 {
+class InstallChatWithPromptAction extends Action2 {
 
-	static readonly ID = 'workbench.action.chat.install';
-	static readonly TITLE = localize2('installChat', "Install Copilot Chat");
+	static readonly ID = 'workbench.action.chat.globalInstall';
+	static readonly TITLE = localize2('installChat', "Install GitHub Copilot Chat");
 
 	constructor() {
 		super({
-			id: InstallChatGlobalAction.ID,
-			title: InstallChatGlobalAction.TITLE,
+			id: InstallChatWithPromptAction.ID,
+			title: InstallChatWithPromptAction.TITLE,
 			icon: Codicon.copilot,
+			precondition: CONTEXT_CHAT_ENABLED.negate(),
+			category: CHAT_CATEGORY
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		await extensionsWorkbenchService.install('GitHub.copilot-chat', {
+			justification: localize('installChatGlobalAction.justification', "Chat and AI support requires this extension."),
+			enable: true
+		}, ProgressLocation.Notification);
+	}
+}
+
+class InstallChatWithoutPromptAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.install';
+	static readonly TITLE = localize2('installChat', "Install GitHub Copilot Chat");
+
+	constructor() {
+		super({
+			id: InstallChatWithoutPromptAction.ID,
+			title: InstallChatWithoutPromptAction.TITLE,
+			icon: Codicon.copilot,
+			precondition: CONTEXT_CHAT_ENABLED.negate(),
 			category: CHAT_CATEGORY,
 			menu: {
-				id: MenuId.ChatInstallCommandCenter,
-				group: 'a_chat',
-				order: 1
+				id: MenuId.ChatCommandCenter,
+				group: 'a_atfirst',
+				order: 1,
+				when: CONTEXT_CHAT_ENABLED.negate()
 			}
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		await extensionsWorkbenchService.install('GitHub.copilot', {
-			justification: localize('installChatGlobalAction.justification', "Chat and AI support requires this extension."),
-			enable: true
-		}, ProgressLocation.Notification);
+		await extensionsWorkbenchService.install('GitHub.copilot-chat', { enable: true }, ProgressLocation.Notification);
 	}
 }
 
@@ -611,11 +589,13 @@ class LearnMoreChatAction extends Action2 {
 			id: LearnMoreChatAction.ID,
 			title: LearnMoreChatAction.TITLE,
 			icon: Codicon.copilot,
+			precondition: CONTEXT_CHAT_ENABLED.negate(),
 			category: CHAT_CATEGORY,
 			menu: {
-				id: MenuId.ChatInstallCommandCenter,
-				group: 'a_chat',
-				order: 2
+				id: MenuId.ChatCommandCenter,
+				group: 'a_atfirst',
+				order: 2,
+				when: CONTEXT_CHAT_ENABLED.negate()
 			}
 		});
 	}

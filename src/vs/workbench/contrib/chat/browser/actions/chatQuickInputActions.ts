@@ -115,7 +115,7 @@ class QuickChatGlobalAction extends Action2 {
 				}
 			},
 			menu: {
-				id: MenuId.ChatControlsCommandCenter,
+				id: MenuId.ChatCommandCenter,
 				group: 'c_quickChat',
 				order: 5
 			},
