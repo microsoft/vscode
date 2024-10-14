@@ -464,7 +464,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			'chat.commandCenter.enabled',
+			['chat.commandCenter.enabled', 'chat.experimental.offerInstall'],
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter'))
@@ -475,7 +475,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			'chat.experimental.offerInstall',
+			['chat.experimental.offerInstall', 'chat.commandCenter.enabled'],
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.window.commandCenter'))
@@ -613,7 +613,7 @@ class LearnMoreChatAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		openerService.open(URI.parse('https://aka.ms/copilot-overview'));
 	}

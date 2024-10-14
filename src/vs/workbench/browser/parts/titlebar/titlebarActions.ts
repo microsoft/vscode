@@ -19,14 +19,14 @@ import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../
 
 export class ToggleTitleBarConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean, when?: ContextKeyExpression) {
+	constructor(private readonly section: string | string[], title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean, when?: ContextKeyExpression) {
 		when = ContextKeyExpr.and(mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true(), when);
 
 		super({
-			id: `toggle.${section}`,
+			id: `toggle.${Array.isArray(section) ? section[0] : section}`,
 			title,
 			metadata: description ? { description } : undefined,
-			toggled: ContextKeyExpr.equals(`config.${section}`, true),
+			toggled: ContextKeyExpr.equals(`config.${Array.isArray(section) ? section[0] : section}`, true),
 			menu: [
 				{
 					id: MenuId.TitleBarContext,
@@ -45,9 +45,16 @@ export class ToggleTitleBarConfigAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const primarySection = Array.isArray(this.section) ? this.section[0] : this.section;
+		const secondarySections = Array.isArray(this.section) ? this.section.slice(1) : [];
+
 		const configService = accessor.get(IConfigurationService);
-		const value = configService.getValue(this.section);
-		configService.updateValue(this.section, !value);
+		const value = configService.getValue(primarySection);
+		configService.updateValue(primarySection, !value);
+
+		for (const section of secondarySections) {
+			configService.updateValue(section, !value);
+		}
 	}
 }
 
