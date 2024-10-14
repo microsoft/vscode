@@ -98,7 +98,7 @@ export class TerminalClipboardContribution extends Disposable implements ITermin
 
 		let shellType = '';
 
-		shellType = (this._ctx.instance as ITerminalInstance).shellType ?? '';
+		shellType = this._ctx.instance.shellType ?? '';
 
 		let currentText = value;
 		const shouldPasteText = await this._instantiationService.invokeFunction(
