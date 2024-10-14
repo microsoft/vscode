@@ -32,6 +32,7 @@ class BoundingBox implements IBoundingBox {
 	get bottom() { return this.y + this.height; }
 }
 
+// TODO: Improve names
 export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | undefined> {
 	try {
 		const windowBounds = getActiveWindowBounds();

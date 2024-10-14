@@ -144,7 +144,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(windowId: number | undefined): Promise<ArrayBufferLike | undefined>;
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;

@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isElectron } from '../../../../../base/common/platform.js';
 import { compare } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,11 +24,11 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
@@ -272,7 +273,7 @@ export class AttachContextAction extends Action2 {
 			`:${item.range.startLineNumber}`);
 	}
 
-	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, nativeHostService: INativeHostService, ...picks: IChatContextQuickPickItem[]) {
+	private async _attachContext(widget: IChatWidget, commandService: ICommandService, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, ...picks: IChatContextQuickPickItem[]) {
 		const toAttach: IChatRequestVariableEntry[] = [];
 		for (const pick of picks) {
 			if (isISymbolQuickPickItem(pick) && pick.symbol) {
@@ -351,7 +352,7 @@ export class AttachContextAction extends Action2 {
 				}
 			} else if (isScreenshotQuickPickItem(pick)) {
 				// TODO: Ensure this works properly when falling back
-				const blob = await nativeHostService.getScreenshot(undefined);
+				const blob = await hostService.getScreenshot();
 				if (blob) {
 					toAttach.push({
 						id: 'screenshot-focused-window',
@@ -435,7 +436,7 @@ export class AttachContextAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
-		const nativeHostService = accessor.get(INativeHostService);
+		const hostService = accessor.get(IHostService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -527,7 +528,9 @@ export class AttachContextAction extends Action2 {
 					id: ScreenshotVariableId,
 					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
 					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-					label: localize('chatContext.attachScreenshot.label', 'Image of the Current VS Code Window'),
+					label: (isElectron
+						? localize('chatContext.attachScreenshot.labelElectron', 'Image of the Current VS Code Window')
+						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
 				});
 			}
 			if (widget.location === ChatAgentLocation.Notebook) {
@@ -579,19 +582,19 @@ export class AttachContextAction extends Action2 {
 			const second = extractTextFromIconLabel(b.label).toUpperCase();
 
 			return compare(first, second);
-		}), clipboardService, editorService, labelService, viewsService, chatEditingService, nativeHostService, '', context?.placeholder);
+		}), clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, '', context?.placeholder);
 	}
 
-	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, nativeHostService: INativeHostService, query: string = '', placeholder?: string) {
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickChatService: IQuickChatService, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[] | undefined, clipboardService: IClipboardService, editorService: IEditorService, labelService: ILabelService, viewsService: IViewsService, chatEditingService: IChatEditingService | undefined, hostService: IHostService, query: string = '', placeholder?: string) {
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
 			handleAccept: (item: IChatContextQuickPickItem) => {
 				if ('prefix' in item) {
-					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, nativeHostService, item.prefix, placeholder);
+					this._show(quickInputService, commandService, widget, quickChatService, quickPickItems, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, item.prefix, placeholder);
 				} else {
 					if (!clipboardService) {
 						return;
 					}
-					this._attachContext(widget, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, nativeHostService, item);
+					this._attachContext(widget, commandService, clipboardService, editorService, labelService, viewsService, chatEditingService, hostService, item);
 					if (isQuickChat(widget)) {
 						quickChatService.open();
 					}
