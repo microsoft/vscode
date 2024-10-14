@@ -40,7 +40,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
-import { getScreenshotViaDisplayMedia } from '../../../../platform/screenshot/browser/screenshot.js';
+import { getScreenshotViaDisplayMedia } from '../../../../base/browser/screenshot.js';
 
 enum HostShutdownReason {
 
