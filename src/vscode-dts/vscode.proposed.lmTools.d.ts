@@ -11,6 +11,8 @@ declare module 'vscode' {
 	/**
 	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}.
 	 */
+	// TODO@mjbvz: Having this + LanguageModelToolDescription feels confusing. Maybe call this `LanguageModelChatToolSignature`
+	// and make LanguageModelToolDescription have a `.signature` property?
 	export interface LanguageModelChatTool {
 		/**
 		 * The name of the tool.
@@ -20,6 +22,8 @@ declare module 'vscode' {
 		/**
 		 * The description of the tool.
 		 */
+		// TODO@mjbvz: Clarify that this is what the lm uses to select the tool? I think `LanguageModelToolDescription`
+		// already does this
 		description: string;
 
 		/**
@@ -33,12 +37,14 @@ declare module 'vscode' {
 		/**
 		 * An optional list of tools that are available to the language model.
 		 */
+		// TODO@mjbvz: Clarify that these can be both registered and private tools?
 		tools?: LanguageModelChatTool[];
 
 		/**
 		 * Force a specific tool to be used.
 		 */
 		// TODO@API?
+		// TODO@mjbvz: Is this the tool name? Or something else?
 		toolChoice?: string;
 	}
 
@@ -47,6 +53,7 @@ declare module 'vscode' {
 	 * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a
 	 * chat request.
 	 */
+	// TODO@mjbvz: We use the words `call` and `invocation`. Should we align on one?
 	export class LanguageModelToolCallPart {
 		/**
 		 * The name of the tool to call.
@@ -62,6 +69,7 @@ declare module 'vscode' {
 		/**
 		 * The parameters with which to call the tool.
 		 */
+		// TODO@mjbvz: Clarify where this needs to be json serializable.
 		parameters: object;
 
 		constructor(name: string, toolCallId: string, parameters: object);
@@ -99,6 +107,7 @@ declare module 'vscode' {
 		/**
 		 * The content of the tool result.
 		 */
+		// TODO@mjbvz: align the name with `value` from `LanguageModelTextPart`? Or use `content` for both of them
 		content: string;
 
 		constructor(toolCallId: string, content: string);
@@ -118,14 +127,16 @@ declare module 'vscode' {
 	 * A result returned from a tool invocation.
 	 */
 	// TODO@API should we align this with NotebookCellOutput and NotebookCellOutputItem
+	// TODO@mjbvz: +1, I'd also like to see these values wrapped in a class for future extensibility
 	export interface LanguageModelToolResult {
 		/**
 		 * The result can contain arbitrary representations of the content. A tool user can set
-		 * {@link LanguageModelToolInvocationOptions.requested} to request particular types, and a tool implementation should only
+		 * {@link LanguageModelToolInvocationOptions.requestedContentTypes} to request particular types, and a tool implementation should only
 		 * compute the types that were requested. `text/plain` is recommended to be supported by all tools, which would indicate
 		 * any text-based content. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the
 		 * `contentType` exported by that library.
 		 */
+		// TODO@mjbvz: can we make `PromptElementJSON` look like a real mimetype? Something like `application/vnd.vscode-prompt-element-json`?
 		[contentType: string]: any;
 	}
 
@@ -146,7 +157,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
@@ -166,6 +177,7 @@ declare module 'vscode' {
 		 *
 		 * If a tool invokes another tool during its invocation, it can pass along the `toolInvocationToken` that it received.
 		 */
+		// TODO@mjbvz: Should this be optional instead of | undefined? Or do we want caller to always have to explicitly list it?
 		toolInvocationToken: ChatParticipantToolToken | undefined;
 
 		/**
@@ -178,11 +190,16 @@ declare module 'vscode' {
 		 * A tool user can request that particular content types be returned from the tool, depending on what the tool user
 		 * supports. All tools are recommended to support `text/plain`. See {@link LanguageModelToolResult}.
 		 */
+		// TODO@mjbvz: Should we allow this to be omitted to get the default types? If it's required, the documentation should
+		// make this clear.
+		// TODO@mjbvz What happens if you request a content type that the tool doesn't support?
 		requestedContentTypes: string[];
 
 		/**
 		 * Options to hint at how many tokens the tool should return in its response.
 		 */
+		// TODO@mjbvz: Can we make it more clear that this is about text, not cancellation or the invocation? Maybe call this
+		// responseTokenOptions?
 		tokenOptions?: {
 			/**
 			 * If known, the maximum number of tokens the tool should emit in its result.
@@ -206,6 +223,7 @@ declare module 'vscode' {
 		/**
 		 * A unique name for the tool.
 		 */
+		// TODO@mjbvz: What happens when multiple tools register with the same name, such as `readFile`?
 		readonly name: string;
 
 		/**
@@ -217,19 +235,20 @@ declare module 'vscode' {
 		 * A JSON schema for the parameters this tool accepts.
 		 */
 		// TODO@API put simple sample in snippet
-		readonly parametersSchema?: object;
+		readonly parametersSchema: object | undefined;
 
 		/**
 		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
 		 */
 		// TODO@API put text/plain as default in snippet
-		readonly supportedContentTypes: string[];
+		// TODO@mjbvz: Name to make it clear this is about the result, not the invocation
+		readonly supportedContentTypes: readonly string[];
 
 		/**
 		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter
 		 * the set of tools to just ones that are relevant for the task at hand.
 		 */
-		readonly tags: string[];
+		readonly tags: readonly string[];
 	}
 
 	/**
