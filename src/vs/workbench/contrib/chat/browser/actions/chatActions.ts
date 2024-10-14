@@ -483,7 +483,7 @@ registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
 	}
 });
 
-export class ChatControlsCommandCenterRendering implements IWorkbenchContribution {
+export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.controls.commandCenterRendering';
 
