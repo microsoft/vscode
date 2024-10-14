@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNowByDay } from '../../../../../base/common/date.js';
@@ -11,42 +12,34 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2, ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { clearChatEditor } from './chatClear.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
+import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
-import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { toAction } from '../../../../../base/common/actions.js';
-import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
-import { Position } from '../../../../../editor/common/core/position.js';
-import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
-
-export interface IChatViewTitleActionContext {
-	chatView: ChatViewPane;
-}
-
-export function isChatViewTitleActionContext(obj: unknown): obj is IChatViewTitleActionContext {
-	return obj instanceof Object && 'chatView' in obj;
-}
+import { getScreenshotAsVariable } from '../contrib/screenshot.js';
+import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -64,6 +57,11 @@ export interface IChatViewOpenOptions {
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
 	previousRequests?: IChatViewOpenRequestEntry[];
+
+	/**
+	 * Whether a screenshot of the focused window should be taken and attached
+	 */
+	attachScreenshot?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -72,10 +70,13 @@ export interface IChatViewOpenRequestEntry {
 }
 
 class OpenChatGlobalAction extends Action2 {
+
+	static readonly TITLE = localize2('openChat', "Open Chat");
+
 	constructor() {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
-			title: localize2('openChat', "Open Chat"),
+			title: OpenChatGlobalAction.TITLE,
 			icon: Codicon.commentDiscussion,
 			f1: true,
 			category: CHAT_CATEGORY,
@@ -88,7 +89,7 @@ class OpenChatGlobalAction extends Action2 {
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,
-				group: 'open',
+				group: 'a_chat',
 				order: 1
 			}
 		});
@@ -105,6 +106,12 @@ class OpenChatGlobalAction extends Action2 {
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.attachScreenshot) {
+			const screenshot = await getScreenshotAsVariable();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(screenshot);
 			}
 		}
 		if (opts?.query) {
@@ -128,7 +135,7 @@ class ChatHistoryAction extends Action2 {
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.equals('view', CHAT_VIEW_ID),
 				group: 'navigation',
-				order: -1
+				order: 2
 			},
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
@@ -259,6 +266,7 @@ class ChatAddAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatInput,
+				when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
 				group: 'navigation',
 				order: 1
 			}
@@ -432,6 +440,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	order: 10001,
 });
 
+registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('chat.commandCenter.enabled', localize('toggle.chatControl', 'Chat Controls'), localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false, ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter')));
+	}
+});
+
 export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 	static readonly ID = 'chat.commandCenterRendering';
@@ -442,13 +456,9 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatAgentService agentService: IChatAgentService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextMenuService contextmenuService: IContextMenuService
 	) {
 
-		// TODO@jrieken this isn't proper
-		const key = `submenuitem.${MenuId.ChatCommandCenter.id}`;
-
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, key, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
 
 			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
 			if (!agent?.metadata.themeIcon) {
@@ -459,11 +469,15 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				return undefined;
 			}
 
-			const dropdownAction = toAction({ id: agent.id, label: agent.fullName ?? agent.name, run() { } });
+			const dropdownAction = toAction({
+				id: agent.id,
+				label: localize('more', "More..."),
+				run() { }
+			});
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: CHAT_OPEN_ACTION_ID,
-				title: agent.fullName ?? agent.name,
+				title: OpenChatGlobalAction.TITLE,
 				icon: agent.metadata.themeIcon,
 			}, undefined, undefined, undefined, undefined);
 

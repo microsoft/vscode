@@ -95,7 +95,7 @@ export class ChatDragAndDrop extends Themable {
 		e.preventDefault();
 
 		// Make sure to attach only new contexts
-		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
+		const currentContextIds = this.inputPart.attachmentModel.getAttachmentIDs();
 		const filteredContext = [];
 		for (const context of contexts) {
 			if (!currentContextIds.has(context.id)) {
@@ -104,7 +104,7 @@ export class ChatDragAndDrop extends Themable {
 			}
 		}
 
-		this.inputPart.attachContext(false, ...filteredContext);
+		this.inputPart.attachmentModel.addContext(...filteredContext);
 	}
 
 	private updateDropFeedback(e: DragEvent, dropType: ChatDragAndDropType | undefined): void {
@@ -196,7 +196,7 @@ export class ChatDragAndDrop extends Themable {
 			// Render the overlay text
 			const typeName = this.getDropTypeName(type);
 
-			const iconAndtextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${localize('attach', 'Attach')} ${typeName}`);
+			const iconAndtextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${localize('attach as context', 'Attach {0} as Context', typeName)}`);
 			const htmlElements = iconAndtextElements.map(element => {
 				if (typeof element === 'string') {
 					return $('span.overlay-text', undefined, element);

@@ -57,12 +57,16 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
-  - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
-    displayName: Install build dependencies
+  - script: |
+      set -e
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
+      ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y libkrb5-dev
+    displayName: Setup system services
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
       set -e
+
       for i in {1..5}; do # try 5 times
         npm ci && break
         if [ $i -eq 5 ]; then
@@ -134,7 +138,16 @@ steps:
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-    displayName: Upload sourcemaps (Web)
+    displayName: Upload sourcemaps (Web Main)
+
+  - script: |
+      set -e
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.internal.js.map
+    displayName: Upload sourcemaps (Web Internal)
 
     # upload only the workbench.web.main.js source maps because
     # we just compiled these bits in the previous step and the

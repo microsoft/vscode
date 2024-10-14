@@ -9,9 +9,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -80,14 +77,8 @@ steps:
 
   - script: |
       set -e
-      # Refs https://github.com/microsoft/vscode/issues/219893#issuecomment-2209313109
-      sudo xcode-select --switch /Applications/Xcode_15.2.app
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Switch to Xcode >= 15.1
-
-  - script: |
-      set -e
       c++ --version
+      xcode-select -print-path
       python3 -m pip install setuptools
 
       for i in {1..5}; do # try 5 times
@@ -164,7 +155,7 @@ steps:
       displayName: Build server (web)
 
   - ${{ else }}:
-      - script: npm run gulp transpile-client-swc transpile-extensions
+      - script: npm run gulp transpile-client-esbuild transpile-extensions
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
@@ -176,7 +167,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
 
   - ${{ elseif and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
@@ -197,6 +187,14 @@ steps:
         mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
         chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
       displayName: Make CLI executable
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+      displayName: Verify arch of Mach-O objects
 
     # Setting hardened entitlements is a requirement for:
     # * Apple notarization

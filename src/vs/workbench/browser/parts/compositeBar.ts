@@ -260,11 +260,15 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
 		this.model.setItems(items);
-		this.updateCompositeSwitcher();
+		this.updateCompositeSwitcher(true);
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {
 		return this.model.pinnedItems;
+	}
+
+	getPinnedCompositeIds(): string[] {
+		return this.getPinnedComposites().map(c => c.id);
 	}
 
 	getVisibleComposites(): ICompositeBarItem[] {
@@ -503,7 +507,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	private updateCompositeSwitcher(): void {
+	private updateCompositeSwitcher(donotTrigger?: boolean): void {
 		const compositeSwitcherBar = this.compositeSwitcherBar;
 		if (!compositeSwitcherBar || !this.dimension) {
 			return; // We have not been rendered yet so there is nothing to update.
@@ -622,7 +626,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
 
-		this._onDidChange.fire();
+		if (!donotTrigger) {
+			this._onDidChange.fire();
+		}
 	}
 
 	private getOverflowingComposites(): { id: string; name?: string }[] {
@@ -649,19 +655,22 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	getContextMenuActions(e?: MouseEvent | GestureEvent): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
-			.map(({ id, name, activityAction }) => (toAction({
-				id,
-				label: this.getAction(id).label || name || id,
-				checked: this.isPinned(id),
-				enabled: activityAction.enabled,
-				run: () => {
-					if (this.isPinned(id)) {
-						this.unpin(id);
-					} else {
-						this.pin(id, true);
+			.map(({ id, name, activityAction }) => {
+				const isPinned = this.isPinned(id);
+				return toAction({
+					id,
+					label: this.getAction(id).label || name || id,
+					checked: isPinned,
+					enabled: activityAction.enabled && (!isPinned || this.getPinnedCompositeIds().length > 1),
+					run: () => {
+						if (this.isPinned(id)) {
+							this.unpin(id);
+						} else {
+							this.pin(id, true);
+						}
 					}
-				}
-			})));
+				});
+			});
 
 		this.options.fillExtraContextMenuActions(actions, e);
 

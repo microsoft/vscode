@@ -14,7 +14,7 @@
 
 jschardet/index.js
 jschardet/src/**
-# TODO@esm uncomment when we can use jschardet.min.js again jschardet/dist/jschardet.js
+jschardet/dist/jschardet.js
 
 vscode-textmate/webpack.config.js
 

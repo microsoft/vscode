@@ -379,10 +379,10 @@ export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbfo
 
 export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
 	// Source is usually a single string on input. Convert back to an array
-	const result = {
+	const result: nbformat.ICell = {
 		...cell,
 		source: splitMultilineString(cell.source)
-	} as nbformat.ICell;
+	};
 
 	// Remove outputs and execution_count from non code cells
 	if (result.cell_type !== 'code') {

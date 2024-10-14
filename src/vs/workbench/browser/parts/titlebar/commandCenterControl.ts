@@ -57,7 +57,7 @@ export class CommandCenterControl {
 		});
 
 		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
-		this._disposables.add(Event.filter(quickInputService.onHide, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, true)));
+		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
 		this._disposables.add(titleToolbar);
 	}
 

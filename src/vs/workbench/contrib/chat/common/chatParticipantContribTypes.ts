@@ -13,7 +13,7 @@ export interface IRawChatCommandContribution {
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }
 
-export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook';
+export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export interface IRawChatParticipantContribution {
 	id: string;
@@ -29,7 +29,6 @@ export interface IRawChatParticipantContribution {
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
-	supportsToolReferences?: boolean;
 }
 
 /**

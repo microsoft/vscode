@@ -200,11 +200,11 @@ suite('InlineChatSession', function () {
 
 		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
 		assert.strictEqual(hunk.getState(), HunkState.Pending);
-		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 7 }));
+		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 8 }));
 
 		await makeEditAsAi(EditOperation.insert(new Position(1, 3), 'foobar'));
 		[hunk] = session.hunkData.getInfo();
-		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 }));
+		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 14 }));
 
 		inlineChatSessionService.releaseSession(session);
 

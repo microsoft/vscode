@@ -404,6 +404,15 @@
 	padding-bottom: 2px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title > .setting-indicators-container .setting-indicator.setting-item-preview {
+	color: var(--vscode-badge-foreground);
+	background: var(--vscode-badge-background);
+	font-style: italic;
+	margin-right: 4px;
+	padding: 0px 4px 2px;
+	border-radius: 4px;
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .codicon {
 	vertical-align: middle;
 	padding-left: 1px;
