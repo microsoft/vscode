@@ -65,7 +65,7 @@ export class StartSessionAction extends EditorAction2 {
 			},
 			icon: START_INLINE_CHAT,
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatControlsCommandCenter,
 				group: 'b_inlineChat',
 				order: 10,
 			}

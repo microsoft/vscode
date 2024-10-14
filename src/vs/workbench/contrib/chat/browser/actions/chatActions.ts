@@ -23,12 +23,15 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -95,7 +98,7 @@ class OpenChatGlobalAction extends Action2 {
 				}
 			},
 			menu: {
-				id: MenuId.ChatCommandCenter,
+				id: MenuId.ChatControlsCommandCenter,
 				group: 'a_chat',
 				order: 1
 			}
@@ -426,6 +429,9 @@ export function registerChatActions() {
 			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
+
+	registerAction2(InstallChatGlobalAction);
+	registerAction2(LearnMoreChatAction);
 }
 
 export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
@@ -437,10 +443,10 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 }
 
 
-// --- command center chat
+// --- command center chat controls
 
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
-	submenu: MenuId.ChatCommandCenter,
+	submenu: MenuId.ChatControlsCommandCenter,
 	title: localize('title4', "Chat"),
 	icon: Codicon.commentDiscussion,
 	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
@@ -453,9 +459,9 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 	}
 });
 
-export class ChatCommandCenterRendering implements IWorkbenchContribution {
+export class ChatControlsCommandCenterRendering implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.commandCenterRendering';
+	static readonly ID = 'chat.controls.commandCenterRendering';
 
 	private readonly _store = new DisposableStore();
 
@@ -465,7 +471,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 
-		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatCommandCenter, (action, options) => {
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatControlsCommandCenter, (action, options) => {
 
 			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
 			if (!agent?.metadata.themeIcon) {
@@ -499,5 +505,123 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 	dispose() {
 		this._store.dispose();
+	}
+}
+
+// --- command center chat installation
+
+MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
+	submenu: MenuId.ChatInstallCommandCenter,
+	title: localize('title4', "Chat"),
+	icon: Codicon.copilot,
+	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall')),
+	order: 10001,
+});
+
+registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('chat.experimental.offerInstall', localize('toggle.chatInstall', 'Chat Installation'), localize('toggle.chatInstallDescription', "Toggle visibility of the Chat Install button in title bar"), 3, false, ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.window.commandCenter')));
+	}
+});
+
+export class ChatInstallCommandCenterRendering implements IWorkbenchContribution {
+
+	static readonly ID = 'chat.install.commandCenterRendering';
+
+	private readonly _store = new DisposableStore();
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IChatAgentService agentService: IChatAgentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+
+		this._store.add(actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatInstallCommandCenter, (action, options) => {
+
+			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
+			if (agent) {
+				return undefined;
+			}
+
+			if (!(action instanceof SubmenuItemAction)) {
+				return undefined;
+			}
+
+			const dropdownAction = toAction({
+				id: 'agent.id',
+				label: localize('more', "More..."),
+				run() { }
+			});
+
+			const primaryAction = instantiationService.createInstance(MenuItemAction, {
+				id: InstallChatGlobalAction.ID,
+				title: InstallChatGlobalAction.TITLE,
+				icon: Codicon.copilot,
+			}, undefined, undefined, undefined, undefined);
+
+			return instantiationService.createInstance(
+				DropdownWithPrimaryActionViewItem,
+				primaryAction, dropdownAction, action.actions,
+				'', options
+			);
+
+		}, agentService.onDidChangeAgents));
+	}
+
+	dispose() {
+		this._store.dispose();
+	}
+}
+
+class InstallChatGlobalAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.install';
+	static readonly TITLE = localize2('installChat', "Install Copilot Chat");
+
+	constructor() {
+		super({
+			id: InstallChatGlobalAction.ID,
+			title: InstallChatGlobalAction.TITLE,
+			icon: Codicon.copilot,
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ChatInstallCommandCenter,
+				group: 'a_chat',
+				order: 1
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		await extensionsWorkbenchService.install('GitHub.copilot', {
+			justification: localize('installChatGlobalAction.justification', "Chat and AI support requires this extension."),
+			enable: true
+		}, ProgressLocation.Notification);
+	}
+}
+
+class LearnMoreChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.learnMore';
+	static readonly TITLE = localize2('learnMore', "Learn More");
+
+	constructor() {
+		super({
+			id: LearnMoreChatAction.ID,
+			title: LearnMoreChatAction.TITLE,
+			icon: Codicon.copilot,
+			category: CHAT_CATEGORY,
+			menu: {
+				id: MenuId.ChatInstallCommandCenter,
+				group: 'a_chat',
+				order: 2
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, opts?: string | IChatViewOpenOptions): Promise<void> {
+		const openerService = accessor.get(IOpenerService);
+		openerService.open(URI.parse('https://aka.ms/copilot-overview'));
 	}
 }
