@@ -76,7 +76,7 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 	// If the clipboard has only one line, a warning should never show
 	const textForLines = text.split(/\r?\n/);
 
-	const isSmartPasteAllowed = configurationService.getValue(TerminalSettingId.AllowSmartPaste);
+	const isSmartPasteAllowed = configurationService.getValue(TerminalSettingId.EnableSmartPaste);
 	// If the string is a path process it depending on the shell type
 	// multi line strings aren't handled
 	let modifiedText = text;
