@@ -485,7 +485,7 @@ registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
 
 export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
-	static readonly ID = 'chat.controls.commandCenterRendering';
+	static readonly ID = 'chat.commandCenterRendering';
 
 	private readonly _store = new DisposableStore();
 
@@ -502,16 +502,16 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			}
 
 			const dropdownAction = toAction({
-				id: 'more',
+				id: 'chat.commandCenter.more',
 				label: localize('more', "More..."),
 				run() { }
 			});
 
-			const agent = agentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const hasChatExtension = !!agentService.getDefaultAgent(ChatAgentLocation.Panel);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: agent ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
-				title: agent ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
+				id: hasChatExtension ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
+				title: hasChatExtension ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
 				icon: Codicon.copilot,
 			}, undefined, undefined, undefined, undefined);
 
