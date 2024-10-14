@@ -65,12 +65,6 @@ export interface IChatViewOpenOptions {
 	attachScreenshot?: boolean;
 }
 
-export interface IChatImageAttachment {
-	id: string;
-	name: string;
-	value: URI | Uint8Array;
-}
-
 export interface IChatViewOpenRequestEntry {
 	request: string;
 	response: string;
