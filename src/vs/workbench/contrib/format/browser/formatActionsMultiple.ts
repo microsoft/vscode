@@ -90,7 +90,7 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		DefaultFormatter.extensionItemLabels.length = 0;
 		DefaultFormatter.extensionDescriptions.length = 0;
 
-		DefaultFormatter.extensionIds.push(null);
+		DefaultFormatter.extensionIds.push('null');
 		DefaultFormatter.extensionItemLabels.push(nls.localize('null', 'None'));
 		DefaultFormatter.extensionDescriptions.push(nls.localize('nullFormatterDescription', "None"));
 
@@ -251,7 +251,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[DefaultFormatter.configName]: {
 			description: nls.localize('formatter.default', "Defines a default formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
 			type: ['string', 'null'],
-			default: null,
+			default: 'null',
 			enum: DefaultFormatter.extensionIds,
 			enumItemLabels: DefaultFormatter.extensionItemLabels,
 			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
