@@ -25,6 +25,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
@@ -536,10 +537,12 @@ abstract class BaseInstallChatAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
+		const productService = accessor.get(IProductService);
 
 		await extensionsWorkbenchService.install('GitHub.copilot-chat', {
 			justification: this.getJustification(),
-			enable: true
+			enable: true,
+			installPreReleaseVersion: productService.quality !== 'stable'
 		}, ProgressLocation.Notification);
 
 		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
