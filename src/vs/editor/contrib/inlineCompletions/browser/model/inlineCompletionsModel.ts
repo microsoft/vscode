@@ -59,6 +59,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
+		private readonly _shouldHideInlineEdit: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -278,6 +279,8 @@ export class InlineCompletionsModel extends Disposable {
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
+
+			if (this._shouldHideInlineEdit.read(reader)) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const currentItemIsCollapsed = cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId;
