@@ -254,6 +254,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		observerDisposables.add(chatModel.onDidChange(e => {
 			if (e.kind === 'addRequest') {
+				allSeenEdits.clear();
 				const responseModel = e.request.response;
 				if (responseModel) {
 					if (responseModel.isComplete) {
