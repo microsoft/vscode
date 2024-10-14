@@ -6,27 +6,27 @@
 class SmartPasteUtils {
 	/**
 	 * Check if the input string looks like a path
-	 * @param string input string, returns true if it looks like a path
+	 * @param text input string, returns true if it looks like a path
 	 */
-	static isPathLike(string: string): boolean {
+	static isPathLike(text: string): boolean {
 		// Regex to detect common path formats
 		const windowsPathPattern = /^[a-zA-Z]:(\\|\/)/;  // Windows absolute path
 		const windowsUNCPathPattern = /^\\\\/;             // Windows UNC path
 		const unixPathPattern = /^\/|(\w+\/)/;      // Unix/Linux/macOS paths
 
-		return windowsPathPattern.test(string) ||
-			windowsUNCPathPattern.test(string) ||
-			unixPathPattern.test(string);
+		return windowsPathPattern.test(text) ||
+			windowsUNCPathPattern.test(text) ||
+			unixPathPattern.test(text);
 	}
 
 	/**
 	 * Handles smartPaste for paths depending on the type of the terminal
-	 * @param string the string that's going to be pasted on the terminal
+	 * @param text the string that's going to be pasted on the terminal
 	 * @param shellType the type of terminal on which the paste operation was done
 	 */
-	static handleSmartPaste(string: string, shellType: string): string {
-		if (!SmartPasteUtils.isPathLike(string)) {
-			return string;  // Return the string as is if it's not detected as a path
+	static handleSmartPaste(text: string, shellType: string): string {
+		if (!SmartPasteUtils.isPathLike(text)) {
+			return text;  // Return the string as is if it's not detected as a path
 		}
 
 		switch (shellType) {
@@ -34,8 +34,8 @@ class SmartPasteUtils {
 			case 'cmd':
 				{
 					// Escape backslashes and wrap in double quotes if necessary
-					const escapedPath = string.replace(/\\/g, '\\\\');
-					if (string.includes(' ')) {
+					const escapedPath = text.replace(/\\/g, '\\\\');
+					if (text.includes(' ')) {
 						return `"${escapedPath}"`;
 					}
 					return escapedPath;
@@ -43,20 +43,20 @@ class SmartPasteUtils {
 
 			case 'bash':  // Linux/macOS Bash
 				// Wrap in quotes if spaces or special characters exist
-				if (string.includes(' ')) {
-					return `"${string}"`;
+				if (text.includes(' ')) {
+					return `"${text}"`;
 				}
-				return string;
+				return text;
 
 			case 'pwsh':
 				// Simply wrap in quotes if spaces are present
-				if (string.includes(' ')) {
-					return `"${string}"`;
+				if (text.includes(' ')) {
+					return `"${text}"`;
 				}
-				return string;
+				return text;
 
 			default:
-				return string;  // If shell type is unknown, return string as is
+				return text;  // If shell type is unknown, return text as is
 		}
 	}
 }
