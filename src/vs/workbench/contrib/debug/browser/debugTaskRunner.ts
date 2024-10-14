@@ -286,8 +286,8 @@ export class DebugTaskRunner implements IDisposable {
 					}
 				}, waitTime));
 
-				const hidePreLaunchNotification = this.configurationService.getValue<IDebugConfiguration>('debug').hidePreLaunchNotification;
-				if (!hidePreLaunchNotification) {
+				const hideSlowPreLaunchWarning = this.configurationService.getValue<IDebugConfiguration>('debug').hideSlowPreLaunchWarning;
+				if (!hideSlowPreLaunchWarning) {
 					// Notification shown on any task taking a while to resolve
 					store.add(disposableTimeout(() => {
 						const message = nls.localize('runningTask', "Waiting for preLaunchTask '{0}'...", task.configurationProperties.name);
