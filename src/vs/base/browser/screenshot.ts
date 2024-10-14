@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { addDisposableListener, getActiveWindow } from './dom.js';
+import { DisposableStore, toDisposable } from '../common/lifecycle.js';
 
 interface IBoundingBox {
 	x: number;

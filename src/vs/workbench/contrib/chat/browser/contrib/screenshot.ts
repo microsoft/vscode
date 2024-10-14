@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { generateFocusedWindowScreenshot } from '../../../../../base/browser/screenshot.js';
 import { localize } from '../../../../../nls.js';
-import { generateFocusedWindowScreenshot } from '../../../../../platform/screenshot/browser/screenshot.js';
+
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 
 export const ScreenshotVariableId = 'screenshot-focused-window';
