@@ -12,7 +12,6 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -84,12 +83,12 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 	}
 });
 
-registerAction2(class OpenFileAction extends WorkingSetAction {
+registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 	constructor() {
 		super({
-			id: 'chatEditing.openFile',
-			title: localize2('open.file', 'Open File'),
-			icon: Codicon.goToFile,
+			id: 'chatEditing.openFileInDiff',
+			title: localize2('open.fileInDiff', 'Open Changes in Diff Editor'),
+			icon: Codicon.diff,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
@@ -99,9 +98,19 @@ registerAction2(class OpenFileAction extends WorkingSetAction {
 		});
 	}
 
-	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
+	async runWorkingSetAction(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession, _chatWidget: IChatWidget, ...uris: URI[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		await Promise.all(uris.map((uri) => editorService.openEditor({ resource: uri, options: { pinned: true, activation: EditorActivation.ACTIVATE } })));
+		for (const uri of uris) {
+			const editedFile = currentEditingSession.entries.get().find((e) => e.modifiedURI.toString() === uri.toString());
+			if (editedFile?.state.get() === WorkingSetEntryState.Modified) {
+				await editorService.openEditor({
+					original: { resource: URI.from(editedFile.originalURI, true) },
+					modified: { resource: URI.from(editedFile.modifiedURI, true) },
+				});
+			} else {
+				await editorService.openEditor({ resource: uri });
+			}
+		}
 	}
 });
 
