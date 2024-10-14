@@ -43,7 +43,22 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 		items: {
 			additionalProperties: false,
 			type: 'object',
-			defaultSnippets: [{ body: { name: '', description: '' } }],
+			defaultSnippets: [{
+				body: {
+					name: '${1}',
+					modelDescription: '${2}',
+					parametersSchema: {
+						type: 'object',
+						properties: {
+							'${3:paramName}': {
+								type: 'string',
+								description: '${4:description}'
+							}
+						}
+					},
+					supportedContentTypes: ['text/plain'],
+				}
+			}],
 			required: ['name', 'displayName', 'modelDescription'],
 			properties: {
 				name: {
@@ -106,7 +121,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'array',
 					items: {
 						type: 'string'
-					}
+					},
+					default: ['text/plain']
 				},
 				tags: {
 					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),

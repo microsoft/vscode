@@ -56,15 +56,14 @@ declare module 'vscode' {
 		/**
 		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
 		 */
-		// TODO@API name callId
-		toolCallId: string;
+		callId: string;
 
 		/**
 		 * The parameters with which to call the tool.
 		 */
 		parameters: object;
 
-		constructor(name: string, toolCallId: string, parameters: object);
+		constructor(name: string, callId: string, parameters: object);
 	}
 
 	/**
@@ -93,15 +92,14 @@ declare module 'vscode' {
 		/**
 		 * The ID of the tool call.
 		 */
-		// TODO@API name callId
-		toolCallId: string;
+		callId: string;
 
 		/**
 		 * The content of the tool result.
 		 */
 		content: string;
 
-		constructor(toolCallId: string, content: string);
+		constructor(callId: string, content: string);
 	}
 
 	export interface LanguageModelChatMessage {
@@ -140,8 +138,7 @@ declare module 'vscode' {
 		/**
 		 * A list of all available tools.
 		 */
-		// TODO@API nit `readonly LanguageModelToolDescription[]`
-		export const tools: ReadonlyArray<LanguageModelToolDescription>;
+		export const tools: readonly LanguageModelToolDescription[];
 
 		/**
 		 * Invoke a tool with the given parameters.
@@ -216,13 +213,11 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
-		// TODO@API put simple sample in snippet
 		readonly parametersSchema?: object;
 
 		/**
 		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
 		 */
-		// TODO@API put text/plain as default in snippet
 		readonly supportedContentTypes: string[];
 
 		/**
@@ -249,7 +244,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options for {@link LanguageModelTool.prepareToolInvocation}.
+	 * Options for {@link LanguageModelTool.prepareInvocation}.
 	 */
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
 		/**
@@ -265,21 +260,21 @@ declare module 'vscode' {
 		/**
 		 * Invoke the tool with the given parameters and return a result.
 		 *
-		 * TODO@API options.parameters have been validated against the scheme at.
+		 * The provided {@link LanguageModelToolInvocationOptions.parameters} have been validated against the schema declared for
+		 * this tool.
 		 */
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
 		/**
 		 * Called once before a tool is invoked. May be implemented to signal that a tool needs user confirmation before running,
-		 * and to customize the progress message that appears while the tool is running.
+		 * and to customize the progress message that appears while the tool is running. Must be free of side-effects. A call to
+		 * `prepareInvocation` is not necessarily followed by a call to `invoke`.
 		 */
-		// TODO@API must be side-effect free, not every prepare does an invoke
-		// TODO@API name: prepare, prepareInvocation
-		prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
+		prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 	}
 
 	/**
-	 * The result of a call to {@link LanguageModelTool.prepareToolInvocation}.
+	 * The result of a call to {@link LanguageModelTool.prepareInvocation}.
 	 */
 	export interface PreparedToolInvocation {
 		/**

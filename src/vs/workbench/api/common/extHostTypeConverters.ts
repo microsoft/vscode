@@ -2370,14 +2370,14 @@ export namespace LanguageModelChatMessage {
 			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',
-					toolCallId: c.toolCallId,
+					toolCallId: c.callId,
 					value: c.content,
 					isError: c.isError
 				};
 			} else if (c instanceof types.LanguageModelToolCallPart) {
 				return {
 					type: 'tool_use',
-					toolCallId: c.toolCallId,
+					toolCallId: c.callId,
 					name: c.name,
 					parameters: c.parameters
 				};

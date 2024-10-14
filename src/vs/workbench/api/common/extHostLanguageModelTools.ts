@@ -127,11 +127,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		if (!item.tool.prepareToolInvocation) {
+		if (!item.tool.prepareInvocation) {
 			return undefined;
 		}
 
-		const result = await item.tool.prepareToolInvocation({ parameters }, token);
+		const result = await item.tool.prepareInvocation({ parameters }, token);
 		if (!result) {
 			return undefined;
 		}

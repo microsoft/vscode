@@ -4585,12 +4585,12 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
-	toolCallId: string;
+	callId: string;
 	content: string;
 	isError: boolean;
 
-	constructor(toolCallId: string, content: string, isError?: boolean) {
-		this.toolCallId = toolCallId;
+	constructor(callId: string, content: string, isError?: boolean) {
+		this.callId = callId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
@@ -4623,12 +4623,12 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	name: string;
-	toolCallId: string;
+	callId: string;
 	parameters: any;
 
 	constructor(name: string, toolCallId: string, parameters: any) {
 		this.name = name;
-		this.toolCallId = toolCallId;
+		this.callId = toolCallId;
 		this.parameters = parameters;
 	}
 }
