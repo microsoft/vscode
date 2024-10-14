@@ -19,6 +19,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -528,9 +529,26 @@ export class ChatControlsCommandCenterRendering implements IWorkbenchContributio
 	}
 }
 
-class InstallChatWithPromptAction extends Action2 {
+abstract class BaseInstallChatAction extends Action2 {
 
-	static readonly ID = 'workbench.action.chat.globalInstall';
+	protected abstract getJustification(): string | undefined;
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const commandService = accessor.get(ICommandService);
+
+		await extensionsWorkbenchService.install('GitHub.copilot-chat', {
+			justification: this.getJustification(),
+			enable: true
+		}, ProgressLocation.Notification);
+
+		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+	}
+}
+
+class InstallChatWithPromptAction extends BaseInstallChatAction {
+
+	static readonly ID = 'workbench.action.chat.installWithPrompt';
 	static readonly TITLE = localize2('installChat', "Install GitHub Copilot Chat");
 
 	constructor() {
@@ -543,18 +561,14 @@ class InstallChatWithPromptAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		await extensionsWorkbenchService.install('GitHub.copilot-chat', {
-			justification: localize('installChatGlobalAction.justification', "Chat and AI support requires this extension."),
-			enable: true
-		}, ProgressLocation.Notification);
+	protected getJustification(): string {
+		return localize('installChatGlobalAction.justification', "Chat and AI support requires this extension.");
 	}
 }
 
-class InstallChatWithoutPromptAction extends Action2 {
+class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 
-	static readonly ID = 'workbench.action.chat.install';
+	static readonly ID = 'workbench.action.chat.installWithoutPrompt';
 	static readonly TITLE = localize2('installChat', "Install GitHub Copilot Chat");
 
 	constructor() {
@@ -573,9 +587,8 @@ class InstallChatWithoutPromptAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		await extensionsWorkbenchService.install('GitHub.copilot-chat', { enable: true }, ProgressLocation.Notification);
+	protected getJustification(): string | undefined {
+		return undefined;
 	}
 }
 
