@@ -10,9 +10,10 @@ class SmartPasteUtils {
 	 */
 	static isPathLike(text: string): boolean {
 		// Regex to detect common path formats
-		const windowsPathPattern = /^[a-zA-Z]:(\\|\/)/;  // Windows absolute path
+
+		const windowsPathPattern = /^[a-zA-Z]:(?:\\|\/)/;  // Windows absolute path
 		const windowsUNCPathPattern = /^\\\\/;             // Windows UNC path
-		const unixPathPattern = /^\/|(\w+\/)/;      // Unix/Linux/macOS paths
+		const unixPathPattern = /^\/|(?:\w+\/)/; // Unix/Linux/macOS paths
 
 		return windowsPathPattern.test(text) ||
 			windowsUNCPathPattern.test(text) ||
