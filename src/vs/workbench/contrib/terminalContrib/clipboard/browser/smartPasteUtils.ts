@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * Manages all the terminal smart paste related operations
+ */
 export class SmartPasteUtils {
 	/**
 	 * Check if the input string looks like a path
