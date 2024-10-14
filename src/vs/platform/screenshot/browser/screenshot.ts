@@ -3,54 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getActiveWindow } from '../../../base/browser/dom.js';
+import { addDisposableListener } from '../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 
-interface IBoundingBox {
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-
-	left: number;
-	top: number;
-	right: number;
-	bottom: number;
-}
-
-class BoundingBox implements IBoundingBox {
-	constructor(
-		public readonly x: number,
-		public readonly y: number,
-		public readonly width: number,
-		public readonly height: number,
-	) { }
-
-	get left() { return this.x; }
-	get top() { return this.y; }
-	get right() { return this.x + this.width; }
-	get bottom() { return this.y + this.height; }
-}
-
-// TODO: Improve names
-export async function generateFocusedWindowScreenshot(): Promise<ArrayBuffer | undefined> {
-	try {
-		const windowBounds = getActiveWindowBounds();
-		if (!windowBounds) {
-			return;
-		}
-		return takeScreenshotOfDisplay(windowBounds);
-	} catch (err) {
-		console.error('Error taking screenshot:', err);
-		return undefined;
-	}
-}
-
-async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<ArrayBuffer | undefined> {
-	const windowBounds = getActiveWindowBounds();
-	if (!windowBounds) {
-		return undefined;
-	}
+export async function getScreenshotViaDisplayMedia(): Promise<ArrayBuffer | undefined> {
 	const store = new DisposableStore();
 
 	// Create a video element to play the captured screen source
@@ -77,13 +33,9 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 			new Promise<void>(r => store.add(addDisposableListener(video, 'canplaythrough', () => r())))
 		]);
 
-		// Create a canvas element with the size of the cropped region
-		if (!cropDimensions) {
-			cropDimensions = new BoundingBox(0, 0, video.videoWidth, video.videoHeight);
-		}
 		const canvas = document.createElement('canvas');
-		canvas.width = cropDimensions.width;
-		canvas.height = cropDimensions.height;
+		canvas.width = video.videoWidth;
+		canvas.height = video.videoHeight;
 
 		const ctx = canvas.getContext('2d');
 		if (!ctx) {
@@ -91,12 +43,7 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 		}
 
 		// Draw the portion of the video (x, y) with the specified width and height
-		ctx.drawImage(video,
-			// Source
-			cropDimensions.x, cropDimensions.y, cropDimensions.width, cropDimensions.height,
-			// Dest
-			0, 0, cropDimensions.width, cropDimensions.height,
-		);
+		ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
 		// Convert the canvas to a Blob (JPEG format), use .95 for quality
 		const blob: Blob | null = await new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95));
@@ -119,22 +66,3 @@ async function takeScreenshotOfDisplay(cropDimensions?: IBoundingBox): Promise<A
 		}
 	}
 }
-
-
-function getActiveWindowBounds(): IBoundingBox | undefined {
-	const window = getActiveWindow();
-	if (!window) {
-		return;
-	}
-	const displayOffsetX = 'availLeft' in window.screen && typeof window.screen.availLeft === 'number' ? window.screen.availLeft : 0;
-	const displayOffsetY = 'availTop' in window.screen && typeof window.screen.availTop === 'number' ? window.screen.availTop : 0;
-	// This handling of dimensions is flaky, if the the active windoow is on the first monitor and
-	// DPRs differ this may not work properly.
-	return new BoundingBox(
-		Math.round((window.screenX - displayOffsetX) * window.devicePixelRatio),
-		Math.round((window.screenY - displayOffsetY) * window.devicePixelRatio),
-		Math.round(window.innerWidth * window.devicePixelRatio),
-		Math.round(window.innerHeight * window.devicePixelRatio),
-	);
-}
-
