@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-class SmartPasteUtils {
+export class SmartPasteUtils {
 	/**
 	 * Check if the input string looks like a path
 	 * @param text input string, returns true if it looks like a path
