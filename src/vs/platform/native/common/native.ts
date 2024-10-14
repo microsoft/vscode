@@ -143,6 +143,9 @@ export interface ICommonNativeHostService {
 
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
+	// Screenshots
+	getScreenshot(windowId: number | undefined): Promise<ArrayBufferLike | undefined>;
+
 	// Process
 	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
