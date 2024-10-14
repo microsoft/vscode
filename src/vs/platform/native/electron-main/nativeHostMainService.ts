@@ -687,6 +687,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#endregion
 
 
+	//#region Screenshots
+
+	async getScreenshot(windowId: number | undefined): Promise<ArrayBufferLike | undefined> {
+		const window = this.windowById(undefined, windowId);
+		const captured = await window?.win?.webContents.capturePage();
+		return captured?.toJPEG(95);
+	}
+
+	//#endregion
+
+
 	//#region Process
 
 	async getProcessId(windowId: number | undefined): Promise<number | undefined> {

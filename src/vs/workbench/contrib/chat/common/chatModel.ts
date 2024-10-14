@@ -16,7 +16,7 @@ import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/co
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IOffsetRange, OffsetRange } from '../../../../editor/common/core/offsetRange.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatWelcomeMessageContent, reviveSerializedAgent } from './chatAgents.js';
@@ -24,7 +24,7 @@ import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 
-export interface IChatRequestVariableEntry {
+export interface IBaseChatRequestVariableEntry {
 	id: string;
 	fullName?: string;
 	icon?: ThemeIcon;
@@ -35,7 +35,8 @@ export interface IChatRequestVariableEntry {
 	references?: IChatContentReference[];
 	mimeType?: string;
 
-	// TODO are these just a 'kind'?
+	// TODO these represent different kinds, should be extracted to new interfaces with kind tags
+	kind?: unknown;
 	/**
 	 * True if the variable has a value vs being a reference to a variable
 	 */
@@ -43,6 +44,18 @@ export interface IChatRequestVariableEntry {
 	isFile?: boolean;
 	isTool?: boolean;
 	isImage?: boolean;
+}
+
+export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
+	readonly kind: 'implicit';
+	readonly value: URI | Location | undefined;
+	enabled: boolean;
+}
+
+export type IChatRequestVariableEntry = IChatRequestImplicitVariableEntry | IBaseChatRequestVariableEntry;
+
+export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestImplicitVariableEntry {
+	return obj.kind === 'implicit';
 }
 
 export function isChatRequestVariableEntry(obj: unknown): obj is IChatRequestVariableEntry {

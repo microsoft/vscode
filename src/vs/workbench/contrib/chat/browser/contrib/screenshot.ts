@@ -4,21 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { generateFocusedWindowScreenshot } from '../../../../../platform/screenshot/browser/screenshot.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 
 export const ScreenshotVariableId = 'screenshot-focused-window';
 
-export async function getScreenshotAsVariable(): Promise<IChatRequestVariableEntry | undefined> {
-	const screenshot = await generateFocusedWindowScreenshot();
-	if (!screenshot) {
-		return;
-	}
-
+export function convertBufferToScreenshotVariable(buffer: ArrayBufferLike): IChatRequestVariableEntry {
 	return {
 		id: ScreenshotVariableId,
 		name: localize('screenshot', 'Screenshot'),
-		value: new Uint8Array(screenshot),
+		value: new Uint8Array(buffer),
 		isImage: true,
 		isDynamic: true
 	};

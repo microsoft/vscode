@@ -8,8 +8,6 @@
 
 declare module 'vscode' {
 
-	// TODO@API capabilities
-
 	/**
 	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}.
 	 */
@@ -31,7 +29,7 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelChatRequestOptions {
-		// TODO@API this will be a heterogeneous array of different types of tools
+
 		/**
 		 * An optional list of tools that are available to the language model.
 		 */
@@ -40,6 +38,7 @@ declare module 'vscode' {
 		/**
 		 * Force a specific tool to be used.
 		 */
+		// TODO@API?
 		toolChoice?: string;
 	}
 
@@ -57,6 +56,7 @@ declare module 'vscode' {
 		/**
 		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
 		 */
+		// TODO@API name callId
 		toolCallId: string;
 
 		/**
@@ -82,9 +82,8 @@ declare module 'vscode' {
 	export interface LanguageModelChatResponse {
 		/**
 		 * A stream of parts that make up the response. Could be extended with more types in the future.
-		 * TODO@API add "| unknown"?
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>;
 	}
 
 	/**
@@ -94,6 +93,7 @@ declare module 'vscode' {
 		/**
 		 * The ID of the tool call.
 		 */
+		// TODO@API name callId
 		toolCallId: string;
 
 		/**
@@ -140,6 +140,7 @@ declare module 'vscode' {
 		/**
 		 * A list of all available tools.
 		 */
+		// TODO@API nit `readonly LanguageModelToolDescription[]`
 		export const tools: ReadonlyArray<LanguageModelToolDescription>;
 
 		/**
@@ -215,11 +216,13 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
+		// TODO@API put simple sample in snippet
 		readonly parametersSchema?: object;
 
 		/**
 		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
 		 */
+		// TODO@API put text/plain as default in snippet
 		readonly supportedContentTypes: string[];
 
 		/**
@@ -261,6 +264,8 @@ declare module 'vscode' {
 	export interface LanguageModelTool<T> {
 		/**
 		 * Invoke the tool with the given parameters and return a result.
+		 *
+		 * TODO@API options.parameters have been validated against the scheme at.
 		 */
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
@@ -268,6 +273,8 @@ declare module 'vscode' {
 		 * Called once before a tool is invoked. May be implemented to signal that a tool needs user confirmation before running,
 		 * and to customize the progress message that appears while the tool is running.
 		 */
+		// TODO@API must be side-effect free, not every prepare does an invoke
+		// TODO@API name: prepare, prepareInvocation
 		prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 	}
 
@@ -293,6 +300,7 @@ declare module 'vscode' {
 		/**
 		 * The tool's ID. Refers to a tool listed in {@link lm.tools}.
 		 */
+		// TODO@API name
 		readonly id: string;
 
 		/**

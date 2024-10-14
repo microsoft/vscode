@@ -924,7 +924,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			const attachedContext = [...this.attachmentModel.attachments];
+			const attachedContext = this.inputPart.getAttachedAndImplicitContext();
 			if (this.location === ChatAgentLocation.EditingSession) {
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
 				if (currentEditingSession?.workingSet) {
@@ -939,7 +939,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: attachedContext
+				attachedContext
 			});
 
 			if (result) {
@@ -1147,18 +1147,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 }
 
-export class ChatWidgetService implements IChatWidgetService {
+export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _widgets: ChatWidget[] = [];
 	private _lastFocusedWidget: ChatWidget | undefined = undefined;
 
+	private readonly _onDidAddWidget = this._register(new Emitter<ChatWidget>());
+	readonly onDidAddWidget: Event<IChatWidget> = this._onDidAddWidget.event;
+
 	get lastFocusedWidget(): IChatWidget | undefined {
 		return TerminalChatController.activeChatController?.chatWidget ?? this._lastFocusedWidget;
 	}
 
-	constructor() { }
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
+		return this._widgets.filter(w => w.location === location);
+	}
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
@@ -1186,6 +1191,7 @@ export class ChatWidgetService implements IChatWidgetService {
 		}
 
 		this._widgets.push(newWidget);
+		this._onDidAddWidget.fire(newWidget);
 
 		return combinedDisposable(
 			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),

@@ -74,6 +74,7 @@ import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../common/languageModels.js';
 import { CancelAction, ChatModelPickerActionId, ChatSubmitSecondaryAgentAction, IChatExecuteActionContext, SubmitAction } from './actions/chatExecuteActions.js';
+import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
@@ -81,6 +82,7 @@ import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentPart
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
+import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 
 const $ = dom.$;
 
@@ -124,7 +126,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachmentModel;
 	}
 
+	public getAttachedAndImplicitContext(): IChatRequestVariableEntry[] {
+		const contextArr = [...this.attachmentModel.attachments];
+		if (this.implicitContext.enabled && this.implicitContext.value) {
+			contextArr.push(this.implicitContext.toBaseEntry());
+		}
+
+		return contextArr;
+	}
+
 	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
+
+	private readonly _implicitContext = this._register(new ChatImplicitContext());
+	public get implicitContext(): ChatImplicitContext {
+		return this._implicitContext;
+	}
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
@@ -504,8 +520,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
-		this.initAttachedContext(this.attachedContextContainer);
-		this._register(this._attachmentModel.onDidChangeContext(() => this.initAttachedContext(this.attachedContextContainer)));
+		this.renderAttachedContext();
+		this._register(this._implicitContext.onDidChangeValue(() => this.renderAttachedContext()));
+		this._register(this._attachmentModel.onDidChangeContext(() => this.renderAttachedContext()));
 		this.renderChatEditingSessionState(null, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
@@ -671,7 +688,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 	}
 
-	private async initAttachedContext(container: HTMLElement, isLayout = false) {
+	private async renderAttachedContext(isLayout = false) {
+		const container = this.attachedContextContainer;
 		this.attachedContextDisposables.clear();
 		const store = new DisposableStore;
 		this.attachedContextDisposables.value = store;
@@ -679,9 +697,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
-		dom.setVisibility(Boolean(this.attachmentModel.size), this.attachedContextContainer);
+		dom.setVisibility(Boolean(this.attachmentModel.size) || Boolean(this.implicitContext.value), this.attachedContextContainer);
 		if (!this.attachmentModel.size) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+		}
+
+		if (this.implicitContext.value && this.location === ChatAgentLocation.Panel) {
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels));
+			container.appendChild(implicitPart.domNode);
 		}
 
 		const attachmentInitPromises: Promise<void>[] = [];
@@ -952,15 +975,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.add(list.onDidOpen((e) => {
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
-					const editedFile = chatEditingSession.entries.get().find((e) => e.modifiedURI.toString() === modifiedFileUri.toString());
-					if (editedFile?.state.get() === WorkingSetEntryState.Modified) {
-						void this.editorService.openEditor({
-							original: { resource: URI.from(editedFile.originalURI, true) },
-							modified: { resource: URI.from(editedFile.modifiedURI, true) },
-						});
-					} else {
-						void this.editorService.openEditor({ resource: modifiedFileUri });
-					}
+					this.editorService.openEditor({ resource: modifiedFileUri, options: { preserveFocus: true } });
 				}
 			}));
 			dom.append(innerContainer, list.getHTMLElement());
@@ -1047,7 +1062,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
-		this.initAttachedContext(this.attachedContextContainer, true);
+		this.renderAttachedContext(true);
 
 		const data = this.getLayoutData();
 		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);

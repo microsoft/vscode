@@ -1561,6 +1561,8 @@ export class TestHostService implements IHostService {
 
 	async toggleFullScreen(): Promise<void> { }
 
+	async getScreenshot(): Promise<ArrayBufferLike | undefined> { return undefined; }
+
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
 }
