@@ -8,6 +8,7 @@ import { TerminalAccessibilityCommandId, defaultTerminalAccessibilityCommandsToS
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/chat/common/terminalInitialHintConfiguration.js';
+import { terminalClipboardConfiguration } from '../terminalContrib/clipboard/common/terminalClipboardConfiguration.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
@@ -46,6 +47,7 @@ export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalSuggestConfiguration,
 	...terminalTypeAheadConfiguration,
 	...terminalZoomConfiguration,
+	...terminalClipboardConfiguration
 };
 
 // Export commands to skip shell from terminalContrib - this is an exception to the eslint rule
