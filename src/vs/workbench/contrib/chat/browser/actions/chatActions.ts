@@ -464,7 +464,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			['chat.commandCenter.enabled', 'chat.experimental.offerInstall'],
+			{ main: 'chat.commandCenter.enabled', dependent: ['chat.experimental.offerInstall'] },
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter'))
@@ -475,7 +475,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			['chat.experimental.offerInstall', 'chat.commandCenter.enabled'],
+			{ main: 'chat.experimental.offerInstall', dependent: ['chat.commandCenter.enabled'] },
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.window.commandCenter'))

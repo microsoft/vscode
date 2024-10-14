@@ -17,16 +17,29 @@ import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../
 
 // --- Context Menu Actions --- //
 
+export interface ISections {
+
+	/**
+	 * The main section to toggle.
+	 */
+	readonly main: string;
+
+	/**
+	 * Dependent sections to toggle to the same value as main.
+	 */
+	readonly dependent?: string[];
+}
+
 export class ToggleTitleBarConfigAction extends Action2 {
 
-	constructor(private readonly section: string | string[], title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean, when?: ContextKeyExpression) {
+	constructor(private readonly section: string | ISections, title: string, description: string | ILocalizedString | undefined, order: number, mainWindowOnly: boolean, when?: ContextKeyExpression) {
 		when = ContextKeyExpr.and(mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true(), when);
 
 		super({
-			id: `toggle.${Array.isArray(section) ? section[0] : section}`,
+			id: `toggle.${typeof section === 'string' ? section : section.main}`,
 			title,
 			metadata: description ? { description } : undefined,
-			toggled: ContextKeyExpr.equals(`config.${Array.isArray(section) ? section[0] : section}`, true),
+			toggled: ContextKeyExpr.equals(`config.${typeof section === 'string' ? section : section.main}`, true),
 			menu: [
 				{
 					id: MenuId.TitleBarContext,
@@ -45,14 +58,18 @@ export class ToggleTitleBarConfigAction extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]): void {
-		const primarySection = Array.isArray(this.section) ? this.section[0] : this.section;
-		const secondarySections = Array.isArray(this.section) ? this.section.slice(1) : [];
+		let sections: ISections | undefined;
+		if (typeof this.section === 'string') {
+			sections = { main: this.section };
+		} else {
+			sections = this.section;
+		}
 
 		const configService = accessor.get(IConfigurationService);
-		const value = configService.getValue(primarySection);
-		configService.updateValue(primarySection, !value);
+		const value = configService.getValue(sections.main);
+		configService.updateValue(sections.main, !value);
 
-		for (const section of secondarySections) {
+		for (const section of sections.dependent ?? []) {
 			configService.updateValue(section, !value);
 		}
 	}
