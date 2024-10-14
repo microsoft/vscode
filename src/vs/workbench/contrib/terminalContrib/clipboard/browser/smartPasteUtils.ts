@@ -21,12 +21,23 @@ class SmartPasteUtils {
 	}
 
 	/**
+	 * Wraps the input path in " and escapes the " in the path
+	 * @param path input path which needs to be wrapped in "
+	 */
+	static wrapAndEscapePath(path: string): string {
+		// Escape double quotes in the path
+		const escapedPath = path.replace(/"/g, '\\"');
+		// Wrap the escaped path in double quotes
+		return `"${escapedPath}"`;
+	}
+
+	/**
 	 * Handles smartPaste for paths depending on the type of the terminal
 	 * @param text the string that's going to be pasted on the terminal
 	 * @param shellType the type of terminal on which the paste operation was done
 	 */
 	static handleSmartPaste(text: string, shellType: string): string {
-		if (!SmartPasteUtils.isPathLike(text)) {
+		if (!this.isPathLike(text)) {
 			return text;  // Return the string as is if it's not detected as a path
 		}
 
@@ -37,7 +48,7 @@ class SmartPasteUtils {
 					// Escape backslashes and wrap in double quotes if necessary
 					const escapedPath = text.replace(/\\/g, '\\\\');
 					if (text.includes(' ')) {
-						return `"${escapedPath}"`;
+						return this.wrapAndEscapePath(escapedPath);
 					}
 					return escapedPath;
 				}
@@ -45,14 +56,14 @@ class SmartPasteUtils {
 			case 'bash':  // Linux/macOS Bash
 				// Wrap in quotes if spaces or special characters exist
 				if (text.includes(' ')) {
-					return `"${text}"`;
+					return this.wrapAndEscapePath(text);
 				}
 				return text;
 
 			case 'pwsh':
 				// Simply wrap in quotes if spaces are present
 				if (text.includes(' ')) {
-					return `"${text}"`;
+					return this.wrapAndEscapePath(text);
 				}
 				return text;
 
