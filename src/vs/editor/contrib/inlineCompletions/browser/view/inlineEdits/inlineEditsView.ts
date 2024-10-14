@@ -20,7 +20,7 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { IDiffProviderFactoryService } from '../../../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecorationEmpty, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
-import { appendRemoveOnDispose, applyStyle } from '../../../../../browser/widget/diffEditor/utils.js';
+import { appendRemoveOnDispose } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
 import { LineRange } from '../../../../../common/core/lineRange.js';
