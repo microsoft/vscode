@@ -297,7 +297,7 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		TerminalChatContextKeys.requestActive,
 	),
-	icon: Codicon.debugStop,
+	icon: Codicon.stopCircle,
 	menu: {
 		id: MENU_TERMINAL_CHAT_INPUT,
 		group: 'navigation',

@@ -954,7 +954,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			const attachedContext = [...this.attachmentModel.attachments];
+			const attachedContext = this.inputPart.getAttachedAndImplicitContext();
 			if (this.location === ChatAgentLocation.EditingSession) {
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
 				if (currentEditingSession?.workingSet) {
@@ -969,7 +969,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				location: this.location,
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
-				attachedContext: this.inputPart.getAttachedAndImplicitContext()
+				attachedContext
 			});
 
 			if (result) {
