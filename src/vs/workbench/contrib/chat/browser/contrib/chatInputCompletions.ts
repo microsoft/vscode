@@ -575,22 +575,20 @@ class VariableCompletions extends Disposable {
 				const usedTools = widget.parsedInput.parts.filter((p): p is ChatRequestToolPart => p instanceof ChatRequestToolPart);
 				const usedToolNames = new Set(usedTools.map(v => v.toolName));
 				const toolItems: CompletionItem[] = [];
-				if (!usedAgent || usedAgent.agent.supportsToolReferences) {
-					toolItems.push(...Array.from(toolsService.getTools())
-						.filter(t => t.canBeInvokedManually)
-						.filter(t => !usedToolNames.has(t.name ?? ''))
-						.map((t): CompletionItem => {
-							const withLeader = `${chatVariableLeader}${t.name}`;
-							return {
-								label: withLeader,
-								range,
-								insertText: withLeader + ' ',
-								detail: t.userDescription,
-								kind: CompletionItemKind.Text,
-								sortText: 'z'
-							};
-						}));
-				}
+				toolItems.push(...Array.from(toolsService.getTools())
+					.filter(t => t.canBeReferencedInPrompt)
+					.filter(t => !usedToolNames.has(t.toolReferenceName ?? ''))
+					.map((t): CompletionItem => {
+						const withLeader = `${chatVariableLeader}${t.toolReferenceName}`;
+						return {
+							label: withLeader,
+							range,
+							insertText: withLeader + ' ',
+							detail: t.userDescription,
+							kind: CompletionItemKind.Text,
+							sortText: 'z'
+						};
+					}));
 
 				return {
 					suggestions: [...variableItems, ...toolItems]

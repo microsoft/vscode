@@ -1428,8 +1428,20 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 				return;
 			}
 
-			const renderedNodes = e.elements.filter(node => state.contains(node));
-			if (renderedNodes) {
+			// If a sticky node is removed, recompute the state
+			const hasRemovedStickyNode = e.deleteCount > 0 && state.stickyNodes.some(stickyNode => !this.model.has(this.model.getNodeLocation(stickyNode.node)));
+			if (hasRemovedStickyNode) {
+				this.update();
+				return;
+			}
+
+			// If a sticky node is updated, rerender the widget
+			const shouldRerenderStickyNodes = state.stickyNodes.some(stickyNode => {
+				const listIndex = this.model.getListIndex(this.model.getNodeLocation(stickyNode.node));
+				return listIndex >= e.start && listIndex < e.start + e.deleteCount && state.contains(stickyNode.node);
+			});
+
+			if (shouldRerenderStickyNodes) {
 				this._widget.rerender();
 			}
 		}));

@@ -48,8 +48,12 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 
 		this._ctxHasEditorModification = ctxHasEditorModification.bindTo(contextKeyService);
 
-
 		this._register(autorun(r => {
+
+			if (this._editor.getOption(EditorOption.inDiffEditor)) {
+				return;
+			}
+
 			const session = this._chatEditingService.currentEditingSessionObs.read(r);
 			const entry = session?.entries.read(r).find(e => isEqual(e.modifiedURI, this._editor.getModel()?.uri));
 
@@ -206,7 +210,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 					});
 				}
 				const domNode = document.createElement('div');
-				domNode.className = 'chat-editing-original-zone line-delete';
+				domNode.className = 'chat-editing-original-zone view-lines line-delete monaco-mouse-cursor-text';
 				const result = renderLines(source, renderOptions, decorations, domNode);
 				const viewZoneData: IViewZone = {
 					afterLineNumber: diffEntry.modified.startLineNumber - 1,
