@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from '../../../base/browser/dom.js';
-import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { isElectron } from '../../../base/common/platform.js';
+import { addDisposableListener } from './dom.js';
+import { DisposableStore, toDisposable } from '../common/lifecycle.js';
+import { isElectron } from './browser.js';
 
 /**
  * Gets a screenshot from the browser. This gets the screenshot via the browser's display media API

@@ -110,14 +110,10 @@ node-pty/third_party/**
 @parcel/watcher/src/**
 !@parcel/watcher/build/Release/*.node
 
-vsda/build/**
-vsda/ci/**
-vsda/src/**
-vsda/.gitignore
-vsda/binding.gyp
-vsda/README.md
-vsda/SECURITY.md
-vsda/targets
+vsda/**
+!vsda/index.js
+!vsda/index.d.ts
+!vsda/package.json
 !vsda/build/Release/vsda.node
 
 @vscode/policy-watcher/build/**

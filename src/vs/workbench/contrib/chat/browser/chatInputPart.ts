@@ -975,7 +975,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.add(list.onDidOpen((e) => {
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
-					this.editorService.openEditor({ resource: modifiedFileUri });
+					this.editorService.openEditor({ resource: modifiedFileUri, options: { preserveFocus: true } });
 				}
 			}));
 			dom.append(innerContainer, list.getHTMLElement());
