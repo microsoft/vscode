@@ -9,6 +9,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalClipboardSettingId } from '../common/terminalClipboardConfiguration.js';
+import { SmartPasteUtils } from './smartPasteUtils.js';
 
 export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: string, bracketedPasteMode: boolean | undefined, shellType: string): Promise<boolean | { modifiedText: string }> {
 	const configurationService = accessor.get(IConfigurationService);
