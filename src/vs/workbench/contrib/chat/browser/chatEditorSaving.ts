@@ -6,37 +6,32 @@
 import { Queue } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { SaveReason } from '../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
-
-
-const _storageKey = 'workbench.chat.saveWithAiGeneratedChanges';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID: string = 'workbench.chat.editorSaving';
 
+	private static readonly _config = 'chat.editing.alwaysSaveWithGeneratedChanges';
 
 	private readonly _sessionStore = this._store.add(new DisposableMap<IChatEditingSession>());
 
 	constructor(
+		@IConfigurationService configService: IConfigurationService,
 		@IChatEditingService chatEditingService: IChatEditingService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
 	) {
 		super();
@@ -49,13 +44,16 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 			store.clear();
 
-			const alwaysSave = this._storageService.getBoolean(_storageKey, StorageScope.PROFILE, false);
+			const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
 			if (alwaysSave) {
 				return;
 			}
 
+			if (chatEditingService.currentEditingSession) {
+				this._handleNewEditingSession(chatEditingService.currentEditingSession, store);
+			}
 
-			store.add(chatEditingService.onDidCreateEditingSession(e => this._handleNewEditingSession(e)));
+			store.add(chatEditingService.onDidCreateEditingSession(e => this._handleNewEditingSession(e, store)));
 			store.add(textFileService.files.addSaveParticipant({
 				participate: async (workingCopy, context, progress, token) => {
 
@@ -79,7 +77,7 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 					await queue.queue(async () => {
 
 						// this might have changed in the meantime and there is checked again and acted upon
-						const alwaysSave = this._storageService.getBoolean(_storageKey, StorageScope.PROFILE, false);
+						const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
 						if (alwaysSave) {
 							return;
 						}
@@ -109,20 +107,25 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 						if (result.checkboxChecked) {
 							// remember choice
-							this._storageService.store(_storageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+							await configService.updateValue(ChatEditorSaving._config, true);
 						}
 					});
 				}
 			}));
 		};
 
-		this._storageService.onDidChangeValue(StorageScope.PROFILE, _storageKey, this._store)(update);
+		configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatEditorSaving._config)) {
+				update();
+			}
+		});
 		update();
 	}
 
-	private _handleNewEditingSession(session: IChatEditingSession) {
+	private _handleNewEditingSession(session: IChatEditingSession, container: DisposableStore) {
 
 		const store = new DisposableStore();
+		container.add(store);
 
 		// disable auto save for those files involved in editing
 		const saveConfig = store.add(new MutableDisposable());
@@ -146,25 +149,8 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		}));
 
 		store.add(session.onDidDispose(() => {
-			this._sessionStore.deleteAndDispose(session);
+			store.dispose();
+			container.delete(store);
 		}));
 	}
 }
-
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.resetChatEditorSaving',
-			title: localize2('resetChatEditorSaving', "Reset Choise for 'Always save with AI-generated changes'"),
-			category: CHAT_CATEGORY,
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const storageService = accessor.get(IStorageService);
-		storageService.remove(_storageKey, StorageScope.PROFILE);
-	}
-});

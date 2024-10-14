@@ -166,7 +166,7 @@ resources:
     - repository: 1ESPipelines
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
-      ref: refs/tags/release-2024-09-23-4
+      ref: refs/tags/release
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
@@ -174,15 +174,7 @@ extends:
     sdl:
       tsa:
         enabled: true
-        config:
-          codebaseName: 'devdiv_$(Build.Repository.Name)'
-          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
-          instanceUrl: 'https://devdiv.visualstudio.com/defaultcollection'
-          projectName: 'DevDiv'
-          areaPath: "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client"
-          notificationAliases: ['monacotools@microsoft.com']
-          validateToolOutput: None
-          allTools: true
+        configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       codeql:
         runSourceLanguagesInSourceAnalysis: true
         compiled:

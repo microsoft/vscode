@@ -8,9 +8,10 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
@@ -20,9 +21,10 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -188,14 +190,38 @@ export function registerChatTitleActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const item = args[0];
 			if (!isResponseVM(item)) {
 				return;
 			}
 
 			const chatService = accessor.get(IChatService);
-			const request = chatService.getSession(item.sessionId)?.getRequests().find(candidate => candidate.id === item.requestId);
+			const chatEditingService = accessor.get(IChatEditingService);
+			const chatModel = chatService.getSession(item.sessionId);
+			const chatRequests = chatModel?.getRequests();
+			if (!chatRequests) {
+				return;
+			}
+			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+				const dialogService = accessor.get(IDialogService);
+				const confirmation = await dialogService.confirm({
+					title: localize('chat.removeLast.confirmation.title', "Do you want to retry your last edit?"),
+					message: localize('chat.remove.confirmation.message', "This will also undo any edits made to your working set from this request."),
+					primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+					type: 'info'
+				});
+				if (!confirmation) {
+					return;
+				}
+				// Reset the snapshot
+				const snapshotRequest = chatRequests[itemIndex];
+				if (snapshotRequest) {
+					await chatEditingService.restoreSnapshot(snapshotRequest.id);
+				}
+			}
+			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
 			chatService.resendRequest(request!);
 		}
 	});
@@ -300,11 +326,21 @@ export function registerChatTitleActions() {
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			let item = args[0];
+			let item: ChatTreeItem | undefined = args[0];
 			if (!isRequestVM(item)) {
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const widget = chatWidgetService.lastFocusedWidget;
 				item = widget?.getFocus();
+			}
+
+			if (!item) {
+				return;
+			}
+
+			const chatService = accessor.get(IChatService);
+			const chatModel = chatService.getSession(item.sessionId);
+			if (chatModel?.initialLocation !== ChatAgentLocation.EditingSession) {
+				return;
 			}
 
 			const requestId = isRequestVM(item) ? item.id :

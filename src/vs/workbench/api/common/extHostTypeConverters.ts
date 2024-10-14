@@ -2927,10 +2927,10 @@ export namespace DebugTreeItem {
 export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
-			id: item.id,
+			// Note- the reason this is a unique 'name' is just to avoid confusion with the toolCallId
+			name: item.id,
 			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
-			displayName: item.displayName,
 			supportedContentTypes: item.supportedContentTypes,
 			tags: item.tags ?? [],
 		};

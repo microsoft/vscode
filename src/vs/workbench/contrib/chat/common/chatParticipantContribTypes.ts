@@ -29,7 +29,6 @@ export interface IRawChatParticipantContribution {
 	defaultImplicitVariables?: string[];
 	locations?: RawChatParticipantLocation[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
-	supportsToolReferences?: boolean;
 }
 
 /**
