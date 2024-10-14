@@ -88,7 +88,7 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 		super({
 			id: 'chatEditing.openFileInDiff',
 			title: localize2('open.fileInDiff', 'Open Changes in Diff Editor'),
-			icon: Codicon.diff,
+			icon: Codicon.diffSingle,
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
