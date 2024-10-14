@@ -385,13 +385,23 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
-				templateData.label.setFile(uri, {
-					fileKind: FileKind.FILE,
-					// Should not have this live-updating data on a historical reference
-					fileDecorations: { badges: false, colors: false },
-					range: 'range' in reference ? reference.range : undefined,
-					title: data.options?.status?.description ?? data.title
-				});
+				if (data.state === WorkingSetEntryState.Transient) {
+					templateData.label.setResource(
+						{
+							resource: uri,
+							name: basenameOrAuthority(uri),
+							description: localize('chat.openEditor', 'Open Editor'),
+							range: 'range' in reference ? reference.range : undefined,
+						}, { icon, title: data.options?.status?.description ?? data.title });
+				} else {
+					templateData.label.setFile(uri, {
+						fileKind: FileKind.FILE,
+						// Should not have this live-updating data on a historical reference
+						fileDecorations: undefined,
+						range: 'range' in reference ? reference.range : undefined,
+						title: data.options?.status?.description ?? data.title
+					});
+				}
 			}
 		}
 
@@ -410,8 +420,10 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			if (templateData.actionBarContainer) {
 				if (data.state === WorkingSetEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
 					templateData.actionBarContainer.classList.add('modified');
+					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 				} else if (data.state !== WorkingSetEntryState.Modified) {
 					templateData.actionBarContainer.classList.remove('modified');
+					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 				}
 			}
 			if (templateData.toolbar) {

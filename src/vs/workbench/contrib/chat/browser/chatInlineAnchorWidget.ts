@@ -56,7 +56,6 @@ export class InlineAnchorWidget extends Disposable {
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly data: ContentRefData,
-		options: { handleClick?: (uri: URI) => void } = {},
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
@@ -77,9 +76,6 @@ export class InlineAnchorWidget extends Disposable {
 		const anchorId = new Lazy(generateUuid);
 
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
-		if (options.handleClick) {
-			element.classList.add('clickable');
-		}
 
 		let iconText: string;
 		let iconClasses: string[];
@@ -148,8 +144,6 @@ export class InlineAnchorWidget extends Disposable {
 				.catch(() => { });
 
 			this._register(dom.addDisposableListener(element, 'click', () => {
-				options.handleClick?.(location.uri);
-
 				telemetryService.publicLog2<{
 					anchorId: string;
 				}, {

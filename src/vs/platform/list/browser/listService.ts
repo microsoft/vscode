@@ -1146,6 +1146,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	return {
 		getTypeNavigationMode,
 		disposable,
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		options: {
 			// ...options, // TODO@Joao why is this not splatted here?
 			keyboardSupport: false,

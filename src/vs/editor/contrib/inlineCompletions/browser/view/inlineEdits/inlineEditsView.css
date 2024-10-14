@@ -35,6 +35,9 @@
 		transition-delay: 0.4s;
 	}
 
+	&.visible {
+		opacity: 1;
+	}
 
 	&.top {
 		opacity: 1;
@@ -82,8 +85,8 @@
 	.editorContainer {
 		color: var(--vscode-editorHoverWidget-foreground);
 		background-color: var(--vscode-editorHoverWidget-background);
-		border: 1px solid var(--vscode-editorHoverWidget-border);
-		border-radius: 3px;
+		/*border: 1px solid var(--vscode-editorHoverWidget-border);*/
+		/*border-radius: 3px;*/
 
 		.toolbar {
 			display: none;

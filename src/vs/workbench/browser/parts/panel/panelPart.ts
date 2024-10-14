@@ -106,7 +106,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.panel.showLabel')) {
+			if (e.affectsConfiguration('workbench.panel.showLabels')) {
 				this.updateCompositeBar(true);
 			}
 		}));
@@ -134,7 +134,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
 			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
-			icon: this.configurationService.getValue('workbench.panel.showLabel') === false,
+			icon: this.configurationService.getValue('workbench.panel.showLabels') === false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -165,11 +165,19 @@ export class PanelPart extends AbstractPaneCompositePart {
 		createAndFillInContextMenuActions(panelPositionMenu, { primary: [], secondary: positionActions });
 		createAndFillInContextMenuActions(panelAlignMenu, { primary: [], secondary: alignActions });
 
+		const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
+		const toggleShowLabelsAction = toAction({
+			id: 'workbench.action.panel.toggleShowLabels',
+			label: panelShowLabels ? localize('showIcons', "Show Icons") : localize('showLabels', "Show Labels"),
+			run: () => this.configurationService.updateValue('workbench.panel.showLabels', !panelShowLabels)
+		});
+
 		actions.push(...[
 			new Separator(),
 			new SubmenuAction('workbench.action.panel.position', localize('panel position', "Panel Position"), positionActions),
 			new SubmenuAction('workbench.action.panel.align', localize('align panel', "Align Panel"), alignActions),
-			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) })
+			toggleShowLabelsAction,
+			toAction({ id: TogglePanelAction.ID, label: localize('hidePanel', "Hide Panel"), run: () => this.commandService.executeCommand(TogglePanelAction.ID) }),
 		]);
 	}
 

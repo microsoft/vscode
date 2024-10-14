@@ -75,6 +75,8 @@ export interface IInlineChatWidgetConstructionOptions {
 	 * The options for the chat widget
 	 */
 	chatWidgetViewOptions?: IChatWidgetViewOptions;
+
+	inZoneWidget?: boolean;
 }
 
 export interface IInlineChatMessage {
@@ -123,7 +125,7 @@ export class InlineChatWidget {
 
 	constructor(
 		location: IChatWidgetLocationOptions,
-		options: IInlineChatWidgetConstructionOptions,
+		private readonly _options: IInlineChatWidgetConstructionOptions,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -158,7 +160,7 @@ export class InlineChatWidget {
 						// filter responses that
 						// - are just text edits(prevents the "Made Edits")
 						// - are all empty
-						if (item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+						if (item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
 							return false;
 						}
 						if (item.response.value.length === 0) {
@@ -168,7 +170,7 @@ export class InlineChatWidget {
 					}
 					return true;
 				},
-				...options.chatWidgetViewOptions
+				..._options.chatWidgetViewOptions
 			},
 			{
 				listForeground: inlineChatForeground,
@@ -178,6 +180,7 @@ export class InlineChatWidget {
 				resultEditorBackground: editorBackground
 			}
 		);
+		this._elements.root.classList.toggle('in-zone-widget', !!_options.inZoneWidget);
 		this._chatWidget.render(this._elements.chatWidget);
 		this._elements.chatWidget.style.setProperty(asCssVariableName(chatRequestBackground), asCssVariable(inlineChatBackground));
 		this._chatWidget.setVisible(true);
@@ -237,13 +240,13 @@ export class InlineChatWidget {
 		this._store.add(this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true)));
 		this._store.add(this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false)));
 
-		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
+		const statusMenuId = _options.statusMenuId instanceof MenuId ? _options.statusMenuId : _options.statusMenuId.menu;
 
 		// BUTTON bar
-		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
+		const statusMenuOptions = _options.statusMenuId instanceof MenuId ? undefined : _options.statusMenuId.options;
 		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar1, statusMenuId, {
 			toolbarOptions: { primaryGroup: '0_main' },
-			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+			telemetrySource: _options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true },
 			...statusMenuOptions,
 		});
@@ -251,8 +254,8 @@ export class InlineChatWidget {
 		this._store.add(statusButtonBar);
 
 		// secondary toolbar
-		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, options.secondaryMenuId ?? MenuId.for(''), {
-			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, _options.secondaryMenuId ?? MenuId.for(''), {
+			telemetrySource: _options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true, shouldForwardArgs: true },
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
@@ -375,7 +378,7 @@ export class InlineChatWidget {
 	}
 
 	protected _getExtraHeight(): number {
-		return 2 /*border*/ + 4 /*shadow*/;
+		return this._options.inZoneWidget ? 1 : (2 /*border*/ + 4 /*shadow*/);
 	}
 
 	get value(): string {
@@ -487,7 +490,7 @@ export class InlineChatWidget {
 	}
 
 	reset() {
-		this._chatWidget.setContext(true);
+		this._chatWidget.attachmentModel.clear();
 		this._chatWidget.saveState();
 
 		reset(this._elements.statusLabel);
