@@ -489,12 +489,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px;
-	width: 100%;
+	width: calc(100% - 6px);
+	padding: 0 3px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
 	margin-bottom: -14px;
-	padding: 4px 8px 18px 8px;
+	padding: 6px 8px 18px 8px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
@@ -533,6 +534,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	justify-content: space-between;
 	gap: 6px;
+	padding: 0 4px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > span {
@@ -590,17 +592,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	cursor: pointer;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.codicon.codicon-close:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary {
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 	background-color: transparent;
 	border: none;
 	height: 22px;
 	padding-left: 0px;
 	cursor: pointer;
+	display: flex;
+	justify-content: start;
+	width: 100%;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary .codicon {
+	font-size: 12px;
+	margin-left: 4px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.codicon {
