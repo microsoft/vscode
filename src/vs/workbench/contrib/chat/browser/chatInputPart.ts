@@ -1215,6 +1215,11 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		}));
 	}
 
+	// TODO need extra context tooltip?
+	// protected override getTooltip(): string {
+	// 	return super.getTooltip() + '\n' + localize('modelPickerHint', "A chat participant may or may not choose to use the selected model");
+	// }
+
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._openContextMenu();
 	}
