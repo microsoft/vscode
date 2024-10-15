@@ -767,29 +767,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						fromUserGesture: true
 					};
 					if (range) {
-						// HACK: This uses text editor options but the opener service doesn't support that? It's not clear if this ever worked
-						// eslint-disable-next-line local/code-no-dangerous-type-assertions
-						options.editorOptions = {
+						const textEditorOptions: ITextEditorOptions = {
 							selection: range
-						} as ITextEditorOptions as any;
+						};
+						options.editorOptions = textEditorOptions;
 					}
 					this.openerService.open(file, options);
 				}));
 
 				store.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 					const event = new StandardKeyboardEvent(e);
-					if (event.equals(KeyCode.Enter)) {
+					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e, true);
 						const options: Mutable<OpenInternalOptions> = {
 							fromUserGesture: true
 						};
 						if (range) {
-							// eslint-disable-next-line local/code-no-dangerous-type-assertions
-							options.editorOptions = {
+							const textEditorOptions: ITextEditorOptions = {
 								selection: range
-							} as ITextEditorOptions as any;
+							};
+							options.editorOptions = textEditorOptions;
 						}
-						this.openerService.open(file, options);
+						this.openerService.open(file, options).then(() => {
+							this.focus();
+						});
 					}
 				}));
 			}
