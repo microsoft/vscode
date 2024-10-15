@@ -46,7 +46,10 @@ export class SmartPasteUtils {
 
 		switch (shellType) {
 			case 'gitbash':
-			case 'cmd':
+			case 'zsh':
+			case 'tmux':
+			case 'fish':
+			case 'bash':
 				{
 					// Escape backslashes and wrap in double quotes if necessary
 					const escapedPath = text.replace(/\\/g, '\\\\');
@@ -56,14 +59,8 @@ export class SmartPasteUtils {
 					return escapedPath;
 				}
 
-			case 'bash':  // Linux/macOS Bash
-				// Wrap in quotes if spaces or special characters exist
-				if (text.includes(' ')) {
-					return this.wrapAndEscapePath(text);
-				}
-				return text;
-
 			case 'pwsh':
+			case 'cmd':
 				// Simply wrap in quotes if spaces are present
 				if (text.includes(' ')) {
 					return this.wrapAndEscapePath(text);
