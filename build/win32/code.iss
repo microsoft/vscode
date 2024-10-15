@@ -34,6 +34,7 @@ ShowLanguageDialog=auto
 ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
 WizardStyle=modern
+CloseApplications={code:GetCloseApplications}
 
 #ifdef Sign
 SignTool=esrp
@@ -1307,6 +1308,17 @@ end;
 function IsNotBackgroundUpdate(): Boolean;
 begin
   Result := not IsBackgroundUpdate();
+end;
+
+// We've seen an uptick on broken installations from updates which were unable
+// to shutdown VS Code. We rely on the fact that the background update signals
+// that VS Code is ready to be shutdown, so we're good to use `force` here.
+function GetCloseApplications(): String;
+begin
+  if IsBackgroundUpdate() then
+    Result := 'force';
+  else
+  	Result := 'yes';
 end;
 
 // Don't allow installing conflicting architectures
