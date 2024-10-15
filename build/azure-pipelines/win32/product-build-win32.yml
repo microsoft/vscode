@@ -134,6 +134,13 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
 
+    - task: AntiMalware@4
+      displayName: Anti-Malware (OSS)
+      inputs:
+        InputType: Basic
+        ScanType: CustomScan
+        FileDirPath: '$(Build.SourcesDirectory)'
+
   - ${{ else }}:
     - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
       - powershell: node build/win32/explorer-appx-fetcher .build/win32/appx
