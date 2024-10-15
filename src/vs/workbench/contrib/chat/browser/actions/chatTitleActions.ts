@@ -351,7 +351,7 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(item.sessionId);
-			if (chatModel?.initialLocation !== ChatAgentLocation.EditingSession) {
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				return;
 			}
 
