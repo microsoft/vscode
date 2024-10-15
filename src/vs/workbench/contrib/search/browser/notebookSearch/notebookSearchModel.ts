@@ -416,7 +416,8 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		const matches = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
 		return [...super.matches(), ...matches];
 	}
-	override removeMatch(match: ISearchTreeMatch) {
+
+	protected override removeMatch(match: ISearchTreeMatch) {
 
 		if (match instanceof MatchInNotebook) {
 			match.cellParent.remove(match);
