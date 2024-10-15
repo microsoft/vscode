@@ -38,6 +38,8 @@ declare module 'vscode' {
 		 * An optional list of tools that are available to the language model.
 		 */
 		// TODO@mjbvz: Clarify that these can be both registered and private tools?
+		// Mention lm.tools, and private tools
+		// Describe the whole flow a bit on sendChatRequest, and here
 		tools?: LanguageModelChatTool[];
 
 		/**
@@ -45,6 +47,7 @@ declare module 'vscode' {
 		 */
 		// TODO@API?
 		// TODO@mjbvz: Is this the tool name? Or something else?
+		// An enum, Auto/Force
 		toolChoice?: string;
 	}
 
@@ -108,6 +111,7 @@ declare module 'vscode' {
 		 * The content of the tool result.
 		 */
 		// TODO@mjbvz: align the name with `value` from `LanguageModelTextPart`? Or use `content` for both of them
+		// 'value'
 		content: string;
 
 		constructor(toolCallId: string, content: string);
@@ -193,6 +197,7 @@ declare module 'vscode' {
 		// TODO@mjbvz: Should we allow this to be omitted to get the default types? If it's required, the documentation should
 		// make this clear.
 		// TODO@mjbvz What happens if you request a content type that the tool doesn't support?
+		// Explain this a bit more in the doc
 		requestedContentTypes: string[];
 
 		/**
@@ -200,7 +205,8 @@ declare module 'vscode' {
 		 */
 		// TODO@mjbvz: Can we make it more clear that this is about text, not cancellation or the invocation? Maybe call this
 		// responseTokenOptions?
-		tokenOptions?: {
+		// Avoid confusion with cancel token
+		tokenizationOptions?: {
 			/**
 			 * If known, the maximum number of tokens the tool should emit in its result.
 			 */
@@ -216,8 +222,14 @@ declare module 'vscode' {
 		};
 	}
 
+	// Inline interface or not, either way
+	// export interface LanguageModelToolTokenizationInformation {
+
+	// }
+
 	/**
 	 * A description of an available tool.
+	 * TODO@API Information?
 	 */
 	export interface LanguageModelToolDescription {
 		/**
@@ -238,10 +250,11 @@ declare module 'vscode' {
 		readonly parametersSchema: object | undefined;
 
 		/**
-		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
+		 * The list of content types that the tool CAN RETURN and the tool has declared support for. See {@link LanguageModelToolResult}.
 		 */
 		// TODO@API put text/plain as default in snippet
 		// TODO@mjbvz: Name to make it clear this is about the result, not the invocation
+		// supportedResultMimeTypes
 		readonly supportedContentTypes: readonly string[];
 
 		/**
