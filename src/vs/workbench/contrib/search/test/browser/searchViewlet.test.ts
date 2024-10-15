@@ -22,7 +22,7 @@ import { TestContextService } from '../../../../test/common/workbenchTestService
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { createFileUriFromPathFromRoot, getRootName, stubModelService, stubNotebookEditorService } from './searchTestCommon.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISearchTreeFolderMatch, ISearchResult, ITextSearchHeading } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeFolderMatch, ISearchResult, ITextSearchHeading, FILE_MATCH_PREFIX, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
@@ -90,8 +90,8 @@ suite('Search - Viewlet', () => {
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];
 
-		assert.strictEqual(fileMatch.id(), URI.file(`${getRootName()}/foo`).toString());
-		assert.strictEqual(lineMatch.id(), `${URI.file(`${getRootName()}/foo`).toString()}>[2,1 -> 2,2]b`);
+		assert.strictEqual(fileMatch.id(), FILE_MATCH_PREFIX + URI.file(`${getRootName()}/foo`).toString());
+		assert.strictEqual(lineMatch.id(), `${MATCH_PREFIX}${URI.file(`${getRootName()}/foo`).toString()}>[2,1 -> 2,2]b`);
 	});
 
 	test('Comparer', () => {

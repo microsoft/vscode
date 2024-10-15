@@ -38,7 +38,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
-import { ISearchResult, ISearchTreeFolderMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, ISearchTreeFolderMatch, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
 import { MatchImpl } from '../../browser/searchTreeModel/match.js';
@@ -78,7 +78,7 @@ suite('SearchResult', () => {
 		assert.strictEqual(lineMatch.range().endLineNumber, 2);
 		assert.strictEqual(lineMatch.range().startColumn, 1);
 		assert.strictEqual(lineMatch.range().endColumn, 6);
-		assert.strictEqual(lineMatch.id(), 'file:///folder/file.txt>[2,1 -> 2,6]foo');
+		assert.strictEqual(lineMatch.id(), MATCH_PREFIX + 'file:///folder/file.txt>[2,1 -> 2,6]foo');
 
 		assert.strictEqual(lineMatch.fullMatchText(), 'foo');
 		assert.strictEqual(lineMatch.fullMatchText(true), '0 foo bar');

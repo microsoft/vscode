@@ -17,7 +17,7 @@ import { IReplaceService } from './../replace.js';
 import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions, resultIsMatch } from '../../../../services/search/common/search.js';
 
 import { FileMatchImpl } from './fileMatch.js';
-import { IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchNoRoot, ISearchTreeFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWorkspaceRoot, ITextSearchHeading, isSearchTreeFolderMatchNoRoot } from './searchTreeCommon.js';
+import { IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchNoRoot, ISearchTreeFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWorkspaceRoot, ITextSearchHeading, isSearchTreeFolderMatchNoRoot, FOLDER_MATCH_PREFIX } from './searchTreeCommon.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { isINotebookFileMatchNoModel } from '../../common/searchNotebookHelpers.js';
 import { NotebookCompatibleFileMatch } from '../notebookSearch/notebookSearchModel.js';
@@ -41,10 +41,11 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 	protected _unDisposedFolderMatches: ResourceMap<ISearchTreeFolderMatchWithResource>;
 	private _replacingAll: boolean = false;
 	private _name: Lazy<string>;
+	private readonly _id: string;
 
 	constructor(
 		protected _resource: URI | null,
-		private _id: string,
+		_id: string,
 		protected _index: number,
 		protected _query: ITextQuery,
 		private _parent: ITextSearchHeading | ISearchTreeFolderMatch,
@@ -62,6 +63,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		this._unDisposedFileMatches = new ResourceMap<ISearchTreeFileMatch>();
 		this._unDisposedFolderMatches = new ResourceMap<ISearchTreeFolderMatchWithResource>();
 		this._name = new Lazy(() => this.resource ? labelService.getUriBasenameLabel(this.resource) : '');
+		this._id = FOLDER_MATCH_PREFIX + _id;
 	}
 
 	get searchModel(): ISearchModel {

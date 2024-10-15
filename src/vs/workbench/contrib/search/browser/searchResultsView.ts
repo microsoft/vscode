@@ -31,7 +31,7 @@ import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defa
 import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, AI_TEXT_SEARCH_RESULT_ID, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot } from './searchTreeModel/searchTreeCommon.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -116,7 +116,7 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 	}
 
 	async renderElement(node: ITreeNode<ITextSearchHeading, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
-		if (node.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+		if (node.element.isAIContributed) {
 			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
 			templateData.label.setLabel(nls.localize({
 				key: 'searchFolderMatch.aiText.label',

@@ -13,11 +13,10 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch } from './searchTreeCommon.js';
+import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl, TextSearchHeadingImpl } from './textSearchHeading.js';
-
 
 export class SearchResultImpl extends Disposable implements ISearchResult {
 
@@ -30,6 +29,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	private _plainTextSearchResult: IPlainTextSearchHeading;
 	private _aiTextSearchResult: ITextSearchHeading;
 
+	private readonly _id: string;
 	constructor(
 		public readonly searchModel: ISearchModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -52,6 +52,11 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 			}
 		}));
 
+		this._id = SEARCH_RESULT_PREFIX + Date.now().toString();
+	}
+
+	id(): string {
+		return this._id;
 	}
 
 	get plainTextSearchResult(): IPlainTextSearchHeading {
@@ -108,8 +113,13 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 					if (isTextSearchHeading(currentElement)) {
 						currentElement.hide();
 					} else if (!isSearchTreeFolderMatch(currentElement) || isSearchTreeFolderMatchWithResource(currentElement)) {
-						// const elemParent = (<IFileInstanceMatch>currentElement).parent();
-						// currentElement.parent().remove(currentElement);
+						if (isSearchTreeFileMatch(currentElement)) {
+							currentElement.parent().remove(currentElement);
+						} else if (isSearchTreeMatch(currentElement)) {
+							currentElement.parent().remove(currentElement);
+						} else if (isSearchTreeFolderMatchWithResource(currentElement)) {
+							currentElement.parent().remove(currentElement);
+						}
 						removedElems.push(currentElement);
 					}
 				}

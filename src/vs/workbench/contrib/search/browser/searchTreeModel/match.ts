@@ -6,7 +6,7 @@
 import { memoize } from '../../../../../base/common/decorators.js';
 import { lcut } from '../../../../../base/common/strings.js';
 import { ISearchRange, ITextSearchMatch, OneLineRange } from '../../../../services/search/common/search.js';
-import { ISearchTreeMatch, ISearchTreeFileMatch } from './searchTreeCommon.js';
+import { ISearchTreeMatch, ISearchTreeFileMatch, MATCH_PREFIX } from './searchTreeCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
 export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: ISearchTreeFileMatch, isAiContributed: boolean): ISearchTreeMatch[] {
@@ -42,7 +42,7 @@ export class MatchImpl implements ISearchTreeMatch {
 
 		this._fullPreviewRange = _fullPreviewRange;
 
-		this._id = this._parent.id() + '>' + this._range + this.getMatchString();
+		this._id = MATCH_PREFIX + this._parent.resource.toString() + '>' + this._range + this.getMatchString();
 	}
 
 	id(): string {

@@ -81,7 +81,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 
@@ -918,7 +918,7 @@ export class SearchView extends ViewPane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
 				collapseByDefault: (e: RenderableMatch) => {
-					if (e.id() === AI_TEXT_SEARCH_RESULT_ID) {
+					if (isTextSearchHeading(e) && e.isAIContributed) {
 						// always collapse the ai text search result
 						return true;
 					}
@@ -2394,7 +2394,7 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 			return false;
 		}
 
-		if (isTextSearchHeading(element) && element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+		if (isTextSearchHeading(element) && element.isAIContributed) {
 			return true;
 		}
 
@@ -2406,7 +2406,7 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 		if (isSearchResult(element)) {
 			return this.createSearchResultIterator(element);
 		} else if (isTextSearchHeading(element)) {
-			if (element.id() === AI_TEXT_SEARCH_RESULT_ID && !this.searchView.model.hasAIResults) {
+			if (element.isAIContributed && !this.searchView.model.hasAIResults) {
 				return this.searchView.addAIResults().then(() => this.createTextSearchResultIterator(element));
 			}
 			return this.createTextSearchResultIterator(element);

@@ -18,7 +18,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { INotebookSearchService } from '../../common/notebookSearch.js';
 import { ReplacePattern } from '../../../../services/search/common/replace.js';
 import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchService, ITextQuery, ITextSearchStats, QueryType, SearchCompletionExitCode } from '../../../../services/search/common/search.js';
-import { IChangeEvent, mergeSearchResultEvents, SearchModelLocation, ISearchModel, ISearchResult } from './searchTreeCommon.js';
+import { IChangeEvent, mergeSearchResultEvents, SearchModelLocation, ISearchModel, ISearchResult, SEARCH_MODEL_PREFIX } from './searchTreeCommon.js';
 import { SearchResultImpl } from './searchResult.js';
 import { ISearchViewModelWorkbenchService } from './searchViewModelWorkbenchService.js';
 
@@ -49,6 +49,8 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 	public location: SearchModelLocation = SearchModelLocation.PANEL;
 	private readonly _aiTextResultProviderName: Lazy<Promise<string | undefined>>;
 
+	private readonly _id: string;
+
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -62,6 +64,11 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 
 		this._aiTextResultProviderName = new Lazy(async () => this.searchService.getAIName());
+		this._id = SEARCH_MODEL_PREFIX + Date.now().toString();
+	}
+
+	id(): string {
+		return this._id;
 	}
 
 	async getAITextResultProviderName(): Promise<string> {

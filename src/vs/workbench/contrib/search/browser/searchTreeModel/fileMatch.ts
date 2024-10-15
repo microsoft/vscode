@@ -18,7 +18,7 @@ import { IFileMatch, IPatternInfo, ITextSearchPreviewOptions, resultIsMatch, DEF
 import { editorMatchesToTextSearchResults, getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers.js';
 import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel.js';
 import { IReplaceService } from '../replace.js';
-import { ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeMatch } from './searchTreeCommon.js';
+import { FILE_MATCH_PREFIX, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeMatch } from './searchTreeCommon.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { textSearchResultToMatches } from './match.js';
 import { OverviewRulerLane } from '../../../../../editor/common/standalone/standaloneEnums.js';
@@ -234,7 +234,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 
 	id(): string {
-		return this.resource.toString();
+		return FILE_MATCH_PREFIX + this.resource.toString();
 	}
 
 	parent(): ISearchTreeFolderMatch {

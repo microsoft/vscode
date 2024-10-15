@@ -56,8 +56,12 @@ export function createParentList(element: RenderableMatch): RenderableMatch[] {
 	return parentArray;
 }
 
-
-
+export const SEARCH_MODEL_PREFIX = 'SEARCH_MODEL_';
+export const SEARCH_RESULT_PREFIX = 'SEARCH_RESULT_';
+export const TEXT_SEARCH_HEADING_PREFIX = 'TEXT_SEARCH_HEADING_';
+export const FOLDER_MATCH_PREFIX = 'FOLDER_MATCH_';
+export const FILE_MATCH_PREFIX = 'FILE_MATCH_';
+export const MATCH_PREFIX = 'MATCH_';
 
 export function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
 	const retEvent: IChangeEvent = {
@@ -84,6 +88,7 @@ export interface ISearchModel {
 	readonly onReplaceTermChanged: Event<void>;
 	readonly onSearchResultChanged: Event<IChangeEvent>;
 	location: SearchModelLocation;
+	id(): string;
 
 	getAITextResultProviderName(): Promise<string>;
 	isReplaceActive(): boolean;
@@ -127,6 +132,7 @@ export interface ISearchResult {
 	isEmpty(): boolean;
 	fileCount(): number;
 	count(): number;
+	id(): string;
 	setCachedSearchComplete(cachedSearchComplete: ISearchComplete | undefined, ai: boolean): void;
 	getCachedSearchComplete(ai: boolean): ISearchComplete | undefined;
 	toggleHighlights(value: boolean, ai?: boolean): void;
@@ -247,7 +253,7 @@ export interface ISearchTreeFileMatch {
 	addContext(results: ITextSearchResult[] | undefined): void;
 	add(match: ISearchTreeMatch, trigger?: boolean): void;
 	replace(toReplace: ISearchTreeMatch): Promise<void>;
-	remove(matches: ISearchTreeMatch | ISearchTreeMatch[]): void;
+	remove(matches: ISearchTreeMatch | (ISearchTreeMatch[])): void;
 	setSelectedMatch(match: ISearchTreeMatch | null): void;
 	fileStat: IFileStatWithPartialMetadata | undefined;
 	resolveFileStat(fileService: IFileService): Promise<void>;
@@ -256,165 +262,6 @@ export interface ISearchTreeFileMatch {
 	readonly closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null;
 	isMatchSelected(match: ISearchTreeMatch): boolean;
 	dispose(): void;
-}
-// Type checker for ISearchModel
-
-export function isSearchModel(obj: any): obj is ISearchModel {
-	return obj && typeof obj.onReplaceTermChanged === 'object' &&
-		typeof obj.onSearchResultChanged === 'object' &&
-		typeof obj.location !== 'undefined' &&
-		typeof obj.getAITextResultProviderName === 'function' &&
-		typeof obj.isReplaceActive === 'function' &&
-		typeof obj.replaceActive === 'boolean' &&
-		(obj.replacePattern === null || typeof obj.replacePattern === 'object') &&
-		typeof obj.replaceString === 'string' &&
-		typeof obj.preserveCase === 'boolean' &&
-		typeof obj.searchResult === 'object' &&
-		typeof obj.addAIResults === 'function' &&
-		typeof obj.aiSearch === 'function' &&
-		typeof obj.hasAIResults === 'boolean' &&
-		typeof obj.hasPlainResults === 'boolean' &&
-		typeof obj.search === 'function' &&
-		typeof obj.cancelSearch === 'function' &&
-		typeof obj.cancelAISearch === 'function' &&
-		typeof obj.dispose === 'function';
-}
-// Type checker for ISearchResult
-
-export function isSearchResult(obj: any): obj is ISearchResult {
-	return obj && typeof obj.onChange === 'object' &&
-		typeof obj.searchModel === 'object' &&
-		typeof obj.plainTextSearchResult === 'object' &&
-		typeof obj.aiTextSearchResult === 'object' &&
-		Array.isArray(obj.children) &&
-		typeof obj.hasChildren === 'boolean' &&
-		typeof obj.isDirty === 'boolean' &&
-		(obj.query === null || typeof obj.query === 'object') &&
-		typeof obj.batchReplace === 'function' &&
-		typeof obj.batchRemove === 'function' &&
-		typeof obj.folderMatches === 'function' &&
-		typeof obj.add === 'function' &&
-		typeof obj.clear === 'function' &&
-		typeof obj.remove === 'function' &&
-		typeof obj.replace === 'function' &&
-		typeof obj.matches === 'function' &&
-		typeof obj.isEmpty === 'function' &&
-		typeof obj.fileCount === 'function' &&
-		typeof obj.count === 'function' &&
-		typeof obj.setCachedSearchComplete === 'function' &&
-		typeof obj.getCachedSearchComplete === 'function' &&
-		typeof obj.toggleHighlights === 'function' &&
-		typeof obj.getRangeHighlightDecorations === 'function' &&
-		typeof obj.replaceAll === 'function' &&
-		typeof obj.dispose === 'function';
-}
-// Type checker for ITextSearchHeading
-
-export function isTextSearchHeading(obj: any): obj is ITextSearchHeading {
-	return obj && typeof obj.onChange === 'object' &&
-		(obj.resource === null || obj.resource instanceof URI) &&
-		typeof obj.hidden === 'boolean' &&
-		(obj.cachedSearchComplete === undefined || typeof obj.cachedSearchComplete === 'object') &&
-		typeof obj.hide === 'function' &&
-		typeof obj.isAIContributed === 'boolean' &&
-		typeof obj.id === 'function' &&
-		typeof obj.parent === 'function' &&
-		typeof obj.hasChildren === 'boolean' &&
-		typeof obj.name === 'function' &&
-		typeof obj.isDirty === 'boolean' &&
-		typeof obj.getFolderMatch === 'function' &&
-		typeof obj.add === 'function' &&
-		typeof obj.remove === 'function' &&
-		typeof obj.groupFilesByFolder === 'function' &&
-		typeof obj.isEmpty === 'function' &&
-		typeof obj.findFolderSubstr === 'function' &&
-		(obj.query === null || typeof obj.query === 'object') &&
-		typeof obj.folderMatches === 'function' &&
-		typeof obj.matches === 'function' &&
-		typeof obj.showHighlights === 'boolean' &&
-		typeof obj.toggleHighlights === 'function' &&
-		typeof obj.rangeHighlightDecorations === 'object' &&
-		typeof obj.fileCount === 'function' &&
-		typeof obj.count === 'function' &&
-		typeof obj.clear === 'function' &&
-		typeof obj.dispose === 'function';
-}
-// Type checker for IPlainTextSearchHeading
-
-export function isPlainTextSearchHeading(obj: any): obj is IPlainTextSearchHeading {
-	return isTextSearchHeading(obj) &&
-		typeof (<any>obj).replace === 'function' &&
-		typeof (<any>obj).replaceAll === 'function';
-}
-// Type checker for IFolderMatch
-
-export function isSearchTreeFolderMatch(obj: any): obj is ISearchTreeFolderMatch {
-	return obj && typeof obj.id === 'function' &&
-		(obj.resource === null || obj.resource instanceof URI) &&
-		typeof obj.index === 'function' &&
-		typeof obj.name === 'function' &&
-		typeof obj.count === 'function' &&
-		typeof obj.hasChildren === 'boolean' &&
-		typeof obj.parent === 'function' &&
-		typeof obj.matches === 'function' &&
-		typeof obj.allDownstreamFileMatches === 'function' &&
-		typeof obj.remove === 'function' &&
-		typeof obj.addFileMatch === 'function' &&
-		typeof obj.isEmpty === 'function' &&
-		typeof obj.clear === 'function' &&
-		typeof obj.showHighlights === 'boolean' &&
-		typeof obj.searchModel === 'object' &&
-		(obj.query === null || typeof obj.query === 'object') &&
-		typeof obj.replace === 'function' &&
-		typeof obj.replacingAll === 'boolean' &&
-		typeof obj.bindModel === 'function' &&
-		typeof obj.getDownstreamFileMatch === 'function' &&
-		typeof obj.replaceAll === 'function' &&
-		typeof obj.recursiveFileCount === 'function' &&
-		typeof obj.disposeMatches === 'function' &&
-		typeof obj.doRemoveFile === 'function' &&
-		typeof obj.doAddFile === 'function' &&
-		typeof obj.onFileChange === 'function' &&
-		typeof obj.createIntermediateFolderMatch === 'function' &&
-		typeof obj.getFolderMatch === 'function' &&
-		typeof obj.dispose === 'function';
-}
-// Type checker for IFolderMatchWithResource
-
-export function isSearchTreeFolderMatchWithResource(obj: any): obj is ISearchTreeFolderMatchWithResource {
-	return isSearchTreeFolderMatch(obj) && obj.resource instanceof URI;
-}
-// Type checker for IFolderMatchWorkspaceRoot
-
-export function isSearchTreeFolderMatchWorkspaceRoot(obj: any): obj is ISearchTreeFolderMatchWorkspaceRoot {
-	return isSearchTreeFolderMatchWithResource(obj) &&
-		typeof (<any>obj).createAndConfigureFileMatch === 'function';
-}
-
-export function isSearchTreeFolderMatchNoRoot(obj: any): obj is ISearchTreeFolderMatchNoRoot {
-	return isSearchTreeFolderMatch(obj) &&
-		typeof (<any>obj).createAndConfigureFileMatch === 'function';
-}
-// Type checker for IFileInstanceMatch
-
-export function isSearchTreeFileMatch(obj: any): obj is ISearchTreeFileMatch {
-	return obj && typeof obj.id === 'function' &&
-		obj.resource instanceof URI &&
-		typeof obj.onChange === 'object' &&
-		typeof obj.hasChildren === 'boolean' &&
-		typeof obj.count === 'function' &&
-		typeof obj.hasOnlyReadOnlyMatches === 'function' &&
-		typeof obj.matches === 'function' &&
-		typeof obj.updateHighlights === 'function' &&
-		typeof obj.getSelectedMatch === 'function' &&
-		typeof obj.parent === 'function' &&
-		typeof obj.bindModel === 'function' &&
-		typeof obj.hasReadonlyMatches === 'function' &&
-		typeof obj.addContext === 'function' &&
-		typeof obj.add === 'function' &&
-		typeof obj.replace === 'function' &&
-		typeof obj.remove === 'function' &&
-		typeof obj.dispose === 'function';
 }
 
 export interface ISearchTreeMatch {
@@ -431,18 +278,64 @@ export interface ISearchTreeMatch {
 	isReadonly(): boolean;
 }
 
+export function isSearchModel(obj: any): obj is ISearchModel {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(SEARCH_MODEL_PREFIX);
+}
+
+export function isSearchResult(obj: any): obj is ISearchResult {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(SEARCH_RESULT_PREFIX);
+}
+
+export function isTextSearchHeading(obj: any): obj is ITextSearchHeading {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(TEXT_SEARCH_HEADING_PREFIX);
+}
+
+export function isPlainTextSearchHeading(obj: any): obj is IPlainTextSearchHeading {
+	return isTextSearchHeading(obj) &&
+		typeof (<any>obj).replace === 'function' &&
+		typeof (<any>obj).replaceAll === 'function';
+}
+
+export function isSearchTreeFolderMatch(obj: any): obj is ISearchTreeFolderMatch {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(FOLDER_MATCH_PREFIX);
+}
+
+export function isSearchTreeFolderMatchWithResource(obj: any): obj is ISearchTreeFolderMatchWithResource {
+	return isSearchTreeFolderMatch(obj) && obj.resource instanceof URI;
+}
+
+export function isSearchTreeFolderMatchWorkspaceRoot(obj: any): obj is ISearchTreeFolderMatchWorkspaceRoot {
+	return isSearchTreeFolderMatchWithResource(obj) &&
+		typeof (<any>obj).createAndConfigureFileMatch === 'function';
+}
+
+export function isSearchTreeFolderMatchNoRoot(obj: any): obj is ISearchTreeFolderMatchNoRoot {
+	return isSearchTreeFolderMatch(obj) &&
+		typeof (<any>obj).createAndConfigureFileMatch === 'function';
+}
+
+export function isSearchTreeFileMatch(obj: any): obj is ISearchTreeFileMatch {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(FILE_MATCH_PREFIX);
+}
+
 export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 	return typeof obj === 'object' &&
 		obj !== null &&
 		typeof obj.id === 'function' &&
-		typeof obj.parent === 'function' &&
-		typeof obj.text === 'function' &&
-		typeof obj.range === 'function' &&
-		typeof obj.preview === 'function' &&
-		typeof obj.replaceString === 'string' &&
-		typeof obj.fullMatchText === 'function' &&
-		typeof obj.rangeInPreview === 'function' &&
-		Array.isArray(obj.fullPreviewLines) &&
-		typeof obj.getMatchString === 'function' &&
-		typeof obj.isReadonly === 'function';
+		obj.id().startsWith(MATCH_PREFIX);
 }

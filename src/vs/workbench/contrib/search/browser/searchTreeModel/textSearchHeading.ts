@@ -15,7 +15,7 @@ import { IReplaceService } from '../replace.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { FolderMatchNoRootImpl, FolderMatchWorkspaceRootImpl } from './folderMatch.js';
-import { AI_TEXT_SEARCH_RESULT_ID, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, ITextSearchHeading, ISearchTreeMatch } from './searchTreeCommon.js';
+import { AI_TEXT_SEARCH_RESULT_ID, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, ITextSearchHeading, ISearchTreeMatch, TEXT_SEARCH_HEADING_PREFIX } from './searchTreeCommon.js';
 import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 
 
@@ -36,15 +36,16 @@ export class TextSearchHeadingImpl extends Disposable implements ITextSearchHead
 	public hidden = false;
 
 	public cachedSearchComplete: ISearchComplete | undefined;
-
+	private _id: string;
 	constructor(
 		private _allowOtherResults: boolean,
 		private _parent: ISearchResult,
-		private _id: string,
+		_id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
+		this._id = TEXT_SEARCH_HEADING_PREFIX + _id;
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.onChange(e => {
@@ -60,7 +61,7 @@ export class TextSearchHeadingImpl extends Disposable implements ITextSearchHead
 	}
 
 	get isAIContributed() {
-		return this.id() === AI_TEXT_SEARCH_RESULT_ID;
+		return (this.id() === TEXT_SEARCH_HEADING_PREFIX + AI_TEXT_SEARCH_RESULT_ID);
 	}
 
 	id() {

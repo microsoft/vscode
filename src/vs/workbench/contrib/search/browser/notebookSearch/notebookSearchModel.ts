@@ -21,10 +21,10 @@ import { NotebookCellsChangeType } from '../../../notebook/common/notebookCommon
 import { CellSearchModel } from '../../common/cellSearchModel.js';
 import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers.js';
 import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers.js';
-import { ISearchTreeMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWorkspaceRoot, MATCH_PREFIX } from '../searchTreeModel/searchTreeCommon.js';
 import { IReplaceService } from '../replace.js';
 import { FileMatchImpl } from '../searchTreeModel/fileMatch.js';
-import { ICellMatch, IMatchInNotebook, INotebookFileInstanceMatch } from './notebookSearchModelBase.js';
+import { ICellMatch, IMatchInNotebook, INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearchModelBase.js';
 import { MatchImpl, textSearchResultToMatches } from '../searchTreeModel/match.js';
 
 export class MatchInNotebook extends MatchImpl implements IMatchInNotebook {
@@ -32,7 +32,7 @@ export class MatchInNotebook extends MatchImpl implements IMatchInNotebook {
 
 	constructor(private readonly _cellParent: ICellMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, webviewIndex?: number) {
 		super(_cellParent.parent, _fullPreviewLines, _fullPreviewRange, _documentRange, false);
-		this._id = this._parent.id() + '>' + this._cellParent.cellIndex + (webviewIndex ? '_' + webviewIndex : '') + '_' + this.notebookMatchTypeString() + this._range + this.getMatchString();
+		this._id = MATCH_PREFIX + this._parent.resource.toString() + '>' + this._cellParent.cellIndex + (webviewIndex ? '_' + webviewIndex : '') + '_' + this.notebookMatchTypeString() + this._range + this.getMatchString();
 		this._webviewIndex = webviewIndex;
 	}
 
@@ -433,7 +433,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 
 			this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
 		} else {
-			super.remove(match);
+			super.removeMatch(match);
 		}
 	}
 
@@ -478,12 +478,14 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 
 	override setSelectedMatch(match: ISearchTreeMatch | null): void {
 		if (match) {
-
-			if (!this.isMatchSelected(match)) {
+			if (!this.isMatchSelected(match) && isIMatchInNotebook(match)) {
 				this._selectedMatch = match;
 				return;
 			}
 
+			if (!this._textMatches.has(match.id())) {
+				return;
+			}
 			if (this.isMatchSelected(match)) {
 				return;
 			}
