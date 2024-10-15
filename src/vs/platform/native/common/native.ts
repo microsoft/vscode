@@ -144,6 +144,10 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
+
+	/**
+	 * Gets a screenshot of the currently active Electron window.
+	 */
 	getScreenshot(): Promise<ArrayBufferLike | undefined>;
 
 	// Process
