@@ -45,7 +45,9 @@ export class TextAreaState {
 	public equals(other: TextAreaState): boolean {
 		return this.value === other.value
 			&& this.selectionStart === other.selectionStart
-			&& this.selectionEnd === other.selectionEnd;
+			&& this.selectionEnd === other.selectionEnd
+			&& (this.selection === null ? other.selection === null : this.selection.equalsRange(other.selection))
+			&& this.newlineCountBeforeSelection === other.newlineCountBeforeSelection;
 	}
 
 	public toString(): string {
