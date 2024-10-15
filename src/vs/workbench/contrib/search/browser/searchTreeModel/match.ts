@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from '../../../../../base/common/decorators';
-import { lcut } from '../../../../../base/common/strings';
-import { ISearchRange, ITextSearchMatch, OneLineRange } from '../../../../services/search/common/search';
-import { ISearchMatch, IFileInstanceMatch } from './searchTreeCommon';
+import { memoize } from '../../../../../base/common/decorators.js';
+import { lcut } from '../../../../../base/common/strings.js';
+import { ISearchRange, ITextSearchMatch, OneLineRange } from '../../../../services/search/common/search.js';
+import { ISearchMatch, IFileInstanceMatch } from './searchTreeCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
 export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: IFileInstanceMatch, isAiContributed: boolean): ISearchMatch[] {
@@ -62,7 +62,7 @@ export class MatchImpl implements ISearchMatch {
 	}
 
 	@memoize
-	preview(): { before: string; fullBefore: string; inside: string; after: string; } {
+	preview(): { before: string; fullBefore: string; inside: string; after: string } {
 		const fullBefore = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1), before = lcut(fullBefore, 26, '…');
 
 		let inside = this.getMatchString(), after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);

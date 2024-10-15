@@ -5,14 +5,14 @@
 
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IAITextQuery, IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
-import { CancellationToken } from '../../../../../base/common/cancellation';
-import { URI } from '../../../../../base/common/uri';
-import { ITextModel } from '../../../../../editor/common/model';
-import { IFileStatWithPartialMetadata, IFileService } from '../../../../../platform/files/common/files';
-import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress';
-import { ReplacePattern } from '../../../../services/search/common/replace';
-import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget';
-import { RangeHighlightDecorations } from './rangeDecorations';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IFileStatWithPartialMetadata, IFileService } from '../../../../../platform/files/common/files.js';
+import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
+import { ReplacePattern } from '../../../../services/search/common/replace.js';
+import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
+import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { Event } from '../../../../../base/common/event.js';
 
 export type FileMatchOrMatch = IFileInstanceMatch | ISearchMatch;
@@ -151,7 +151,7 @@ export interface ITextSearchHeading {
 	getFolderMatch(resource: URI): IFolderMatch | undefined;
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent?: boolean): void;
 	remove(matches: IFileInstanceMatch | IFolderMatch | (IFileInstanceMatch | IFolderMatch)[], ai?: boolean): void;
-	groupFilesByFolder(fileMatches: IFileInstanceMatch[]): { byFolder: Map<URI, IFileInstanceMatch[]>; other: IFileInstanceMatch[]; };
+	groupFilesByFolder(fileMatches: IFileInstanceMatch[]): { byFolder: Map<URI, IFileInstanceMatch[]>; other: IFileInstanceMatch[] };
 	isEmpty(): boolean;
 	findFolderSubstr(resource: URI): IFolderMatch | undefined;
 	query: ITextQuery | null;
@@ -427,7 +427,7 @@ export interface ISearchMatch {
 	parent(): IFileInstanceMatch;
 	text(): string;
 	range(): Range;
-	preview(): { before: string; fullBefore: string; inside: string; after: string; };
+	preview(): { before: string; fullBefore: string; inside: string; after: string };
 	replaceString: string;
 	fullMatchText(includeSurrounding?: boolean): string;
 	rangeInPreview(): ISearchRange;

@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OverviewRulerLane } from 'vscode';
-import { RunOnceScheduler } from '../../../../../base/common/async';
-import { Lazy } from '../../../../../base/common/lazy';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { themeColorFromId } from '../../../../../base/common/themables';
-import { URI } from '../../../../../base/common/uri';
-import { TrackedRangeStickiness, MinimapPosition, ITextModel, FindMatch, IModelDeltaDecoration } from '../../../../../editor/common/model';
-import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel';
-import { IModelService } from '../../../../../editor/common/services/model';
-import { IFileStatWithPartialMetadata, IFileService } from '../../../../../platform/files/common/files';
-import { ILabelService } from '../../../../../platform/label/common/label';
-import { overviewRulerFindMatchForeground, minimapFindMatch } from '../../../../../platform/theme/common/colorRegistry';
-import { IFileMatch, IPatternInfo, ITextSearchPreviewOptions, resultIsMatch, DEFAULT_MAX_SEARCH_RESULTS, ITextSearchResult, ITextSearchContext } from '../../../../services/search/common/search';
-import { editorMatchesToTextSearchResults, getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers';
-import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel';
-import { IReplaceService } from '../replace';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot, ISearchMatch } from './searchTreeCommon';
+import { themeColorFromId } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TrackedRangeStickiness, MinimapPosition, ITextModel, FindMatch, IModelDeltaDecoration } from '../../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IFileStatWithPartialMetadata, IFileService } from '../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { overviewRulerFindMatchForeground, minimapFindMatch } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IFileMatch, IPatternInfo, ITextSearchPreviewOptions, resultIsMatch, DEFAULT_MAX_SEARCH_RESULTS, ITextSearchResult, ITextSearchContext } from '../../../../services/search/common/search.js';
+import { editorMatchesToTextSearchResults, getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers.js';
+import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel.js';
+import { IReplaceService } from '../replace.js';
+import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot, ISearchMatch } from './searchTreeCommon.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { textSearchResultToMatches } from './match';
+import { textSearchResultToMatches } from './match.js';
+import { OverviewRulerLane } from '../../../../../editor/common/standalone/standaloneEnums.js';
 
 export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 

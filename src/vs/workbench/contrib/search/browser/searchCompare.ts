@@ -10,16 +10,11 @@
 // 	return 0;
 // }
 
-import { IMatchInNotebook, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase';
-import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers';
-import { SearchSortOrder } from '../../../services/search/common/search';
+import { IMatchInNotebook, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
+import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
+import { SearchSortOrder } from '../../../services/search/common/search.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { createParentList, isFileInstanceMatch, isFolderMatch, isSearchMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon';
-import { URI } from '../../../../base/common/uri.js';
-
-
-let uri = URI.file('test');
-console.log(uri);
+import { createParentList, isFileInstanceMatch, isFolderMatch, isSearchMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 
 
 let elemAIndex: number = -1;

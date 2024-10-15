@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextSearchMatch } from '../../../../services/search/common/search';
-import { ICellViewModel } from '../../../notebook/browser/notebookBrowser';
-import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget';
-import { INotebookCellMatchNoModel } from '../../common/searchNotebookHelpers';
-import { IFileInstanceMatch, ISearchMatch, isFileInstanceMatch } from '../searchTreeModel/searchTreeCommon';
-import { INotebookCellMatchWithModel } from './searchNotebookHelpers';
+import { ITextSearchMatch } from '../../../../services/search/common/search.js';
+import { ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
+import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
+import { INotebookCellMatchNoModel } from '../../common/searchNotebookHelpers.js';
+import { IFileInstanceMatch, ISearchMatch, isFileInstanceMatch } from '../searchTreeModel/searchTreeCommon.js';
+import { INotebookCellMatchWithModel } from './searchNotebookHelpers.js';
 
 export interface INotebookFileInstanceMatch extends IFileInstanceMatch {
 	bindNotebookEditorWidget(editor: NotebookEditorWidget): void;

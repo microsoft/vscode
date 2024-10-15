@@ -34,9 +34,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
-import { IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
-import { RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
-
+import { RenderableMatch, IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Interfaces
 export interface IFindInFilesArgs {
@@ -160,7 +158,7 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 			fileMatch = args;
 		} else {
 			args = searchView.getControl().getFocus()[0];
-			return
+			return;
 		}
 
 		paneCompositeService.openPaneComposite(VIEWLET_ID_FILES, ViewContainerLocation.Sidebar, false).then((viewlet) => {

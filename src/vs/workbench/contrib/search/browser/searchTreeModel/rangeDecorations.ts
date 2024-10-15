@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle';
-import { URI } from '../../../../../base/common/uri';
-import { ITextModel, TrackedRangeStickiness } from '../../../../../editor/common/model';
-import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel';
-import { IModelService } from '../../../../../editor/common/services/model';
+import { IDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITextModel, TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
 /**

@@ -3,30 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../../../base/common/arrays';
-import { RunOnceScheduler } from '../../../../../base/common/async';
-import { CancellationToken } from '../../../../../base/common/cancellation';
-import { IDisposable } from '../../../../../base/common/lifecycle';
-import { FindMatch } from '../../../../../editor/common/model';
-import { IModelService } from '../../../../../editor/common/services/model';
-import { ILabelService } from '../../../../../platform/label/common/label';
-import { ISearchRange, ITextSearchMatch, resultIsMatch, ITextSearchContext, IPatternInfo, ITextSearchPreviewOptions, IFileMatch } from '../../../../services/search/common/search';
-import { getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers';
-import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel';
-import { CellFindMatchModel } from '../../../notebook/browser/contrib/find/findModel';
-import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from '../../../notebook/browser/notebookBrowser';
-import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget';
-import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService';
-import { NotebookCellsChangeType } from '../../../notebook/common/notebookCommon';
-import { CellSearchModel } from '../../common/cellSearchModel';
-import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers';
-import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers';
-import { IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon';
-import { ISearchMatch } from '../searchTreeModel/searchTreeCommon';
-import { IReplaceService } from '../replace';
-import { FileMatchImpl } from '../searchTreeModel/fileMatch';
-import { ICellMatch, IMatchInNotebook, INotebookFileInstanceMatch } from './notebookSearchModelBase';
-import { MatchImpl, textSearchResultToMatches } from '../searchTreeModel/match';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { FindMatch } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { ISearchRange, ITextSearchMatch, resultIsMatch, ITextSearchContext, IPatternInfo, ITextSearchPreviewOptions, IFileMatch } from '../../../../services/search/common/search.js';
+import { getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers.js';
+import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel.js';
+import { CellFindMatchModel } from '../../../notebook/browser/contrib/find/findModel.js';
+import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
+import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
+import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { NotebookCellsChangeType } from '../../../notebook/common/notebookCommon.js';
+import { CellSearchModel } from '../../common/cellSearchModel.js';
+import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers.js';
+import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers.js';
+import { ISearchMatch, IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon.js';
+import { IReplaceService } from '../replace.js';
+import { FileMatchImpl } from '../searchTreeModel/fileMatch.js';
+import { ICellMatch, IMatchInNotebook, INotebookFileInstanceMatch } from './notebookSearchModelBase.js';
+import { MatchImpl, textSearchResultToMatches } from '../searchTreeModel/match.js';
 
 export class MatchInNotebook extends MatchImpl implements IMatchInNotebook {
 	private _webviewIndex: number | undefined;
