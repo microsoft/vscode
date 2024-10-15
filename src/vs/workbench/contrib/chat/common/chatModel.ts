@@ -512,7 +512,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._register(this._session.onDidChange((e) => {
 			if (e.kind === 'setCheckpoint') {
 				const isDisabled = e.disabledResponseIds.has(this.id);
-				const didChange = this._isDisabled === isDisabled;
+				const didChange = this._isDisabled !== isDisabled;
 				this._isDisabled = isDisabled;
 				if (didChange) {
 					this._onDidChange.fire();
