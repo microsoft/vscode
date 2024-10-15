@@ -110,16 +110,32 @@ declare module 'vscode' {
 		content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 	}
 
-	// Tool registration/invoking between extensions
-
+	/**
+	 * One result item from a {@link LanguageModelToolResult}.
+	 */
 	export class LanguageModelToolResultItem {
+		/**
+		 * Construct a string content item with a 'text/plain' mime type.
+		 * @param content The content of the item.
+		 */
 		static text(content: string): LanguageModelToolResultItem;
 
-		// TODO@API - I prefer contentType over mimeType, but notebooks use 'mime'. I prefer 'mimeType' over 'mime' at least...
+		/**
+		 * The mime type which determines how the {@link LanguageModelToolResultItem.data} property is interpreted.
+		 */
 		mime: string;
+
+		/**
+		 * The data of the result item. The type of this property depends on the {@link LanguageModelToolResultItem.mime mime}
+		 * property. For example, an item with a `text/plain` mime will have string-type data.
+		 */
 		data: any;
 
-		// TODO@API - the notebook output item has fields in this order, but I think mimeType first is more intuitive
+		/**
+		 * Construct a new result item.
+		 * @param data The item data.
+		 * @param mime The mimeType of the item data.
+		 */
 		constructor(data: any, mime: string);
 	}
 
@@ -129,7 +145,7 @@ declare module 'vscode' {
 	export class LanguageModelToolResult {
 		/**
 		 * The result can contain arbitrary representations of the content. A tool user can set
-		 * {@link LanguageModelToolInvocationOptions.requested} to request particular types, and a tool implementation should only
+		 * {@link LanguageModelToolInvocationOptions.requestedContentTypes} to request particular types, and a tool implementation should only
 		 * compute the types that were requested. `text/plain` is recommended to be supported by all tools, which would indicate
 		 * any text-based content. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the
 		 * `contentType` exported by that library.
