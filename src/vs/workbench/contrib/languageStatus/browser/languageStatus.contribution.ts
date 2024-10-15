@@ -34,6 +34,7 @@ import { IAccessibilityInformation } from '../../../../platform/accessibility/co
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { Event } from '../../../../base/common/event.js';
+import { joinStrings } from '../../../../base/common/strings.js';
 
 class LanguageStatusViewModel {
 
@@ -213,12 +214,13 @@ class LanguageStatus {
 				ariaLabels.push(LanguageStatus._accessibilityInformation(status).label);
 				isOneBusy = isOneBusy || (!isPinned && status.busy); // unpinned items contribute to the busy-indicator of the composite status item
 			}
+
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),
 				ariaLabel: localize('langStatus.aria', "Editor Language Status: {0}", ariaLabels.join(', next: ')),
 				tooltip: element,
 				command: ShowTooltipCommand,
-				text: isOneBusy ? `${text}\u00A0\u00A0$(sync~spin)` : text,
+				text: computeText(text, isOneBusy),
 			};
 			if (!this._combinedEntry) {
 				this._combinedEntry = this._statusBarService.addEntry(props, LanguageStatus._id, StatusbarAlignment.RIGHT, { id: 'status.editor.mode', alignment: StatusbarAlignment.LEFT, compact: true });
@@ -305,7 +307,7 @@ class LanguageStatus {
 		const label = document.createElement('span');
 		label.classList.add('label');
 		const labelValue = typeof status.label === 'string' ? status.label : status.label.value;
-		dom.append(label, ...renderLabelWithIcons(status.busy ? `$(sync~spin)\u00A0\u00A0${labelValue}` : labelValue));
+		dom.append(label, ...renderLabelWithIcons(computeText(labelValue, status.busy)));
 		left.appendChild(label);
 
 		const detail = document.createElement('span');
@@ -410,7 +412,7 @@ class LanguageStatus {
 
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
-			text: item.busy ? `${textValue}\u00A0\u00A0$(sync~spin)` : textValue,
+			text: computeText(textValue, item.busy),
 			ariaLabel: LanguageStatus._accessibilityInformation(item).label,
 			role: item.accessibilityInfo?.role,
 			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
@@ -437,3 +439,7 @@ registerAction2(class extends Action2 {
 		accessor.get(IStorageService).remove('languageStatus.interactCount', StorageScope.PROFILE);
 	}
 });
+
+function computeText(text: string, loading: boolean): string {
+	return joinStrings([text !== '' && text, loading && '$(loading~spin)'], '\u00A0\u00A0');
+}

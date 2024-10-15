@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { diffInserted, diffRemoved, editorWidgetBackground, editorWidgetBorder, editorWidgetForeground, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -49,7 +49,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[InlineChatConfigKeys.AcceptedOrDiscardBeforeSave]: {
 			description: localize('acceptedOrDiscardBeforeSave', "Whether pending inline chat sessions prevent saving."),
 			default: true,
-			type: 'boolean'
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION
 		},
 		[InlineChatConfigKeys.HoldToSpeech]: {
 			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),

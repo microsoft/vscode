@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import tseslint from 'typescript-eslint';
+import { fileURLToPath } from 'url';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
 import pluginLocal from 'eslint-plugin-local';
@@ -14,7 +15,7 @@ import pluginJsdoc from 'eslint-plugin-jsdoc';
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ignores = fs.readFileSync(path.join(__dirname, '.eslint-ignore'), 'utf8')
 	.toString()
 	.split(/\r\n|\n/)
@@ -155,9 +156,6 @@ export default tseslint.config(
 		],
 		languageOptions: {
 			parser: tseslint.parser,
-			parserOptions: {
-				project: path.join(__dirname, 'src', 'tsconfig.json'),
-			}
 		},
 		plugins: {
 			'@typescript-eslint': tseslint.plugin,

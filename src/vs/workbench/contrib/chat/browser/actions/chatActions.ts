@@ -23,6 +23,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -37,7 +38,9 @@ import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
+import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -55,6 +58,11 @@ export interface IChatViewOpenOptions {
 	 * Any previous chat requests and responses that should be shown in the chat view.
 	 */
 	previousRequests?: IChatViewOpenRequestEntry[];
+
+	/**
+	 * Whether a screenshot of the focused window should be taken and attached
+	 */
+	attachScreenshot?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -92,13 +100,21 @@ class OpenChatGlobalAction extends Action2 {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
-		const chatWidget = await showChatView(accessor.get(IViewsService));
+		const viewsService = accessor.get(IViewsService);
+		const hostService = accessor.get(IHostService);
+		const chatWidget = await showChatView(viewsService);
 		if (!chatWidget) {
 			return;
 		}
 		if (opts?.previousRequests?.length && chatWidget.viewModel) {
 			for (const { request, response } of opts.previousRequests) {
 				chatService.addCompleteRequest(chatWidget.viewModel.sessionId, request, undefined, 0, { message: response });
+			}
+		}
+		if (opts?.attachScreenshot) {
+			const screenshot = await hostService.getScreenshot();
+			if (screenshot) {
+				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
 			}
 		}
 		if (opts?.query) {
@@ -425,6 +441,12 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: Codicon.commentDiscussion,
 	when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
 	order: 10001,
+});
+
+registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
+	constructor() {
+		super('chat.commandCenter.enabled', localize('toggle.chatControl', 'Chat Controls'), localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false, ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter')));
+	}
 });
 
 export class ChatCommandCenterRendering implements IWorkbenchContribution {
