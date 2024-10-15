@@ -42,6 +42,12 @@ export class TextAreaState {
 		public readonly newlineCountBeforeSelection: number | undefined,
 	) { }
 
+	public equals(other: TextAreaState): boolean {
+		return this.value === other.value
+			&& this.selectionStart === other.selectionStart
+			&& this.selectionEnd === other.selectionEnd;
+	}
+
 	public toString(): string {
 		return `[ <${this.value}>, selectionStart: ${this.selectionStart}, selectionEnd: ${this.selectionEnd}]`;
 	}

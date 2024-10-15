@@ -577,12 +577,17 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _setAndWriteTextAreaState(reason: string, textAreaState: TextAreaState): void {
+		if (this._textAreaState.equals(textAreaState)) {
+			// No change
+			return;
+		}
 		if (!this._hasFocus) {
 			textAreaState = textAreaState.collapseSelection();
 		}
 
 		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
 		this._textAreaState = textAreaState;
+		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 	}
 
 	public writeNativeTextAreaContent(reason: string): void {
@@ -591,7 +596,6 @@ export class TextAreaInput extends Disposable {
 			// Do not write to the text area when doing composition
 			return;
 		}
-		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 
