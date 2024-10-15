@@ -6,6 +6,8 @@
 import { Queue } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { autorunWithStore } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -35,6 +37,22 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
 	) {
 		super();
+
+		this._store.add(autorunWithStore((r, store) => {
+
+			const session = chatEditingService.currentEditingSessionObs.read(r);
+			if (!session) {
+				return;
+			}
+
+			store.add(textFileService.files.onDidSave(e => {
+				const uri = e.model.resource;
+				const entry = session.entries.get().find(e => isEqual(uri, e.modifiedURI));
+				if (entry) {
+					entry.markSaved();
+				}
+			}));
+		}));
 
 		const store = this._store.add(new DisposableStore());
 

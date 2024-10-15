@@ -76,6 +76,7 @@ export interface IModifiedFileEntry {
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
+	markSaved(): void;
 }
 
 export interface IChatEditingSessionStream {

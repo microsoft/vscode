@@ -998,7 +998,6 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
-		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
@@ -1157,7 +1156,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 		this.docSnapshot.setValue(this.doc.createSnapshot());
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
-		await this.collapse(transaction);
+		await this._collapse(transaction);
 		this._notifyAction('accepted');
 	}
 
@@ -1170,8 +1169,16 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this._setDocValue(this.docSnapshot.getValue());
 
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
-		await this.collapse(transaction);
+		await this._collapse(transaction);
 		this._notifyAction('rejected');
+	}
+
+	markSaved(): void {
+		if (this._stateObs.get() !== WorkingSetEntryState.Modified) {
+			// already accepted or rejected
+			return;
+		}
+		this._notifyAction('saved');
 	}
 
 	private _setDocValue(value: string): void {
@@ -1181,11 +1188,11 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this.doc.pushStackElement();
 	}
 
-	async collapse(transaction: ITransaction | undefined): Promise<void> {
+	private async _collapse(transaction: ITransaction | undefined): Promise<void> {
 		this._multiDiffEntryDelegate.collapse(transaction);
 	}
 
-	private _notifyAction(outcome: 'accepted' | 'rejected') {
+	private _notifyAction(outcome: 'accepted' | 'rejected' | 'saved') {
 		this._chatService.notifyUserAction({
 			action: { kind: 'chatEditingSessionAction', uri: this.resource, hasRemainingEdits: false, outcome },
 			agentId: this._telemetryInfo.agentId,
