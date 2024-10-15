@@ -134,8 +134,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 	@memoize
 	private static async getWtExePath() {
 		try {
-			const wtPath = await processes.win32.findExecutable('wt');
-			return await pfs.Promises.exists(wtPath) ? wtPath : undefined;
+			return await processes.findExecutable('wt');
 		} catch {
 			return undefined;
 		}
