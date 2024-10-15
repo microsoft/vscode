@@ -40,7 +40,7 @@ export class LineRange {
 	}
 
 	public join(other: LineRange): LineRange {
-		return new LineRange(Math.min(this.startLineNumber, other.startLineNumber), Math.max(this.endLineNumberExclusive, other.endLineNumberExclusive) - this.startLineNumber);
+		return LineRange.fromLineNumbers(Math.min(this.startLineNumber, other.startLineNumber), Math.max(this.endLineNumberExclusive, other.endLineNumberExclusive));
 	}
 
 	public get endLineNumberExclusive(): number {
