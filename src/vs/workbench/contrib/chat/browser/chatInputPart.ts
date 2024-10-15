@@ -788,9 +788,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							};
 							options.editorOptions = textEditorOptions;
 						}
-						this.openerService.open(file, options).then(() => {
-							this.focus();
-						});
+						this.openerService.open(file, options);
 					}
 				}));
 			}
