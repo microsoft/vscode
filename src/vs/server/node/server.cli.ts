@@ -17,6 +17,8 @@ import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
 
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
  *  - In integrated terminals for remote windows this connects to the remote server though a pipe.
@@ -81,9 +83,6 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 			return false;
 	}
 };
-
-// Export __dirname for ESM
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 const cliPipe = process.env['VSCODE_IPC_HOOK_CLI'] as string;
 const cliCommand = process.env['VSCODE_CLIENT_COMMAND'] as string;
