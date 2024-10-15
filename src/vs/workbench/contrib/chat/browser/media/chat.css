@@ -181,6 +181,10 @@
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
+.interactive-item-container.interactive-response.chat-most-recent-response {
+	min-height: var(--chat-current-response-min-height);
+}
+
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
 	/* Complete response only */
 	display: initial;
@@ -242,6 +246,7 @@
 
 .interactive-list {
 	overflow: hidden;
+	position: relative; /* For the scroll down button */
 }
 
 .hc-black .interactive-request,
@@ -546,7 +551,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: wrap;
 	gap: 6px;
 	align-items: center;
-	justify-content: space-between;
 }
 
 .interactive-session .chat-editing-session .monaco-button {
@@ -590,8 +594,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary,
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary {
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary {
+	color: var(--vscode-descriptionForeground);
+	background-color: transparent;
+	border: none;
+	height: 22px;
+	padding-left: 0px;
+	cursor: pointer;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.codicon {
+	background-color: transparent;
+	border-color: transparent;
+	cursor: pointer;
+	height: 16px;
+	padding: 0px;
+	border-radius: 2px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
 	background-color: var(--vscode-button-secondaryBackground);
 	border: 1px solid var(--vscode-button-border);
 	color: var(--vscode-button-secondaryForeground);
@@ -1205,4 +1226,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
+}
+
+.interactive-session .chat-scroll-down {
+	display: none;
+	position: absolute;
+	bottom: 7px;
+	right: 12px;
+	border-radius: 100%;
+	width: initial;
+	width: 27px;
+	height: 27px;
+
+	.codicon {
+		margin: 0px;
+	}
+}
+
+.interactive-session.show-scroll-down .chat-scroll-down {
+	display: initial;
 }
