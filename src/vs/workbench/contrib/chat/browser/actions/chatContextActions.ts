@@ -516,7 +516,7 @@ export class AttachContextAction extends Action2 {
 					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
 					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
 					label: (isElectron
-						? localize('chatContext.attachScreenshot.labelElectron', 'Image of the Current VS Code Window')
+						? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
 						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
 				});
 			}

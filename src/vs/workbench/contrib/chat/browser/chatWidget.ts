@@ -507,6 +507,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
+						const requestId = isRequestVM(element) ? element.id : element.requestId;
+						const checkpointedRequestId = this._viewModel?.model.checkpoint?.id;
 						return element.dataId +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
@@ -517,6 +519,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes enabled/disabled due to checkpointing
 							`_${element.isDisabled ? '1' : '0'}` +
+							// Re-render if element checkpoint state changed
+							`_${requestId === checkpointedRequestId ? '1' : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
@@ -680,10 +684,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.tree.onDidScroll(() => {
 			this._onDidScroll.fire();
 
-			const lastItem = this.viewModel?.getItems().at(-1);
-			const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
 			const isScrolledDown = this.tree.scrollTop >= this.tree.scrollHeight - this.tree.renderHeight - 2;
-			this.container.classList.toggle('show-scroll-down', !isScrolledDown && Boolean(lastResponseIsRendering));
+			this.container.classList.toggle('show-scroll-down', !isScrolledDown && !this.scrollLock);
 		}));
 	}
 

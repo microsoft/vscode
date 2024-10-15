@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as url from 'url';
 import * as cp from 'child_process';
 import * as http from 'http';
+import path from 'path';
 import { cwd } from '../../base/common/process.js';
 import { dirname, extname, resolve, join } from '../../base/common/path.js';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv.js';
@@ -15,6 +16,8 @@ import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.j
 import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
+
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
