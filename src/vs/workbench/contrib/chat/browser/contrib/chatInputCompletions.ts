@@ -274,6 +274,27 @@ class AgentCompletions extends Disposable {
 				};
 			}
 		}));
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'installChatExtensions',
+			triggerCharacters: ['@'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const label = localize('installLabel', "Install Chat Extensions...");
+				const item: CompletionItem = {
+					label,
+					insertText: '',
+					range: new Range(1, 1, 1, 1),
+					kind: CompletionItemKind.Text, // The icons are disabled here anyway
+					command: { id: 'workbench.extensions.search', title: '', arguments: ['@category:chat'] },
+					filterText: '@' + label,
+					sortText: 'zzz'
+				};
+
+				return {
+					suggestions: [item]
+				};
+			}
+		}));
 	}
 
 	private getAgentCompletionDetails(agent: IChatAgentData): { label: string; isDupe: boolean } {
