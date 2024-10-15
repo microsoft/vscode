@@ -761,7 +761,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			if (file) {
 				widget.style.cursor = 'pointer';
-				store.add(dom.addDisposableListener(widget, dom.EventType.DBLCLICK, (e: MouseEvent) => {
+				store.add(dom.addDisposableListener(widget, dom.EventType.CLICK, (e: MouseEvent) => {
 					dom.EventHelper.stop(e, true);
 					const options: Mutable<OpenInternalOptions> = {
 						fromUserGesture: true
@@ -777,8 +777,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}));
 
 				store.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const event =
-						new StandardKeyboardEvent(e);
+					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Enter)) {
 						dom.EventHelper.stop(e, true);
 						const options: Mutable<OpenInternalOptions> = {
