@@ -34,6 +34,10 @@ abstract class WorkingSetAction extends Action2 {
 		}
 
 		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (chatWidget?.location !== ChatAgentLocation.EditingSession) {
+			return;
+		}
+
 		const uris: URI[] = [];
 		if (URI.isUri(args[0])) {
 			uris.push(args[0]);
@@ -93,7 +97,7 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 			menu: [{
 				id: MenuId.ChatEditingSessionWidgetToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
-				order: 0,
+				order: 2,
 				group: 'navigation'
 			}],
 		});
@@ -129,7 +133,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			}, {
 				id: MenuId.ChatEditingSessionWidgetToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
-				order: 2,
+				order: 0,
 				group: 'navigation'
 			}],
 		});
