@@ -323,6 +323,14 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
+	public readonly status = derived(this, reader => {
+		if (this._source.loading.read(reader)) { return 'loading'; }
+		const s = this.stateWithInlineEdit.read(reader);
+		if (s?.kind === 'ghostText') { return 'ghostText'; }
+		if (s?.kind === 'inlineEdit') { return 'inlineEdit'; }
+		return 'noSuggestion';
+	});
+
 	public readonly state = derived(reader => {
 		const s = this.stateWithInlineEdit.read(reader);
 		if (!s || s.kind !== 'ghostText') { return undefined; }
