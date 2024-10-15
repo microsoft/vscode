@@ -181,6 +181,10 @@
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
+.interactive-item-container.interactive-response.chat-most-recent-response {
+	min-height: var(--chat-current-response-min-height);
+}
+
 .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
 	/* Complete response only */
 	display: initial;
@@ -242,6 +246,7 @@
 
 .interactive-list {
 	overflow: hidden;
+	position: relative; /* For the scroll down button */
 }
 
 .hc-black .interactive-request,
@@ -1221,4 +1226,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
+}
+
+.interactive-session .chat-scroll-down {
+	display: none;
+	position: absolute;
+	bottom: 7px;
+	right: 12px;
+	border-radius: 100%;
+	width: initial;
+	width: 27px;
+	height: 27px;
+
+	.codicon {
+		margin: 0px;
+	}
+}
+
+.interactive-session.show-scroll-down .chat-scroll-down {
+	display: initial;
 }
