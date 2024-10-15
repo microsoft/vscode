@@ -194,6 +194,13 @@ export interface IProductConfiguration {
 	readonly chatParticipantRegistry?: string;
 
 	readonly emergencyAlertUrl?: string;
+
+	readonly defaultChatAgent?: {
+		readonly extensionId: string;
+		readonly name: string;
+		readonly icon: string;
+		readonly documentationUrl: string;
+	};
 }
 
 export interface ITunnelApplicationConfig {

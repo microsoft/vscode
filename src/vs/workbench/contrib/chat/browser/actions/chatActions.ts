@@ -46,6 +46,8 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import product from '../../../../../platform/product/common/product.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -75,6 +77,13 @@ export interface IChatViewOpenRequestEntry {
 	response: string;
 }
 
+const defaultChat = {
+	extensionId: product.defaultChatAgent?.extensionId ?? '',
+	name: product.defaultChatAgent?.name ?? '',
+	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
+	documentationUrl: product.defaultChatAgent?.documentationUrl ?? ''
+};
+
 class OpenChatGlobalAction extends Action2 {
 
 	static readonly TITLE = localize2('openChat', "Open Chat");
@@ -83,7 +92,7 @@ class OpenChatGlobalAction extends Action2 {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
 			title: OpenChatGlobalAction.TITLE,
-			icon: Codicon.copilot,
+			icon: defaultChat.icon,
 			f1: true,
 			precondition: CONTEXT_CHAT_ENABLED,
 			category: CHAT_CATEGORY,
@@ -446,11 +455,11 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
-	icon: Codicon.copilot,
+	icon: defaultChat.icon,
 	when: ContextKeyExpr.or(
-		// Copilot installed: show when `chat.commandCenter.enabled`
+		// Chat extension installed: show when `chat.commandCenter.enabled`
 		ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
-		// Copilot not installed: show when `chat.experimental.offerInstall`
+		// Chat extension not installed: show when `chat.experimental.offerInstall`
 		ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall'))
 	),
 	order: 10001,
@@ -507,7 +516,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: hasChatExtension ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
 				title: hasChatExtension ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
-				icon: Codicon.copilot,
+				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
 			return instantiationService.createInstance(
@@ -533,7 +542,7 @@ abstract class BaseInstallChatAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const productService = accessor.get(IProductService);
 
-		await extensionsWorkbenchService.install('GitHub.copilot-chat', {
+		await extensionsWorkbenchService.install(defaultChat.extensionId, {
 			justification: this.getJustification(),
 			enable: true,
 			installPreReleaseVersion: productService.quality !== 'stable'
@@ -546,14 +555,13 @@ abstract class BaseInstallChatAction extends Action2 {
 class InstallChatWithPromptAction extends BaseInstallChatAction {
 
 	static readonly ID = 'workbench.action.chat.installWithPrompt';
-	static readonly TITLE = localize2('installChat', "Install GitHub Copilot Chat");
+	static readonly TITLE = localize2('installChat', "Install {0}", defaultChat.name);
 
 	constructor() {
 		super({
 			id: InstallChatWithPromptAction.ID,
 			title: InstallChatWithPromptAction.TITLE,
-			icon: Codicon.copilot,
-			precondition: CONTEXT_CHAT_ENABLED.negate(),
+			icon: defaultChat.icon,
 			category: CHAT_CATEGORY
 		});
 	}
@@ -566,14 +574,12 @@ class InstallChatWithPromptAction extends BaseInstallChatAction {
 class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 
 	static readonly ID = 'workbench.action.chat.installWithoutPrompt';
-	static readonly TITLE = localize2('installChat', "Install GitHub Copilot Chat");
+	static readonly TITLE = localize2('installChat', "Install {0}", defaultChat.name);
 
 	constructor() {
 		super({
 			id: InstallChatWithoutPromptAction.ID,
 			title: InstallChatWithoutPromptAction.TITLE,
-			icon: Codicon.copilot,
-			precondition: CONTEXT_CHAT_ENABLED.negate(),
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
@@ -598,8 +604,6 @@ class LearnMoreChatAction extends Action2 {
 		super({
 			id: LearnMoreChatAction.ID,
 			title: LearnMoreChatAction.TITLE,
-			icon: Codicon.copilot,
-			precondition: CONTEXT_CHAT_ENABLED.negate(),
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatCommandCenter,
@@ -612,6 +616,8 @@ class LearnMoreChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
-		openerService.open(URI.parse('https://aka.ms/copilot-overview'));
+		if (defaultChat.documentationUrl) {
+			openerService.open(URI.parse(defaultChat.documentationUrl));
+		}
 	}
 }
