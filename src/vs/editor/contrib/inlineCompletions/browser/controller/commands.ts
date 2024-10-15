@@ -150,30 +150,43 @@ export class AcceptInlineCompletion extends EditorAction {
 				group: 'primary',
 				order: 1,
 			}],
-			kbOpts: {
-				primary: KeyCode.Tab,
-				weight: 200,
-				kbExpr: ContextKeyExpr.or(
-					ContextKeyExpr.and(
-						InlineCompletionContextKeys.inlineSuggestionVisible,
-						EditorContextKeys.tabMovesFocus.toNegated(),
-						SuggestContext.Visible.toNegated(),
-						EditorContextKeys.hoverFocused.toNegated(),
+			kbOpts: [
+				{
+					primary: KeyCode.Tab,
+					weight: 200,
+					kbExpr: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							InlineCompletionContextKeys.inlineSuggestionVisible,
+							EditorContextKeys.tabMovesFocus.toNegated(),
+							SuggestContext.Visible.toNegated(),
+							EditorContextKeys.hoverFocused.toNegated(),
 
-						InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+							InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+						),
+						ContextKeyExpr.and(
+							InlineCompletionContextKeys.inlineEditVisible,
+							EditorContextKeys.tabMovesFocus.toNegated(),
+							SuggestContext.Visible.toNegated(),
+							EditorContextKeys.hoverFocused.toNegated(),
+
+							//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
+							InlineCompletionContextKeys.hasSelection.toNegated(),
+							InlineCompletionContextKeys.cursorAtInlineEdit,
+						)
 					),
-					ContextKeyExpr.and(
+				},
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: 200,
+					kbExpr: ContextKeyExpr.and(
+						EditorContextKeys.editorTextFocus,
 						InlineCompletionContextKeys.inlineEditVisible,
-						EditorContextKeys.tabMovesFocus.toNegated(),
 						SuggestContext.Visible.toNegated(),
 						EditorContextKeys.hoverFocused.toNegated(),
-
-						//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
-						InlineCompletionContextKeys.hasSelection.toNegated(),
-						InlineCompletionContextKeys.cursorAtInlineEdit,
-					)
-				),
-			}
+						EditorContextKeys.tabMovesFocus.toNegated(),
+					),
+				}
+			],
 		});
 	}
 
