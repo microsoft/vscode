@@ -624,7 +624,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.codicon:hover {
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.codicon:hover,
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
