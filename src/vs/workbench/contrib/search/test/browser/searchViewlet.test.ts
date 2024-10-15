@@ -26,7 +26,7 @@ import { IFolderMatch, ISearchResult, ITextSearchHeading } from '../../browser/s
 import { NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
-import { searchComparer, searchMatchComparer } from '../../browser/searchMatchComparer.js';
+import { searchComparer, searchMatchComparer } from '../../browser/searchCompare.js';
 import { MatchImpl } from '../../browser/searchTreeModel/match.js';
 
 suite('Search - Viewlet', () => {

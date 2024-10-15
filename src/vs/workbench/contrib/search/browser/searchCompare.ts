@@ -3,20 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// export function searchMatchComparer(...args: any): number {
+// 	return 0;
+// }
+// export function searchComparer(...args: any): number {
+// 	return 0;
+// }
+
+import { IMatchInNotebook, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase';
 import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers';
 import { SearchSortOrder } from '../../../services/search/common/search';
-import { RenderableMatch, isFileInstanceMatch, isFolderMatch, createParentList, isSearchMatch } from './searchTreeModel/searchTreeCommon';
 import { Range } from '../../../../editor/common/core/range.js';
-import { IMatchInNotebook, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase';
+import { createParentList, isFileInstanceMatch, isFolderMatch, isSearchMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon';
+import { URI } from '../../../../base/common/uri.js';
+
+
+let uri = URI.file('test');
+console.log(uri);
+
 
 let elemAIndex: number = -1;
 let elemBIndex: number = -1;
+
 /**
  * Compares instances of the same match type. Different match types should not be siblings
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
-
 	if (isFileInstanceMatch(elementA) && isFolderMatch(elementB)) {
 		return 1;
 	}
@@ -85,7 +98,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	return 0;
 }
 
-export function compareNotebookPos(match1: IMatchInNotebook, match2: IMatchInNotebook): number {
+function compareNotebookPos(match1: IMatchInNotebook, match2: IMatchInNotebook): number {
 	if (match1.cellIndex === match2.cellIndex) {
 
 		if (match1.webviewIndex !== undefined && match2.webviewIndex !== undefined) {

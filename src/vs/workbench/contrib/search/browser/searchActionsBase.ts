@@ -11,7 +11,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { SearchView } from './searchView.js';
 import { ISearchConfigurationProperties, VIEW_ID } from '../../../services/search/common/search.js';
 import { isSearchMatch, RenderableMatch, ISearchResult, isFileInstanceMatch, isFolderMatch } from './searchTreeModel/searchTreeCommon.js';
-import { searchComparer } from './searchMatchComparer.js';
+import { searchComparer } from './searchCompare.js';
 
 export const category = nls.localize2('search', "Search");
 

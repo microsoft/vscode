@@ -83,7 +83,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
 import { ISearchMatch, isSearchMatch, RenderableMatch, SearchModelLocation, IChangeEvent, AI_TEXT_SEARCH_RESULT_ID, FileMatchOrMatch, IFileInstanceMatch, IFolderMatch, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchNoRoot, isFolderMatchWithResource, isFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
-import { searchMatchComparer } from './searchMatchComparer.js';
+import { searchMatchComparer } from './searchCompare.js';
 
 const $ = dom.$;
 

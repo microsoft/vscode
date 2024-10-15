@@ -33,7 +33,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
 import { SearchModelLocation, RenderableMatch, IFileInstanceMatch, ISearchMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
-import { searchComparer } from '../searchMatchComparer.js';
+import { searchComparer } from '../searchCompare.js';
 import { IMatch } from '../../../../../base/common/filters.js';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';

@@ -209,6 +209,8 @@ export interface IFolderMatch {
 	hasOnlyReadOnlyMatches(): boolean;
 	fileMatchesIterator(): IterableIterator<IFileInstanceMatch>;
 	folderMatchesIterator(): IterableIterator<IFolderMatchWithResource>;
+	recursiveFileCount(): number;
+	recursiveMatchCount(): number;
 	readonly closestRoot: IFolderMatchWorkspaceRoot | null;
 	dispose(): void;
 }

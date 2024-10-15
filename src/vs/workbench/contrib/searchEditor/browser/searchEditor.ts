@@ -45,7 +45,8 @@ import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search
 import { getOutOfWorkspaceEditorResources } from '../../search/common/search.js';
 import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchModel.js';
 import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId } from './constants.js';
-import type { SearchConfiguration, SearchEditorInput } from './searchEditorInput.js';
+import type { SearchEditorInput } from './searchEditorInput.js';
+import type { SearchConfiguration } from './constants.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';

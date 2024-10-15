@@ -13,7 +13,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { searchMatchComparer } from './searchMatchComparer.js';
+import { searchMatchComparer } from './searchCompare.js';
 import { RenderableMatch, ISearchMatch, isSearchMatch, IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions

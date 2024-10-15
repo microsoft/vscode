@@ -35,25 +35,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-
-export type SearchConfiguration = {
-	query: string;
-	filesToInclude: string;
-	filesToExclude: string;
-	contextLines: number;
-	matchWholeWord: boolean;
-	isCaseSensitive: boolean;
-	isRegexp: boolean;
-	useExcludeSettingsAndIgnoreFiles: boolean;
-	showIncludesExcludes: boolean;
-	onlyOpenEditors: boolean;
-	notebookSearchConfig: {
-		includeMarkupInput: boolean;
-		includeMarkupPreview: boolean;
-		includeCodeInput: boolean;
-		includeOutput: boolean;
-	};
-};
+import { SearchConfiguration } from './constants';
 
 export const SEARCH_EDITOR_EXT = '.code-search';
 

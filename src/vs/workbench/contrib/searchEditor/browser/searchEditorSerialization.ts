@@ -10,12 +10,11 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Range } from '../../../../editor/common/core/range.js';
 import type { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
-import type { SearchConfiguration } from './searchEditorInput.js';
+import type { SearchConfiguration } from './constants.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
-import { ISearchMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
-import { searchMatchComparer } from '../../search/browser/searchMatchComparer.js';
+import { ISearchMatch, IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { searchMatchComparer } from '../../search/browser/searchCompare.js';
 import { ICellMatch, isNotebookFileMatch } from '../../search/browser/notebookSearch/notebookSearchModelBase.js';
 
 // Using \r\n on Windows inserts an extra newline between results.
