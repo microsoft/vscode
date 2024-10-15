@@ -23,6 +23,7 @@ import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
+import { getScreenshotViaDisplayMedia } from '../../../../../base/browser/screenshot.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -38,7 +39,7 @@ import { CHAT_VIEW_ID, IChatWidget, IChatWidgetService, showChatView } from '../
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { getScreenshotAsVariable } from '../contrib/screenshot.js';
+import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -109,9 +110,9 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.attachScreenshot) {
-			const screenshot = await getScreenshotAsVariable();
+			const screenshot = await getScreenshotViaDisplayMedia();
 			if (screenshot) {
-				chatWidget.attachmentModel.addContext(screenshot);
+				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
 			}
 		}
 		if (opts?.query) {

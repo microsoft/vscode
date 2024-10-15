@@ -812,6 +812,7 @@
 	"others": [
 		"--background-dark",
 		"--background-light",
+		"--chat-current-response-min-height",
 		"--dropdown-padding-bottom",
 		"--dropdown-padding-top",
 		"--insert-border-color",

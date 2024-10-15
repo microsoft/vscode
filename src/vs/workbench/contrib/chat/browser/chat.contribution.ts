@@ -123,6 +123,18 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.alwaysSaveWithGeneratedChanges', "Whether to always ask before saving files with changes made by chat."),
 			default: false,
 		},
+		'chat.editing.confirmEditRequestRemoval': {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.editing.confirmEditRequestRemoval', "Whether to show a confirmation before removing a request and its associated edits."),
+			default: true,
+		},
+		'chat.editing.confirmEditRequestRetry': {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.editing.confirmEditRequestRetry', "Whether to show a confirmation before retrying a request and its associated edits."),
+			default: true,
+		},
 		'chat.experimental.variables.editor': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
