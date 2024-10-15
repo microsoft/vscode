@@ -167,6 +167,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private previousTreeScrollHeight: number = 0;
 
+	/**
+	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
+	 * The initial render leads to a lot of `onDidChangeTreeContentHeight` as the renderer works out the real heights of rows.
+	 */
+	private scrollLock = true;
+
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
@@ -418,7 +424,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		scrollDownButton.element.classList.add('chat-scroll-down');
 		scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
 		scrollDownButton.setTitle(localize('scrollDownButtonLabel', "Scroll down"));
-		this._register(scrollDownButton.onDidClick(() => revealLastElement(this.tree)));
+		this._register(scrollDownButton.onDidClick(() => {
+			this.scrollLock = true;
+			revealLastElement(this.tree);
+		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
@@ -671,8 +680,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.tree.onDidScroll(() => {
 			this._onDidScroll.fire();
 
+			const lastItem = this.viewModel?.getItems().at(-1);
+			const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
 			const isScrolledDown = this.tree.scrollTop >= this.tree.scrollHeight - this.tree.renderHeight - 2;
-			this.container.classList.toggle('show-scroll-down', !isScrolledDown /* && !this.hasScrolledDownSinceLastUpdate */);
+			this.container.classList.toggle('show-scroll-down', !isScrolledDown && Boolean(lastResponseIsRendering));
 		}));
 	}
 
@@ -694,19 +705,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeTreeContentHeight(): void {
-		// If the list was previously scrolled all the way down, ensure it stays scrolled down
-		// - But not when the last response is being rendered
-		// - TODO unless the user manually scrolled down during its rendering, then it can lock
+		// If the list was previously scrolled all the way down, ensure it stays scrolled down, if scroll lock is on
 		if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
 			const lastItem = this.viewModel?.getItems().at(-1);
 			const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-			if (!lastResponseIsRendering) {
+			if (!lastResponseIsRendering || this.scrollLock) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
 					dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
+
+						// TODO This doesn't necessarily work on the first try because of the dynamic heights of items and
+						// the way ListView works. Twice is usually enough. But this would work better if this lived inside ListView somehow
+						revealLastElement(this.tree);
 						revealLastElement(this.tree);
 					}, 0);
 				}
@@ -936,6 +949,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
+			if (!this.viewOptions.autoScroll) {
+				this.scrollLock = false;
+			}
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
@@ -1033,10 +1049,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const inputPartMaxHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
 		this.inputPart.layout(inputPartMaxHeight, width);
 		const inputPartHeight = this.inputPart.inputPartHeight;
-		// const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
+		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
 
 		const listHeight = Math.max(0, height - inputPartHeight);
-		this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		if (!this.viewOptions.autoScroll) {
+			this.listContainer.style.setProperty('--chat-current-response-min-height', listHeight * .75 + 'px');
+		}
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
@@ -1047,10 +1065,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.welcomeMessageContainer.style.paddingBottom = `${followupsOffset}px`;
 		this.renderer.layout(width);
 
-		// TODO Don't do this while the last response is rendering
-		// if (lastElementVisible) {
-		// 	revealLastElement(this.tree);
-		// }
+		const lastItem = this.viewModel?.getItems().at(-1);
+		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
+		if (lastElementVisible && !lastResponseIsRendering) {
+			revealLastElement(this.tree);
+		}
 
 		this.listContainer.style.height = `${listHeight}px`;
 

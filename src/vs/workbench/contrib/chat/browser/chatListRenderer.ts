@@ -409,8 +409,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And it has some content
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && element.response.value.length) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
+			templateData.rowContainer.classList.toggle(mostRecentResponseClassName, true);
 
 			const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
@@ -426,10 +427,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
 			runProgressiveRender(true);
-		} else if (isResponseVM(element)) {
-			this.basicRenderElement(element, index, templateData);
-		} else if (isRequestVM(element)) {
-			this.basicRenderElement(element, index, templateData);
+		} else {
+			templateData.rowContainer.classList.toggle(mostRecentResponseClassName, false);
+			if (isResponseVM(element)) {
+				this.basicRenderElement(element, index, templateData);
+			} else if (isRequestVM(element)) {
+				this.basicRenderElement(element, index, templateData);
+			}
 		}
 	}
 
@@ -495,7 +499,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private basicRenderElement(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
-		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, isResponseVM(element) && index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('chat-response-loading', isResponseVM(element) && !element.isComplete);
 
 		let value: IChatRendererContent[] = [];
@@ -599,7 +602,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
-		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, true);
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element);
