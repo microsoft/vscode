@@ -32,7 +32,7 @@ import { Sequencer } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SearchModelImpl } from '../searchTreeModel/searchModel.js';
-import { SearchModelLocation, RenderableMatch, IFileInstanceMatch, ISearchMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
+import { SearchModelLocation, RenderableMatch, ISearchTreeFileMatch, ISearchTreeMatch, ISearchResult } from '../searchTreeModel/searchTreeCommon.js';
 import { searchComparer } from '../searchCompare.js';
 import { IMatch } from '../../../../../base/common/filters.js';
 
@@ -51,7 +51,7 @@ const MAX_RESULTS_PER_FILE = 10;
 const DEBOUNCE_DELAY = 75;
 
 interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
-	match?: ISearchMatch;
+	match?: ISearchTreeMatch;
 }
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearchQuickAccessItem> {
 
@@ -180,8 +180,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	}
 
 	private doSearch(contentPattern: string, token: CancellationToken): {
-		syncResults: IFileInstanceMatch[];
-		asyncResults: Promise<IFileInstanceMatch[]>;
+		syncResults: ISearchTreeFileMatch[];
+		asyncResults: Promise<ISearchTreeFileMatch[]>;
 	} | undefined {
 		if (contentPattern === '') {
 			return undefined;
@@ -231,7 +231,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 	}
 
 
-	private _getPicksFromMatches(matches: IFileInstanceMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
+	private _getPicksFromMatches(matches: ISearchTreeFileMatch[], limit: number, firstFile?: URI): (IPickerQuickAccessSeparator | ITextSearchQuickAccessItem)[] {
 		matches = matches.sort((a, b) => {
 			if (firstFile) {
 				if (firstFile === a.resource) {
@@ -283,7 +283,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 				},
 			});
 
-			const results: ISearchMatch[] = iFileInstanceMatch.matches() ?? [];
+			const results: ISearchTreeMatch[] = iFileInstanceMatch.matches() ?? [];
 			for (let matchIndex = 0; matchIndex < results.length; matchIndex++) {
 				const element = results[matchIndex];
 
@@ -333,7 +333,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		return picks;
 	}
 
-	private async handleAccept(iFileInstanceMatch: IFileInstanceMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
+	private async handleAccept(iFileInstanceMatch: ISearchTreeFileMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
 		const editorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,

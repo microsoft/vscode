@@ -6,10 +6,10 @@
 import { memoize } from '../../../../../base/common/decorators.js';
 import { lcut } from '../../../../../base/common/strings.js';
 import { ISearchRange, ITextSearchMatch, OneLineRange } from '../../../../services/search/common/search.js';
-import { ISearchMatch, IFileInstanceMatch } from './searchTreeCommon.js';
+import { ISearchTreeMatch, ISearchTreeFileMatch } from './searchTreeCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
-export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: IFileInstanceMatch, isAiContributed: boolean): ISearchMatch[] {
+export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: ISearchTreeFileMatch, isAiContributed: boolean): ISearchTreeMatch[] {
 	const previewLines = rawMatch.previewText.split('\n');
 	return rawMatch.rangeLocations.map((rangeLocation) => {
 		const previewRange: ISearchRange = rangeLocation.preview;
@@ -17,7 +17,7 @@ export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch:
 	});
 }
 
-export class MatchImpl implements ISearchMatch {
+export class MatchImpl implements ISearchTreeMatch {
 
 	private static readonly MAX_PREVIEW_CHARS = 250;
 	protected _id: string;
@@ -27,7 +27,7 @@ export class MatchImpl implements ISearchMatch {
 	// For replace
 	private _fullPreviewRange: ISearchRange;
 
-	constructor(protected _parent: IFileInstanceMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, public readonly aiContributed: boolean) {
+	constructor(protected _parent: ISearchTreeFileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, public readonly aiContributed: boolean) {
 		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
 		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
 			_fullPreviewRange.endColumn :
@@ -49,7 +49,7 @@ export class MatchImpl implements ISearchMatch {
 		return this._id;
 	}
 
-	parent(): IFileInstanceMatch {
+	parent(): ISearchTreeFileMatch {
 		return this._parent;
 	}
 

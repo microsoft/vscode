@@ -22,7 +22,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from './searchActionsBase.js';
 import { equals } from '../../../../base/common/arrays.js';
-import { arrayContainsElementOrParent, RenderableMatch, ISearchResult, isFileInstanceMatch, isFolderMatch, isSearchMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { arrayContainsElementOrParent, RenderableMatch, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeMatch, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { MatchInNotebook } from './notebookSearch/notebookSearchModel.js';
 
 
@@ -303,14 +303,14 @@ async function performReplace(accessor: ServicesAccessor,
 			viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 			viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 
-			if (isSearchMatch(nextFocusElement)) {
+			if (isSearchTreeMatch(nextFocusElement)) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof MatchInNotebook) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
 					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);
 				}
-			} else if (isFileInstanceMatch(nextFocusElement)) {
+			} else if (isSearchTreeFileMatch(nextFocusElement)) {
 				viewlet?.open(nextFocusElement, true);
 			}
 		}
@@ -321,7 +321,7 @@ async function performReplace(accessor: ServicesAccessor,
 }
 
 function hasToOpenFile(accessor: ServicesAccessor, currBottomElem: RenderableMatch): boolean {
-	if (!(isSearchMatch(currBottomElem))) {
+	if (!(isSearchTreeMatch(currBottomElem))) {
 		return false;
 	}
 	const activeEditor = accessor.get(IEditorService).activeEditor;
@@ -333,25 +333,25 @@ function hasToOpenFile(accessor: ServicesAccessor, currBottomElem: RenderableMat
 }
 
 function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
-	if (isSearchMatch(elem1)) {
-		if (isSearchMatch(elem2)) {
+	if (isSearchTreeMatch(elem1)) {
+		if (isSearchTreeMatch(elem2)) {
 			return 0;
 		} else {
 			return -1;
 		}
 
-	} else if (isFileInstanceMatch(elem1)) {
-		if (isSearchMatch(elem2)) {
+	} else if (isSearchTreeFileMatch(elem1)) {
+		if (isSearchTreeMatch(elem2)) {
 			return 1;
-		} else if (isFileInstanceMatch(elem2)) {
+		} else if (isSearchTreeFileMatch(elem2)) {
 			return 0;
 		} else {
 			return -1;
 		}
-	} else if (isFolderMatch(elem1)) {
+	} else if (isSearchTreeFolderMatch(elem1)) {
 		if (isTextSearchHeading(elem2)) {
 			return -1;
-		} else if (isFolderMatch(elem2)) {
+		} else if (isSearchTreeFolderMatch(elem2)) {
 			return 0;
 		} else {
 			return 1;
@@ -370,14 +370,14 @@ function compareLevels(elem1: RenderableMatch, elem2: RenderableMatch) {
  */
 export async function getElementToFocusAfterRemoved(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch>, element: RenderableMatch, elementsToRemove: RenderableMatch[]): Promise<RenderableMatch | undefined> {
 	const navigator: ITreeNavigator<any> = viewer.navigate(element);
-	if (isFolderMatch(element)) {
-		while (!!navigator.next() && (!isFolderMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
-	} else if (isFileInstanceMatch(element)) {
-		while (!!navigator.next() && (!isFileInstanceMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+	if (isSearchTreeFolderMatch(element)) {
+		while (!!navigator.next() && (!isSearchTreeFolderMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) { }
+	} else if (isSearchTreeFileMatch(element)) {
+		while (!!navigator.next() && (!isSearchTreeFileMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
 			await viewer.expand(navigator.current());
 		}
 	} else {
-		while (navigator.next() && (!isSearchMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
+		while (navigator.next() && (!isSearchTreeMatch(navigator.current()) || arrayContainsElementOrParent(navigator.current(), elementsToRemove))) {
 			await viewer.expand(navigator.current());
 		}
 	}

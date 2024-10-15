@@ -14,7 +14,7 @@ import { IMatchInNotebook, isIMatchInNotebook } from './notebookSearch/notebookS
 import { compareFileExtensions, compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { SearchSortOrder } from '../../../services/search/common/search.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import { createParentList, isFileInstanceMatch, isFolderMatch, isSearchMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
+import { createParentList, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
 
 
 let elemAIndex: number = -1;
@@ -25,15 +25,15 @@ let elemBIndex: number = -1;
  * and their sort order is undefined.
  */
 export function searchMatchComparer(elementA: RenderableMatch, elementB: RenderableMatch, sortOrder: SearchSortOrder = SearchSortOrder.Default): number {
-	if (isFileInstanceMatch(elementA) && isFolderMatch(elementB)) {
+	if (isSearchTreeFileMatch(elementA) && isSearchTreeFolderMatch(elementB)) {
 		return 1;
 	}
 
-	if (isFileInstanceMatch(elementB) && isFolderMatch(elementA)) {
+	if (isSearchTreeFileMatch(elementB) && isSearchTreeFolderMatch(elementA)) {
 		return -1;
 	}
 
-	if (isFolderMatch(elementA) && isFolderMatch(elementB)) {
+	if (isSearchTreeFolderMatch(elementA) && isSearchTreeFolderMatch(elementB)) {
 		elemAIndex = elementA.index();
 		elemBIndex = elementB.index();
 		if (elemAIndex !== -1 && elemBIndex !== -1) {
@@ -58,7 +58,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		}
 	}
 
-	if (isFileInstanceMatch(elementA) && isFileInstanceMatch(elementB)) {
+	if (isSearchTreeFileMatch(elementA) && isSearchTreeFileMatch(elementB)) {
 		switch (sortOrder) {
 			case SearchSortOrder.CountDescending:
 				return elementB.count() - elementA.count();
@@ -86,7 +86,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		return compareNotebookPos(elementA, elementB);
 	}
 
-	if (isSearchMatch(elementA) && isSearchMatch(elementB)) {
+	if (isSearchTreeMatch(elementA) && isSearchTreeMatch(elementB)) {
 		return Range.compareRangesUsingStarts(elementA.range(), elementB.range());
 	}
 

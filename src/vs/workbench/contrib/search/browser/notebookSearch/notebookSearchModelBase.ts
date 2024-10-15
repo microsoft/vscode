@@ -7,10 +7,10 @@ import { ITextSearchMatch } from '../../../../services/search/common/search.js';
 import { ICellViewModel } from '../../../notebook/browser/notebookBrowser.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookCellMatchNoModel } from '../../common/searchNotebookHelpers.js';
-import { IFileInstanceMatch, ISearchMatch, isFileInstanceMatch } from '../searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeFileMatch, ISearchTreeMatch, isSearchTreeFileMatch } from '../searchTreeModel/searchTreeCommon.js';
 import { INotebookCellMatchWithModel } from './searchNotebookHelpers.js';
 
-export interface INotebookFileInstanceMatch extends IFileInstanceMatch {
+export interface INotebookFileInstanceMatch extends ISearchTreeFileMatch {
 	bindNotebookEditorWidget(editor: NotebookEditorWidget): void;
 	updateMatchesForEditorWidget(): Promise<void>;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget): void;
@@ -27,10 +27,10 @@ export function isNotebookFileMatch(obj: any): obj is INotebookFileInstanceMatch
 		typeof obj.updateMatchesForEditorWidget === 'function' &&
 		typeof obj.unbindNotebookEditorWidget === 'function' &&
 		typeof obj.updateNotebookHighlights === 'function'
-		&& isFileInstanceMatch(obj);
+		&& isSearchTreeFileMatch(obj);
 }
 
-export interface IMatchInNotebook extends ISearchMatch {
+export interface IMatchInNotebook extends ISearchTreeMatch {
 	parent(): INotebookFileInstanceMatch;
 	cellParent: ICellMatch;
 	isWebviewMatch(): boolean;

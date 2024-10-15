@@ -18,12 +18,12 @@ import { IFileMatch, IPatternInfo, ITextSearchPreviewOptions, resultIsMatch, DEF
 import { editorMatchesToTextSearchResults, getTextSearchMatchWithModelContext } from '../../../../services/search/common/searchHelpers.js';
 import { FindMatchDecorationModel } from '../../../notebook/browser/contrib/find/findMatchDecorationModel.js';
 import { IReplaceService } from '../replace.js';
-import { IFileInstanceMatch, IFolderMatch, IFolderMatchWorkspaceRoot, ISearchMatch } from './searchTreeCommon.js';
+import { ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeMatch } from './searchTreeCommon.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { textSearchResultToMatches } from './match.js';
 import { OverviewRulerLane } from '../../../../../editor/common/standalone/standaloneEnums.js';
 
-export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
+export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		description: 'search-current-find-match',
@@ -70,10 +70,10 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 	private _fileStat?: IFileStatWithPartialMetadata;
 	private _model: ITextModel | null = null;
 	private _modelListener: IDisposable | null = null;
-	protected _textMatches: Map<string, ISearchMatch>;
+	protected _textMatches: Map<string, ISearchTreeMatch>;
 
 	private _removedTextMatches: Set<string>;
-	protected _selectedMatch: ISearchMatch | null = null;
+	protected _selectedMatch: ISearchTreeMatch | null = null;
 	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
@@ -89,23 +89,23 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		protected _query: IPatternInfo,
 		private _previewOptions: ITextSearchPreviewOptions | undefined,
 		private _maxResults: number | undefined,
-		private _parent: IFolderMatch,
+		private _parent: ISearchTreeFolderMatch,
 		protected rawMatch: IFileMatch,
-		private _closestRoot: IFolderMatchWorkspaceRoot | null,
+		private _closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
 		@IModelService protected readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ILabelService labelService: ILabelService,
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
-		this._textMatches = new Map<string, ISearchMatch>();
+		this._textMatches = new Map<string, ISearchTreeMatch>();
 		this._removedTextMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 	}
 
 
-	get closestRoot(): IFolderMatchWorkspaceRoot | null {
+	get closestRoot(): ISearchTreeFolderMatchWorkspaceRoot | null {
 		return this._closestRoot;
 	}
 
@@ -163,7 +163,7 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		if (!this._model) {
 			return;
 		}
-		this._textMatches = new Map<string, ISearchMatch>();
+		this._textMatches = new Map<string, ISearchTreeMatch>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model
@@ -237,7 +237,7 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		return this.resource.toString();
 	}
 
-	parent(): IFolderMatch {
+	parent(): ISearchTreeFolderMatch {
 		return this._parent;
 	}
 
@@ -245,15 +245,15 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		return this._textMatches.size > 0;
 	}
 
-	matches(): ISearchMatch[] {
+	matches(): ISearchTreeMatch[] {
 		return [...this._textMatches.values()];
 	}
 
-	textMatches(): ISearchMatch[] {
+	textMatches(): ISearchTreeMatch[] {
 		return Array.from(this._textMatches.values());
 	}
 
-	remove(matches: ISearchMatch | ISearchMatch[]): void {
+	remove(matches: ISearchTreeMatch | ISearchTreeMatch[]): void {
 		if (!Array.isArray(matches)) {
 			matches = [matches];
 		}
@@ -267,14 +267,14 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 	}
 
 	private replaceQ = Promise.resolve();
-	async replace(toReplace: ISearchMatch): Promise<void> {
+	async replace(toReplace: ISearchTreeMatch): Promise<void> {
 		return this.replaceQ = this.replaceQ.finally(async () => {
 			await this.replaceService.replace(toReplace);
 			await this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
 		});
 	}
 
-	setSelectedMatch(match: ISearchMatch | null): void {
+	setSelectedMatch(match: ISearchTreeMatch | null): void {
 		if (match) {
 
 			if (!this._textMatches.has(match.id())) {
@@ -289,11 +289,11 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		this.updateHighlights();
 	}
 
-	getSelectedMatch(): ISearchMatch | null {
+	getSelectedMatch(): ISearchTreeMatch | null {
 		return this._selectedMatch;
 	}
 
-	isMatchSelected(match: ISearchMatch): boolean {
+	isMatchSelected(match: ISearchTreeMatch): boolean {
 		return !!this._selectedMatch && this._selectedMatch.id() === match.id();
 	}
 
@@ -319,14 +319,14 @@ export class FileMatchImpl extends Disposable implements IFileInstanceMatch {
 		return contexts.forEach(context => this._context.set(context.lineNumber, context.text));
 	}
 
-	add(match: ISearchMatch, trigger?: boolean) {
+	add(match: ISearchTreeMatch, trigger?: boolean) {
 		this._textMatches.set(match.id(), match);
 		if (trigger) {
 			this._onChange.fire({ forceUpdateModel: true });
 		}
 	}
 
-	protected removeMatch(match: ISearchMatch) {
+	protected removeMatch(match: ISearchTreeMatch) {
 		this._textMatches.delete(match.id());
 		if (this.isMatchSelected(match)) {
 			this.setSelectedMatch(null);

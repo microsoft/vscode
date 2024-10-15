@@ -14,7 +14,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { category, getSearchView } from './searchActionsBase.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { searchMatchComparer } from './searchCompare.js';
-import { RenderableMatch, ISearchMatch, isSearchMatch, IFileInstanceMatch, IFolderMatch, IFolderMatchWithResource, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch, ISearchTreeMatch, isSearchTreeMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class CopyMatchCommandAction extends Action2 {
@@ -71,7 +71,7 @@ registerAction2(class CopyPathCommandAction extends Action2 {
 
 	}
 
-	override async run(accessor: ServicesAccessor, fileMatch: IFileInstanceMatch | IFolderMatchWithResource | undefined): Promise<any> {
+	override async run(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined): Promise<any> {
 		await copyPathCommand(accessor, fileMatch);
 	}
 });
@@ -104,10 +104,10 @@ registerAction2(class CopyAllCommandAction extends Action2 {
 //#region Helpers
 export const lineDelimiter = isWindows ? '\r\n' : '\n';
 
-async function copyPathCommand(accessor: ServicesAccessor, fileMatch: IFileInstanceMatch | IFolderMatchWithResource | undefined) {
+async function copyPathCommand(accessor: ServicesAccessor, fileMatch: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | undefined) {
 	if (!fileMatch) {
 		const selection = getSelectedRow(accessor);
-		if (!isFileInstanceMatch(selection) || isFolderMatchWithResource(selection)) {
+		if (!isSearchTreeFileMatch(selection) || isSearchTreeFolderMatchWithResource(selection)) {
 			return;
 		}
 
@@ -135,11 +135,11 @@ async function copyMatchCommand(accessor: ServicesAccessor, match: RenderableMat
 	const labelService = accessor.get(ILabelService);
 
 	let text: string | undefined;
-	if (isSearchMatch(match)) {
+	if (isSearchTreeMatch(match)) {
 		text = matchToString(match);
-	} else if (isFileInstanceMatch(match)) {
+	} else if (isSearchTreeFileMatch(match)) {
 		text = fileMatchToString(match, labelService).text;
-	} else if (isFolderMatch(match)) {
+	} else if (isSearchTreeFolderMatch(match)) {
 		text = folderMatchToString(match, labelService).text;
 	}
 
@@ -162,7 +162,7 @@ async function copyAllCommand(accessor: ServicesAccessor) {
 	}
 }
 
-function matchToString(match: ISearchMatch, indent = 0): string {
+function matchToString(match: ISearchTreeMatch, indent = 0): string {
 	const getFirstLinePrefix = () => `${match.range().startLineNumber},${match.range().startColumn}`;
 	const getOtherLinePrefix = (i: number) => match.range().startLineNumber + i + '';
 
@@ -189,15 +189,15 @@ function matchToString(match: ISearchMatch, indent = 0): string {
 	return formattedLines.join('\n');
 }
 
-function fileFolderMatchToString(match: IFileInstanceMatch | IFolderMatch | IFolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
-	if (isFileInstanceMatch(match)) {
+function fileFolderMatchToString(match: ISearchTreeFileMatch | ISearchTreeFolderMatch | ISearchTreeFolderMatchWithResource, labelService: ILabelService): { text: string; count: number } {
+	if (isSearchTreeFileMatch(match)) {
 		return fileMatchToString(match, labelService);
 	} else {
 		return folderMatchToString(match, labelService);
 	}
 }
 
-function fileMatchToString(fileMatch: IFileInstanceMatch, labelService: ILabelService): { text: string; count: number } {
+function fileMatchToString(fileMatch: ISearchTreeFileMatch, labelService: ILabelService): { text: string; count: number } {
 	const matchTextRows = fileMatch.matches()
 		.sort(searchMatchComparer)
 		.map(match => matchToString(match, 2));
@@ -208,7 +208,7 @@ function fileMatchToString(fileMatch: IFileInstanceMatch, labelService: ILabelSe
 	};
 }
 
-function folderMatchToString(folderMatch: IFolderMatchWithResource | IFolderMatch, labelService: ILabelService): { text: string; count: number } {
+function folderMatchToString(folderMatch: ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch, labelService: ILabelService): { text: string; count: number } {
 	const results: string[] = [];
 	let numMatches = 0;
 
@@ -226,7 +226,7 @@ function folderMatchToString(folderMatch: IFolderMatchWithResource | IFolderMatc
 	};
 }
 
-function allFolderMatchesToString(folderMatches: Array<IFolderMatchWithResource | IFolderMatch>, labelService: ILabelService): string {
+function allFolderMatchesToString(folderMatches: Array<ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatch>, labelService: ILabelService): string {
 	const folderResults: string[] = [];
 	folderMatches = folderMatches.sort(searchMatchComparer);
 	for (let i = 0; i < folderMatches.length; i++) {

@@ -34,7 +34,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
-import { RenderableMatch, IFileInstanceMatch, IFolderMatchWithResource, ISearchResult, isFileInstanceMatch, isSearchMatch } from './searchTreeModel/searchTreeCommon.js';
+import { RenderableMatch, ISearchTreeFileMatch, ISearchTreeFolderMatchWithResource, ISearchResult, isSearchTreeFileMatch, isSearchTreeMatch } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Interfaces
 export interface IFindInFilesArgs {
@@ -74,7 +74,7 @@ registerAction2(class RestrictSearchToFolderAction extends Action2 {
 			]
 		});
 	}
-	async run(accessor: ServicesAccessor, folderMatch?: IFolderMatchWithResource) {
+	async run(accessor: ServicesAccessor, folderMatch?: ISearchTreeFolderMatchWithResource) {
 		await searchWithFolderCommand(accessor, false, true, undefined, folderMatch);
 	}
 });
@@ -120,7 +120,7 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 			]
 		});
 	}
-	async run(accessor: ServicesAccessor, folderMatch?: IFolderMatchWithResource) {
+	async run(accessor: ServicesAccessor, folderMatch?: ISearchTreeFolderMatchWithResource) {
 		await searchWithFolderCommand(accessor, false, false, undefined, folderMatch);
 	}
 });
@@ -153,8 +153,8 @@ registerAction2(class RevealInSideBarForSearchResultsAction extends Action2 {
 			return;
 		}
 
-		let fileMatch: IFileInstanceMatch;
-		if (isFileInstanceMatch(args)) {
+		let fileMatch: ISearchTreeFileMatch;
+		if (isSearchTreeFileMatch(args)) {
 			fileMatch = args;
 		} else {
 			args = searchView.getControl().getFocus()[0];
@@ -306,7 +306,7 @@ async function expandSelectSubtree(accessor: ServicesAccessor) {
 	}
 }
 
-async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: IFolderMatchWithResource) {
+async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplorer: boolean, isIncludes: boolean, resource?: URI, folderMatch?: ISearchTreeFolderMatchWithResource) {
 	const fileService = accessor.get(IFileService);
 	const viewsService = accessor.get(IViewsService);
 	const contextService = accessor.get(IWorkspaceContextService);
@@ -366,7 +366,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 
 function getMultiSelectedSearchResources(viewer: WorkbenchCompressibleAsyncDataTree<ISearchResult, RenderableMatch, void>, currElement: RenderableMatch | undefined, sortConfig: ISearchConfigurationProperties): URI[] {
 	return getElementsToOperateOn(viewer, currElement, sortConfig)
-		.map((renderableMatch) => ((isSearchMatch(renderableMatch)) ? null : renderableMatch.resource))
+		.map((renderableMatch) => ((isSearchTreeMatch(renderableMatch)) ? null : renderableMatch.resource))
 		.filter((renderableMatch): renderableMatch is URI => (renderableMatch !== null));
 }
 

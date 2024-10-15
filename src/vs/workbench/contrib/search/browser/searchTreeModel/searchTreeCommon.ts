@@ -15,9 +15,9 @@ import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWi
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { Event } from '../../../../../base/common/event.js';
 
-export type FileMatchOrMatch = IFileInstanceMatch | ISearchMatch;
+export type FileMatchOrMatch = ISearchTreeFileMatch | ISearchTreeMatch;
 
-export type RenderableMatch = ITextSearchHeading | IFolderMatch | IFileInstanceMatch | ISearchMatch;
+export type RenderableMatch = ITextSearchHeading | ISearchTreeFolderMatch | ISearchTreeFileMatch | ISearchTreeMatch;
 export function arrayContainsElementOrParent(element: RenderableMatch, testArray: RenderableMatch[]): boolean {
 	do {
 		if (testArray.includes(element)) {
@@ -30,7 +30,7 @@ export function arrayContainsElementOrParent(element: RenderableMatch, testArray
 
 
 export interface IChangeEvent {
-	elements: IFileInstanceMatch[];
+	elements: ISearchTreeFileMatch[];
 	added?: boolean;
 	removed?: boolean;
 	clearingAll?: boolean;
@@ -118,12 +118,12 @@ export interface ISearchResult {
 
 	batchReplace(elementsToReplace: RenderableMatch[]): Promise<void>;
 	batchRemove(elementsToRemove: RenderableMatch[]): void;
-	folderMatches(ai?: boolean): IFolderMatch[];
+	folderMatches(ai?: boolean): ISearchTreeFolderMatch[];
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent?: boolean): void;
 	clear(): void;
-	remove(matches: IFileInstanceMatch | IFolderMatch | (IFileInstanceMatch | IFolderMatch)[], ai?: boolean): void;
-	replace(match: IFileInstanceMatch): Promise<any>;
-	matches(ai?: boolean): IFileInstanceMatch[];
+	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai?: boolean): void;
+	replace(match: ISearchTreeFileMatch): Promise<any>;
+	matches(ai?: boolean): ISearchTreeFileMatch[];
 	isEmpty(): boolean;
 	fileCount(): number;
 	count(): number;
@@ -148,15 +148,15 @@ export interface ITextSearchHeading {
 	readonly hasChildren: boolean;
 	name(): string;
 	readonly isDirty: boolean;
-	getFolderMatch(resource: URI): IFolderMatch | undefined;
+	getFolderMatch(resource: URI): ISearchTreeFolderMatch | undefined;
 	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent?: boolean): void;
-	remove(matches: IFileInstanceMatch | IFolderMatch | (IFileInstanceMatch | IFolderMatch)[], ai?: boolean): void;
-	groupFilesByFolder(fileMatches: IFileInstanceMatch[]): { byFolder: Map<URI, IFileInstanceMatch[]>; other: IFileInstanceMatch[] };
+	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai?: boolean): void;
+	groupFilesByFolder(fileMatches: ISearchTreeFileMatch[]): { byFolder: Map<URI, ISearchTreeFileMatch[]>; other: ISearchTreeFileMatch[] };
 	isEmpty(): boolean;
-	findFolderSubstr(resource: URI): IFolderMatch | undefined;
+	findFolderSubstr(resource: URI): ISearchTreeFolderMatch | undefined;
 	query: ITextQuery | null;
-	folderMatches(): IFolderMatch[];
-	matches(): IFileInstanceMatch[];
+	folderMatches(): ISearchTreeFolderMatch[];
+	matches(): ISearchTreeFileMatch[];
 	showHighlights: boolean;
 	toggleHighlights(value: boolean): void;
 	rangeHighlightDecorations: RangeHighlightDecorations;
@@ -167,12 +167,11 @@ export interface ITextSearchHeading {
 }
 
 export interface IPlainTextSearchHeading extends ITextSearchHeading {
-	replace(match: IFileInstanceMatch): Promise<any>;
+	replace(match: ISearchTreeFileMatch): Promise<any>;
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any>;
 }
 
-
-export interface IFolderMatch {
+export interface ISearchTreeFolderMatch {
 	readonly onChange: Event<IChangeEvent>;
 	readonly onDispose: Event<void>;
 	id(): string;
@@ -181,57 +180,53 @@ export interface IFolderMatch {
 	name(): string;
 	count(): number;
 	hasChildren: boolean;
-	parent(): IFolderMatch | ITextSearchHeading;
-	matches(): (IFileInstanceMatch | IFolderMatchWithResource)[];
-	allDownstreamFileMatches(): IFileInstanceMatch[];
-	remove(matches: IFileInstanceMatch | IFolderMatchWithResource | (IFileInstanceMatch | IFolderMatchWithResource)[]): void;
+	parent(): ISearchTreeFolderMatch | ITextSearchHeading;
+	matches(): (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[];
+	allDownstreamFileMatches(): ISearchTreeFileMatch[];
+	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): void;
 	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void;
 	isEmpty(): boolean;
 	clear(clearingAll?: boolean): void;
 	showHighlights: boolean;
 	searchModel: ISearchModel;
 	query: ITextQuery | null;
-	replace(match: IFileInstanceMatch): Promise<any>;
+	replace(match: ISearchTreeFileMatch): Promise<any>;
 	replacingAll: boolean;
 	bindModel(model: ITextModel): void;
-	getDownstreamFileMatch(uri: URI): IFileInstanceMatch | null;
+	getDownstreamFileMatch(uri: URI): ISearchTreeFileMatch | null;
 	replaceAll(): Promise<any>;
 	recursiveFileCount(): number;
 	disposeMatches(): void;
-	doRemoveFile(fileMatches: IFileInstanceMatch[], dispose?: boolean, trigger?: boolean, keepReadonly?: boolean): void;
-	doAddFile(fileMatch: IFileInstanceMatch): void;
-	onFileChange(fileMatch: IFileInstanceMatch, removed?: boolean): void;
-	createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: IFolderMatchWorkspaceRoot): IFolderMatchWithResource;
-	getFolderMatch(resource: URI): IFolderMatchWithResource | undefined;
+	doRemoveFile(fileMatches: ISearchTreeFileMatch[], dispose?: boolean, trigger?: boolean, keepReadonly?: boolean): void;
+	doAddFile(fileMatch: ISearchTreeFileMatch): void;
+	onFileChange(fileMatch: ISearchTreeFileMatch, removed?: boolean): void;
+	createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: ISearchTreeFolderMatchWorkspaceRoot): ISearchTreeFolderMatchWithResource;
+	getFolderMatch(resource: URI): ISearchTreeFolderMatchWithResource | undefined;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
 	bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): Promise<void>;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
 	hasOnlyReadOnlyMatches(): boolean;
-	fileMatchesIterator(): IterableIterator<IFileInstanceMatch>;
-	folderMatchesIterator(): IterableIterator<IFolderMatchWithResource>;
+	fileMatchesIterator(): IterableIterator<ISearchTreeFileMatch>;
+	folderMatchesIterator(): IterableIterator<ISearchTreeFolderMatchWithResource>;
 	recursiveFileCount(): number;
 	recursiveMatchCount(): number;
-	readonly closestRoot: IFolderMatchWorkspaceRoot | null;
+	readonly closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null;
 	dispose(): void;
 }
-// Interface equivalent to FolderMatchWithResource
 
-export interface IFolderMatchWithResource extends IFolderMatch {
+export interface ISearchTreeFolderMatchWithResource extends ISearchTreeFolderMatch {
 	resource: URI;
 }
-// Interface equivalent to FolderMatchWorkspaceRoot
 
-export interface IFolderMatchWorkspaceRoot extends IFolderMatchWithResource {
-	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): IFileInstanceMatch;
+export interface ISearchTreeFolderMatchWorkspaceRoot extends ISearchTreeFolderMatchWithResource {
+	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): ISearchTreeFileMatch;
 }
-// Interface equivalent to FolderMatchWorkspaceRoot
 
-export interface IFolderMatchNoRoot extends IFolderMatch {
-	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): IFileInstanceMatch;
+export interface ISearchTreeFolderMatchNoRoot extends ISearchTreeFolderMatch {
+	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): ISearchTreeFileMatch;
 }
-// Interface equivalent to FileMatch
 
-export interface IFileInstanceMatch {
+export interface ISearchTreeFileMatch {
 	id(): string;
 	resource: URI;
 	onChange: Event<{
@@ -243,23 +238,23 @@ export interface IFileInstanceMatch {
 	name(): string;
 	count(): number;
 	hasOnlyReadOnlyMatches(): boolean;
-	matches(): ISearchMatch[];
+	matches(): ISearchTreeMatch[];
 	updateHighlights(): void;
-	getSelectedMatch(): ISearchMatch | null;
-	parent(): IFolderMatch;
+	getSelectedMatch(): ISearchTreeMatch | null;
+	parent(): ISearchTreeFolderMatch;
 	bindModel(model: ITextModel): void;
 	hasReadonlyMatches(): boolean;
 	addContext(results: ITextSearchResult[] | undefined): void;
-	add(match: ISearchMatch, trigger?: boolean): void;
-	replace(toReplace: ISearchMatch): Promise<void>;
-	remove(matches: ISearchMatch | ISearchMatch[]): void;
-	setSelectedMatch(match: ISearchMatch | null): void;
+	add(match: ISearchTreeMatch, trigger?: boolean): void;
+	replace(toReplace: ISearchTreeMatch): Promise<void>;
+	remove(matches: ISearchTreeMatch | ISearchTreeMatch[]): void;
+	setSelectedMatch(match: ISearchTreeMatch | null): void;
 	fileStat: IFileStatWithPartialMetadata | undefined;
 	resolveFileStat(fileService: IFileService): Promise<void>;
-	textMatches(): ISearchMatch[];
+	textMatches(): ISearchTreeMatch[];
 	readonly context: Map<number, string>;
-	readonly closestRoot: IFolderMatchWorkspaceRoot | null;
-	isMatchSelected(match: ISearchMatch): boolean;
+	readonly closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null;
+	isMatchSelected(match: ISearchTreeMatch): boolean;
 	dispose(): void;
 }
 // Type checker for ISearchModel
@@ -353,7 +348,7 @@ export function isPlainTextSearchHeading(obj: any): obj is IPlainTextSearchHeadi
 }
 // Type checker for IFolderMatch
 
-export function isFolderMatch(obj: any): obj is IFolderMatch {
+export function isSearchTreeFolderMatch(obj: any): obj is ISearchTreeFolderMatch {
 	return obj && typeof obj.id === 'function' &&
 		(obj.resource === null || obj.resource instanceof URI) &&
 		typeof obj.index === 'function' &&
@@ -386,23 +381,23 @@ export function isFolderMatch(obj: any): obj is IFolderMatch {
 }
 // Type checker for IFolderMatchWithResource
 
-export function isFolderMatchWithResource(obj: any): obj is IFolderMatchWithResource {
-	return isFolderMatch(obj) && obj.resource instanceof URI;
+export function isSearchTreeFolderMatchWithResource(obj: any): obj is ISearchTreeFolderMatchWithResource {
+	return isSearchTreeFolderMatch(obj) && obj.resource instanceof URI;
 }
 // Type checker for IFolderMatchWorkspaceRoot
 
-export function isFolderMatchWorkspaceRoot(obj: any): obj is IFolderMatchWorkspaceRoot {
-	return isFolderMatchWithResource(obj) &&
+export function isSearchTreeFolderMatchWorkspaceRoot(obj: any): obj is ISearchTreeFolderMatchWorkspaceRoot {
+	return isSearchTreeFolderMatchWithResource(obj) &&
 		typeof (<any>obj).createAndConfigureFileMatch === 'function';
 }
 
-export function isFolderMatchNoRoot(obj: any): obj is IFolderMatchNoRoot {
-	return isFolderMatch(obj) &&
+export function isSearchTreeFolderMatchNoRoot(obj: any): obj is ISearchTreeFolderMatchNoRoot {
+	return isSearchTreeFolderMatch(obj) &&
 		typeof (<any>obj).createAndConfigureFileMatch === 'function';
 }
 // Type checker for IFileInstanceMatch
 
-export function isFileInstanceMatch(obj: any): obj is IFileInstanceMatch {
+export function isSearchTreeFileMatch(obj: any): obj is ISearchTreeFileMatch {
 	return obj && typeof obj.id === 'function' &&
 		obj.resource instanceof URI &&
 		typeof obj.onChange === 'object' &&
@@ -422,9 +417,9 @@ export function isFileInstanceMatch(obj: any): obj is IFileInstanceMatch {
 		typeof obj.dispose === 'function';
 }
 
-export interface ISearchMatch {
+export interface ISearchTreeMatch {
 	id(): string;
-	parent(): IFileInstanceMatch;
+	parent(): ISearchTreeFileMatch;
 	text(): string;
 	range(): Range;
 	preview(): { before: string; fullBefore: string; inside: string; after: string };
@@ -436,7 +431,7 @@ export interface ISearchMatch {
 	isReadonly(): boolean;
 }
 
-export function isSearchMatch(obj: any): obj is ISearchMatch {
+export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 	return typeof obj === 'object' &&
 		obj !== null &&
 		typeof obj.id === 'function' &&

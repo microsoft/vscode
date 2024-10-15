@@ -13,7 +13,7 @@ import { localize } from '../../../../nls.js';
 import type { SearchConfiguration } from './constants.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
-import { ISearchMatch, IFileInstanceMatch, ISearchResult, IFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, ISearchTreeFileMatch, ISearchResult, ISearchTreeFolderMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { searchMatchComparer } from '../../search/browser/searchCompare.js';
 import { ICellMatch, isNotebookFileMatch } from '../../search/browser/notebookSearch/notebookSearchModelBase.js';
 
@@ -25,7 +25,7 @@ const translateRangeLines =
 		(range: Range) =>
 			new Range(range.startLineNumber + n, range.startColumn, range.endLineNumber + n, range.endColumn);
 
-const matchToSearchResultFormat = (match: ISearchMatch, longestLineNumber: number): { line: string; ranges: Range[]; lineNumber: string }[] => {
+const matchToSearchResultFormat = (match: ISearchTreeMatch, longestLineNumber: number): { line: string; ranges: Range[]; lineNumber: string }[] => {
 	const getLinePrefix = (i: number) => `${match.range().startLineNumber + i}`;
 
 	const fullMatchLines = match.fullPreviewLines();
@@ -62,14 +62,14 @@ const matchToSearchResultFormat = (match: ISearchMatch, longestLineNumber: numbe
 
 type SearchResultSerialization = { text: string[]; matchRanges: Range[] };
 
-function fileMatchToSearchResultFormat(fileMatch: IFileInstanceMatch, labelFormatter: (x: URI) => string): SearchResultSerialization[] {
+function fileMatchToSearchResultFormat(fileMatch: ISearchTreeFileMatch, labelFormatter: (x: URI) => string): SearchResultSerialization[] {
 
 	const textSerializations = fileMatch.textMatches().length > 0 ? matchesToSearchResultFormat(fileMatch.resource, fileMatch.textMatches().sort(searchMatchComparer), fileMatch.context, labelFormatter) : undefined;
 	const cellSerializations = (isNotebookFileMatch(fileMatch)) ? fileMatch.cellMatches().sort((a, b) => a.cellIndex - b.cellIndex).sort().filter(cellMatch => cellMatch.contentMatches.length > 0).map((cellMatch, index) => cellMatchToSearchResultFormat(cellMatch, labelFormatter, index === 0)) : [];
 
 	return [textSerializations, ...cellSerializations].filter(x => !!x) as SearchResultSerialization[];
 }
-function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchMatch[], matchContext: Map<number, string>, labelFormatter: (x: URI) => string, shouldUseHeader = true): SearchResultSerialization {
+function matchesToSearchResultFormat(resource: URI, sortedMatches: ISearchTreeMatch[], matchContext: Map<number, string>, labelFormatter: (x: URI) => string, shouldUseHeader = true): SearchResultSerialization {
 	const longestLineNumber = sortedMatches[sortedMatches.length - 1].range().endLineNumber.toString().length;
 
 	const text: string[] = shouldUseHeader ? [`${labelFormatter(resource)}:`] : [];
@@ -253,7 +253,7 @@ export const serializeSearchResultForEditor =
 		}
 		info.push('');
 
-		const matchComparer = (a: IFileInstanceMatch | IFolderMatch, b: IFileInstanceMatch | IFolderMatch) => searchMatchComparer(a, b, sortOrder);
+		const matchComparer = (a: ISearchTreeFileMatch | ISearchTreeFolderMatch, b: ISearchTreeFileMatch | ISearchTreeFolderMatch) => searchMatchComparer(a, b, sortOrder);
 
 		const allResults =
 			flattenSearchResultSerializations(

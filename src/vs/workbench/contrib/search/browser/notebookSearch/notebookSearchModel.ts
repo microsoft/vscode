@@ -21,7 +21,7 @@ import { NotebookCellsChangeType } from '../../../notebook/common/notebookCommon
 import { CellSearchModel } from '../../common/cellSearchModel.js';
 import { INotebookCellMatchNoModel, isINotebookFileMatchNoModel, rawCellPrefix } from '../../common/searchNotebookHelpers.js';
 import { contentMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookCellMatchWithModel, isINotebookFileMatchWithModel, webviewMatchesToTextSearchMatches } from './searchNotebookHelpers.js';
-import { ISearchMatch, IFolderMatch, IFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWorkspaceRoot } from '../searchTreeModel/searchTreeCommon.js';
 import { IReplaceService } from '../replace.js';
 import { FileMatchImpl } from '../searchTreeModel/fileMatch.js';
 import { ICellMatch, IMatchInNotebook, INotebookFileInstanceMatch } from './notebookSearchModelBase.js';
@@ -184,9 +184,9 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		_query: IPatternInfo,
 		_previewOptions: ITextSearchPreviewOptions | undefined,
 		_maxResults: number | undefined,
-		_parent: IFolderMatch,
+		_parent: ISearchTreeFolderMatch,
 		rawMatch: IFileMatch,
-		_closestRoot: IFolderMatchWorkspaceRoot | null,
+		_closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
 		private readonly searchInstanceID: string,
 		@IModelService modelService: IModelService,
 		@IReplaceService replaceService: IReplaceService,
@@ -375,7 +375,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 			return;
 		}
 
-		this._textMatches = new Map<string, ISearchMatch>();
+		this._textMatches = new Map<string, ISearchTreeMatch>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const allMatches = await this._notebookEditorWidget
@@ -412,11 +412,11 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 	}
 
 
-	override matches(): ISearchMatch[] {
+	override matches(): ISearchTreeMatch[] {
 		const matches = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
 		return [...super.matches(), ...matches];
 	}
-	override removeMatch(match: ISearchMatch) {
+	override removeMatch(match: ISearchTreeMatch) {
 
 		if (match instanceof MatchInNotebook) {
 			match.cellParent.remove(match);
@@ -476,7 +476,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		return super.hasChildren || this._cellMatches.size > 0;
 	}
 
-	override setSelectedMatch(match: ISearchMatch | null): void {
+	override setSelectedMatch(match: ISearchTreeMatch | null): void {
 		if (match) {
 
 			if (!this.isMatchSelected(match)) {

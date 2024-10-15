@@ -5,7 +5,7 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress, IProgressStep } from '../../../../platform/progress/common/progress.js';
-import { IFileInstanceMatch, ISearchMatch, FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeFileMatch, ISearchTreeMatch, FileMatchOrMatch } from './searchTreeModel/searchTreeCommon.js';
 
 export const IReplaceService = createDecorator<IReplaceService>('replaceService');
 
@@ -16,13 +16,13 @@ export interface IReplaceService {
 	/**
 	 * Replaces the given match in the file that match belongs to
 	 */
-	replace(match: ISearchMatch): Promise<any>;
+	replace(match: ISearchTreeMatch): Promise<any>;
 
 	/**
 	 *	Replace all the matches from the given file matches in the files
 	 *  You can also pass the progress runner to update the progress of replacing.
 	 */
-	replace(files: IFileInstanceMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
+	replace(files: ISearchTreeFileMatch[], progress?: IProgress<IProgressStep>): Promise<any>;
 
 	/**
 	 * Opens the replace preview for given file match or match
@@ -33,5 +33,5 @@ export interface IReplaceService {
 	 * Update the replace preview for the given file.
 	 * If `override` is `true`, then replace preview is constructed from source model
 	 */
-	updateReplacePreview(file: IFileInstanceMatch, override?: boolean): Promise<void>;
+	updateReplacePreview(file: ISearchTreeFileMatch, override?: boolean): Promise<void>;
 }

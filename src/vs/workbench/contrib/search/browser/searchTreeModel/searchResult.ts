@@ -13,7 +13,7 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, IFileInstanceMatch, IFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isFileInstanceMatch, isFolderMatch, isFolderMatchWithResource, isSearchMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch } from './searchTreeCommon.js';
+import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl, TextSearchHeadingImpl } from './textSearchHeading.js';
@@ -79,16 +79,16 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 			await Promise.all(elementsToReplace.map(async (elem) => {
 				const parent = elem.parent();
 
-				if ((isFolderMatch(parent) || isFileInstanceMatch(parent)) && arrayContainsElementOrParent(parent, elementsToReplace)) {
+				if ((isSearchTreeFolderMatch(parent) || isSearchTreeFileMatch(parent)) && arrayContainsElementOrParent(parent, elementsToReplace)) {
 					// skip any children who have parents in the array
 					return;
 				}
 
-				if (isFileInstanceMatch(elem)) {
+				if (isSearchTreeFileMatch(elem)) {
 					await elem.parent().replace(elem);
-				} else if (isSearchMatch(elem)) {
+				} else if (isSearchTreeMatch(elem)) {
 					await elem.parent().replace(elem);
-				} else if (isFolderMatch(elem)) {
+				} else if (isSearchTreeFolderMatch(elem)) {
 					await elem.replaceAll();
 				}
 			}));
@@ -107,7 +107,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 				if (!arrayContainsElementOrParent(currentElement, removedElems)) {
 					if (isTextSearchHeading(currentElement)) {
 						currentElement.hide();
-					} else if (!isFolderMatch(currentElement) || isFolderMatchWithResource(currentElement)) {
+					} else if (!isSearchTreeFolderMatch(currentElement) || isSearchTreeFolderMatchWithResource(currentElement)) {
 						// const elemParent = (<IFileInstanceMatch>currentElement).parent();
 						// currentElement.parent().remove(currentElement);
 						removedElems.push(currentElement);
@@ -155,7 +155,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		);
 	}
 
-	folderMatches(ai: boolean = false): IFolderMatch[] {
+	folderMatches(ai: boolean = false): ISearchTreeFolderMatch[] {
 		if (ai) {
 			return this._aiTextSearchResult.folderMatches();
 		}
@@ -194,7 +194,7 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		this._plainTextSearchResult.clear();
 	}
 
-	remove(matches: IFileInstanceMatch | IFolderMatch | (IFileInstanceMatch | IFolderMatch)[], ai = false): void {
+	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai = false): void {
 		if (ai) {
 			this._aiTextSearchResult.remove(matches, ai);
 		}
@@ -202,11 +202,11 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 
 	}
 
-	replace(match: IFileInstanceMatch): Promise<any> {
+	replace(match: ISearchTreeFileMatch): Promise<any> {
 		return this._plainTextSearchResult.replace(match);
 	}
 
-	matches(ai?: boolean): IFileInstanceMatch[] {
+	matches(ai?: boolean): ISearchTreeFileMatch[] {
 		if (ai === undefined) {
 			return this._plainTextSearchResult.matches().concat(this._aiTextSearchResult.matches());
 		} else if (ai === true) {

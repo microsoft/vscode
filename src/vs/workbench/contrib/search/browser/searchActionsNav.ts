@@ -24,7 +24,7 @@ import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRege
 import { category, getSearchView, openSearchView } from './searchActionsBase.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
-import { FileMatchOrMatch, RenderableMatch, ISearchResult, isFolderMatch } from './searchTreeModel/searchTreeCommon.js';
+import { FileMatchOrMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions: Changing Search Input Options
 registerAction2(class ToggleQueryDetailsAction extends Action2 {
@@ -178,7 +178,7 @@ registerAction2(class OpenMatchAction extends Action2 {
 			const viewer = searchView.getControl();
 			const focus = tree.getFocus()[0];
 
-			if (isFolderMatch(focus)) {
+			if (isSearchTreeFolderMatch(focus)) {
 				viewer.toggleCollapsed(focus);
 			} else {
 				searchView.open(<FileMatchOrMatch>tree.getFocus()[0], false, false, true);
