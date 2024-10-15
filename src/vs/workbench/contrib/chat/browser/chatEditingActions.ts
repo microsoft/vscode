@@ -313,7 +313,7 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 				group: 'navigation',
 				order: 1000,
 				when: ContextKeyExpr.false()
-				// when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_RESPONSE, ContextKeyExpr.notIn(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key)
+				// when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_RESPONSE, ContextKeyExpr.notIn(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key))
 			}
 		});
 	}
@@ -355,7 +355,7 @@ registerAction2(class RemoveAction extends Action2 {
 			title: localize2('chat.undoEdits.label', "Undo Edits"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.trashcan,
+			icon: Codicon.discard,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: {

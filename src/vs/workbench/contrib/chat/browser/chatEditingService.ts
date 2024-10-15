@@ -252,7 +252,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						editsSeen.set(part.uri, entry);
 					}
 
-					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [[]];
+					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
 					const newEdits = allEdits.slice(entry.seen);
 					entry.seen += newEdits.length;
 
@@ -959,13 +959,15 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			resource = saveLocation;
 		}
 
-		const entry = await this._getOrCreateModifiedFileEntry(resource, {
-			agentId: responseModel.agent?.id,
-			command: responseModel.slashCommand?.name,
-			sessionId: responseModel.session.sessionId,
-			requestId: responseModel.requestId,
-			result: responseModel.result
-		});
+		// Make these getters because the response result is not available when the file first starts to be edited
+		const telemetryInfo = new class {
+			get agentId() { return responseModel.agent?.id; }
+			get command() { return responseModel.slashCommand?.name; }
+			get sessionId() { return responseModel.session.sessionId; }
+			get requestId() { return responseModel.requestId; }
+			get result() { return responseModel.result; }
+		};
+		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
 		entry.applyEdits(textEdits);
 		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
