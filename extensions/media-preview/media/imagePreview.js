@@ -21,7 +21,13 @@
 		if (element) {
 			const data = element.getAttribute('data-settings');
 			if (data) {
-				return JSON.parse(data);
+				const settings = JSON.parse(data);
+				try {
+					settings.src = new URL(settings.src).toString();
+				} catch (e) {
+					throw new Error('Invalid URL in settings.src');
+				}
+				return settings;
 			}
 		}
 
