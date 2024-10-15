@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as url from 'url';
 import * as cp from 'child_process';
 import * as http from 'http';
+import path from 'path';
 import { cwd } from '../../base/common/process.js';
 import { dirname, extname, resolve, join } from '../../base/common/path.js';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from '../../platform/environment/node/argv.js';
@@ -80,6 +81,9 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 			return false;
 	}
 };
+
+// Export __dirname for ESM
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 const cliPipe = process.env['VSCODE_IPC_HOOK_CLI'] as string;
 const cliCommand = process.env['VSCODE_CLIENT_COMMAND'] as string;
