@@ -405,13 +405,13 @@ class DropOverlay extends Themable {
 			if (isDraggingGroup) {
 				edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
 			} else {
-				edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+				edgeWidthThresholdFactor = 0.25; // 25% threshold to split if dragging editors. This leaves the middle 50% for dropping into the current group
 			}
 
 			if (isDraggingGroup) {
 				edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
 			} else {
-				edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+				edgeHeightThresholdFactor = 0.25; // 25% threshold to split if dragging editors. This leaves the middle 50% for dropping into the current group
 			}
 		} else {
 			edgeWidthThresholdFactor = 0;
