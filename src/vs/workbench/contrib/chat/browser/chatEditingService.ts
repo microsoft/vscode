@@ -252,7 +252,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 						editsSeen.set(part.uri, entry);
 					}
 
-					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [[]];
+					const allEdits: TextEdit[][] = part.kind === 'textEditGroup' ? part.edits : [];
 					const newEdits = allEdits.slice(entry.seen);
 					entry.seen += newEdits.length;
 
