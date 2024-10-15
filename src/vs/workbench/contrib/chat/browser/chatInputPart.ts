@@ -940,20 +940,56 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		// Add File and Clear buttons
 		// Clear out the previous actions (if any)
 		this._chatEditsActionsDisposables.clear();
-		const actionsContainer = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(overviewRegion, $('.chat-editing-session-toolbar-actions'));
 
-		const button = this._chatEditsActionsDisposables.add(new Button(actionsContainer, {
-			supportIcons: false,
-			secondary: true
-		}));
-		button.label = localize('chatAddFiles', 'Add Files...');
-		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') });
-		}));
-		dom.append(actionsContainer, button.element);
+		//#region Chat editing session actions
+		{
+			const actionsContainer = overviewRegion.querySelector('.chat-editing-session-actions') as HTMLElement ?? dom.append(overviewRegion, $('.chat-editing-session-actions'));
+			dom.clearNode(actionsContainer);
+
+			// TODO@joyceerhl adopt `MenuWorkbenchButtonBar`
+			if (chatEditingSession.entries.get().find((e) => e.state.get() === WorkingSetEntryState.Modified)) {
+				// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
+				const actions = [];
+				actions.push(
+					{
+						command: ChatEditingAcceptAllAction.ID,
+						label: ChatEditingAcceptAllAction.LABEL,
+						isSecondary: false,
+					},
+					{
+						command: ChatEditingDiscardAllAction.ID,
+						label: ChatEditingDiscardAllAction.LABEL,
+						isSecondary: true,
+					},
+					{
+						command: ChatEditingShowChangesAction.ID,
+						label: ChatEditingShowChangesAction.LABEL,
+						icon: Codicon.diffMultiple,
+						isSecondary: true
+					},
+				);
+
+				for (const action of actions) {
+					const button = this._chatEditsActionsDisposables.add(new Button(actionsContainer, {
+						supportIcons: true,
+						secondary: action.isSecondary
+					}));
+					if (action.icon) {
+						button.icon = action.icon;
+					} else {
+						button.label = action.label;
+					}
+					button.setTitle(action.label);
+					this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+						this.commandService.executeCommand(action.command);
+					}));
+					dom.append(actionsContainer, button.element);
+				}
+			}
+		}
+		//#endregion
 
 		if (!chatEditingSession) {
 			return;
@@ -989,51 +1025,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
 
-		//#region Chat editing session actions
-		{
-			const actionsContainer = innerContainer.querySelector('.chat-editing-session-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-actions'));
-			dom.clearNode(actionsContainer);
-			const actionsContainerRight = actionsContainer.querySelector('.chat-editing-session-actions-group') as HTMLElement ?? $('.chat-editing-session-actions-group');
+		const actionsContainer = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-toolbar-actions'));
 
-			if (chatEditingSession.entries.get().find((e) => e.state.get() === WorkingSetEntryState.Modified)) {
-				// Don't show Accept All / Discard All actions if user already selected Accept All / Discard All
-				const actions = [];
-				actions.push(
-					{
-						command: ChatEditingShowChangesAction.ID,
-						label: ChatEditingShowChangesAction.LABEL,
-						isSecondary: true
-					},
-					{
-						command: ChatEditingDiscardAllAction.ID,
-						label: ChatEditingDiscardAllAction.LABEL,
-						isSecondary: true,
-						container: actionsContainerRight
-					},
-					{
-						command: ChatEditingAcceptAllAction.ID,
-						label: ChatEditingAcceptAllAction.LABEL,
-						isSecondary: false,
-						container: actionsContainerRight
-					}
-				);
-
-				for (const action of actions) {
-					const button = this._chatEditsActionsDisposables.add(new Button(action.container ?? actionsContainer, {
-						supportIcons: false,
-						secondary: action.isSecondary
-					}));
-					button.label = action.label;
-					this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-						this.commandService.executeCommand(action.command);
-					}));
-					dom.append(action.container ?? actionsContainer, button.element);
-				}
-
-				dom.append(actionsContainer, actionsContainerRight);
-			}
-		}
-		//#endregion
+		const button = this._chatEditsActionsDisposables.add(new Button(actionsContainer, {
+			supportIcons: true,
+			secondary: true
+		}));
+		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
+		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
+			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') });
+		}));
+		dom.append(actionsContainer, button.element);
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
