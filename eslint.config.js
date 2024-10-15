@@ -367,6 +367,7 @@ export default tseslint.config(
 			'jsdoc/require-returns': 'warn'
 		}
 	},
+	// common/browser layer
 	{
 		files: [
 			'src/**/{common,browser}/**/*.ts'
@@ -381,6 +382,38 @@ export default tseslint.config(
 			'local/code-amd-node-module': 'warn'
 		}
 	},
+	// node/electron layer
+	{
+		files: [
+			'src/*.ts',
+			'src/**/{node,electron-main,electron-utility}/**/*.ts'
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'no-restricted-globals': [
+				'warn',
+				'name',
+				'length',
+				'event',
+				'closed',
+				'external',
+				'status',
+				'origin',
+				'orientation',
+				'context',
+				// Below are globals that are unsupported in ESM
+				'__dirname',
+				'__filename',
+				'require'
+			]
+		}
+	},
+	// browser/electron-sandbox layer
 	{
 		files: [
 			'src/**/{browser,electron-sandbox}/**/*.ts'
@@ -698,6 +731,7 @@ export default tseslint.config(
 			]
 		}
 	},
+	// electron-utility layer
 	{
 		files: [
 			'src/**/electron-utility/**/*.ts'
