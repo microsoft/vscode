@@ -10,6 +10,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -205,16 +206,27 @@ export function registerChatTitleActions() {
 			}
 			const itemIndex = chatRequests?.findIndex(request => request.id === item.requestId);
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const confirmation = await dialogService.confirm({
-					title: localize('chat.removeLast.confirmation.title', "Do you want to retry your last edit?"),
-					message: localize('chat.remove.confirmation.message', "This will also undo any edits made to your working set from this request."),
-					primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
-					type: 'info'
-				});
-				if (!confirmation) {
+				const shouldPrompt = configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
+				const confirmation = shouldPrompt
+					? await dialogService.confirm({
+						title: localize('chat.retryLast.confirmation.title', "Do you want to retry your last edit?"),
+						message: localize('chat.retry.confirmation.message', "This will also undo any edits made to your working set from this request."),
+						primaryButton: localize('chat.retry.confirmation.primaryButton', "Yes"),
+						checkbox: { label: localize('chat.retry.confirmation.checkbox', "Don't ask again"), checked: false },
+						type: 'info'
+					})
+					: { confirmed: true };
+
+				if (!confirmation.confirmed) {
 					return;
 				}
+
+				if (confirmation.checkboxChecked) {
+					await configurationService.updateValue('chat.editing.confirmEditRequestRetry', false);
+				}
+
 				// Reset the snapshot
 				const snapshotRequest = chatRequests[itemIndex];
 				if (snapshotRequest) {
@@ -339,7 +351,7 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			const chatModel = chatService.getSession(item.sessionId);
-			if (chatModel?.initialLocation !== ChatAgentLocation.EditingSession) {
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				return;
 			}
 

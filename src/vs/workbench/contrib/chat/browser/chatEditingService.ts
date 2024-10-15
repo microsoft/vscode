@@ -28,11 +28,14 @@ import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService 
 import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { editorSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorCloseEvent } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -41,7 +44,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { MultiDiffEditor } from '../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IChatAgentResult } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ICodeMapperResponse, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, IModifiedFileEntry, inChatEditingSessionContextKey, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatResponseModel } from '../common/chatModel.js';
@@ -251,6 +254,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		observerDisposables.add(chatModel.onDidChange(e => {
 			if (e.kind === 'addRequest') {
+				allSeenEdits.clear();
 				const responseModel = e.request.response;
 				if (responseModel) {
 					if (responseModel.isComplete) {
@@ -479,6 +483,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _initialFileContents = new ResourceMap<string>();
 	private readonly _snapshots = new Map<string, IChatEditingSessionSnapshot>();
 
+	private readonly _filesToSkipCreating = new ResourceSet();
+
 	private readonly _entriesObs = observableValue<readonly ModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly ModifiedFileEntry[]> {
 		this._assertNotDisposed();
@@ -526,6 +532,10 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IFileService private readonly _fileService: IFileService,
+		@IFileDialogService private readonly _dialogService: IFileDialogService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -857,6 +867,21 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): Promise<void> {
+		if (this._filesToSkipCreating.has(resource)) {
+			return;
+		}
+
+		if (!this._workspaceContextService.getWorkspaceFolder(resource) && !this._fileService.exists(resource)) {
+			// if the file doesn't exist yet and is outside the workspace, prompt the user for a location to save it to
+			const saveLocation = await this._dialogService.showSaveDialog({ title: localize('chatEditing.fileSave', '{0} wants to create a file. Choose where it should be saved.', this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? 'Chat') });
+			if (!saveLocation) {
+				// don't ask the user to create the file again when the next text edit for this same resource streams in
+				this._filesToSkipCreating.add(resource);
+				return;
+			}
+			resource = saveLocation;
+		}
+
 		const entry = await this._getOrCreateModifiedFileEntry(resource, {
 			agentId: responseModel.agent?.id,
 			command: responseModel.slashCommand?.name,

@@ -122,4 +122,9 @@ export interface IHostService {
 
 	//#endregion
 
+	//#region Screenshots
+
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
+
+	//#endregion
 }

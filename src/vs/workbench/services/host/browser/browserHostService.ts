@@ -40,6 +40,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getScreenshotViaDisplayMedia } from '../../../../base/browser/screenshot.js';
 
 enum HostShutdownReason {
 
@@ -570,6 +571,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		// Signal shutdown reason to lifecycle
 		return this.lifecycleService.withExpectedShutdown(reason);
+	}
+
+	//#endregion
+
+	//#region Screenshots
+
+	getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		return getScreenshotViaDisplayMedia();
 	}
 
 	//#endregion
