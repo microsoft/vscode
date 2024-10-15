@@ -198,6 +198,7 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
@@ -234,7 +235,8 @@ export function registerChatTitleActions() {
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
-			chatService.resendRequest(request!);
+			const languageModelId = chatWidgetService.getWidgetBySessionId(item.sessionId)?.input.currentLanguageModel;
+			chatService.resendRequest(request!, { userSelectedModelId: languageModelId });
 		}
 	});
 
