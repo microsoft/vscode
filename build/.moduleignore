@@ -115,6 +115,8 @@ vsda/**
 !vsda/index.d.ts
 !vsda/package.json
 !vsda/build/Release/vsda.node
+!vsda/rust/web/**
+!vsda/rust/bundler/**
 
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
