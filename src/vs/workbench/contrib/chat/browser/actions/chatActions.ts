@@ -35,7 +35,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -94,7 +94,7 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: defaultChat.icon,
 			f1: true,
-			precondition: CONTEXT_CHAT_ENABLED,
+			precondition: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -458,9 +458,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: defaultChat.icon,
 	when: ContextKeyExpr.or(
 		// Chat extension installed: show when `chat.commandCenter.enabled`
-		ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
+		ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
 		// Chat extension not installed: show when `chat.experimental.offerInstall` and native platform
-		ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall'), IsWebContext.negate())
+		ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall'), IsWebContext.negate())
 	),
 	order: 10001,
 });
@@ -471,7 +471,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			{ main: 'chat.commandCenter.enabled', dependent: ['chat.experimental.offerInstall'] },
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
-			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ContextKeyExpr.has('config.window.commandCenter'))
+			ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, ContextKeyExpr.has('config.window.commandCenter'))
 		);
 	}
 });
@@ -482,7 +482,7 @@ registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
 			{ main: 'chat.experimental.offerInstall', dependent: ['chat.commandCenter.enabled'] },
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
-			ContextKeyExpr.and(CONTEXT_CHAT_ENABLED.negate(), ContextKeyExpr.has('config.window.commandCenter'))
+			ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate(), ContextKeyExpr.has('config.window.commandCenter'))
 		);
 	}
 });
@@ -511,7 +511,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				run() { }
 			});
 
-			const hasChatExtension = !!agentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const hasChatExtension = agentService.getAgents().some(agent => agent.isDefault);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
 				id: hasChatExtension ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
@@ -585,7 +585,7 @@ class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 1,
-				when: CONTEXT_CHAT_ENABLED.negate()
+				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
 			}
 		});
 	}
@@ -609,7 +609,7 @@ class LearnMoreChatAction extends Action2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 2,
-				when: CONTEXT_CHAT_ENABLED.negate()
+				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
 			}
 		});
 	}
