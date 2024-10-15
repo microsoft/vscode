@@ -31,7 +31,7 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedContentTypes: [],
+			supportedMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -45,7 +45,7 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedContentTypes: [],
+			supportedMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -65,7 +65,7 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool1',
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
-			supportedContentTypes: [],
+			supportedMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -73,14 +73,14 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool2',
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
-			supportedContentTypes: [],
+			supportedMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
-			supportedContentTypes: [],
+			supportedMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -98,7 +98,7 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedContentTypes: [],
+			supportedMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -123,7 +123,7 @@ suite('LanguageModelToolsService', () => {
 				a: 1
 			},
 			context: undefined,
-			requestedContentTypes: ['text/plain']
+			requestedMimeTypes: ['text/plain']
 		};
 
 		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);

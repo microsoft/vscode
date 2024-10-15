@@ -27,7 +27,7 @@ interface IRawToolContribution {
 	userDescription?: string;
 	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedContentTypes?: string[];
+	supportedMimeTypes: string[];
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -56,10 +56,10 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 							}
 						}
 					},
-					supportedContentTypes: ['text/plain'],
+					supportedMimeTypes: ['text/plain'],
 				}
 			}],
-			required: ['name', 'displayName', 'modelDescription'],
+			required: ['name', 'displayName', 'modelDescription', 'supportedMimeTypes'],
 			properties: {
 				name: {
 					description: localize('toolName', "A unique name for this tool. This name must be a globally unique identifier, and is also used as a name when presenting this tool to a language model."),
@@ -116,8 +116,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					markdownDescription: localize('condition', "Condition which must be true for this tool to be enabled. Note that a tool may still be invoked by another extension even when its `when` condition is false."),
 					type: 'string'
 				},
-				supportedContentTypes: {
-					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's recommended that all tools support `text/plain`, which would indicate any text-based content. Another example is the contentType exported by the `@vscode/prompt-tsx` library, which would let a tool return a `PromptElementJSON` which can be easily rendered in a prompt by an extension using `@vscode/prompt-tsx`."),
+				supportedMimeTypes: {
+					markdownDescription: localize('mimeTypes', "The list of mime types that this tool can return. It's recommended that all tools support `text/plain`, which would indicate any text-based content. Another example is the contentType exported by the `@vscode/prompt-tsx` library, which would let a tool return a `PromptElementJSON` which can be easily rendered in a prompt by an extension using `@vscode/prompt-tsx`."),
 					type: 'array',
 					items: {
 						type: 'string'
@@ -167,6 +167,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
+					if (rawTool.supportedMimeTypes?.length) {
+						logService.error(`Extension '${extension.description.identifier.value}' CANNOT register tool '${rawTool.name}' without 'supportedMimeTypes'`);
+						continue;
+					}
+
 					const rawIcon = rawTool.icon;
 					let icon: IToolData['icon'] | undefined;
 					if (typeof rawIcon === 'string') {
@@ -186,7 +191,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
-						supportedContentTypes: rawTool.supportedContentTypes ? rawTool.supportedContentTypes : [],
+						supportedMimeTypes: rawTool.supportedMimeTypes,
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

@@ -1495,9 +1495,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.registerTool(extension, name, tool);
 			},
-			invokeTool<T>(toolId: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token: vscode.CancellationToken) {
+			invokeTool<T>(name: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
+				return extHostLanguageModelTools.invokeTool(name, parameters, token);
 			},
 			get tools() {
 				checkProposedApiEnabled(extension, 'lmTools');

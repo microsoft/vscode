@@ -144,13 +144,12 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolResult {
 		/**
-		 * The result can contain arbitrary representations of the content. A tool user can set
-		 * {@link LanguageModelToolInvocationOptions.requestedContentTypes} to request particular types, and a tool implementation should only
-		 * compute the types that were requested. `text/plain` is recommended to be supported by all tools, which would indicate
-		 * any text-based content. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the
-		 * `contentType` exported by that library.
+		 * A list of {@link LanguageModelToolResultItem}, which are mimeType/data pairs. The result can contain arbitrary
+		 * representations of the content. A tool user can set {@link LanguageModelToolInvocationOptions.requestedMimeTypes} to
+		 * request particular types, and a tool implementation should only compute the types that were requested. `text/plain` is
+		 * recommended to be supported by all tools, which would indicate any text-based content. Another example might be a
+		 * `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
 		 */
-
 		items: LanguageModelToolResultItem[];
 
 		constructor(items: LanguageModelToolResultItem[]);
@@ -172,8 +171,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
-		// TODO@API name
-		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
@@ -205,7 +203,7 @@ declare module 'vscode' {
 		 * A tool user can request that particular content types be returned from the tool, depending on what the tool user
 		 * supports. All tools are recommended to support `text/plain`. See {@link LanguageModelToolResult}.
 		 */
-		requestedContentTypes: string[];
+		requestedMimeTypes: string[];
 
 		/**
 		 * Options to hint at how many tokens the tool should return in its response.
@@ -246,9 +244,9 @@ declare module 'vscode' {
 		readonly parametersSchema?: object;
 
 		/**
-		 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
+		 * The list of mime types that the tool has declared support for. See {@link LanguageModelToolResult}.
 		 */
-		readonly supportedContentTypes: string[];
+		readonly supportedMimeTypes: string[];
 
 		/**
 		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter
@@ -323,10 +321,10 @@ declare module 'vscode' {
 	 */
 	export interface ChatLanguageModelToolReference {
 		/**
-		 * The tool's ID. Refers to a tool listed in {@link lm.tools}.
+		 * The tool name. Refers to a tool listed in {@link lm.tools}.
+		 * TODO@API should this be a full LanguageModelToolDescription?
 		 */
-		// TODO@API name
-		readonly id: string;
+		readonly name: string;
 
 		/**
 		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was

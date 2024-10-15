@@ -2809,7 +2809,7 @@ export namespace ChatLanguageModelToolReference {
 		}
 
 		return {
-			id: variable.id,
+			name: variable.id,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
 	}
@@ -2931,7 +2931,7 @@ export namespace LanguageModelToolDescription {
 			name: item.id,
 			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
-			supportedContentTypes: item.supportedContentTypes,
+			supportedMimeTypes: item.supportedMimeTypes,
 			tags: item.tags ?? [],
 		};
 	}

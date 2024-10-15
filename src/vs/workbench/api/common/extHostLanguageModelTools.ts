@@ -44,7 +44,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
-		if (!options.requestedContentTypes?.length) {
+		if (!options.requestedMimeTypes?.length) {
 			throw new Error('LanguageModelToolInvocationOptions.requestedContentTypes is required to be set');
 		}
 
@@ -60,7 +60,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				parameters: options.parameters,
 				tokenBudget: options.tokenOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				requestedContentTypes: options.requestedContentTypes,
+				requestedMimeTypes: options.requestedMimeTypes,
 			}, token);
 			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
@@ -86,7 +86,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedContentTypes: dto.requestedContentTypes };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedMimeTypes: dto.requestedMimeTypes };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -109,7 +109,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		for (const item of extensionResult.items) {
 			if (item.data instanceof Promise) {
 				throw new Error(`Tool result for '${item.mime}' cannot be a Promise`);
-			} else if (!options.requestedContentTypes.includes(item.mime)) {
+			} else if (!options.requestedMimeTypes.includes(item.mime)) {
 				// This could help the scenario where a tool updated the prompt-tsx library, but did not update the contentType in package.json.
 				// Or, where a tool author didn't declare supportedContentTypes and isn't checking the list of requestedContentTypes.
 				// toString check can be temp, just to help with tools that are already published.
