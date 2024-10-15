@@ -34,6 +34,10 @@ abstract class WorkingSetAction extends Action2 {
 		}
 
 		const chatWidget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (chatWidget?.location !== ChatAgentLocation.EditingSession) {
+			return;
+		}
+
 		const uris: URI[] = [];
 		if (URI.isUri(args[0])) {
 			uris.push(args[0]);
