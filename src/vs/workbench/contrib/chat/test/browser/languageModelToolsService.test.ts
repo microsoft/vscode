@@ -31,7 +31,7 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedMimeTypes: [],
+			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -45,7 +45,7 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedMimeTypes: [],
+			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -65,7 +65,7 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool1',
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
-			supportedMimeTypes: [],
+			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -73,14 +73,14 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool2',
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
-			supportedMimeTypes: [],
+			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
-			supportedMimeTypes: [],
+			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -98,7 +98,7 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedMimeTypes: [],
+			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 

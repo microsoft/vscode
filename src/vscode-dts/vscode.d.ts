@@ -19475,8 +19475,8 @@ declare module 'vscode' {
 		 * Make a chat request using a language model.
 		 *
 		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
-		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
-		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * for the first time (for an extension) will show a consent dialog to the user and because of that this function
+		 * must _only be called in response to a user action!_ Extensions can use {@link LanguageModelAccessInformation.canSendRequest}
 		 * to check if they have the necessary permissions to make a request.
 		 *
 		 * This function will return a rejected promise if making a request to the language model is not
@@ -19486,6 +19486,10 @@ declare module 'vscode' {
 		 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
 		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
 		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 *
+		 * An extension can make use of language model tool calling by passing a set of tools to
+		 * {@link LanguageModelChatRequestOptions.tools}. The language model will return a {@link LanguageModelToolCallPart} and
+		 * the extension can invoke the tool and make another request with the result.
 		 *
 		 * @param messages An array of message instances.
 		 * @param options Options that control the request.

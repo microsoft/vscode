@@ -24,7 +24,7 @@ export interface IToolData {
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedMimeTypes: string[];
+	supportedResultMimeTypes: string[];
 }
 
 export interface IToolInvocation {

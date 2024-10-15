@@ -9,7 +9,8 @@
 declare module 'vscode' {
 
 	/**
-	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}.
+	 * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}. A language model uses all the
+	 * properties of this interface to decide which tool to call, and how to call it.
 	 */
 	export interface LanguageModelChatTool {
 		/**
@@ -31,7 +32,15 @@ declare module 'vscode' {
 	export interface LanguageModelChatRequestOptions {
 
 		/**
-		 * An optional list of tools that are available to the language model.
+		 * An optional list of tools that are available to the language model. These could be registered tools available via
+		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
+		 *
+		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
+		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
+		 *
+		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
+		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
 		 */
 		tools?: LanguageModelChatTool[];
 
@@ -44,8 +53,7 @@ declare module 'vscode' {
 
 	/**
 	 * A language model response part indicating a tool call, returned from a {@link LanguageModelChatResponse}, and also can be
-	 * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a
-	 * chat request.
+	 * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a chat request.
 	 */
 	export class LanguageModelToolCallPart {
 		/**
@@ -63,6 +71,9 @@ declare module 'vscode' {
 		 */
 		parameters: object;
 
+		/**
+		 * Create a new LanguageModelToolCallPart.
+		 */
 		constructor(name: string, callId: string, parameters: object);
 	}
 
@@ -95,11 +106,11 @@ declare module 'vscode' {
 		callId: string;
 
 		/**
-		 * The content of the tool result.
+		 * The value of the tool result.
 		 */
-		content: string;
+		value: string;
 
-		constructor(callId: string, content: string);
+		constructor(callId: string, value: string);
 	}
 
 	export interface LanguageModelChatMessage {
@@ -147,8 +158,8 @@ declare module 'vscode' {
 		 * A list of {@link LanguageModelToolResultItem}, which are mimeType/data pairs. The result can contain arbitrary
 		 * representations of the content. A tool user can set {@link LanguageModelToolInvocationOptions.requestedMimeTypes} to
 		 * request particular types, and a tool implementation should only compute the types that were requested. `text/plain` is
-		 * recommended to be supported by all tools, which would indicate any text-based content. Another example might be a
-		 * `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
+		 * recommended to be supported by all tools, which would indicate any kind of string-based content. Another example might
+		 * be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
 		 */
 		items: LanguageModelToolResultItem[];
 
@@ -166,10 +177,11 @@ declare module 'vscode' {
 		/**
 		 * A list of all available tools.
 		 */
-		export const tools: readonly LanguageModelToolDescription[];
+		export const tools: readonly LanguageModelToolInformation[];
 
 		/**
 		 * Invoke a tool with the given parameters.
+		 * TODO describe content types and token options here
 		 */
 		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
@@ -195,39 +207,43 @@ declare module 'vscode' {
 
 		/**
 		 * The parameters with which to invoke the tool. The parameters must match the schema defined in
-		 * {@link LanguageModelToolDescription.parametersSchema}
+		 * {@link LanguageModelToolInformation.parametersSchema}
 		 */
 		parameters: T;
 
 		/**
-		 * A tool user can request that particular content types be returned from the tool, depending on what the tool user
-		 * supports. All tools are recommended to support `text/plain`. See {@link LanguageModelToolResult}.
+		 * A tool can return multiple types of content. A tool user must specifically request one or more types of content to be
+		 * returned, based on what the tool user supports. The typical type is `text/plain` to return string-type content, and all
+		 * tools are recommended to support `text/plain`. See {@link LanguageModelToolResult} for more.
 		 */
 		requestedMimeTypes: string[];
 
 		/**
-		 * Options to hint at how many tokens the tool should return in its response.
+		 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
+		 * accurately.
 		 */
-		tokenOptions?: {
-			/**
-			 * If known, the maximum number of tokens the tool should emit in its result.
-			 */
-			tokenBudget: number;
+		tokenizationOptions?: LangaugeModelToolTokenizationOptions;
+	}
 
-			/**
-			 * Count the number of tokens in a message using the model specific tokenizer-logic.
-			 * @param text A string.
-			 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
-			 * @returns A thenable that resolves to the number of tokens.
-			 */
-			countTokens(text: string, token?: CancellationToken): Thenable<number>;
-		};
+	export interface LangaugeModelToolTokenizationOptions {
+		/**
+		 * If known, the maximum number of tokens the tool should emit in its result.
+		 */
+		tokenBudget: number;
+
+		/**
+		 * Count the number of tokens in a message using the model specific tokenizer-logic.
+		 * @param text A string.
+		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to the number of tokens.
+		 */
+		countTokens(text: string, token?: CancellationToken): Thenable<number>;
 	}
 
 	/**
-	 * A description of an available tool.
+	 * Information about a registered tool available in {@link lm.tools}.
 	 */
-	export interface LanguageModelToolDescription {
+	export interface LanguageModelToolInformation {
 		/**
 		 * A unique name for the tool.
 		 */
@@ -241,18 +257,18 @@ declare module 'vscode' {
 		/**
 		 * A JSON schema for the parameters this tool accepts.
 		 */
-		readonly parametersSchema?: object;
+		readonly parametersSchema: object | undefined;
 
 		/**
-		 * The list of mime types that the tool has declared support for. See {@link LanguageModelToolResult}.
+		 * The list of mime types that the tool is able to return as a result. See {@link LanguageModelToolResult}.
 		 */
-		readonly supportedMimeTypes: string[];
+		readonly supportedResultMimeTypes: readonly string[];
 
 		/**
 		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter
 		 * the set of tools to just ones that are relevant for the task at hand.
 		 */
-		readonly tags: string[];
+		readonly tags: readonly string[];
 	}
 
 	/**
@@ -322,7 +338,6 @@ declare module 'vscode' {
 	export interface ChatLanguageModelToolReference {
 		/**
 		 * The tool name. Refers to a tool listed in {@link lm.tools}.
-		 * TODO@API should this be a full LanguageModelToolDescription?
 		 */
 		readonly name: string;
 

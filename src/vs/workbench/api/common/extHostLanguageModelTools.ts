@@ -49,8 +49,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		const callId = generateUuid();
-		if (options.tokenOptions) {
-			this._tokenCountFuncs.set(callId, options.tokenOptions.countTokens);
+		if (options.tokenizationOptions) {
+			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
 		}
 		try {
 			// Making the round trip here because not all tools were necessarily registered in this EH
@@ -58,7 +58,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				toolId,
 				callId,
 				parameters: options.parameters,
-				tokenBudget: options.tokenOptions?.tokenBudget,
+				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
 				requestedMimeTypes: options.requestedMimeTypes,
 			}, token);
@@ -75,7 +75,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 	}
 
-	get tools(): vscode.LanguageModelToolDescription[] {
+	get tools(): vscode.LanguageModelToolInformation[] {
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
@@ -88,7 +88,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedMimeTypes: dto.requestedMimeTypes };
 		if (dto.tokenBudget !== undefined) {
-			options.tokenOptions = {
+			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
 				countTokens: this._tokenCountFuncs.get(dto.callId) || ((value, token = CancellationToken.None) =>
 					this._proxy.$countTokensForInvocation(dto.callId, value, token))
