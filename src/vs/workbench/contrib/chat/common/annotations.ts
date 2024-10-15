@@ -23,7 +23,8 @@ export type ContentRefData =
 export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
-		const previousItem = result[result.length - 1];
+		const previousItem = result.filter(p => p.kind !== 'textEditGroup').at(-1);
+		const previousItemIndex = result.findIndex(p => p === previousItem);
 		if (item.kind === 'inlineReference') {
 			const location: ContentRefData = 'uri' in item.inlineReference
 				? item.inlineReference
@@ -44,20 +45,20 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			const markdownText = `[${label}](${printUri.toString()})`;
 			if (previousItem?.kind === 'markdownContent') {
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+				result[previousItemIndex] = { content: merged, kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
 			const merged = appendMarkdownString(previousItem.content, item.content);
-			result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+			result[previousItemIndex] = { content: merged, kind: 'markdownContent' };
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
 			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
 				// Since this is inside a codeblock, it needs to be merged into the previous markdown content.
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+				result[previousItemIndex] = { content: merged, kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
@@ -65,7 +66,7 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			if (previousItem?.kind === 'markdownContent') {
 				const markdownText = `<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>`;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+				result[previousItemIndex] = { content: merged, kind: 'markdownContent' };
 			}
 		} else {
 			result.push(item);
