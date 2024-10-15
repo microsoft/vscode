@@ -37,13 +37,13 @@ type LanguageModelData = {
 
 class LanguageModelResponseStream {
 
-	readonly stream = new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 
 	constructor(
 		readonly option: number,
-		stream?: AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>
+		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
 	) {
-		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 	}
 }
 
@@ -52,7 +52,7 @@ class LanguageModelResponse {
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
-	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 	private _isDone: boolean = false;
 
 	constructor() {
@@ -100,7 +100,7 @@ class LanguageModelResponse {
 			this._responseStreams.set(fragment.index, res);
 		}
 
-		let out: vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart;
+		let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
 		if (fragment.part.type === 'text') {
 			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
 		} else {
@@ -165,7 +165,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				accountLabel: typeof metadata.auth === 'object' ? metadata.auth.label : undefined
 			};
 		}
-		this._proxy.$registerLanguageModelProvider(handle, `${ExtensionIdentifier.toKey(extension.identifier)}/${handle}/${identifier}`, {
+		this._proxy.$registerLanguageModelProvider(handle, `${ExtensionIdentifier.toKey(extension.identifier)}/${identifier}`, {
 			extension: extension.identifier,
 			id: identifier,
 			vendor: metadata.vendor ?? ExtensionIdentifier.toKey(extension.identifier),
@@ -175,7 +175,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			maxInputTokens: metadata.maxInputTokens,
 			maxOutputTokens: metadata.maxOutputTokens,
 			auth,
-			targetExtensions: metadata.extensions
+			targetExtensions: metadata.extensions,
+			isDefault: metadata.isDefault,
+			isUserSelectable: metadata.isUserSelectable,
 		});
 
 		const responseReceivedListener = provider.onDidReceiveLanguageModelResponse2?.(({ extensionId, participant, tokenCount }) => {
@@ -289,54 +291,62 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._onDidChangeProviders.fire(undefined);
 	}
 
+	async getLanguageModelByIdentifier(extension: IExtensionDescription, identifier: string): Promise<vscode.LanguageModelChat | undefined> {
+
+		const data = this._allLanguageModelData.get(identifier);
+		if (!data) {
+			// model gone? is this an error on us?
+			return;
+		}
+
+		// make sure auth information is correct
+		if (this._isUsingAuth(extension.identifier, data.metadata)) {
+			await this._fakeAuthPopulate(data.metadata);
+		}
+
+		let apiObject = data.apiObjects.get(extension.identifier);
+		if (!apiObject) {
+			const that = this;
+			apiObject = {
+				id: data.metadata.id,
+				vendor: data.metadata.vendor,
+				family: data.metadata.family,
+				version: data.metadata.version,
+				name: data.metadata.name,
+				maxInputTokens: data.metadata.maxInputTokens,
+				countTokens(text, token) {
+					if (!that._allLanguageModelData.has(identifier)) {
+						throw extHostTypes.LanguageModelError.NotFound(identifier);
+					}
+					return that._computeTokenLength(identifier, text, token ?? CancellationToken.None);
+				},
+				sendRequest(messages, options, token) {
+					if (!that._allLanguageModelData.has(identifier)) {
+						throw extHostTypes.LanguageModelError.NotFound(identifier);
+					}
+					return that._sendChatRequest(extension, identifier, messages, options ?? {}, token ?? CancellationToken.None);
+				}
+			};
+
+			Object.freeze(apiObject);
+			data.apiObjects.set(extension.identifier, apiObject);
+		}
+
+		return apiObject;
+	}
+
 	async selectLanguageModels(extension: IExtensionDescription, selector: vscode.LanguageModelChatSelector) {
 
 		// this triggers extension activation
 		const models = await this._proxy.$selectChatModels({ ...selector, extension: extension.identifier });
 
 		const result: vscode.LanguageModelChat[] = [];
-		const that = this;
+
 		for (const identifier of models) {
-			const data = this._allLanguageModelData.get(identifier);
-			if (!data) {
-				// model gone? is this an error on us?
-				continue;
+			const model = await this.getLanguageModelByIdentifier(extension, identifier);
+			if (model) {
+				result.push(model);
 			}
-
-			// make sure auth information is correct
-			if (this._isUsingAuth(extension.identifier, data.metadata)) {
-				await this._fakeAuthPopulate(data.metadata);
-			}
-
-			let apiObject = data.apiObjects.get(extension.identifier);
-
-			if (!apiObject) {
-				apiObject = {
-					id: identifier,
-					vendor: data.metadata.vendor,
-					family: data.metadata.family,
-					version: data.metadata.version,
-					name: data.metadata.name,
-					maxInputTokens: data.metadata.maxInputTokens,
-					countTokens(text, token) {
-						if (!that._allLanguageModelData.has(identifier)) {
-							throw extHostTypes.LanguageModelError.NotFound(identifier);
-						}
-						return that._computeTokenLength(identifier, text, token ?? CancellationToken.None);
-					},
-					sendRequest(messages, options, token) {
-						if (!that._allLanguageModelData.has(identifier)) {
-							throw extHostTypes.LanguageModelError.NotFound(identifier);
-						}
-						return that._sendChatRequest(extension, identifier, messages, options ?? {}, token ?? CancellationToken.None);
-					}
-				};
-
-				Object.freeze(apiObject);
-				data.apiObjects.set(extension.identifier, apiObject);
-			}
-
-			result.push(apiObject);
 		}
 
 		return result;

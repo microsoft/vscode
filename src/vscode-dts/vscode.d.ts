@@ -898,6 +898,11 @@ declare module 'vscode' {
 	export class ThemeColor {
 
 		/**
+		 * The id of this color.
+		 */
+		readonly id: string;
+
+		/**
 		 * Creates a reference to a theme color.
 		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/api/references/theme-color.
 		 */
@@ -3650,6 +3655,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param position The position at which the command was invoked.
+		 * @param context Additional information about the references request.
 		 * @param token A cancellation token.
 		 *
 		 * @returns An array of locations or a thenable that resolves to such. The lack of a result can be
@@ -7500,7 +7506,7 @@ declare module 'vscode' {
 		 * must be activated. Check whether {@link TerminalShellExecution.exitCode} is rejected to
 		 * verify whether it was successful.
 		 *
-		 * @param command A command to run.
+		 * @param executable A command to run.
 		 * @param args Arguments to launch the executable with which will be automatically escaped
 		 * based on the executable type.
 		 *
@@ -11688,8 +11694,8 @@ declare module 'vscode' {
 		 *
 		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
-		 * @param dataTransfer The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occurring on. When undefined, the target is the root.
+		 * @param dataTransfer The data transfer items of the source of the drag.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
 		handleDrop?(target: T | undefined, dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
@@ -13511,8 +13517,9 @@ declare module 'vscode' {
 		 * `**` or path segments), it will be watched recursively and otherwise will be watched
 		 * non-recursively (i.e. only changes to the first level of the path will be reported).
 		 *
-		 * *Note* that paths must exist in the file system to be watched. File watching may stop when
-		 * the watched path is renamed or deleted.
+		 * *Note* that paths that do not exist in the file system will be monitored with a delay until
+		 * created and then watched depending on the parameters provided. If a watched path is deleted,
+		 * the watcher will suspend and not report any events until the path is created again.
 		 *
 		 * If possible, keep the use of recursive watchers to a minimum because recursive file watching
 		 * is quite resource intense.
@@ -13527,25 +13534,12 @@ declare module 'vscode' {
 		 *
 		 * *Note* that file events from recursive file watchers may be excluded based on user configuration.
 		 * The setting `files.watcherExclude` helps to reduce the overhead of file events from folders
-		 * that are known to produce many file changes at once (such as `node_modules` folders). As such,
+		 * that are known to produce many file changes at once (such as `.git` folders). As such,
 		 * it is highly recommended to watch with simple patterns that do not require recursive watchers
 		 * where the exclude settings are ignored and you have full control over the events.
 		 *
 		 * *Note* that symbolic links are not automatically followed for file watching unless the path to
 		 * watch itself is a symbolic link.
-		 *
-		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
-		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
-		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
-		 * The underlying behaviour depends on the path that is provided for watching:
-		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
-		 *   excluded via `files.watcherExclude` setting
-		 * * if the path is equal to any of the workspace folders, deletions are not tracked
-		 * * if the path is outside of any of the workspace folders, deletions are not tracked
-		 *
-		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
-		 * folder) to not accidentally watch all sibling folders recursively.
 		 *
 		 * *Note* that the file paths that are reported for having changed may have a different path casing
 		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
@@ -17787,7 +17781,7 @@ declare module 'vscode' {
 		 * runs which may still be ongoing, will be marked as outdated and deprioritized
 		 * in the editor's UI.
 		 *
-		 * @param item Item to mark as outdated. If undefined, all the controller's items are marked outdated.
+		 * @param items Item to mark as outdated. If undefined, all the controller's items are marked outdated.
 		 */
 		invalidateTestResults(items?: TestItem | readonly TestItem[]): void;
 
@@ -18973,7 +18967,9 @@ declare module 'vscode' {
 	export interface ChatFollowupProvider {
 		/**
 		 * Provide followups for the given result.
+		 *
 		 * @param result This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * @param context Extra context passed to a participant.
 		 * @param token A cancellation token.
 		 */
 		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
@@ -19112,7 +19108,7 @@ declare module 'vscode' {
 		 * `push(new ChatResponseAnchorPart(value, title))`.
 		 * An anchor is an inline reference to some type of resource.
 		 *
-		 * @param value A uri, location, or symbol information.
+		 * @param value A uri or location.
 		 * @param title An optional title that is rendered with value.
 		 */
 		anchor(value: Uri | Location, title?: string): void;

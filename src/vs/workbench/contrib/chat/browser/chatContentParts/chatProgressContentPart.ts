@@ -19,20 +19,22 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	public readonly domNode: HTMLElement;
 
 	private readonly showSpinner: boolean;
+	private readonly isHidden: boolean;
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner?: boolean,
-		forceShowMessage?: boolean
+		forceShowMessage?: boolean,
+		icon?: ThemeIcon
 	) {
 		super();
 
-		const followingContent = context.content.slice(context.index + 1);
+		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
-		const hideMessage = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
-		if (hideMessage) {
+		this.isHidden = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
+		if (this.isHidden) {
 			// Placeholder, don't show the progress message
 			this.domNode = $('');
 			return;
@@ -43,7 +45,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
-		const codicon = this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
+		const codicon = icon ? icon.id : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
 		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
 			supportThemeIcons: true
 		});
@@ -54,6 +56,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		// Progress parts render render until some other content shows up, then they hide.
+		// When some other content shows up, need to signal to be rerendered as hidden.
+		if (followingContent.some(part => part.kind !== 'progressMessage') && !this.isHidden) {
+			return false;
+		}
+
 		// Needs rerender when spinner state changes
 		const showSpinner = shouldShowSpinner(followingContent, element);
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;

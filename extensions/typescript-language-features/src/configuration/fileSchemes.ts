@@ -21,21 +21,24 @@ export const officeScript = 'office-script';
 /** Used for code blocks in chat by vs code core */
 export const chatCodeBlock = 'vscode-chat-code-block';
 
-/** Used for code blocks in chat by copilot. */
-export const chatBackingCodeBlock = 'vscode-copilot-chat-code-block';
-
 export function getSemanticSupportedSchemes() {
-	if (isWeb() && vscode.workspace.workspaceFolders) {
-		return vscode.workspace.workspaceFolders.map(folder => folder.uri.scheme);
-	}
-
-	return [
-		file,
+	const alwaysSupportedSchemes = [
 		untitled,
 		walkThroughSnippet,
 		vscodeNotebookCell,
 		chatCodeBlock,
-		chatBackingCodeBlock,
+	];
+
+	if (isWeb()) {
+		return [
+			...(vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.scheme),
+			...alwaysSupportedSchemes,
+		];
+	}
+
+	return [
+		file,
+		...alwaysSupportedSchemes,
 	];
 }
 

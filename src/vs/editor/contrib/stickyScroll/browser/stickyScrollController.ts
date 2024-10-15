@@ -478,6 +478,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		// Make sure sticky scroll doesn't take up more than 25% of the editor
 		const theoreticalLines = layoutInfo.height / this._editor.getOption(EditorOption.lineHeight);
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
+		this._renderStickyScroll(0);
 	}
 
 	private async _renderStickyScroll(rebuildFromLine?: number): Promise<void> {
@@ -572,7 +573,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
 						startLineNumbers.push(start);
 						endLineNumbers.push(end + 1);
-						lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
+							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
+						}
 						break;
 					}
 					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {

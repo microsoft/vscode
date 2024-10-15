@@ -50,7 +50,7 @@ const enum Constants {
 	 */
 	KillSpawnThrottleInterval = 250,
 	/**
-	 * The amount of time to wait when a call is throttles beyond the exact amount, this is used to
+	 * The amount of time to wait when a call is throttled beyond the exact amount, this is used to
 	 * try prevent early timeouts causing a kill/spawn call to happen at double the regular
 	 * interval.
 	 */
@@ -386,6 +386,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private async _throttleKillSpawn(): Promise<void> {
 		// Only throttle on Windows/conpty
 		if (!isWindows || !('useConpty' in this._ptyOptions) || !this._ptyOptions.useConpty) {
+			return;
+		}
+		// Don't throttle when using conpty.dll as it seems to have been fixed in later versions
+		if (this._ptyOptions.useConptyDll) {
 			return;
 		}
 		// Use a loop to ensure multiple calls in a single interval space out

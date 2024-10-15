@@ -36,11 +36,11 @@ import { isTemporaryWorkspace, IWorkspaceContextService } from '../../../../plat
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { mainWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { getScreenshotViaDisplayMedia } from '../../../../base/browser/screenshot.js';
 
 enum HostShutdownReason {
 
@@ -79,7 +79,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
@@ -411,10 +410,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}
 
-		const newWindowProfile = (options?.forceProfile
+		const newWindowProfile = options?.forceProfile
 			? this.userDataProfilesService.profiles.find(profile => profile.name === options?.forceProfile)
-			: undefined) ?? this.userDataProfileService.currentProfile;
-		if (!newWindowProfile.isDefault) {
+			: undefined;
+		if (newWindowProfile && !newWindowProfile.isDefault) {
 			newPayload.push(['profile', newWindowProfile.name]);
 		}
 
@@ -576,13 +575,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-	//#region File
+	//#region Screenshots
 
-	getPathForFile(): undefined {
-		return undefined; // unsupported in browser environments
+	getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		return getScreenshotViaDisplayMedia();
 	}
 
 	//#endregion
+
 }
 
 registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

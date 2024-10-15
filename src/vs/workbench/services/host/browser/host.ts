@@ -122,9 +122,9 @@ export interface IHostService {
 
 	//#endregion
 
-	//#region File
+	//#region Screenshots
 
-	getPathForFile(file: File): string | undefined;
+	getScreenshot(): Promise<ArrayBufferLike | undefined>;
 
 	//#endregion
 }

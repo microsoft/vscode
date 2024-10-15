@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import * as cssJs from '../../../base/browser/cssValue.js';
 import { Emitter, Event, EventBufferer, IValueWithChangeEvent } from '../../../base/common/event.js';
 import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
@@ -428,7 +429,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 			const icon = isDark(this.themeService.getColorTheme().type) ? mainItem.iconPath.dark : (mainItem.iconPath.light ?? mainItem.iconPath.dark);
 			const iconUrl = URI.revive(icon);
 			data.icon.className = 'quick-input-list-icon';
-			data.icon.style.backgroundImage = dom.asCSSUrl(iconUrl);
+			data.icon.style.backgroundImage = cssJs.asCSSUrl(iconUrl);
 		} else {
 			data.icon.style.backgroundImage = '';
 			data.icon.className = mainItem.iconClass ? `quick-input-list-icon ${mainItem.iconClass}` : '';

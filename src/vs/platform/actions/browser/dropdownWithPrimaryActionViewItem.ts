@@ -29,7 +29,7 @@ export interface IDropdownWithPrimaryActionViewItemOptions {
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
-	private _primaryAction: ActionViewItem;
+	protected readonly _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
@@ -41,10 +41,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: IAction,
-		dropdownMenuActions: IAction[],
+		dropdownMenuActions: readonly IAction[],
 		className: string,
-		private readonly _contextMenuProvider: IContextMenuService,
 		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
+		@IContextMenuService private readonly _contextMenuProvider: IContextMenuService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@INotificationService _notificationService: INotificationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
@@ -61,7 +61,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			menuAsChild: _options?.menuAsChild ?? true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
-			keybindingProvider: this._options?.getKeyBinding,
+			keybindingProvider: this._options?.getKeyBinding ?? (action => _keybindingService.lookupKeybinding(action.id)),
 			hoverDelegate: _options?.hoverDelegate
 		});
 	}
@@ -77,6 +77,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		super.render(this._container);
 		this._container.classList.add('monaco-dropdown-with-primary');
 		const primaryContainer = DOM.$('.action-container');
+		primaryContainer.role = 'button';
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));

@@ -813,7 +813,6 @@ export interface IFileCellEdit {
 	readonly _type: FileEditType.Cell;
 	readonly uri: URI;
 	readonly edit?: ICellMetadataEdit | IDocumentMetadataEdit;
-	readonly notebookMetadata?: Record<string, any>;
 	readonly metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -856,7 +855,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	// --- notebook
 
 	private replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value } });
 	}
 
 	private replaceNotebookCells(uri: URI, startOrRange: vscode.NotebookRange, cellData: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -4343,6 +4342,11 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	}
 }
 
+export enum ChatEditingSessionActionOutcome {
+	Accepted = 1,
+	Rejected = 2
+}
+
 //#endregion
 
 //#region Interactive Editor
@@ -4421,11 +4425,16 @@ export class ChatResponseFileTreePart {
 	}
 }
 
-export class ChatResponseAnchorPart {
+export class ChatResponseAnchorPart implements vscode.ChatResponseAnchorPart {
 	value: vscode.Uri | vscode.Location;
 	title?: string;
-	constructor(value: vscode.Uri | vscode.Location, title?: string) {
-		this.value = value;
+
+	value2: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	resolve?(token: vscode.CancellationToken): Thenable<void>;
+
+	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+		this.value = value as any;
+		this.value2 = value;
 		this.title = title;
 	}
 }
@@ -4472,6 +4481,13 @@ export class ChatResponseReferencePart {
 		this.value = value;
 		this.iconPath = iconPath;
 		this.options = options;
+	}
+}
+
+export class ChatResponseCodeblockUriPart {
+	value: vscode.Uri;
+	constructor(value: vscode.Uri) {
+		this.value = value;
 	}
 }
 
@@ -4529,6 +4545,7 @@ export enum ChatLocation {
 	Terminal = 2,
 	Notebook = 3,
 	Editor = 4,
+	EditingSession = 5,
 }
 
 export enum ChatResponseReferencePartStatusKind {
@@ -4551,13 +4568,22 @@ export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 	) { }
 }
 
+export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
+	mimeType: string;
+	data: () => Thenable<Uint8Array>;
+	constructor(mimeType: string, data: () => Thenable<Uint8Array>) {
+		this.mimeType = mimeType;
+		this.data = data;
+	}
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	System = 3
 }
 
-export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
+export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
 	toolCallId: string;
 	content: string;
@@ -4584,7 +4610,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
-	content2: (string | vscode.LanguageModelChatMessageToolResultPart | vscode.LanguageModelChatResponseToolCallPart)[];
+	content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
@@ -4595,7 +4621,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 }
 
-export class LanguageModelToolCallPart implements vscode.LanguageModelChatResponseToolCallPart {
+export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	name: string;
 	toolCallId: string;
 	parameters: any;
@@ -4607,7 +4633,7 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelChatRespon
 	}
 }
 
-export class LanguageModelTextPart implements vscode.LanguageModelChatResponseTextPart {
+export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	value: string;
 
 	constructor(value: string) {

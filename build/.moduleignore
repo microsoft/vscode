@@ -110,15 +110,13 @@ node-pty/third_party/**
 @parcel/watcher/src/**
 !@parcel/watcher/build/Release/*.node
 
-vsda/build/**
-vsda/ci/**
-vsda/src/**
-vsda/.gitignore
-vsda/binding.gyp
-vsda/README.md
-vsda/SECURITY.md
-vsda/targets
+vsda/**
+!vsda/index.js
+!vsda/index.d.ts
+!vsda/package.json
 !vsda/build/Release/vsda.node
+!vsda/rust/web/**
+!vsda/rust/bundler/**
 
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
@@ -163,7 +161,7 @@ typescript/lib/tsserverlibrary.js
 
 jschardet/index.js
 jschardet/src/**
-# TODO@esm uncomment when we can use jschardet.min.js again jschardet/dist/jschardet.js
+jschardet/dist/jschardet.js
 
 es6-promise/lib/**
 

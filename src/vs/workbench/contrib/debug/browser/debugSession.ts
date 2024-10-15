@@ -51,6 +51,7 @@ const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
+	rememberedCapabilities?: DebugProtocol.Capabilities;
 
 	private _subId: string | undefined;
 	raw: RawDebugSession | undefined; // used in tests
@@ -363,11 +364,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
 				supportsMemoryEvent: true, // #133643
-				supportsStartDebuggingRequest: true
+				supportsStartDebuggingRequest: true,
+				supportsANSIStyling: true,
 			});
 
 			this.initialized = true;
 			this._onDidChangeState.fire();
+			this.rememberedCapabilities = this.raw.capabilities;
 			this.debugService.setExceptionBreakpointsForSession(this, (this.raw && this.raw.capabilities.exceptionBreakpointFilters) || []);
 			this.debugService.getModel().registerBreakpointModes(this.configuration.type, this.raw.capabilities.breakpointModes || []);
 		} catch (err) {
@@ -1201,7 +1204,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 				if (event.body.group === 'start' || event.body.group === 'startCollapsed') {
 					const expanded = event.body.group === 'start';
-					this.repl.startGroup(event.body.output || '', expanded, source);
+					this.repl.startGroup(this, event.body.output || '', expanded, source);
 					return;
 				}
 				if (event.body.group === 'end') {
