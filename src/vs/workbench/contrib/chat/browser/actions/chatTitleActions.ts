@@ -378,7 +378,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.startEditing',
-				title: localize2('chat.startEditing.label', "Continue in Chat Editing Session"),
+				title: localize2('chat.startEditing.label2', "Edit with Copilot"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.edit,
