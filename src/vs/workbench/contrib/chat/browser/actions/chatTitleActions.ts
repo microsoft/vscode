@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -471,8 +472,16 @@ export function registerChatTitleActions() {
 							followups: request.response?.followups
 						});
 
-					for (const reference of workingSetInputs) {
-						await chatEditingService.addFileToWorkingSet(reference);
+					if (workingSetInputs.size) {
+						for (const reference of workingSetInputs) {
+							await chatEditingService.addFileToWorkingSet(reference);
+						}
+					} else {
+						for (const { reference } of request.response?.contentReferences ?? []) {
+							if (URI.isUri(reference) && [Schemas.file, Schemas.vscodeRemote].includes(reference.scheme)) {
+								await chatEditingService.addFileToWorkingSet(reference);
+							}
+						}
 					}
 				}
 
