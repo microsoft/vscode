@@ -74,6 +74,7 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
 	readonly isDisabled?: boolean;
+	readonly isCompleteAddedRequest: boolean;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -176,6 +177,7 @@ export interface IChatResponseViewModel {
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	readonly isDisabled: boolean;
+	readonly isCompleteAddedRequest: boolean;
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
@@ -371,6 +373,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.isDisabled;
 	}
 
+	get isCompleteAddedRequest() {
+		return this._model.isCompleteAddedRequest;
+	}
+
 	currentRenderedHeight: number | undefined;
 
 	constructor(
@@ -462,6 +468,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isDisabled() {
 		return this._model.isDisabled;
+	}
+
+	get isCompleteAddedRequest() {
+		return this._model.isCompleteAddedRequest;
 	}
 
 	get replyFollowups() {

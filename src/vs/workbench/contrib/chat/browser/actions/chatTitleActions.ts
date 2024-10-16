@@ -5,9 +5,13 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { isLocation } from '../../../../../editor/common/languages.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -15,17 +19,20 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
-import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
+import { IParsedChatRequest } from '../../common/chatParserTypes.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { ChatTreeItem, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
@@ -198,6 +205,7 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
@@ -234,7 +242,8 @@ export function registerChatTitleActions() {
 				}
 			}
 			const request = chatModel?.getRequests().find(candidate => candidate.id === item.requestId);
-			chatService.resendRequest(request!);
+			const languageModelId = chatWidgetService.getWidgetBySessionId(item.sessionId)?.input.currentLanguageModel;
+			chatService.resendRequest(request!, { userSelectedModelId: languageModelId });
 		}
 	});
 
@@ -361,6 +370,121 @@ export function registerChatTitleActions() {
 			if (requestId) {
 				const chatService = accessor.get(IChatService);
 				chatService.removeRequest(item.sessionId, requestId);
+			}
+		}
+	});
+
+	registerAction2(class ContinueEditingAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.startEditing',
+				title: localize2('chat.startEditing.label', "Continue in Chat Editing Session"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.edit,
+				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession)),
+				menu: {
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
+				return;
+			}
+
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const chatService = accessor.get(IChatService);
+			const viewsService = accessor.get(IViewsService);
+			const dialogService = accessor.get(IDialogService);
+			const chatEditingService = accessor.get(IChatEditingService);
+
+			let item: ChatTreeItem | undefined = args[0];
+			if (!isResponseVM(item)) {
+				const widget = chatWidgetService.lastFocusedWidget;
+				item = widget?.getFocus();
+			}
+
+			if (!item) {
+				return;
+			}
+
+			const chatModel = chatService.getSession(item.sessionId);
+			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
+				return;
+			}
+
+			const requestId = isRequestVM(item) ? item.id :
+				isResponseVM(item) ? item.requestId : undefined;
+			const request = chatModel?.getRequests().find(candidate => candidate.id === requestId);
+
+			if (request) {
+				const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+				const currentEditCount = currentEditingSession?.entries.get().length;
+				if (currentEditCount) {
+					const result = await dialogService.confirm({
+						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+						message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+						type: 'info',
+						primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
+					});
+
+					if (!result.confirmed) {
+						return;
+					}
+
+					await currentEditingSession?.stop();
+				}
+
+				const { widget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+				if (widget.viewModel) {
+					const workingSetInputs = new ResourceSet();
+					const message: IChatProgress[] = [];
+					for (const item of request.response?.response.value ?? []) {
+						if (item.kind === 'inlineReference') {
+							workingSetInputs.add(isLocation(item.inlineReference) ? item.inlineReference.uri : URI.isUri(item.inlineReference) ? item.inlineReference : item.inlineReference.location.uri);
+						}
+
+						if (item.kind === 'textEditGroup') {
+							for (const group of item.edits) {
+								message.push({
+									kind: 'textEdit',
+									edits: group,
+									uri: item.uri
+								});
+							}
+						} else {
+							message.push(item);
+						}
+					}
+
+					chatService.addCompleteRequest(widget.viewModel.sessionId,
+						request.message as IParsedChatRequest,
+						request.variableData,
+						request.attempt,
+						{
+							message,
+							result: request.response?.result,
+							followups: request.response?.followups
+						});
+
+					if (workingSetInputs.size) {
+						for (const reference of workingSetInputs) {
+							await chatEditingService.addFileToWorkingSet(reference);
+						}
+					} else {
+						for (const { reference } of request.response?.contentReferences ?? []) {
+							if (URI.isUri(reference) && [Schemas.file, Schemas.vscodeRemote].includes(reference.scheme)) {
+								await chatEditingService.addFileToWorkingSet(reference);
+							}
+						}
+					}
+				}
+
 			}
 		}
 	});

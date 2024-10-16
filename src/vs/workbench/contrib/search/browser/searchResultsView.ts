@@ -18,7 +18,6 @@ import { ISearchConfigurationProperties } from '../../../services/search/common/
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { SearchView } from './searchView.js';
-import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch, FolderMatchNoRoot, FolderMatchWorkspaceRoot, TextSearchResult, AI_TEXT_SEARCH_RESULT_ID } from './searchModel.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -32,6 +31,7 @@ import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defa
 import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot } from './searchTreeModel/searchTreeCommon.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -78,13 +78,13 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 	}
 
 	getTemplateId(element: RenderableMatch): string {
-		if (element instanceof FolderMatch) {
+		if (isSearchTreeFolderMatch(element)) {
 			return FolderMatchRenderer.TEMPLATE_ID;
-		} else if (element instanceof FileMatch) {
+		} else if (isSearchTreeFileMatch(element)) {
 			return FileMatchRenderer.TEMPLATE_ID;
-		} else if (element instanceof Match) {
+		} else if (isSearchTreeMatch(element)) {
 			return MatchRenderer.TEMPLATE_ID;
-		} else if (element instanceof TextSearchResult) {
+		} else if (isTextSearchHeading(element)) {
 			return TextSearchResultRenderer.TEMPLATE_ID;
 		}
 
@@ -93,7 +93,7 @@ export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
 	}
 }
 
-export class TextSearchResultRenderer extends Disposable implements ICompressibleTreeRenderer<TextSearchResult, any, ITextSearchResultTemplate> {
+export class TextSearchResultRenderer extends Disposable implements ICompressibleTreeRenderer<ITextSearchHeading, any, ITextSearchResultTemplate> {
 	static readonly TEMPLATE_ID = 'textResultMatch';
 
 	readonly templateId = TextSearchResultRenderer.TEMPLATE_ID;
@@ -104,7 +104,7 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 	) {
 		super();
 	}
-	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<TextSearchResult>, any>, index: number, templateData: ITextSearchResultTemplate, height: number | undefined): void {
+	disposeCompressedElements?(node: ITreeNode<ICompressedTreeNode<ITextSearchHeading>, any>, index: number, templateData: ITextSearchResultTemplate, height: number | undefined): void {
 
 	}
 	renderTemplate(container: HTMLElement): ITextSearchResultTemplate {
@@ -115,8 +115,8 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 		return { label, disposables };
 	}
 
-	async renderElement(node: ITreeNode<TextSearchResult, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
-		if (node.element.id() === AI_TEXT_SEARCH_RESULT_ID) {
+	async renderElement(node: ITreeNode<ITextSearchHeading, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
+		if (node.element.isAIContributed) {
 			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
 			templateData.label.setLabel(nls.localize({
 				key: 'searchFolderMatch.aiText.label',
@@ -131,11 +131,11 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 		templateData.disposables.dispose();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<TextSearchResult>, any>, index: number, templateData: ITextSearchResultTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITextSearchHeading>, any>, index: number, templateData: ITextSearchResultTemplate, height: number | undefined): void {
 	}
 
 }
-export class FolderMatchRenderer extends Disposable implements ICompressibleTreeRenderer<FolderMatch, any, IFolderMatchTemplate> {
+export class FolderMatchRenderer extends Disposable implements ICompressibleTreeRenderer<ISearchTreeFolderMatch, any, IFolderMatchTemplate> {
 	static readonly TEMPLATE_ID = 'folderMatch';
 
 	readonly templateId = FolderMatchRenderer.TEMPLATE_ID;
@@ -151,13 +151,13 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		super();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeFolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
 		const compressed = node.element;
 		const folder = compressed.elements[compressed.elements.length - 1];
 		const label = compressed.elements.map(e => e.name());
 
 		if (folder.resource) {
-			const fileKind = (folder instanceof FolderMatchWorkspaceRoot) ? FileKind.ROOT_FOLDER : FileKind.FOLDER;
+			const fileKind = (isSearchTreeFolderMatchWorkspaceRoot(folder)) ? FileKind.ROOT_FOLDER : FileKind.FOLDER;
 			templateData.label.setResource({ resource: folder.resource, name: label }, {
 				fileKind,
 				separator: this.labelService.getSeparator(folder.resource.scheme),
@@ -207,7 +207,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		};
 	}
 
-	renderElement(node: ITreeNode<FolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
+	renderElement(node: ITreeNode<ISearchTreeFolderMatch, any>, index: number, templateData: IFolderMatchTemplate): void {
 		const folderMatch = node.element;
 		if (folderMatch.resource) {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(folderMatch.resource);
@@ -233,7 +233,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		templateData.elementDisposables.clear();
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<FolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeFolderMatch>, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -241,7 +241,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		templateData.disposables.dispose();
 	}
 
-	private renderFolderDetails(folder: FolderMatch, templateData: IFolderMatchTemplate) {
+	private renderFolderDetails(folder: ISearchTreeFolderMatch, templateData: IFolderMatchTemplate) {
 		const count = folder.recursiveMatchCount();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
@@ -250,7 +250,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 	}
 }
 
-export class FileMatchRenderer extends Disposable implements ICompressibleTreeRenderer<FileMatch, any, IFileMatchTemplate> {
+export class FileMatchRenderer extends Disposable implements ICompressibleTreeRenderer<ISearchTreeFileMatch, any, IFileMatchTemplate> {
 	static readonly TEMPLATE_ID = 'fileMatch';
 
 	readonly templateId = FileMatchRenderer.TEMPLATE_ID;
@@ -266,7 +266,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		super();
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<FileMatch>, any>, index: number, templateData: IFileMatchTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeFileMatch>, any>, index: number, templateData: IFileMatchTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible.');
 	}
 
@@ -307,12 +307,12 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		};
 	}
 
-	renderElement(node: ITreeNode<FileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
+	renderElement(node: ITreeNode<ISearchTreeFileMatch, any>, index: number, templateData: IFileMatchTemplate): void {
 		const fileMatch = node.element;
 		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
 
 		const decorationConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search').decorations;
-		templateData.label.setFile(fileMatch.resource, { hidePath: this.searchView.isTreeLayoutViewVisible && !(fileMatch.parent() instanceof FolderMatchNoRoot), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
+		templateData.label.setFile(fileMatch.resource, { hidePath: this.searchView.isTreeLayoutViewVisible && !(isSearchTreeFolderMatchNoRoot(fileMatch.parent())), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
@@ -340,7 +340,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 	}
 }
 
-export class MatchRenderer extends Disposable implements ICompressibleTreeRenderer<Match, void, IMatchTemplate> {
+export class MatchRenderer extends Disposable implements ICompressibleTreeRenderer<ISearchTreeMatch, void, IMatchTemplate> {
 	static readonly TEMPLATE_ID = 'match';
 
 	readonly templateId = MatchRenderer.TEMPLATE_ID;
@@ -355,7 +355,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	) {
 		super();
 	}
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Match>, void>, index: number, templateData: IMatchTemplate, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISearchTreeMatch>, void>, index: number, templateData: IMatchTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible.');
 	}
 
@@ -401,7 +401,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		};
 	}
 
-	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
+	renderElement(node: ITreeNode<ISearchTreeMatch, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
 		const preview = match.preview();
 		const replace = this.searchView.model.isReplaceActive() &&
@@ -437,7 +437,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.disposables.dispose();
 	}
 
-	private getMatchTitle(match: Match, showLineNumbers: boolean): string {
+	private getMatchTitle(match: ISearchTreeMatch, showLineNumbers: boolean): string {
 		const startLine = match.range().startLineNumber;
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 
@@ -466,22 +466,22 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 	}
 
 	getAriaLabel(element: RenderableMatch): string | null {
-		if (element instanceof FolderMatch) {
+		if (isSearchTreeFolderMatch(element)) {
 			const count = element.allDownstreamFileMatches().reduce((total, current) => total + current.count(), 0);
 			return element.resource ?
 				nls.localize('folderMatchAriaLabel', "{0} matches in folder root {1}, Search result", count, element.name()) :
 				nls.localize('otherFilesAriaLabel', "{0} matches outside of the workspace, Search result", count);
 		}
 
-		if (element instanceof FileMatch) {
+		if (isSearchTreeFileMatch(element)) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}
 
-		if (element instanceof Match) {
-			const match = <Match>element;
-			const searchModel: SearchModel = this.searchView.model;
+		if (isSearchTreeMatch(element)) {
+			const match = <ISearchTreeMatch>element;
+			const searchModel: ISearchModel = this.searchView.model;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();

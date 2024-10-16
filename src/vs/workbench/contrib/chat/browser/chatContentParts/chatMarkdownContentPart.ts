@@ -105,7 +105,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				if (!rendererOptions.renderCodeBlockPills) {
+				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
