@@ -385,7 +385,7 @@ export class SearchView extends ViewPane {
 		searchModel.replaceActive = this.viewModel.isReplaceActive();
 		searchModel.replaceString = this.searchWidget.getReplaceValue();
 		this._onSearchResultChangedDisposable?.dispose();
-		this._onSearchResultChangedDisposable = this._register(searchModel.onSearchResultChanged(async (event) => this.onSearchResultsChanged(event)));
+		this._onSearchResultChangedDisposable = this._register(this._getSearchResultChangedDisposable(searchModel));
 
 		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
@@ -526,12 +526,30 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged(async (event) => await this.onSearchResultsChanged(event)));
+		this._onSearchResultChangedDisposable = this._register(this._getSearchResultChangedDisposable());
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+	}
+
+	private _getSearchResultChangedDisposable(searchModel: ISearchModel = this.viewModel): IDisposable {
+		return Event.debounce(searchModel.onSearchResultChanged, (last, event) => {
+			const elements = event.elements.concat(...last?.elements ?? []);
+			const added = event.added || last?.added;
+			const removed = event.removed || last?.removed;
+			const clearingAll = event.clearingAll || last?.clearingAll;
+
+			return {
+				elements,
+				added,
+				removed,
+				clearingAll
+			};
+		}, 80, true)(event => {
+			this.onSearchResultsChanged(event);
+		});
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
@@ -1654,7 +1672,7 @@ export class SearchView extends ViewPane {
 		progressComplete();
 
 		// Do final render, then expand if just 1 file with less than 50 matches
-		this.onSearchResultsChanged();
+		await this.onSearchResultsChanged();
 
 		const collapseResults = this.searchConfig.collapseResults;
 		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
