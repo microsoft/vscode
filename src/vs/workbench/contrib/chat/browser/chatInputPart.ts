@@ -81,6 +81,7 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingActions.js';
+import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
@@ -974,6 +975,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						command: ChatEditingAcceptAllAction.ID,
 						label: ChatEditingAcceptAllAction.LABEL,
 						isSecondary: false,
+					},
+					{
+						command: ChatEditingSaveAllAction.ID,
+						label: ChatEditingSaveAllAction.LABEL,
+						isSecondary: true,
 					},
 					{
 						command: ChatEditingDiscardAllAction.ID,
