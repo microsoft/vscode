@@ -194,9 +194,9 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		this._aiTextSearchResult.hidden = false;
 
 		if (ai) {
-			this._aiTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
+			this._aiTextSearchResult.add(allRaw, searchInstanceID, silent);
 		} else {
-			this._plainTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
+			this._plainTextSearchResult.add(allRaw, searchInstanceID, silent);
 		}
 	}
 

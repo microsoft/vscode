@@ -13,7 +13,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions } from '../../../../services/search/common/search.js';
+import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions, resultIsMatch } from '../../../../services/search/common/search.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { IReplaceService } from '../replace.js';
 
@@ -22,6 +22,7 @@ import { ISearchResult, TEXT_SEARCH_HEADING_PREFIX, AI_TEXT_SEARCH_RESULT_ID, IS
 import { TextSearchHeadingImpl } from '../searchTreeModel/textSearchHeading.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
+import { textSearchResultToMatches } from '../searchTreeModel/match.js';
 
 export class AITextSearchHeadingImpl extends TextSearchHeadingImpl {
 	constructor(
@@ -112,7 +113,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 				rawFileMatch.resource.toString() + '_' + Date.now().toString(),
 				this.latestRank++,
 			);
-		fileMatch.createMatches(true);
+		fileMatch.createMatches();
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
@@ -159,7 +160,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		const allMatches = getFileMatches(matches);
 		this.doRemoveFile(allMatches);
 	}
-	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void {
+	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void {
 		// when adding a fileMatch that has intermediate directories
 		const added: ISearchTreeFileMatch[] = [];
 		const updated: ISearchTreeFileMatch[] = [];
@@ -285,13 +286,17 @@ class AIFileMatch extends FileMatchImpl implements ISearchTreeAIFileMatch {
 		_parent: ISearchTreeFolderMatch,
 		rawMatch: IFileMatch,
 		_closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
-		_id: string,
+		private readonly _id: string,
 		public readonly rank: number,
 		@IModelService modelService: IModelService,
 		@IReplaceService replaceService: IReplaceService,
 		@ILabelService labelService: ILabelService,
 	) {
-		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, _id, modelService, replaceService, labelService);
+		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
+	}
+
+	override id() {
+		return this._id;
 	}
 	getFullRange(): Range | undefined {
 
@@ -332,5 +337,16 @@ class AIFileMatch extends FileMatchImpl implements ISearchTreeAIFileMatch {
 	override name(): string {
 		const range = this.rangeAsString();
 		return super.name() + range ? ' ' + range : '';
+	}
+
+	override createMatches(): void {
+		if (this.rawMatch.results) {
+			this.rawMatch.results
+				.filter(resultIsMatch)
+				.forEach(rawMatch => {
+					textSearchResultToMatches(rawMatch, this, true)
+						.forEach(m => this.add(m));
+				});
+		}
 	}
 }

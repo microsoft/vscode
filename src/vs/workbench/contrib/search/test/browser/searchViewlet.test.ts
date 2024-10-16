@@ -182,15 +182,14 @@ suite('Search - Viewlet', () => {
 	});
 
 	function aFileMatch(path: string, parentFolder?: ISearchTreeFolderMatch, ...lineMatches: ITextSearchMatch[]): INotebookFileInstanceMatch {
-		const uri = URI.file('/' + path);
 		const rawMatch: IFileMatch = {
-			resource: uri,
+			resource: URI.file('/' + path),
 			results: lineMatches
 		};
 		const fileMatch = instantiation.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
-		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '', uri.toString());
-		fileMatch.createMatches(false);
+		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
+		fileMatch.createMatches();
 		store.add(fileMatch);
 		return fileMatch;
 	}

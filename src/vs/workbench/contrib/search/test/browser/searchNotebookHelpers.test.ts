@@ -205,9 +205,8 @@ suite('searchNotebookHelpers', () => {
 
 
 		function aFileMatch(): INotebookFileInstanceMatch {
-			const uri = URI.file('somepath' + ++counter);
 			const rawMatch: IFileMatch = {
-				resource: uri,
+				resource: URI.file('somepath' + ++counter),
 				results: []
 			};
 
@@ -220,8 +219,8 @@ suite('searchNotebookHelpers', () => {
 			}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
 			const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 				pattern: ''
-			}, undefined, undefined, folderMatch, rawMatch, null, '', uri.toString());
-			fileMatch.createMatches(false);
+			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			fileMatch.createMatches();
 			store.add(folderMatch);
 			store.add(fileMatch);
 

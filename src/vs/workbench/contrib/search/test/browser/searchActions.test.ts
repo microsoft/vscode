@@ -130,8 +130,8 @@ suite('Search Actions', () => {
 		store.add(folderMatch);
 		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
-		}, undefined, undefined, folderMatch, rawMatch, null, '', uri.toString());
-		fileMatch.createMatches(false);
+		}, undefined, undefined, folderMatch, rawMatch, null, '');
+		fileMatch.createMatches();
 		store.add(fileMatch);
 		return fileMatch;
 	}

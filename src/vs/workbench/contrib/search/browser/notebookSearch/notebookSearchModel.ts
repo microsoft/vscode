@@ -187,14 +187,13 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		_parent: ISearchTreeFolderMatch,
 		rawMatch: IFileMatch,
 		_closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
-		_id: string,
 		private readonly searchInstanceID: string,
 		@IModelService modelService: IModelService,
 		@IReplaceService replaceService: IReplaceService,
 		@ILabelService labelService: ILabelService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
-		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, _id, modelService, replaceService, labelService);
+		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
 		this._cellMatches = new Map<string, ICellMatch>();
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
 	}
@@ -444,9 +443,9 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 	}
 
 
-	override createMatches(isAiContributed: boolean): void {
+	override createMatches(): void {
 		const model = this.modelService.getModel(this._resource);
-		if (model && !isAiContributed) {
+		if (model) {
 			// todo: handle better when ai contributed results has model, currently, createMatches does not work for this
 			this.bindModel(model);
 			this.updateMatchesForModel();
@@ -460,7 +459,7 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 				this.rawMatch.results
 					.filter(resultIsMatch)
 					.forEach(rawMatch => {
-						textSearchResultToMatches(rawMatch, this, isAiContributed)
+						textSearchResultToMatches(rawMatch, this, false)
 							.forEach(m => this.add(m));
 					});
 			}

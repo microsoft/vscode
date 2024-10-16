@@ -349,7 +349,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		}
 	}
 
-	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void {
+	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void {
 		// when adding a fileMatch that has intermediate directories
 		const added: ISearchTreeFileMatch[] = [];
 		const updated: ISearchTreeFileMatch[] = [];
@@ -363,7 +363,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 						.results
 						.filter(resultIsMatch)
 						.forEach(m => {
-							textSearchResultToMatches(m, existingFileMatch, isAiContributed)
+							textSearchResultToMatches(m, existingFileMatch, false)
 								.forEach(m => existingFileMatch.add(m));
 						});
 				}
@@ -470,7 +470,7 @@ export class FolderMatchWithResourceImpl extends FolderMatchImpl implements ISea
  * FolderMatchWorkspaceRoot => folder for workspace root
  */
 export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl implements ISearchTreeFolderMatchWorkspaceRoot {
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: ITextSearchHeading, private readonly _ai: boolean,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: ITextSearchHeading,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -499,9 +499,8 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 				rawFileMatch,
 				closestRoot,
 				searchInstanceID,
-				rawFileMatch.resource.toString()
 			);
-		fileMatch.createMatches(this._ai);
+		fileMatch.createMatches();
 		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
@@ -540,10 +539,7 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 	}
 }
 
-/**
- * BaseFolderMatch => optional resource ("other files" node)
- * FolderMatch => required resource (normal folder node)
- */
+// currently, no support for AI results in out-of-workspace files
 export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTreeFolderMatchNoRoot {
 	constructor(_id: string, _index: number, _query: ITextQuery, _parent: ITextSearchHeading,
 		@IReplaceService replaceService: IReplaceService,
@@ -565,9 +561,8 @@ export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTre
 			this, rawFileMatch,
 			null,
 			searchInstanceID,
-			rawFileMatch.resource.toString()
 		));
-		fileMatch.createMatches(false); // currently, no support for AI results in out-of-workspace files
+		fileMatch.createMatches();
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));

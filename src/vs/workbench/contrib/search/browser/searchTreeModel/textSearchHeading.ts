@@ -82,7 +82,7 @@ export abstract class TextSearchHeadingImpl extends Disposable implements ITextS
 		return folderMatch;
 	}
 
-	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent: boolean = false): void {
+	add(allRaw: IFileMatch[], searchInstanceID: string, silent: boolean = false): void {
 		// Split up raw into a list per folder so we can do a batch add per folder.
 
 		const { byFolder, other } = this.groupFilesByFolder(allRaw);
@@ -93,11 +93,11 @@ export abstract class TextSearchHeadingImpl extends Disposable implements ITextS
 
 			// ai results go into the respective folder
 			const folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch?.addFileMatch(raw, silent, searchInstanceID, this.isAIContributed);
+			folderMatch?.addFileMatch(raw, silent, searchInstanceID);
 		});
 
-		if (!ai) {
-			this._otherFilesMatch?.addFileMatch(other, silent, searchInstanceID, false);
+		if (!this.isAIContributed) {
+			this._otherFilesMatch?.addFileMatch(other, silent, searchInstanceID);
 		}
 		this.disposePastResults();
 	}
@@ -341,6 +341,6 @@ export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl implements
 	}
 
 	protected override createWorkspaceRootWithResourceImpl(resource: URI, id: string, index: number, query: ITextQuery,): ISearchTreeFolderMatchWorkspaceRoot {
-		return this.instantiationService.createInstance(FolderMatchWorkspaceRootImpl, resource, id, index, query, this, false);
+		return this.instantiationService.createInstance(FolderMatchWorkspaceRootImpl, resource, id, index, query, this);
 	}
 }
