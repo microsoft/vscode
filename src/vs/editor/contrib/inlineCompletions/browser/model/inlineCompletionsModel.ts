@@ -256,6 +256,7 @@ export class InlineCompletionsModel extends Disposable {
 		edits: readonly SingleTextEdit[];
 		inlineEdit: InlineEdit;
 		inlineCompletion: InlineCompletionWithUpdatedRange;
+		cursorAtInlineEdit: boolean;
 	} | undefined>({
 		owner: this,
 		equalsFn: (a, b) => {
@@ -266,7 +267,7 @@ export class InlineCompletionsModel extends Disposable {
 					&& a.inlineCompletion === b.inlineCompletion
 					&& a.suggestItem === b.suggestItem;
 			} else if (a.kind === 'inlineEdit' && b.kind === 'inlineEdit') {
-				return a.inlineEdit.equals(b.inlineEdit);
+				return a.inlineEdit.equals(b.inlineEdit) && a.cursorAtInlineEdit === b.cursorAtInlineEdit;
 			}
 			return false;
 		}
@@ -280,11 +281,14 @@ export class InlineCompletionsModel extends Disposable {
 
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
-			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader)) { return undefined; }
+			const cursorPos = this._primaryPosition.read(reader);
+			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).contains(cursorPos.lineNumber);
+
+			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const currentItemIsCollapsed = cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId;
-			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed), inlineCompletion: item.inlineEditCompletion, edits: [edit] };
+			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed), inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
 
 		const suggestItem = this.selectedSuggestItem.read(reader);
