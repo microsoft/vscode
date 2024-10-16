@@ -95,7 +95,7 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 
 						const result = await this._dialogService.confirm({
 							message,
-							detail: localize('detail', "AI-generated changes may be incorect and should be reviewed before saving.", agentName),
+							detail: localize('detail2', "AI-generated changes may be incorrect and should be reviewed before saving.", agentName),
 							primaryButton: localize('save', "Save"),
 							cancelButton: localize('discard', "Cancel"),
 							checkbox: {
@@ -234,7 +234,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 
 			const result = await dialogService.confirm({
 				message,
-				detail: localize('detail', "AI-generated changes may be incorect and should be reviewed before saving.", agentName),
+				detail: localize('detail2', "AI-generated changes may be incorrect and should be reviewed before saving.", agentName),
 				primaryButton: localize('save all', "Save All"),
 				cancelButton: localize('discard', "Cancel"),
 				checkbox: {
