@@ -222,10 +222,10 @@ declare module 'vscode' {
 		 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
 		 * accurately.
 		 */
-		tokenizationOptions?: LangaugeModelToolTokenizationOptions;
+		tokenizationOptions?: LanguageModelToolTokenizationOptions;
 	}
 
-	export interface LangaugeModelToolTokenizationOptions {
+	export interface LanguageModelToolTokenizationOptions {
 		/**
 		 * If known, the maximum number of tokens the tool should emit in its result.
 		 */
