@@ -148,7 +148,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.variables.terminal': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
-			default: false
+			default: true
 		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
