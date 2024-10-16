@@ -4715,6 +4715,11 @@ export class LanguageModelToolResult {
 	constructor(public items: LanguageModelToolResultItem[]) { }
 }
 
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2
+}
+
 //#endregion
 
 //#region ai
