@@ -18,7 +18,7 @@ import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWi
 import { IReplaceService } from '../replace.js';
 
 import { FileMatchImpl } from '../searchTreeModel/fileMatch.js';
-import { ISearchResult, TEXT_SEARCH_HEADING_PREFIX, AI_TEXT_SEARCH_RESULT_ID, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ITextSearchHeading, IChangeEvent, ISearchModel, ISearchTreeFileMatch, FOLDER_MATCH_PREFIX, getFileMatches } from '../searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, TEXT_SEARCH_HEADING_PREFIX, AI_TEXT_SEARCH_RESULT_ID, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ITextSearchHeading, IChangeEvent, ISearchModel, ISearchTreeFileMatch, FOLDER_MATCH_PREFIX, getFileMatches, FILE_MATCH_PREFIX } from '../searchTreeModel/searchTreeCommon.js';
 import { TextSearchHeadingImpl } from '../searchTreeModel/textSearchHeading.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { textSearchResultToMatches } from '../searchTreeModel/match.js';
@@ -296,7 +296,7 @@ class AIFileMatch extends FileMatchImpl implements ISearchTreeAIFileMatch {
 	}
 
 	override id() {
-		return this._id;
+		return FILE_MATCH_PREFIX + this._id;
 	}
 	getFullRange(): Range | undefined {
 
