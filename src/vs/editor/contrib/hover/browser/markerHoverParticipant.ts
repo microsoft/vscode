@@ -26,23 +26,24 @@ import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js
 import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
+import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { MarkdownHover, renderMarkdownInContainer } from './markdownHoverParticipant.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+
 
 const $ = dom.$;
 
-export class MarkerHover implements IHoverPart {
+export class MarkerHover extends MarkdownHover implements IHoverPart {
+	readonly marker: IMarker;
 
 	constructor(
-		public readonly owner: IEditorHoverParticipant<MarkerHover>,
-		public readonly range: Range,
-		public readonly marker: IMarker,
-	) { }
-
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
-		);
+		owner: IEditorHoverParticipant<MarkerHover>,
+		range: Range,
+		contents: IMarkdownString[],
+		marker: IMarker,
+	) {
+		super(owner, range, contents, false, 1, undefined);
+		this.marker = marker;
 	}
 }
 
@@ -62,6 +63,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		private readonly _editor: ICodeEditor,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
@@ -84,7 +86,9 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkerHover(this, range, marker));
+			if (isMarkdownString(marker.message)) {
+				result.push(new MarkerHover(this, range, [marker.message], marker));
+			}
 		}
 
 		return result;
@@ -97,7 +101,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const disposables = new DisposableStore();
 		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
 		hoverParts.forEach(hoverPart => {
-			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
+			const renderedMarkerHover = this._renderMarkerHover(hoverPart, context,);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
 			renderedHoverParts.push(renderedMarkerHover);
 		});
@@ -107,19 +111,27 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {
-		return hoverPart.marker.message;
+		return hoverPart.marker.message.toString();
 	}
 
-	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
+	private _renderMarkerHover(markerHover: MarkerHover, context: IEditorHoverRenderContext): IRenderedHoverPart<MarkerHover> {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
-		const { source, message, code, relatedInformation } = markerHover.marker;
+		const { source, message, code, relatedInformation, } = markerHover.marker;
 
+		console.log({ marker: markerHover.marker });
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
-		messageElement.innerText = message;
+		if (isMarkdownString(message)) {
+			const renderedMarkdownPart = renderMarkdownInContainer(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged);
+			disposables.add(renderedMarkdownPart);
+			const renderedMarkdownElement = renderedMarkdownPart.hoverElement;
+			messageElement.append(renderedMarkdownElement);
+		} else {
+			messageElement.innerText = message;
+		}
 
 		if (source || code) {
 			// Code has link
