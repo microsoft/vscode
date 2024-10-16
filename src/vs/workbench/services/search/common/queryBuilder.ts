@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import * as collections from 'vs/base/common/collections';
-import * as glob from 'vs/base/common/glob';
-import { untildify } from 'vs/base/common/labels';
-import { ResourceMap } from 'vs/base/common/map';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import { isEqual, basename, relativePath, isAbsolutePath } from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
-import { assertIsDefined, isDefined } from 'vs/base/common/types';
-import { URI, URI as uri } from 'vs/base/common/uri';
-import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import * as arrays from '../../../../base/common/arrays.js';
+import * as collections from '../../../../base/common/collections.js';
+import * as glob from '../../../../base/common/glob.js';
+import { untildify } from '../../../../base/common/labels.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { Schemas } from '../../../../base/common/network.js';
+import * as path from '../../../../base/common/path.js';
+import { isEqual, basename, relativePath, isAbsolutePath } from '../../../../base/common/resources.js';
+import * as strings from '../../../../base/common/strings.js';
+import { assertIsDefined, isDefined } from '../../../../base/common/types.js';
+import { URI, URI as uri, UriComponents } from '../../../../base/common/uri.js';
+import { isMultilineRegexSource } from '../../../../editor/common/model/textModelSearch.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
+import { IPathService } from '../../path/common/pathService.js';
+import { ExcludeGlobPattern, getExcludes, IAITextQuery, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
+import { GlobPattern } from './searchExtTypes.js';
 
 /**
  * One folder to search and a glob expression that should be applied.
@@ -42,13 +43,27 @@ export interface ISearchPathPattern {
 
 type ISearchPathPatternBuilder = string | string[];
 
-interface ISearchPatternBuilder {
-	uri?: uri;
+export interface ISearchPatternBuilder<U extends UriComponents> {
+	uri?: U;
 	pattern: ISearchPathPatternBuilder;
 }
 
-export function isISearchPatternBuilder(object: ISearchPatternBuilder | ISearchPathPatternBuilder): object is ISearchPatternBuilder {
+export function isISearchPatternBuilder<U extends UriComponents>(object: ISearchPatternBuilder<U> | ISearchPathPatternBuilder): object is ISearchPatternBuilder<U> {
 	return (typeof object === 'object' && 'uri' in object && 'pattern' in object);
+}
+
+export function globPatternToISearchPatternBuilder(globPattern: GlobPattern): ISearchPatternBuilder<URI> {
+
+	if (typeof globPattern === 'string') {
+		return {
+			pattern: globPattern
+		};
+	}
+
+	return {
+		pattern: globPattern.pattern,
+		uri: globPattern.baseUri
+	};
 }
 
 /**
@@ -59,11 +74,11 @@ export interface ISearchPathsInfo {
 	pattern?: glob.IExpression;
 }
 
-interface ICommonQueryBuilderOptions {
+interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	_reason?: string;
-	excludePattern?: ISearchPatternBuilder | ISearchPathPatternBuilder;
+	excludePattern?: ISearchPatternBuilder<U>[];
 	includePattern?: ISearchPathPatternBuilder;
-	extraFileResources?: uri[];
+	extraFileResources?: U[];
 
 	/** Parse the special ./ syntax supported by the searchview, and expand foo to ** /foo */
 	expandPatterns?: boolean;
@@ -77,9 +92,10 @@ interface ICommonQueryBuilderOptions {
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
 	onlyOpenEditors?: boolean;
+	onlyFileScheme?: boolean;
 }
 
-export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
+export interface IFileQueryBuilderOptions<U extends UriComponents = URI> extends ICommonQueryBuilderOptions<U> {
 	filePattern?: string;
 	exists?: boolean;
 	sortByScore?: boolean;
@@ -87,7 +103,7 @@ export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
 	shouldGlobSearch?: boolean;
 }
 
-export interface ITextQueryBuilderOptions extends ICommonQueryBuilderOptions {
+export interface ITextQueryBuilderOptions<U extends UriComponents = URI> extends ICommonQueryBuilderOptions<U> {
 	previewOptions?: ITextSearchPreviewOptions;
 	fileEncoding?: string;
 	surroundingContext?: number;
@@ -110,6 +126,15 @@ export class QueryBuilder {
 		@IPathService private readonly pathService: IPathService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
+	}
+
+	aiText(contentPattern: string, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): IAITextQuery {
+		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
+		return {
+			...commonQuery,
+			type: QueryType.aiText,
+			contentPattern,
+		};
 	}
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
@@ -209,16 +234,25 @@ export class QueryBuilder {
 			return {};
 		}
 
-		pattern = Array.isArray(pattern) ? pattern.map(normalizeSlashes) : normalizeSlashes(pattern);
+		if (Array.isArray(pattern)) {
+			pattern = pattern.filter(p => p.length > 0).map(normalizeSlashes);
+			if (!pattern.length) {
+				return {};
+			}
+		} else {
+			pattern = normalizeSlashes(pattern);
+		}
 		return expandPatterns
 			? this.parseSearchPaths(pattern)
 			: { pattern: patternListToIExpression(...(Array.isArray(pattern) ? pattern : [pattern])) };
 	}
 
 	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
-		const excludePattern = options.excludePattern && isISearchPatternBuilder(options.excludePattern) ? options.excludePattern.pattern : options.excludePattern;
+
+		let excludePatterns: string | string[] | undefined = Array.isArray(options.excludePattern) ? options.excludePattern.map(p => p.pattern).flat() : options.excludePattern;
+		excludePatterns = excludePatterns?.length === 1 ? excludePatterns[0] : excludePatterns;
 		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
-		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(excludePattern, options.expandPatterns);
+		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(excludePatterns, options.expandPatterns);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
@@ -236,7 +270,8 @@ export class QueryBuilder {
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
 			onlyOpenEditors: options.onlyOpenEditors,
-			maxResults: options.maxResults
+			maxResults: options.maxResults,
+			onlyFileScheme: options.onlyFileScheme
 		};
 
 		if (options.onlyOpenEditors) {
@@ -537,9 +572,15 @@ export class QueryBuilder {
 		const folderUri = URI.isUri(folder) ? folder : folder.uri;
 
 		// only use exclude root if it is different from the folder root
-		const excludeRoot = options.excludePattern && isISearchPatternBuilder(options.excludePattern) ? options.excludePattern.uri : undefined;
-		const shouldUseExcludeRoot = (!excludeRoot || !(URI.isUri(folder) && this.uriIdentityService.extUri.isEqual(folder, excludeRoot)));
-		const excludeFolderRoot = shouldUseExcludeRoot ? excludeRoot : undefined;
+		let excludeFolderRoots = options.excludePattern?.map(excludePattern => {
+			const excludeRoot = options.excludePattern && isISearchPatternBuilder(excludePattern) ? excludePattern.uri : undefined;
+			const shouldUseExcludeRoot = (!excludeRoot || !(URI.isUri(folder) && this.uriIdentityService.extUri.isEqual(folder, excludeRoot)));
+			return shouldUseExcludeRoot ? excludeRoot : undefined;
+		});
+
+		if (!excludeFolderRoots?.length) {
+			excludeFolderRoots = [undefined];
+		}
 
 		if (searchPathExcludes.searchPaths) {
 			const thisFolderExcludeSearchPath = searchPathExcludes.searchPaths.filter(sp => isEqual(sp.searchPath, folderUri))[0];
@@ -560,10 +601,12 @@ export class QueryBuilder {
 
 		const folderName = URI.isUri(folder) ? basename(folder) : folder.name;
 
-		const excludePatternRet = Object.keys(excludePattern).length > 0 ? {
-			folder: excludeFolderRoot,
-			pattern: excludePattern
-		} satisfies ExcludeGlobPattern : undefined;
+		const excludePatternRet: ExcludeGlobPattern[] = excludeFolderRoots.map(excludeFolderRoot => {
+			return Object.keys(excludePattern).length > 0 ? {
+				folder: excludeFolderRoot,
+				pattern: excludePattern
+			} satisfies ExcludeGlobPattern : undefined;
+		}).filter((e) => e) as ExcludeGlobPattern[];
 
 		return {
 			folder: folderUri,

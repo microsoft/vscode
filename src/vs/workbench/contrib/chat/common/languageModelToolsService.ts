@@ -3,136 +3,73 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface IToolData {
 	id: string;
-	name?: string;
+	toolReferenceName?: string;
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
-	displayName?: string;
+	when?: ContextKeyExpression;
+	tags?: string[];
+	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
-	canBeInvokedManually?: boolean;
+	canBeReferencedInPrompt?: boolean;
+	supportedContentTypes: string[];
 }
 
-interface IToolEntry {
-	data: IToolData;
-	impl?: IToolImpl;
+export interface IToolInvocation {
+	callId: string;
+	toolId: string;
+	parameters: Object;
+	tokenBudget?: number;
+	context: IToolInvocationContext | undefined;
+	requestedContentTypes: string[];
+}
+
+export interface IToolInvocationContext {
+	sessionId: string;
 }
 
 export interface IToolResult {
 	[contentType: string]: any;
-	string: string;
+}
+
+export interface IToolConfirmationMessages {
+	title: string;
+	message: string | IMarkdownString;
+}
+
+export interface IPreparedToolInvocation {
+	invocationMessage?: string;
+	confirmationMessages?: IToolConfirmationMessages;
 }
 
 export interface IToolImpl {
-	invoke(parameters: any, token: CancellationToken): Promise<IToolResult>;
+	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
+	prepareToolInvocation?(parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
-export interface IToolDelta {
-	added?: IToolData;
-	removed?: string;
-}
+export type CountTokensCallback = (input: string, token: CancellationToken) => Promise<number>;
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	onDidChangeTools: Event<IToolDelta>;
+	onDidChangeTools: Event<void>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string): IToolData | undefined;
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<IToolResult>;
-}
-
-export class LanguageModelToolsService implements ILanguageModelToolsService {
-	_serviceBrand: undefined;
-
-	private _onDidChangeTools = new Emitter<IToolDelta>();
-	readonly onDidChangeTools = this._onDidChangeTools.event;
-
-	private _tools = new Map<string, IToolEntry>();
-
-	constructor(
-		@IExtensionService private readonly _extensionService: IExtensionService
-	) { }
-
-	registerToolData(toolData: IToolData): IDisposable {
-		if (this._tools.has(toolData.id)) {
-			throw new Error(`Tool "${toolData.id}" is already registered.`);
-		}
-
-		this._tools.set(toolData.id, { data: toolData });
-		this._onDidChangeTools.fire({ added: toolData });
-
-		return toDisposable(() => {
-			this._tools.delete(toolData.id);
-			this._onDidChangeTools.fire({ removed: toolData.id });
-		});
-
-	}
-
-	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
-		const entry = this._tools.get(name);
-		if (!entry) {
-			throw new Error(`Tool "${name}" was not contributed.`);
-		}
-
-		if (entry.impl) {
-			throw new Error(`Tool "${name}" already has an implementation.`);
-		}
-
-		entry.impl = tool;
-		return toDisposable(() => {
-			entry.impl = undefined;
-		});
-	}
-
-	getTools(): Iterable<Readonly<IToolData>> {
-		return Iterable.map(this._tools.values(), i => i.data);
-	}
-
-	getTool(id: string): IToolData | undefined {
-		const entry = this._tools.get(id);
-		return entry?.data;
-	}
-
-	getToolByName(name: string): IToolData | undefined {
-		for (const entry of this._tools.values()) {
-			if (entry.data.name === name) {
-				return entry.data;
-			}
-		}
-		return undefined;
-	}
-
-	async invokeTool(id: string, parameters: any, token: CancellationToken): Promise<IToolResult> {
-		let tool = this._tools.get(id);
-		if (!tool) {
-			throw new Error(`Tool ${id} was not contributed`);
-		}
-
-		if (!tool.impl) {
-			await this._extensionService.activateByEvent(`onLanguageModelTool:${id}`);
-
-			// Extension should activate and register the tool implementation
-			tool = this._tools.get(id);
-			if (!tool?.impl) {
-				throw new Error(`Tool ${id} does not have an implementation registered.`);
-			}
-		}
-
-		return tool.impl.invoke(parameters, token);
-	}
+	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 }

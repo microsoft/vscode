@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
-import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
-import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
-import * as dom from 'vs/base/browser/dom';
-import { HoverVerbosityAction } from 'vs/editor/common/languages';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { localize } from 'vs/nls';
-import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts, RenderedHoverParts } from './hoverTypes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
+import { HoverStartSource } from './hoverOperation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { ContentHoverResult } from './contentHoverTypes.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { HoverVerbosityAction } from '../../../common/languages.js';
+import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
+import { HoverColorPickerParticipant } from '../../colorPicker/browser/hoverColorPicker/hoverColorPickerParticipant.js';
+import { localize } from '../../../../nls.js';
+import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
+import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -39,14 +38,12 @@ export class RenderedContentHover extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		hoverResult: HoverResult,
+		hoverResult: ContentHoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
-		computer: ContentHoverComputer,
 		context: IEditorHoverContext,
 		keybindingService: IKeybindingService
 	) {
 		super();
-		const anchor = hoverResult.anchor;
 		const parts = hoverResult.hoverParts;
 		this._renderedHoverParts = this._register(new RenderedContentHoverParts(
 			editor,
@@ -55,14 +52,16 @@ export class RenderedContentHover extends Disposable {
 			keybindingService,
 			context
 		));
+		const contentHoverComputerOptions = hoverResult.options;
+		const anchor = contentHoverComputerOptions.anchor;
 		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
 		this.shouldAppearBeforeContent = parts.some(m => m.isBeforeContent);
 		this.showAtPosition = showAtPosition;
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
-		this.shouldFocus = computer.shouldFocus;
-		this.source = computer.source;
+		this.shouldFocus = contentHoverComputerOptions.shouldFocus;
+		this.source = contentHoverComputerOptions.source;
 	}
 
 	public get domNode(): DocumentFragment {
@@ -219,7 +218,7 @@ class RenderedContentHoverParts extends Disposable {
 	private readonly _context: IEditorHoverContext;
 
 	private _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private _colorHoverParticipant: ColorHoverParticipant | undefined;
+	private _colorHoverParticipant: HoverColorPickerParticipant | undefined;
 	private _focusedHoverPartIndex: number = -1;
 
 	constructor(
@@ -329,7 +328,7 @@ class RenderedContentHoverParts extends Disposable {
 		if (markdownHoverParticipant) {
 			this._markdownHoverParticipant = markdownHoverParticipant as MarkdownHoverParticipant;
 		}
-		this._colorHoverParticipant = participants.find(p => p instanceof ColorHoverParticipant);
+		this._colorHoverParticipant = participants.find(p => p instanceof HoverColorPickerParticipant);
 	}
 
 	public focusHoverPartWithIndex(index: number): void {

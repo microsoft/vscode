@@ -46,7 +46,9 @@ vscode-textmate/webpack.config.js
 @microsoft/applicationinsights-core-js/**
 @microsoft/applicationinsights-shims/**
 !@microsoft/1ds-core-js/dist/ms.core.min.js
+!@microsoft/1ds-core-js/bundle/ms.core.min.js
 !@microsoft/1ds-post-js/dist/ms.post.min.js
+!@microsoft/1ds-post-js/bundle/ms.post.min.js
 !@microsoft/applicationinsights-core-js/browser/applicationinsights-core-js.min.js
 !@microsoft/applicationinsights-shims/dist/umd/applicationinsights-shims.min.js
 

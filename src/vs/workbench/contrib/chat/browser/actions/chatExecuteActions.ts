@@ -3,19 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { chatAgentLeader, extractAgentAndCommand } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from '../../common/chatContextKeys.js';
+import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
+import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
+import { IChatService } from '../../common/chatService.js';
+import { EDITS_VIEW_ID, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -37,7 +42,7 @@ export class SubmitAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
 				primary: KeyCode.Enter,
@@ -50,7 +55,8 @@ export class SubmitAction extends Action2 {
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
+					order: 4,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
 					group: 'navigation',
 				},
 			]
@@ -66,6 +72,16 @@ export class SubmitAction extends Action2 {
 	}
 }
 
+export const ChatModelPickerActionId = 'workbench.action.chat.pickModel';
+MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
+	command: {
+		id: ChatModelPickerActionId,
+		title: localize2('chat.pickModel.label', "Pick Model"),
+	},
+	order: 3,
+	group: 'navigation',
+	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, ContextKeyExpr.or(ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel'), ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.EditingSession))),
+});
 
 export class ChatSubmitSecondaryAgentAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
@@ -107,6 +123,79 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			widget.lastSelectedAgent = secondaryAgent;
 			widget.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.name}`);
 		}
+	}
+}
+
+class SendToChatEditingAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.sendToChatEditing',
+			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CONTEXT_CHAT_INPUT_HAS_TEXT),
+			category: CHAT_CATEGORY,
+			f1: false,
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				group: 'group_1',
+				order: 3,
+				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), CONTEXT_IN_CHAT_INPUT)
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), CONTEXT_IN_CHAT_INPUT)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
+			return;
+		}
+
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget || widget.viewModel?.model.initialLocation === ChatAgentLocation.EditingSession) {
+			return;
+		}
+
+		const viewsService = accessor.get(IViewsService);
+		const dialogService = accessor.get(IDialogService);
+		const chatEditingService = accessor.get(IChatEditingService);
+
+		const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+		const currentEditCount = currentEditingSession?.entries.get().length;
+		if (currentEditCount) {
+			const result = await dialogService.confirm({
+				title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+				message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+				type: 'info',
+				primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
+			});
+
+			if (!result.confirmed) {
+				return;
+			}
+
+			await currentEditingSession?.stop();
+		}
+
+		const { widget: editingWidget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+		for (const attachment of widget.attachmentModel.attachments) {
+			if (attachment.isFile && URI.isUri(attachment.value)) {
+				await chatEditingService.addFileToWorkingSet(attachment.value);
+			} else {
+				editingWidget.attachmentModel.addContext(attachment);
+			}
+		}
+
+		editingWidget.setInput(widget.getInput());
+		widget.setInput('');
+		widget.attachmentModel.clear();
+		editingWidget.acceptInput();
+		editingWidget.focusInput();
 	}
 }
 
@@ -152,10 +241,11 @@ export class CancelAction extends Action2 {
 			title: localize2('interactive.cancel.label', "Cancel"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.debugStop,
+			icon: Codicon.stopCircle,
 			menu: {
 				id: MenuId.ChatExecute,
-				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS,
+				when: ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)),
+				order: 4,
 				group: 'navigation',
 			},
 			keybinding: {
@@ -179,6 +269,12 @@ export class CancelAction extends Action2 {
 		if (widget.viewModel) {
 			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionId);
 		}
+
+		const chatEditingService = accessor.get(IChatEditingService);
+		const currentEditingSession = chatEditingService.currentEditingSession;
+		if (currentEditingSession && currentEditingSession?.chatSessionId === widget.viewModel?.sessionId) {
+			chatEditingService.currentAutoApplyOperation?.cancel();
+		}
 	}
 }
 
@@ -187,4 +283,5 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitSecondaryAgentAction);
+	registerAction2(SendToChatEditingAction);
 }

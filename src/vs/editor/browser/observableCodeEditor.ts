@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
-import { TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { derivedWithSetter } from 'vs/base/common/observableInternal/derived';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { IObservable, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
+import { Position } from '../common/core/position.js';
+import { Selection } from '../common/core/selection.js';
+import { ICursorSelectionChangedEvent } from '../common/cursorEvents.js';
+import { IModelDeltaDecoration, ITextModel } from '../common/model.js';
+import { IModelContentChangedEvent } from '../common/textModelEvents.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from './editorBrowser.js';
 
 /**
  * Returns a facade for the code editor that provides observables for various states/events.
@@ -183,6 +181,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly valueIsEmpty = derived(this, reader => { this.versionId.read(reader); return this.editor.getModel()?.getValueLength() === 0; });
 	public readonly cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefined(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
 	public readonly cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);
+	public readonly cursorLineNumber = derived<number | null>(this, reader => this.cursorPosition.read(reader)?.lineNumber ?? null);
 
 	public readonly onDidType = observableSignal<string>(this);
 
@@ -245,40 +244,4 @@ interface IObservableOverlayWidget {
 	readonly position: IObservable<IOverlayWidgetPosition | null>;
 	readonly minContentWidthInPx: IObservable<number>;
 	get allowEditorOverflow(): boolean;
-}
-
-type RemoveUndefined<T> = T extends undefined ? never : T;
-export function reactToChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
-	return autorunWithStoreHandleChanges({
-		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
-		handleChange: (context, changeSummary) => {
-			if (context.didChange(observable)) {
-				const e = context.change;
-				if (e !== undefined) {
-					changeSummary.deltas.push(e as RemoveUndefined<TChange>);
-				}
-				changeSummary.didChange = true;
-			}
-			return true;
-		},
-	}, (reader, changeSummary) => {
-		const value = observable.read(reader);
-		if (changeSummary.didChange) {
-			cb(value, changeSummary.deltas);
-		}
-	});
-}
-
-export function reactToChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
-	const store = new DisposableStore();
-	const disposable = reactToChange(observable, (value, deltas) => {
-		store.clear();
-		cb(value, deltas, store);
-	});
-	return {
-		dispose() {
-			disposable.dispose();
-			store.dispose();
-		}
-	};
 }

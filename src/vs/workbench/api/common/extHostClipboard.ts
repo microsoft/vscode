@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMainContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { IMainContext, MainContext } from './extHost.protocol.js';
 import type * as vscode from 'vscode';
 
 export class ExtHostClipboard {

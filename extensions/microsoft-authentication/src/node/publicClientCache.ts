@@ -3,286 +3,229 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AccountInfo, AuthenticationResult, Configuration, InteractiveRequest, PublicClientApplication, SilentFlowRequest } from '@azure/msal-node';
-import { SecretStorageCachePlugin } from '../common/cachePlugin';
-import { SecretStorage, LogOutputChannel, Disposable, SecretStorageChangeEvent, EventEmitter, Memento, window, ProgressLocation, l10n } from 'vscode';
-import { MsalLoggerOptions } from '../common/loggerOptions';
+import { AccountInfo } from '@azure/msal-node';
+import { SecretStorage, LogOutputChannel, Disposable, EventEmitter, Memento, Event } from 'vscode';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
-import { Delayer, raceCancellationAndTimeoutError } from '../common/async';
+import { CachedPublicClientApplication } from './cachedPublicClientApplication';
 
 export interface IPublicClientApplicationInfo {
 	clientId: string;
 	authority: string;
 }
 
-const _keyPrefix = 'pca:';
-
 export class CachedPublicClientApplicationManager implements ICachedPublicClientApplicationManager {
-	// The key is the clientId and authority stringified
+	// The key is the clientId and authority JSON stringified
 	private readonly _pcas = new Map<string, CachedPublicClientApplication>();
+	private readonly _pcaDisposables = new Map<string, Disposable>();
 
-	private _initialized = false;
 	private _disposable: Disposable;
+	private _pcasSecretStorage: PublicClientApplicationsSecretStorage;
+
+	private readonly _onDidAccountsChangeEmitter = new EventEmitter<{ added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }>();
+	readonly onDidAccountsChange = this._onDidAccountsChangeEmitter.event;
 
 	constructor(
 		private readonly _globalMemento: Memento,
 		private readonly _secretStorage: SecretStorage,
 		private readonly _logger: LogOutputChannel,
-		private readonly _accountChangeHandler: (e: { added: AccountInfo[]; deleted: AccountInfo[] }) => void
+		cloudName: string
 	) {
-		this._disposable = _secretStorage.onDidChange(e => this._handleSecretStorageChange(e));
+		this._pcasSecretStorage = new PublicClientApplicationsSecretStorage(_secretStorage, cloudName);
+		this._disposable = Disposable.from(
+			this._pcasSecretStorage,
+			this._registerSecretStorageHandler(),
+			this._onDidAccountsChangeEmitter
+		);
+	}
+
+	private _registerSecretStorageHandler() {
+		return this._pcasSecretStorage.onDidChange(() => this._handleSecretStorageChange());
 	}
 
 	async initialize() {
-		this._logger.debug('Initializing PublicClientApplicationManager');
-		const keys = await this._secretStorage.get('publicClientApplications');
+		this._logger.debug('[initialize] Initializing PublicClientApplicationManager');
+		let keys: string[] | undefined;
+		try {
+			keys = await this._pcasSecretStorage.get();
+		} catch (e) {
+			// data is corrupted
+			this._logger.error('[initialize] Error initializing PublicClientApplicationManager:', e);
+			await this._pcasSecretStorage.delete();
+		}
 		if (!keys) {
-			this._initialized = true;
 			return;
 		}
 
 		const promises = new Array<Promise<ICachedPublicClientApplication>>();
-		try {
-			for (const key of JSON.parse(keys) as string[]) {
-				try {
-					const { clientId, authority } = JSON.parse(key) as IPublicClientApplicationInfo;
-					// Load the PCA in memory
-					promises.push(this.getOrCreate(clientId, authority));
-				} catch (e) {
-					// ignore
-				}
+		for (const key of keys) {
+			try {
+				const { clientId, authority } = JSON.parse(key) as IPublicClientApplicationInfo;
+				// Load the PCA in memory
+				promises.push(this._doCreatePublicClientApplication(clientId, authority, key));
+			} catch (e) {
+				this._logger.error('[initialize] Error intitializing PCA:', key);
 			}
-		} catch (e) {
-			// data is corrupted
-			this._logger.error('Error initializing PublicClientApplicationManager:', e);
-			await this._secretStorage.delete('publicClientApplications');
 		}
 
-		// TODO: should we do anything for when this fails?
-		await Promise.allSettled(promises);
-		this._logger.debug('PublicClientApplicationManager initialized');
-		this._initialized = true;
+		const results = await Promise.allSettled(promises);
+		let pcasChanged = false;
+		for (const result of results) {
+			if (result.status === 'rejected') {
+				this._logger.error('[initialize] Error getting PCA:', result.reason);
+			} else {
+				if (!result.value.accounts.length) {
+					pcasChanged = true;
+					const pcaKey = JSON.stringify({ clientId: result.value.clientId, authority: result.value.authority });
+					this._pcaDisposables.get(pcaKey)?.dispose();
+					this._pcaDisposables.delete(pcaKey);
+					this._pcas.delete(pcaKey);
+					this._logger.debug(`[initialize] [${result.value.clientId}] [${result.value.authority}] PCA disposed because it's empty.`);
+				}
+			}
+		}
+		if (pcasChanged) {
+			await this._storePublicClientApplications();
+		}
+		this._logger.debug('[initialize] PublicClientApplicationManager initialized');
 	}
 
 	dispose() {
 		this._disposable.dispose();
-		Disposable.from(...this._pcas.values()).dispose();
+		Disposable.from(...this._pcaDisposables.values()).dispose();
 	}
 
 	async getOrCreate(clientId: string, authority: string): Promise<ICachedPublicClientApplication> {
-		if (!this._initialized) {
-			throw new Error('PublicClientApplicationManager not initialized');
-		}
-
 		// Use the clientId and authority as the key
 		const pcasKey = JSON.stringify({ clientId, authority });
 		let pca = this._pcas.get(pcasKey);
 		if (pca) {
-			this._logger.debug(clientId, authority, 'PublicClientApplicationManager cache hit');
+			this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache hit`);
 			return pca;
 		}
 
-		this._logger.debug(clientId, authority, 'PublicClientApplicationManager cache miss, creating new PCA...');
-		pca = new CachedPublicClientApplication(clientId, authority, this._globalMemento, this._secretStorage, this._accountChangeHandler, this._logger);
-		this._pcas.set(pcasKey, pca);
-		await pca.initialize();
+		this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PublicClientApplicationManager cache miss, creating new PCA...`);
+		pca = await this._doCreatePublicClientApplication(clientId, authority, pcasKey);
 		await this._storePublicClientApplications();
-		this._logger.debug(clientId, authority, 'PublicClientApplicationManager PCA created');
+		this._logger.debug(`[getOrCreate] [${clientId}] [${authority}] PCA created.`);
+		return pca;
+	}
+
+	private async _doCreatePublicClientApplication(clientId: string, authority: string, pcasKey: string) {
+		const pca = new CachedPublicClientApplication(clientId, authority, this._globalMemento, this._secretStorage, this._logger);
+		this._pcas.set(pcasKey, pca);
+		const disposable = Disposable.from(
+			pca,
+			pca.onDidAccountsChange(e => this._onDidAccountsChangeEmitter.fire(e)),
+			pca.onDidRemoveLastAccount(() => {
+				// The PCA has no more accounts, so we can dispose it so we're not keeping it
+				// around forever.
+				disposable.dispose();
+				this._pcaDisposables.delete(pcasKey);
+				this._pcas.delete(pcasKey);
+				this._logger.debug(`[_doCreatePublicClientApplication] [${clientId}] [${authority}] PCA disposed. Firing off storing of PCAs...`);
+				void this._storePublicClientApplications();
+			})
+		);
+		this._pcaDisposables.set(pcasKey, disposable);
+		// Intialize the PCA after the `onDidAccountsChange` is set so we get initial state.
+		await pca.initialize();
 		return pca;
 	}
 
 	getAll(): ICachedPublicClientApplication[] {
-		if (!this._initialized) {
-			throw new Error('PublicClientApplicationManager not initialized');
-		}
 		return Array.from(this._pcas.values());
 	}
 
-	private async _handleSecretStorageChange(e: SecretStorageChangeEvent) {
-		if (!e.key.startsWith(_keyPrefix)) {
-			return;
-		}
-
-		this._logger.debug('PublicClientApplicationManager secret storage change:', e.key);
-		const result = await this._secretStorage.get(e.key);
-		const pcasKey = e.key.split(_keyPrefix)[1];
-
-		// If the cache was deleted, or the PCA has zero accounts left, remove the PCA
-		if (!result || this._pcas.get(pcasKey)?.accounts.length === 0) {
-			this._logger.debug('PublicClientApplicationManager removing PCA:', pcasKey);
-			this._pcas.delete(pcasKey);
+	private async _handleSecretStorageChange() {
+		this._logger.debug(`[_handleSecretStorageChange] Handling PCAs secret storage change...`);
+		let result: string[] | undefined;
+		try {
+			result = await this._pcasSecretStorage.get();
+		} catch (_e) {
+			// The data in secret storage has been corrupted somehow so
+			// we store what we have in this window
 			await this._storePublicClientApplications();
-			this._logger.debug('PublicClientApplicationManager PCA removed:', pcasKey);
+			return;
+		}
+		if (!result) {
+			this._logger.debug(`[_handleSecretStorageChange] PCAs deleted in secret storage. Disposing all...`);
+			Disposable.from(...this._pcaDisposables.values()).dispose();
+			this._pcas.clear();
+			this._pcaDisposables.clear();
+			this._logger.debug(`[_handleSecretStorageChange] Finished PCAs secret storage change.`);
 			return;
 		}
 
-		// Load the PCA in memory if it's not already loaded
-		const { clientId, authority } = JSON.parse(pcasKey) as IPublicClientApplicationInfo;
-		this._logger.debug('PublicClientApplicationManager loading PCA:', pcasKey);
-		await this.getOrCreate(clientId, authority);
-		this._logger.debug('PublicClientApplicationManager PCA loaded:', pcasKey);
-	}
-
-	private async _storePublicClientApplications() {
-		await this._secretStorage.store(
-			'publicClientApplications',
-			JSON.stringify(Array.from(this._pcas.keys()))
-		);
-	}
-}
-
-class CachedPublicClientApplication implements ICachedPublicClientApplication {
-	private _pca: PublicClientApplication;
-
-	private readonly _refreshDelayer = new DelayerByKey<any>();
-
-	private _accounts: AccountInfo[] = [];
-	private readonly _disposable: Disposable;
-
-	private readonly _loggerOptions = new MsalLoggerOptions(this._logger);
-	private readonly _secretStorageCachePlugin = new SecretStorageCachePlugin(
-		this._secretStorage,
-		// Include the prefix in the key so we can easily identify it later
-		`${_keyPrefix}${JSON.stringify({ clientId: this._clientId, authority: this._authority })}`
-	);
-	private readonly _config: Configuration = {
-		auth: { clientId: this._clientId, authority: this._authority },
-		system: {
-			loggerOptions: {
-				loggerCallback: (level, message, containsPii) => this._loggerOptions.loggerCallback(level, message, containsPii),
+		const pcaKeysFromStorage = new Set(result);
+		// Handle the deleted ones
+		for (const pcaKey of this._pcas.keys()) {
+			if (!pcaKeysFromStorage.delete(pcaKey)) {
+				// This PCA has been removed in another window
+				this._pcaDisposables.get(pcaKey)?.dispose();
+				this._pcaDisposables.delete(pcaKey);
+				this._pcas.delete(pcaKey);
+				this._logger.debug(`[_handleSecretStorageChange] Disposed PCA that was deleted in another window: ${pcaKey}`);
 			}
-		},
-		cache: {
-			cachePlugin: this._secretStorageCachePlugin
-		}
-	};
-
-	/**
-	 * We keep track of the last time an account was removed so we can recreate the PCA if we detect that an account was removed.
-	 * This is due to MSAL-node not providing a way to detect when an account is removed from the cache. An internal issue has been
-	 * filed to track this. If MSAL-node ever provides a way to detect this or handle this better in the Persistant Cache Plugin,
-	 * we can remove this logic.
-	 */
-	private _lastCreated: Date;
-
-	constructor(
-		private readonly _clientId: string,
-		private readonly _authority: string,
-		private readonly _globalMemento: Memento,
-		private readonly _secretStorage: SecretStorage,
-		private readonly _accountChangeHandler: (e: { added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }) => void,
-		private readonly _logger: LogOutputChannel
-	) {
-		this._pca = new PublicClientApplication(this._config);
-		this._lastCreated = new Date();
-		this._disposable = this._registerOnSecretStorageChanged();
-	}
-
-	get accounts(): AccountInfo[] { return this._accounts; }
-	get clientId(): string { return this._clientId; }
-	get authority(): string { return this._authority; }
-
-	initialize(): Promise<void> {
-		return this._update();
-	}
-
-	dispose(): void {
-		this._disposable.dispose();
-	}
-
-	async acquireTokenSilent(request: SilentFlowRequest): Promise<AuthenticationResult> {
-		const result = await this._pca.acquireTokenSilent(request);
-		this._setupRefresh(result);
-		if (result.account && !result.fromCache) {
-			this._accountChangeHandler({ added: [], changed: [result.account], deleted: [] });
-		}
-		return result;
-	}
-
-	async acquireTokenInteractive(request: InteractiveRequest): Promise<AuthenticationResult> {
-		return await window.withProgress(
-			{
-				location: ProgressLocation.Notification,
-				cancellable: true,
-				title: l10n.t('Signing in to Microsoft...')
-			},
-			(_process, token) => raceCancellationAndTimeoutError(
-				(async () => {
-					const result = await this._pca.acquireTokenInteractive(request);
-					this._setupRefresh(result);
-					return result;
-				})(),
-				token,
-				1000 * 60 * 5
-			), // 5 minutes
-		);
-	}
-
-	removeAccount(account: AccountInfo): Promise<void> {
-		this._globalMemento.update(`lastRemoval:${this._clientId}:${this._authority}`, new Date());
-		return this._pca.getTokenCache().removeAccount(account);
-	}
-
-	private _registerOnSecretStorageChanged() {
-		return this._secretStorageCachePlugin.onDidChange(() => this._update());
-	}
-
-	private _setupRefresh(result: AuthenticationResult) {
-		const on = result.refreshOn || result.expiresOn;
-		if (!result.account || !on) {
-			return;
 		}
 
-		const account = result.account;
-		const scopes = result.scopes;
-		const timeToRefresh = on.getTime() - Date.now() - 5 * 60 * 1000; // 5 minutes before expiry
-		const key = JSON.stringify({ accountId: account.homeAccountId, scopes });
-		this._refreshDelayer.trigger(
-			key,
-			// This may need the redirectUri when we switch to the broker
-			() => this.acquireTokenSilent({ account, scopes, redirectUri: undefined, forceRefresh: true }),
-			timeToRefresh > 0 ? timeToRefresh : 0
-		);
+		// Handle the new ones
+		for (const newPca of pcaKeysFromStorage) {
+			try {
+				const { clientId, authority } = JSON.parse(newPca);
+				this._logger.debug(`[_handleSecretStorageChange] [${clientId}] [${authority}] Creating new PCA that was created in another window...`);
+				await this._doCreatePublicClientApplication(clientId, authority, newPca);
+				this._logger.debug(`[_handleSecretStorageChange] [${clientId}] [${authority}] PCA created.`);
+			} catch (_e) {
+				// This really shouldn't happen, but should we do something about this?
+				this._logger.error(`Failed to parse new PublicClientApplication: ${newPca}`);
+				continue;
+			}
+		}
+
+		this._logger.debug('[_handleSecretStorageChange] Finished handling PCAs secret storage change.');
 	}
 
-	private async _update() {
-		const before = this._accounts;
-		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update before:', before.length);
-		// Dates are stored as strings in the memento
-		const lastRemovalDate = this._globalMemento.get<string>(`lastRemoval:${this._clientId}:${this._authority}`);
-		if (lastRemovalDate && this._lastCreated && Date.parse(lastRemovalDate) > this._lastCreated.getTime()) {
-			this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication removal detected... recreating PCA...');
-			this._pca = new PublicClientApplication(this._config);
-			this._lastCreated = new Date();
-		}
-
-		const after = await this._pca.getAllAccounts();
-		this._accounts = after;
-		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update after:', after.length);
-
-		const beforeSet = new Set(before.map(b => b.homeAccountId));
-		const afterSet = new Set(after.map(a => a.homeAccountId));
-
-		const added = after.filter(a => !beforeSet.has(a.homeAccountId));
-		const deleted = before.filter(b => !afterSet.has(b.homeAccountId));
-		if (added.length > 0 || deleted.length > 0) {
-			this._accountChangeHandler({ added, changed: [], deleted });
-			this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication accounts changed. added, deleted:', added.length, deleted.length);
-		}
-		this._logger.debug(this._clientId, this._authority, 'CachedPublicClientApplication update complete');
+	private _storePublicClientApplications() {
+		return this._pcasSecretStorage.store(Array.from(this._pcas.keys()));
 	}
 }
 
-class DelayerByKey<T> {
-	private _delayers = new Map<string, Delayer<T>>();
+class PublicClientApplicationsSecretStorage {
+	private _disposable: Disposable;
 
-	trigger(key: string, fn: () => Promise<T>, delay: number): Promise<T> {
-		let delayer = this._delayers.get(key);
-		if (!delayer) {
-			delayer = new Delayer<T>(delay);
-			this._delayers.set(key, delayer);
+	private readonly _onDidChangeEmitter = new EventEmitter<void>;
+	readonly onDidChange: Event<void> = this._onDidChangeEmitter.event;
+
+	private readonly _key = `publicClientApplications-${this._cloudName}`;
+
+	constructor(private readonly _secretStorage: SecretStorage, private readonly _cloudName: string) {
+		this._disposable = Disposable.from(
+			this._onDidChangeEmitter,
+			this._secretStorage.onDidChange(e => {
+				if (e.key === this._key) {
+					this._onDidChangeEmitter.fire();
+				}
+			})
+		);
+	}
+
+	async get(): Promise<string[] | undefined> {
+		const value = await this._secretStorage.get(this._key);
+		if (!value) {
+			return undefined;
 		}
+		return JSON.parse(value);
+	}
 
-		return delayer.trigger(fn, delay);
+	store(value: string[]): Thenable<void> {
+		return this._secretStorage.store(this._key, JSON.stringify(value));
+	}
+
+	delete(): Thenable<void> {
+		return this._secretStorage.delete(this._key);
+	}
+
+	dispose() {
+		this._disposable.dispose();
 	}
 }

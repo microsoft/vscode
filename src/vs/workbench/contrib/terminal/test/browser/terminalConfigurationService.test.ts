@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { notStrictEqual, strictEqual } from 'assert';
-import { getActiveWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { isLinux } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TestTerminalConfigurationService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { notStrictEqual, ok, strictEqual } from 'assert';
+import { getActiveWindow } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { isLinux } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../../editor/common/config/editorOptions.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITerminalConfigurationService, LinuxDistro } from '../../browser/terminal.js';
+import { TestTerminalConfigurationService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 suite('Workbench - TerminalConfigurationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,7 +72,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: 'bar' } }
 			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, 'bar, monospace', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('bar'), 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 		});
 
 		test('fontFamily (Linux Fedora)', () => {
@@ -80,7 +80,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: null } }
 			}, LinuxDistro.Fedora);
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, '\'DejaVu Sans Mono\', monospace', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('\'DejaVu Sans Mono\''), 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
 		});
 
 		test('fontFamily (Linux Ubuntu)', () => {
@@ -88,7 +88,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: null } }
 			}, LinuxDistro.Ubuntu);
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, '\'Ubuntu Mono\', monospace', 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('\'Ubuntu Mono\''), 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
 		});
 
 		test('fontFamily (Linux Unknown)', () => {
@@ -96,7 +96,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 				editor: { fontFamily: 'foo' },
 				terminal: { integrated: { fontFamily: null } }
 			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).fontFamily, 'foo, monospace', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
+			ok(terminalConfigurationService.getFont(getActiveWindow()).fontFamily.startsWith('foo'), 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 		});
 
 		test('fontSize 10', () => {

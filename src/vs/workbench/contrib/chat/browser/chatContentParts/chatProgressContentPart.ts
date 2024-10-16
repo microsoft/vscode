@@ -3,36 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Codicon } from 'vs/base/common/codicons';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatProgressMessage, IChatTask } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatRendererContent, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { $ } from '../../../../../base/browser/dom.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { ChatTreeItem } from '../chat.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IChatProgressMessage, IChatTask } from '../../common/chatService.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly showSpinner: boolean;
+	private readonly isHidden: boolean;
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask,
 		renderer: MarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		forceShowSpinner?: boolean,
-		forceShowMessage?: boolean
+		forceShowMessage?: boolean,
+		icon?: ThemeIcon
 	) {
 		super();
 
-		const followingContent = context.content.slice(context.index + 1);
+		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
-		const hideMessage = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
-		if (hideMessage) {
+		this.isHidden = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
+		if (this.isHidden) {
 			// Placeholder, don't show the progress message
 			this.domNode = $('');
 			return;
@@ -43,7 +45,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
-		const codicon = this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
+		const codicon = icon ? icon.id : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
 		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
 			supportThemeIcons: true
 		});
@@ -54,6 +56,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		// Progress parts render render until some other content shows up, then they hide.
+		// When some other content shows up, need to signal to be rerendered as hidden.
+		if (followingContent.some(part => part.kind !== 'progressMessage') && !this.isHidden) {
+			return false;
+		}
+
 		// Needs rerender when spinner state changes
 		const showSpinner = shouldShowSpinner(followingContent, element);
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;

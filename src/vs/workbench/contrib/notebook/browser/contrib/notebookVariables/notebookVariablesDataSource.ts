@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { localize } from 'vs/nls';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IAsyncDataSource } from '../../../../../../base/browser/ui/tree/tree.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../../nls.js';
+import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
+import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from '../../../common/notebookKernelService.js';
+
+export interface IEmptyScope {
+	kind: 'empty';
+}
 
 export interface INotebookScope {
 	kind: 'root';
@@ -49,8 +53,10 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		this.cancellationTokenSource = new CancellationTokenSource();
 	}
 
-	async getChildren(element: INotebookScope | INotebookVariableElement): Promise<Array<INotebookVariableElement>> {
-		if (element.kind === 'root') {
+	async getChildren(element: INotebookScope | INotebookVariableElement | IEmptyScope): Promise<Array<INotebookVariableElement>> {
+		if (element.kind === 'empty') {
+			return [];
+		} else if (element.kind === 'root') {
 			return this.getRootVariables(element.notebook);
 		} else {
 			return this.getVariables(element);
