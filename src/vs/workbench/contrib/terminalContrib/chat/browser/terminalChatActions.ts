@@ -273,7 +273,7 @@ registerActiveXtermAction({
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate(), historyNavigationVisible.isEqualTo(false)),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.Enter
 	},
