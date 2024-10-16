@@ -220,7 +220,7 @@ steps:
           echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
         displayName: Find ESRP CLI
 
-      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node,*.ps1,*.psm1'
         displayName: Codesign executables and shared libraries
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
