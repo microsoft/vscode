@@ -4586,12 +4586,12 @@ export enum LanguageModelChatMessageRole {
 export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
 	callId: string;
-	value: string;
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 	isError: boolean;
 
-	constructor(callId: string, content: string, isError?: boolean) {
+	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[], isError?: boolean) {
 		this.callId = callId;
-		this.value = content;
+		this.content = content;
 		this.isError = isError ?? false;
 	}
 }
@@ -4639,6 +4639,14 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	constructor(value: string) {
 		this.value = value;
 
+	}
+}
+
+export class LanguageModelPromptTsxPart {
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
 	}
 }
 

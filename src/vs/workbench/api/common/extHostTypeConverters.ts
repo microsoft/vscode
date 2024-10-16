@@ -2371,7 +2371,7 @@ export namespace LanguageModelChatMessage {
 				return {
 					type: 'tool_result',
 					toolCallId: c.callId,
-					value: c.value,
+					value: c.content,
 					isError: c.isError
 				};
 			} else if (c instanceof types.LanguageModelToolCallPart) {

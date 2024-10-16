@@ -101,6 +101,24 @@ declare module 'vscode' {
 		constructor(value: string);
 	}
 
+	/**
+	 * A language model response part containing a PromptElementJSON from `@vscode/prompt-tsx`.
+	 */
+	export class LanguageModelPromptTsxPart {
+		/**
+		 * The content of the part.
+		 */
+		value: unknown;
+
+		/**
+		 * The mimeType of this part, exported from the `@vscode/prompt-tsx` library.
+		 */
+		mime: string;
+
+		// TODO@API needs the version number/mimeType from prompt-tsx?
+		constructor(value: unknown, mime: string);
+	}
+
 	export interface LanguageModelChatResponse {
 		/**
 		 * A stream of parts that make up the response. Could be extended with more types in the future.
@@ -120,9 +138,9 @@ declare module 'vscode' {
 		/**
 		 * The value of the tool result.
 		 */
-		value: string;
+		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 
-		constructor(callId: string, value: string);
+		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 	}
 
 	export interface LanguageModelChatMessage {
@@ -134,48 +152,12 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * One result item from a {@link LanguageModelToolResult}.
-	 */
-	export class LanguageModelToolResultItem {
-		/**
-		 * Construct a string content item with a 'text/plain' mime type.
-		 * @param content The content of the item.
-		 */
-		static text(content: string): LanguageModelToolResultItem;
-
-		/**
-		 * The mime type which determines how the {@link LanguageModelToolResultItem.data} property is interpreted.
-		 */
-		mime: string;
-
-		/**
-		 * The data of the result item. The type of this property depends on the {@link LanguageModelToolResultItem.mime mime}
-		 * property. For example, an item with a `text/plain` mime will have string-type data.
-		 */
-		data: any;
-
-		/**
-		 * Construct a new result item.
-		 * @param data The item data.
-		 * @param mime The mimeType of the item data.
-		 */
-		constructor(data: any, mime: string);
-	}
-
-	/**
 	 * A result returned from a tool invocation.
 	 */
 	export class LanguageModelToolResult {
-		/**
-		 * A list of {@link LanguageModelToolResultItem}, which are mimeType/data pairs. The result can contain arbitrary
-		 * representations of the content. A tool user can set {@link LanguageModelToolInvocationOptions.requestedMimeTypes} to
-		 * request particular types, and a tool implementation should only compute the types that were requested. `text/plain` is
-		 * recommended to be supported by all tools, which would indicate any kind of string-based content. Another example might
-		 * be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the `contentType` exported by that library.
-		 */
-		items: LanguageModelToolResultItem[];
+		items: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 
-		constructor(items: LanguageModelToolResultItem[]);
+		constructor(items: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 	}
 
 	export namespace lm {
@@ -227,6 +209,7 @@ declare module 'vscode' {
 		 * A tool can return multiple types of content. A tool user must specifically request one or more types of content to be
 		 * returned, based on what the tool user supports. The typical type is `text/plain` to return string-type content, and all
 		 * tools are recommended to support `text/plain`. See {@link LanguageModelToolResult} for more.
+		 * TODO@API delete
 		 */
 		requestedMimeTypes: string[];
 
@@ -273,6 +256,7 @@ declare module 'vscode' {
 
 		/**
 		 * The list of mime types that the tool is able to return as a result. See {@link LanguageModelToolResult}.
+		 * TODO@API delete
 		 */
 		readonly supportedResultMimeTypes: readonly string[];
 
