@@ -67,7 +67,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_HAS_FILE_ATTACHMENTS, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
@@ -143,6 +143,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	public get implicitContext(): ChatImplicitContext {
 		return this._implicitContext;
 	}
+
+	private _hasFileAttachmentContextKey: IContextKey<boolean>;
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	private readonly _contextResourceLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event });
@@ -273,6 +275,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingSessionWidgetToolbar));
+
+		this._hasFileAttachmentContextKey = CONTEXT_CHAT_HAS_FILE_ATTACHMENTS.bindTo(contextKeyService);
 	}
 
 	private setCurrentLanguageModelToDefault() {
@@ -483,6 +487,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._inputEditor.focus();
 	}
 
+	private _handleAttachedContextChange() {
+		this._hasFileAttachmentContextKey.set(Boolean(this._attachmentModel.attachments.find(a => a.isFile)));
+		this.renderAttachedContext();
+	}
+
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		let elements;
 		if (this.options.renderStyle === 'compact') {
@@ -523,8 +532,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.renderAttachedContext();
-		this._register(this._implicitContext.onDidChangeValue(() => this.renderAttachedContext()));
-		this._register(this._attachmentModel.onDidChangeContext(() => this.renderAttachedContext()));
+		this._register(this._implicitContext.onDidChangeValue(() => this._handleAttachedContextChange()));
+		this._register(this._attachmentModel.onDidChangeContext(() => this._handleAttachedContextChange()));
 		this.renderChatEditingSessionState(null, widget);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
