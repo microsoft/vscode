@@ -756,6 +756,21 @@ class TreeActionsProvider {
 					undefined,
 					() => this.commandService.executeCommand(TestCommandId.CancelTestRunAction, element.results.id, element.task.id),
 				));
+			} else {
+				primary.push(new Action(
+					'testing.outputPeek.rerun',
+					localize('testing.reRunLastRun', 'Rerun Last Run'),
+					ThemeIcon.asClassName(icons.testingRerunIcon),
+					undefined,
+					() => this.commandService.executeCommand(TestCommandId.ReRunLastRun, element.results.id),
+				));
+				primary.push(new Action(
+					'testing.outputPeek.debug',
+					localize('testing.debugLastRun', 'Debug Last Run'),
+					ThemeIcon.asClassName(icons.testingDebugIcon),
+					undefined,
+					() => this.commandService.executeCommand(TestCommandId.DebugLastRun, element.results.id),
+				));
 			}
 		}
 
@@ -773,7 +788,7 @@ class TreeActionsProvider {
 
 			primary.push(new Action(
 				'testing.outputPeek.reRunLastRun',
-				localize('testing.reRunLastRun', "Rerun Test Run"),
+				localize('testing.reRunTest', "Rerun Test"),
 				ThemeIcon.asClassName(icons.testingRunIcon),
 				undefined,
 				() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
@@ -782,7 +797,7 @@ class TreeActionsProvider {
 			if (capabilities & TestRunProfileBitset.Debug) {
 				primary.push(new Action(
 					'testing.outputPeek.debugLastRun',
-					localize('testing.debugLastRun', "Debug Test Run"),
+					localize('testing.debugTest', "Debug Test"),
 					ThemeIcon.asClassName(icons.testingDebugIcon),
 					undefined,
 					() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
@@ -854,7 +869,7 @@ class TreeActionsProvider {
 				primary.push(new Action(
 					'testing.outputPeek.goToError',
 					localize('testing.goToError', "Go to Error"),
-					ThemeIcon.asClassName(Codicon.goToFile),
+					ThemeIcon.asClassName(Codicon.debugStackframe),
 					undefined,
 					() => this.editorService.openEditor({
 						resource: element.location!.uri,
