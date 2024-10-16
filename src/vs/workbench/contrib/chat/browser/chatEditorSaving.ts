@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue } from '../../../../base/common/async.js';
+import { Barrier, Queue } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorunWithStore } from '../../../../base/common/observable.js';
+import { autorunWithStore, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -17,7 +17,8 @@ import { SaveReason } from '../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { IChatService } from '../common/chatService.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
@@ -35,23 +36,37 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@ILabelService labelService: ILabelService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
+		@IChatService chatService: IChatService
 	) {
 		super();
 
-		this._store.add(autorunWithStore((r, store) => {
+		let barrier = new Barrier();
 
+		this._store.add(autorunWithStore((r, store) => {
 			const session = chatEditingService.currentEditingSessionObs.read(r);
 			if (!session) {
 				return;
 			}
+			const chatSession = chatService.getSession(session.chatSessionId);
+			if (!chatSession) {
+				return;
+			}
+			const isProgress = observableFromEvent(chatSession.onDidChange, () => chatSession.requestInProgress).read(r);
+			const state = session.state.read(r);
+			if (state === ChatEditingSessionState.Idle && !isProgress) {
+				barrier.open();
+			}
+		}));
 
-			store.add(textFileService.files.onDidSave(e => {
-				const uri = e.model.resource;
-				const entry = session.entries.get().find(e => isEqual(uri, e.modifiedURI));
-				if (entry) {
-					entry.markSaved();
-				}
-			}));
+		this._store.add(textFileService.files.onDidSave(e => {
+			const uri = e.model.resource;
+			const entry = chatEditingService.currentEditingSession?.entries.get().find(e => isEqual(uri, e.modifiedURI));
+			if (!entry) {
+				return;
+			}
+			barrier.wait();
+			entry.markSaved();
+			barrier = new Barrier();
 		}));
 
 		const store = this._store.add(new DisposableStore());
