@@ -41,11 +41,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
-	// TODO: as is unsafe here and it duplicates behavor of executingCommand
 	get executingCommandObject(): ITerminalCommand | undefined {
 		if (this._currentCommand.commandStartMarker) {
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			return { marker: this._currentCommand.commandStartMarker } as ITerminalCommand;
+			// HACK: This does a lot more than the consumer of the API needs. It's also a little
+			//       misleading since it's not promoting the current command yet.
+			return this._currentCommand.promoteToFullCommand(this._cwd, undefined, this._handleCommandStartOptions?.ignoreCommandLine ?? false, undefined);
 		}
 		return undefined;
 	}

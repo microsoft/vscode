@@ -195,7 +195,12 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 					return;
 				}
 
-				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '', { location: widget.location, agentId: agent.id });
+				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '',
+					{
+						location: widget.location,
+						agentId: agent.id,
+						userSelectedModelId: widget.input.currentLanguageModel
+					});
 			}));
 		} else {
 			container = this.renderResourceWidget(nameWithLeader, undefined, store);
@@ -226,7 +231,12 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 			}
 
 			const command = agent.slashCommands.find(c => c.name === args.command);
-			this.chatService.sendRequest(widget.viewModel!.sessionId, command?.sampleRequest ?? '', { location: widget.location, agentId: agent.id, slashCommand: args.command });
+			this.chatService.sendRequest(widget.viewModel!.sessionId, command?.sampleRequest ?? '', {
+				location: widget.location,
+				agentId: agent.id,
+				slashCommand: args.command,
+				userSelectedModelId: widget.input.currentLanguageModel
+			});
 		}));
 
 		return container;
