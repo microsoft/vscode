@@ -24,7 +24,6 @@ import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
@@ -287,26 +286,12 @@ export class InlineCompletionsController extends Disposable {
 
 		const contextKeySvcObs = new ObservableContextKeyService(this._contextKeyService);
 
-		this._register(contextKeySvcObs.bind(
-			InlineCompletionContextKeys.cursorInIndentation,
-			this._cursorIsInIndentation
-		));
-
-		this._register(contextKeySvcObs.bind(
-			InlineCompletionContextKeys.hasSelection,
-			reader => !this._editorObs.cursorSelection.read(reader)?.isEmpty(),
-		));
-
-		this._register(contextKeySvcObs.bind(
-			InlineCompletionContextKeys.cursorAtInlineEdit,
-			reader => {
-				const cursorPos = this._editorObs.cursorPosition.read(reader);
-				if (cursorPos === null) { return false; }
-				const edit = this.model.read(reader)?.inlineEditState.read(reader);
-				if (!edit) { return false; }
-				return LineRange.fromRangeInclusive(edit.inlineEdit.range).contains(cursorPos.lineNumber);
-			})
-		);
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorInIndentation, this._cursorIsInIndentation));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.hasSelection, reader => !this._editorObs.cursorSelection.read(reader)?.isEmpty()));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorAtInlineEdit, this.model.map((m, reader) => {
+			const s = m?.state?.read(reader);
+			return s?.kind === 'inlineEdit' && s.cursorAtInlineEdit;
+		})));
 	}
 
 	public playAccessibilitySignal(tx: ITransaction) {
