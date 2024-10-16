@@ -247,8 +247,8 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
 			default: false,
-			tags: ['experimental'],
-			description: localize('workbench.accounts.showEntitlements', "When enabled, available entitlements for the account will be show in the accounts menu.")
+			tags: ['experimental', 'onExP'],
+			description: localize('workbench.accounts.showEntitlements', "When enabled, available entitlements for the account will be shown in the accounts menu.")
 		}
 	}
 });
