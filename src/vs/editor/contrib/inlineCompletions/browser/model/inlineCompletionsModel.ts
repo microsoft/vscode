@@ -21,7 +21,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../common/core/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { Command, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -71,7 +71,7 @@ export class InlineCompletionsModel extends Disposable {
 		let lastItem: InlineCompletionWithUpdatedRange | undefined = undefined;
 		this._register(autorun(reader => {
 			/** @description call handleItemDidShow */
-			const item = this.state.read(reader);
+			const item = this.inlineCompletionState.read(reader);
 			const completion = item?.inlineCompletion;
 			if (completion?.semanticId !== lastItem?.semanticId) {
 				lastItem = completion;
@@ -179,7 +179,7 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _collapsedInlineEditId = observableValue<string | undefined>(this, undefined);
 
 	public collapseInlineEdit(): void {
-		const currentInlineEdit = this.stateInlineEdit.get()?.inlineCompletion;
+		const currentInlineEdit = this.inlineEditState.get()?.inlineCompletion;
 		if (!currentInlineEdit) { return; }
 		this._collapsedInlineEditId.set(currentInlineEdit.semanticId, undefined);
 	}
@@ -244,7 +244,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
-	public readonly stateWithInlineEdit = derivedOpts<{
+	public readonly state = derivedOpts<{
 		kind: 'ghostText';
 		edits: readonly SingleTextEdit[];
 		primaryGhostText: GhostTextOrReplacement;
@@ -280,7 +280,7 @@ export class InlineCompletionsModel extends Disposable {
 
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
-			if (this._shouldHideInlineEdit.read(reader)) { return undefined; }
+			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader)) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const currentItemIsCollapsed = cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId;
@@ -325,20 +325,20 @@ export class InlineCompletionsModel extends Disposable {
 
 	public readonly status = derived(this, reader => {
 		if (this._source.loading.read(reader)) { return 'loading'; }
-		const s = this.stateWithInlineEdit.read(reader);
+		const s = this.state.read(reader);
 		if (s?.kind === 'ghostText') { return 'ghostText'; }
 		if (s?.kind === 'inlineEdit') { return 'inlineEdit'; }
 		return 'noSuggestion';
 	});
 
-	public readonly state = derived(reader => {
-		const s = this.stateWithInlineEdit.read(reader);
+	public readonly inlineCompletionState = derived(reader => {
+		const s = this.state.read(reader);
 		if (!s || s.kind !== 'ghostText') { return undefined; }
 		return s;
 	});
 
-	public readonly stateInlineEdit = derived(reader => {
-		const s = this.stateWithInlineEdit.read(reader);
+	public readonly inlineEditState = derived(reader => {
+		const s = this.state.read(reader);
 		if (!s || s.kind !== 'inlineEdit') { return undefined; }
 		return s;
 	});
@@ -364,13 +364,13 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public readonly ghostTexts = derivedOpts({ owner: this, equalsFn: ghostTextsOrReplacementsEqual }, reader => {
-		const v = this.state.read(reader);
+		const v = this.inlineCompletionState.read(reader);
 		if (!v) { return undefined; }
 		return v.ghostTexts;
 	});
 
 	public readonly primaryGhostText = derivedOpts({ owner: this, equalsFn: ghostTextOrReplacementEquals }, reader => {
-		const v = this.state.read(reader);
+		const v = this.inlineCompletionState.read(reader);
 		if (!v) { return undefined; }
 		return v?.primaryGhostText;
 	});
@@ -402,7 +402,7 @@ export class InlineCompletionsModel extends Disposable {
 
 		let completion: InlineCompletionItem;
 
-		const state = this.stateWithInlineEdit.get();
+		const state = this.state.get();
 		if (state?.kind === 'ghostText') {
 			if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
 				return;
@@ -495,7 +495,7 @@ export class InlineCompletionsModel extends Disposable {
 			throw new BugIndicatingError();
 		}
 
-		const state = this.state.get();
+		const state = this.inlineCompletionState.get();
 		if (!state || state.primaryGhostText.isEmpty() || !state.inlineCompletion) {
 			return;
 		}
@@ -570,6 +570,20 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		);
 	}
+
+	public extractReproSample(): Repro {
+		const value = this.textModel.getValue();
+		const item = this.state.get()?.inlineCompletion?.toInlineCompletion(undefined);
+		return {
+			documentValue: value,
+			inlineCompletion: item?.sourceInlineCompletion,
+		};
+	}
+}
+
+interface Repro {
+	documentValue: string;
+	inlineCompletion: InlineCompletion | undefined;
 }
 
 export enum VersionIdChangeReason {

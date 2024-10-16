@@ -134,7 +134,7 @@ export class InlineCompletionsController extends Disposable {
 	).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _inlineEdit = derived(this, reader => {
-		const s = this.model.read(reader)?.stateWithInlineEdit.read(reader);
+		const s = this.model.read(reader)?.state.read(reader);
 		if (s?.kind === 'inlineEdit') {
 			return s.inlineEdit;
 		}
@@ -193,14 +193,14 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(runOnChange(this._editorObs.selections, (_value, _, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
-				if (!this._hideInlineEditOnSelectionChange.get() && this.model.get()?.stateWithInlineEdit.get()?.kind === 'inlineEdit') {
+				if (!this._hideInlineEditOnSelectionChange.get() && this.model.get()?.state.get()?.kind === 'inlineEdit') {
 					return;
 				}
 				const m = this.model.get();
 				if (!m) { return; }
-				if (m.state.get()?.primaryGhostText) {
+				if (m.inlineCompletionState.get()?.primaryGhostText) {
 					this.model.get()?.stop();
-				} else if (m.stateWithInlineEdit.get()?.inlineCompletion) {
+				} else if (m.state.get()?.inlineCompletion) {
 					this.model.get()?.collapseInlineEdit();
 				}
 			}
@@ -223,7 +223,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description InlineCompletionsController.forceRenderingAbove */
-			const state = this.model.read(reader)?.state.read(reader);
+			const state = this.model.read(reader)?.inlineCompletionState.read(reader);
 			if (state?.suggestItem) {
 				if (state.primaryGhostText.lineCount >= 2) {
 					this._suggestWidgetAdaptor.forceRenderingAbove();
@@ -238,7 +238,7 @@ export class InlineCompletionsController extends Disposable {
 
 		const currentInlineCompletionBySemanticId = derivedObservableWithCache<string | undefined>(this, (reader, last) => {
 			const model = this.model.read(reader);
-			const state = model?.state.read(reader);
+			const state = model?.inlineCompletionState.read(reader);
 			if (this._suggestWidgetSelectedItem.get()) {
 				return last;
 			}
@@ -251,7 +251,7 @@ export class InlineCompletionsController extends Disposable {
 		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			const model = this.model.get();
-			const state = model?.state.get();
+			const state = model?.inlineCompletionState.get();
 			if (!state || !model) { return; }
 			const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
 
@@ -302,7 +302,7 @@ export class InlineCompletionsController extends Disposable {
 			reader => {
 				const cursorPos = this._editorObs.cursorPosition.read(reader);
 				if (cursorPos === null) { return false; }
-				const edit = this.model.read(reader)?.stateInlineEdit.read(reader);
+				const edit = this.model.read(reader)?.inlineEditState.read(reader);
 				if (!edit) { return false; }
 				return LineRange.fromRangeInclusive(edit.inlineEdit.range).contains(cursorPos.lineNumber);
 			})
@@ -343,7 +343,7 @@ export class InlineCompletionsController extends Disposable {
 
 	public jump(): void {
 		const m = this.model.get();
-		const s = m?.stateInlineEdit.get();
+		const s = m?.inlineEditState.get();
 		if (!s) { return; }
 
 		transaction(tx => {
