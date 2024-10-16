@@ -52,8 +52,8 @@ export class MatchInNotebook extends MatchImpl implements IMatchInNotebook {
 		return this._webviewIndex !== undefined;
 	}
 
-	public override isReadonly() {
-		return super.isReadonly() || (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
+	override get isReadonly(): boolean {
+		return super.isReadonly || (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -187,13 +187,14 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		_parent: ISearchTreeFolderMatch,
 		rawMatch: IFileMatch,
 		_closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
+		_id: string,
 		private readonly searchInstanceID: string,
 		@IModelService modelService: IModelService,
 		@IReplaceService replaceService: IReplaceService,
 		@ILabelService labelService: ILabelService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
-		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
+		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, _id, modelService, replaceService, labelService);
 		this._cellMatches = new Map<string, ICellMatch>();
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
 	}

@@ -970,7 +970,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (isSearchTreeMatch(focus)) {
-				editable = !focus.isReadonly();
+				editable = !focus.isReadonly;
 			} else if (isSearchTreeFileMatch(focus)) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (isSearchTreeFolderMatch(focus)) {

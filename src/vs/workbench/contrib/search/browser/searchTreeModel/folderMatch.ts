@@ -495,7 +495,8 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 				parent,
 				rawFileMatch,
 				closestRoot,
-				searchInstanceID
+				searchInstanceID,
+				rawFileMatch.resource.toString()
 			);
 		fileMatch.createMatches(this._ai);
 		parent.doAddFile(fileMatch);
@@ -560,7 +561,9 @@ export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTre
 			this._query.maxResults,
 			this, rawFileMatch,
 			null,
-			searchInstanceID));
+			searchInstanceID,
+			rawFileMatch.resource.toString()
+		));
 		fileMatch.createMatches(false); // currently, no support for AI results in out-of-workspace files
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
@@ -570,7 +573,7 @@ export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTre
 }
 
 
-function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {
+export function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {
 
 	const folderMatches: ISearchTreeFolderMatchWithResource[] = [];
 	const fileMatches: ISearchTreeFileMatch[] = [];

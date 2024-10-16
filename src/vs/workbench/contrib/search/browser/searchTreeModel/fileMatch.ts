@@ -84,7 +84,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	public get context(): Map<number, string> {
 		return new Map(this._context);
 	}
-
+	private readonly _id: string;
 	constructor(
 		protected _query: IPatternInfo,
 		private _previewOptions: ITextSearchPreviewOptions | undefined,
@@ -92,6 +92,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		private _parent: ISearchTreeFolderMatch,
 		protected rawMatch: IFileMatch,
 		private _closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
+		_id: string,
 		@IModelService protected readonly modelService: IModelService,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ILabelService labelService: ILabelService,
@@ -102,6 +103,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		this._removedTextMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
+		this._id = FILE_MATCH_PREFIX + _id;
 	}
 
 
@@ -110,7 +112,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 
 	hasReadonlyMatches(): boolean {
-		return this.matches().some(m => m.isReadonly());
+		return this.matches().some(m => m.isReadonly);
 	}
 
 	createMatches(isAiContributed: boolean): void {
@@ -234,7 +236,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 
 	id(): string {
-		return FILE_MATCH_PREFIX + this.resource.toString();
+		return this._id;
 	}
 
 	parent(): ISearchTreeFolderMatch {
@@ -356,7 +358,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => match.isReadonly());
+		return this.matches().every(match => match.isReadonly);
 	}
 
 	// #region strictly notebook methods

@@ -530,14 +530,15 @@ suite('SearchResult', () => {
 		if (!searchResult) {
 			searchResult = aSearchResult();
 		}
+		const uri = URI.file('/' + path);
 		const rawMatch: IFileMatch = {
-			resource: URI.file('/' + path),
+			resource: uri,
 			results: lineMatches
 		};
 		const root = searchResult?.folderMatches()[0];
 		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
-		}, undefined, undefined, root, rawMatch, null, '');
+		}, undefined, undefined, root, rawMatch, null, '', uri.toString());
 		fileMatch.createMatches(false);
 
 		store.add(fileMatch);

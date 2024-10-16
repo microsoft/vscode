@@ -34,7 +34,6 @@ export interface IMatchInNotebook extends ISearchTreeMatch {
 	parent(): INotebookFileInstanceMatch;
 	cellParent: ICellMatch;
 	isWebviewMatch(): boolean;
-	isReadonly(): boolean;
 	cellIndex: number;
 	webviewIndex: number | undefined;
 	cell: ICellViewModel | undefined;

@@ -275,7 +275,7 @@ export interface ISearchTreeMatch {
 	rangeInPreview(): ISearchRange;
 	fullPreviewLines(): string[];
 	getMatchString(): string;
-	isReadonly(): boolean;
+	isReadonly: boolean;
 }
 
 export function isSearchModel(obj: any): obj is ISearchModel {

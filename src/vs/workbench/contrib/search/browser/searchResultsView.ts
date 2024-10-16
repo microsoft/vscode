@@ -406,7 +406,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const preview = match.preview();
 		const replace = this.searchView.model.isReplaceActive() &&
 			!!this.searchView.model.replaceString &&
-			!match.isReadonly();
+			!match.isReadonly;
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
@@ -417,7 +417,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
-		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly());
+		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
