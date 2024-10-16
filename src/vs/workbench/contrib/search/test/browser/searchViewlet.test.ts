@@ -202,7 +202,7 @@ suite('Search - Viewlet', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, parent ?? aSearchResult().folderMatches()[0], searchModel.searchResult, null);
+		}, (parent ?? aSearchResult().folderMatches()[0]) as FolderMatchImpl, searchModel.searchResult, null);
 		store.add(folderMatch);
 		return folderMatch;
 	}

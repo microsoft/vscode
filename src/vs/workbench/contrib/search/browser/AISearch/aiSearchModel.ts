@@ -7,20 +7,23 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IPosition } from '../../../../../editor/common/core/position.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions } from '../../../../services/search/common/search.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
+import { IReplaceService } from '../replace.js';
 
 import { FileMatchImpl } from '../searchTreeModel/fileMatch.js';
-import { getFileMatches } from '../searchTreeModel/folderMatch.js';
-import { ISearchResult, TEXT_SEARCH_HEADING_PREFIX, AI_TEXT_SEARCH_RESULT_ID, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ITextSearchHeading, IChangeEvent, ISearchModel, ISearchTreeFileMatch, FOLDER_MATCH_PREFIX } from '../searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, TEXT_SEARCH_HEADING_PREFIX, AI_TEXT_SEARCH_RESULT_ID, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ITextSearchHeading, IChangeEvent, ISearchModel, ISearchTreeFileMatch, FOLDER_MATCH_PREFIX, getFileMatches } from '../searchTreeModel/searchTreeCommon.js';
 import { TextSearchHeadingImpl } from '../searchTreeModel/textSearchHeading.js';
-import { IAIPlainTextSearchHeading } from './aiSearchModelBase.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
 
-export class AITextSearchHeadingImpl extends TextSearchHeadingImpl implements IAIPlainTextSearchHeading {
+export class AITextSearchHeadingImpl extends TextSearchHeadingImpl {
 	constructor(
 		parent: ISearchResult,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -46,9 +49,6 @@ export class AITextSearchHeadingImpl extends TextSearchHeadingImpl implements IA
 	}
 }
 
-/**
- * FolderMatchWorkspaceRoot => folder for workspace root
- */
 export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearchTreeFolderMatchWorkspaceRoot {
 	protected _onChange = this._register(new Emitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
@@ -76,8 +76,6 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		this._name = new Lazy(() => this.resource ? labelService.getUriBasenameLabel(this.resource) : '');
 		this._unDisposedFileMatches = new Map<string, ISearchTreeFileMatch>();
 	}
-	readonly closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null = null;
-
 	get resource(): URI {
 		return this._resource;
 	}
@@ -98,29 +96,47 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 	doAddFile(fileMatch: ISearchTreeFileMatch): void {
 		this._fileMatches.set(fileMatch.id(), fileMatch);
 	}
-	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): FileMatchImpl {
-		return this.createFileMatch(this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch, this);
-	}
 
-	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: ISearchTreeFolderMatch, rawFileMatch: IFileMatch, closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null): FileMatchImpl {
+	private latestRank = 0;
+	createAndConfigureFileMatch(rawFileMatch: IFileMatch<URI>, searchInstanceID: string): FileMatchImpl {
+
 		const fileMatch =
 			this.instantiationService.createInstance(
-				FileMatchImpl,
-				query,
-				previewOptions,
-				maxResults,
-				parent,
+				AIFileMatch,
+				this._query.contentPattern,
+				this._query.previewOptions,
+				this._query.maxResults,
+				this,
 				rawFileMatch,
-				closestRoot,
+				this,
 				rawFileMatch.resource.toString() + '_' + Date.now().toString(),
+				this.latestRank++,
 			);
 		fileMatch.createMatches(true);
-		parent.doAddFile(fileMatch);
-		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
+		this.doAddFile(fileMatch);
+		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
 
+	isAIContributed(): boolean {
+		return true;
+	}
+
+	private onFileChange(fileMatch: ISearchTreeFileMatch, removed = false): void {
+		let added = false;
+		if (!this._fileMatches.has(fileMatch.id())) {
+			this.doAddFile(fileMatch);
+			added = true;
+		}
+		if (fileMatch.count() === 0) {
+			this.doRemoveFile([fileMatch], false, false);
+			added = false;
+			removed = true;
+		}
+		this._onChange.fire({ elements: [fileMatch], added: added, removed: removed });
+
+	}
 
 	get hasChildren(): boolean {
 		return this._fileMatches.size > 0;
@@ -135,7 +151,6 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 	allDownstreamFileMatches(): ISearchTreeFileMatch[] {
 		return [...this._fileMatches.values()];
 	}
-
 
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): void {
 		if (!Array.isArray(matches)) {
@@ -167,7 +182,11 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		this.disposeMatches();
 		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
 	}
-	showHighlights: boolean = true;
+
+	get showHighlights(): boolean {
+		return this._parent.showHighlights;
+	}
+
 	get searchModel(): ISearchModel {
 		return this._searchResult.searchModel;
 	}
@@ -217,31 +236,14 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		}
 	}
 
-
-	public onFileChange(fileMatch: ISearchTreeFileMatch,): void {
-		if (!this._fileMatches.has(fileMatch.id())) {
-			this.doAddFile(fileMatch);
-		}
-		if (fileMatch.count() === 0) {
-			this.doRemoveFile([fileMatch], false, false);
-		}
-	}
-
 	replace(match: ISearchTreeFileMatch): Promise<any> {
 		throw new Error('Cannot replace in AI search');
 	}
 	replacingAll: boolean = false;
+
 	bindModel(model: ITextModel): void {
 		// no op
 	}
-
-	createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: ISearchTreeFolderMatchWorkspaceRoot): ISearchTreeFolderMatchWithResource {
-		return this;
-	}
-	getFolderMatch(resource: URI): ISearchTreeFolderMatchWithResource | undefined {
-		return undefined;
-	}
-
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void {
 		//no op
 	}
@@ -263,7 +265,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		return this._fileMatches.size;
 	}
 
-	disposeMatches(): void {
+	private disposeMatches(): void {
 		[...this._fileMatches.values()].forEach((fileMatch: ISearchTreeFileMatch) => fileMatch.dispose());
 		[...this._unDisposedFileMatches.values()].forEach((fileMatch: ISearchTreeFileMatch) => fileMatch.dispose());
 	}
@@ -272,5 +274,63 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		this.disposeMatches();
 		this._onDispose.fire();
 		super.dispose();
+	}
+}
+
+class AIFileMatch extends FileMatchImpl implements ISearchTreeAIFileMatch {
+	constructor(
+		_query: IPatternInfo,
+		_previewOptions: ITextSearchPreviewOptions | undefined,
+		_maxResults: number | undefined,
+		_parent: ISearchTreeFolderMatch,
+		rawMatch: IFileMatch,
+		_closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
+		_id: string,
+		public readonly rank: number,
+		@IModelService modelService: IModelService,
+		@IReplaceService replaceService: IReplaceService,
+		@ILabelService labelService: ILabelService,
+	) {
+		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, _id, modelService, replaceService, labelService);
+	}
+	getFullRange(): Range | undefined {
+
+		let earliestStart: IPosition | undefined = undefined;
+		let latestEnd: IPosition | undefined = undefined;
+
+		for (const match of this.matches()) {
+			const matchStart = match.range().getStartPosition();
+			const matchEnd = match.range().getEndPosition();
+			if (earliestStart === undefined) {
+				earliestStart = matchStart;
+			} else if (matchStart.isBefore(earliestStart)) {
+				earliestStart = matchStart;
+			}
+
+			if (latestEnd === undefined) {
+				latestEnd = matchEnd;
+			} else if (!matchEnd.isBefore(latestEnd)) {
+				latestEnd = matchEnd;
+			}
+		}
+
+		if (earliestStart === undefined || latestEnd === undefined) {
+			return undefined;
+		}
+		return new Range(earliestStart.lineNumber, earliestStart.column, latestEnd.lineNumber, latestEnd.column);
+
+	}
+
+	private rangeAsString(): undefined | string {
+		const range = this.getFullRange();
+		if (!range) {
+			return undefined;
+		}
+		return range.startLineNumber + ':' + range.startColumn + '-' + range.endLineNumber + ':' + range.endColumn;
+	}
+
+	override name(): string {
+		const range = this.rangeAsString();
+		return super.name() + range ? ' ' + range : '';
 	}
 }
