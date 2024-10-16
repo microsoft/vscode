@@ -1398,6 +1398,46 @@ suite('observables', () => {
 			d.dispose();
 		});
 	});
+
+	suite('prevent invalid usage', () => {
+		suite('reading outside of compute function', () => {
+			test('derived', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const d = derived(reader => {
+					fn = () => { obs.read(reader); };
+					return obs.read(reader);
+				});
+
+				const disp = autorun(reader => {
+					d.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+
+			test('autorun', () => {
+				let fn: () => void = () => { };
+
+				const obs = observableValue('obs', 0);
+				const disp = autorun(reader => {
+					fn = () => { obs.read(reader); };
+					obs.read(reader);
+				});
+
+				assert.throws(() => {
+					fn();
+				});
+
+				disp.dispose();
+			});
+		});
+	});
 });
 
 export class LoggingObserver implements IObserver {

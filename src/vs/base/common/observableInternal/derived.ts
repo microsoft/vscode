@@ -5,7 +5,7 @@
 
 import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from './base.js';
 import { DebugNameData, DebugOwner, IDebugNameData } from './debugName.js';
-import { DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
+import { BugIndicatingError, DisposableStore, EqualityComparer, IDisposable, assertFn, onBugIndicatingError, strictEquals } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**
@@ -228,12 +228,19 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 	public override get(): T {
 		if (this.observers.size === 0) {
+			let result;
 			// Without observers, we don't know when to clean up stuff.
 			// Thus, we don't cache anything to prevent memory leaks.
-			const result = this._computeFn(this, this.createChangeSummary?.()!);
+			try {
+				this._isReaderValid = true;
+				result = this._computeFn(this, this.createChangeSummary?.()!);
+			} finally {
+				this._isReaderValid = false;
+			}
 			// Clear new dependencies
 			this.onLastObserverRemoved();
 			return result;
+
 		} else {
 			do {
 				// We might not get a notification for a dependency that changed while it is updating,
@@ -281,9 +288,11 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			const changeSummary = this.changeSummary!;
 			this.changeSummary = this.createChangeSummary?.();
 			try {
+				this._isReaderValid = true;
 				/** might call {@link handleChange} indirectly, which could invalidate us */
 				this.value = this._computeFn(this, changeSummary);
 			} finally {
+				this._isReaderValid = false;
 				// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 				// Thus, we only unsubscribe from observables that are definitely not read anymore.
 				for (const o of this.dependenciesToBeRemoved) {
@@ -384,7 +393,11 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	// IReader Implementation
+	private _isReaderValid = false;
+
 	public readObservable<T>(observable: IObservable<T>): T {
+		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+
 		// Subscribe before getting the value to enable caching
 		observable.addObserver(this);
 		/** This might call {@link handleChange} indirectly, which could invalidate us */
