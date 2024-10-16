@@ -283,13 +283,18 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (widget?.location !== ChatAgentLocation.Panel) {
+					return;
+				}
+
 				const label = localize('installLabel', "Install Chat Extensions...");
 				const item: CompletionItem = {
 					label,
 					insertText: '',
 					range: new Range(1, 1, 1, 1),
 					kind: CompletionItemKind.Text, // The icons are disabled here anyway
-					command: { id: 'workbench.extensions.search', title: '', arguments: ['@category:chat'] },
+					command: { id: 'workbench.extensions.search', title: '', arguments: ['@tag:chat-participant'] },
 					filterText: chatAgentLeader + label,
 					sortText: 'zzz'
 				};
