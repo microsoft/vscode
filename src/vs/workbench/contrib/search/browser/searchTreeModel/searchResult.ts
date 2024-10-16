@@ -17,7 +17,7 @@ import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISear
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl } from './textSearchHeading.js';
-import { AITextSearchHeadingImpl } from '../AISearch/aiSearchModel.js';
+import { AITextSearchHeadingImpl } from '../aiSearch/aiSearchModel.js';
 
 export class SearchResultImpl extends Disposable implements ISearchResult {
 

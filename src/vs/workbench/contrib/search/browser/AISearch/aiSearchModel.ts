@@ -21,8 +21,8 @@ import { FileMatchImpl } from '../searchTreeModel/fileMatch.js';
 import { ISearchResult, TEXT_SEARCH_HEADING_PREFIX, AI_TEXT_SEARCH_RESULT_ID, ISearchTreeFolderMatchWorkspaceRoot, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ITextSearchHeading, IChangeEvent, ISearchModel, ISearchTreeFileMatch, FOLDER_MATCH_PREFIX, getFileMatches } from '../searchTreeModel/searchTreeCommon.js';
 import { TextSearchHeadingImpl } from '../searchTreeModel/textSearchHeading.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
 import { textSearchResultToMatches } from '../searchTreeModel/match.js';
+import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
 
 export class AITextSearchHeadingImpl extends TextSearchHeadingImpl {
 	constructor(
