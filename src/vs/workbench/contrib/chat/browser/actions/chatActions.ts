@@ -27,7 +27,6 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
-import { getScreenshotViaDisplayMedia } from '../../../../../base/browser/screenshot.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -48,6 +47,7 @@ import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 import product from '../../../../../platform/product/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -115,7 +115,9 @@ class OpenChatGlobalAction extends Action2 {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const chatService = accessor.get(IChatService);
-		const chatWidget = await showChatView(accessor.get(IViewsService));
+		const viewsService = accessor.get(IViewsService);
+		const hostService = accessor.get(IHostService);
+		const chatWidget = await showChatView(viewsService);
 		if (!chatWidget) {
 			return;
 		}
@@ -125,7 +127,7 @@ class OpenChatGlobalAction extends Action2 {
 			}
 		}
 		if (opts?.attachScreenshot) {
-			const screenshot = await getScreenshotViaDisplayMedia();
+			const screenshot = await hostService.getScreenshot();
 			if (screenshot) {
 				chatWidget.attachmentModel.addContext(convertBufferToScreenshotVariable(screenshot));
 			}

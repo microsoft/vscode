@@ -49,10 +49,16 @@
 	height: inherit;
 	width: inherit;
 	background-image: none;
+	font-size: 0.9em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control.backslash-path .monaco-breadcrumb-item::before  {
 	content: '\\';
+	font-size: 0.9em;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item .outline-element-icon::before {
+	font-size: 0.9em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::before,
@@ -64,6 +70,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-breadcrumb-item.root_folder::after {
 	content: '\00a0•\00a0'; /* use dot separator for workspace folder */
+	font-size: 0.9em;
 	padding: 0;
 }
 

@@ -791,13 +791,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						fromUserGesture: true
 					};
 					if (range) {
-						// HACK: This uses text editor options but the opener service doesn't support that? It's not clear if this ever worked
-						// eslint-disable-next-line local/code-no-dangerous-type-assertions
-						options.editorOptions = {
+						const textEditorOptions: ITextEditorOptions = {
 							selection: range
-						} as ITextEditorOptions as any;
+						};
+						options.editorOptions = textEditorOptions;
 					}
 					this.openerService.open(file, options);
+				}));
+
+				store.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					const event = new StandardKeyboardEvent(e);
+					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+						dom.EventHelper.stop(e, true);
+						const options: Mutable<OpenInternalOptions> = {
+							fromUserGesture: true
+						};
+						if (range) {
+							const textEditorOptions: ITextEditorOptions = {
+								selection: range
+							};
+							options.editorOptions = textEditorOptions;
+						}
+						this.openerService.open(file, options);
+					}
 				}));
 			}
 
@@ -1214,6 +1230,11 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 			this.updateLabel();
 		}));
 	}
+
+	// TODO need extra context tooltip?
+	// protected override getTooltip(): string {
+	// 	return super.getTooltip() + '\n' + localize('modelPickerHint', "A chat participant may or may not choose to use the selected model");
+	// }
 
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._openContextMenu();
