@@ -487,7 +487,11 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 			return instantiationService.createInstance(
 				DropdownWithPrimaryActionViewItem,
 				primaryAction, dropdownAction, action.actions,
-				'', options
+				'',
+				{
+					...options,
+					skipTelemetry: true, // already handled by the workbench action bar
+				}
 			);
 
 		}, agentService.onDidChangeAgents));
