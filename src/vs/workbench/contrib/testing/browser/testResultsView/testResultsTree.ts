@@ -305,6 +305,7 @@ export class OutputPeekTree extends Disposable {
 				compressionEnabled: true,
 				hideTwistiesOfChildlessElements: true,
 				identityProvider: diffIdentityProvider,
+				alwaysConsumeMouseWheel: false,
 				sorter: {
 					compare(a, b) {
 						if (a instanceof TestCaseElement && b instanceof TestCaseElement) {
