@@ -116,9 +116,22 @@ steps:
 
           Write-Host "##vso[task.setvariable variable=VSCODE_CLI_APPLICATION_NAME]$env:VSCODE_CLI_APPLICATION_NAME"
 
+          Write-Host "Debug: listing CLI PDBs"
+          Get-ChildItem -Path $(Build.SourcesDirectory)/cli -Filter '*.pdb' -Recurse
+          Write-Host "Debug: listing CLI EXEs"
+          Get-ChildItem -Path $(Build.SourcesDirectory)/cli -Filter '*.exe' -Recurse
+
           New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)/cli"
           Move-Item -Path $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release/code.exe -Destination "$(Build.ArtifactStagingDirectory)/cli/${env:VSCODE_CLI_APPLICATION_NAME}.exe"
         displayName: Stage CLI
+
+      # TODO @rzhao271: Add BinSkim task to scan just the cli file
+      # Issue: wouldn't it need symbols?
+      # - task: BinSkim@4
+      #   displayName: Run BinSkim
+      #   condition: arch is x64
+      #   inputs:
+      #     fileNames: $(Build.ArtifactStagingDirectory)/cli/$(VSCODE_CLI_APPLICATION_NAME).exe
 
       - task: ArchiveFiles@2
         displayName: Archive CLI
