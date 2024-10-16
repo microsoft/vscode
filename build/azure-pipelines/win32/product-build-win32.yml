@@ -135,7 +135,8 @@ steps:
       displayName: Transpile client and extensions
 
     - pwsh: |
-        $changedFiles=$(git diff HEAD~ HEAD --name-only)
+        git diff HEAD^1 HEAD
+        $changedFiles=$(git diff HEAD^1 HEAD --name-only)
         if ($changedFiles | Select-String -Pattern 'package-lock.json') {
           echo "##vso[task.setvariable variable=PACKAGE_JSON_CHANGED]true"
         }
