@@ -29,6 +29,19 @@ declare module 'vscode' {
 		parametersSchema?: object;
 	}
 
+	export enum LanguageModelChatToolMode {
+		/**
+		 * The language model can choose to call a tool or generate a message. The default.
+		 */
+		Auto = 1,
+
+		/**
+		 * The language model must call one of the provided tools. An extension can force a particular tool to be used by using the
+		 * Required mode and only providing that one tool
+		 */
+		Required = 2
+	}
+
 	export interface LanguageModelChatRequestOptions {
 
 		/**
@@ -45,10 +58,9 @@ declare module 'vscode' {
 		tools?: LanguageModelChatTool[];
 
 		/**
-		 * Force a specific tool to be used.
+		 * 	The tool calling mode to use. {@link LanguageModelChatToolMode.Auto} by default.
 		 */
-		// TODO@API?
-		toolChoice?: string;
+		toolMode?: LanguageModelChatToolMode;
 	}
 
 	/**
