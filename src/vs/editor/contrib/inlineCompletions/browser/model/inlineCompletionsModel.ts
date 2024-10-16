@@ -280,7 +280,7 @@ export class InlineCompletionsModel extends Disposable {
 
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
-			if (this._shouldHideInlineEdit.read(reader)) { return undefined; }
+			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader)) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const currentItemIsCollapsed = cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId;
