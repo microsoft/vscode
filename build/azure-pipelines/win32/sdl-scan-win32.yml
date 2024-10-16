@@ -139,6 +139,17 @@ steps:
       flattenFolders: true
     condition: succeeded()
 
+  - task: PublishSymbols@2
+    inputs:
+      SymbolsFolder: '$(Agent.BuildDirectory)\symbols'
+      SearchPattern: '**\*.pdb'
+      SymbolServerType: TeamServices
+    env:
+      ARTIFACTSERVICES_SYMBOL_ACCOUNTNAME: microsoft
+      ARTIFACTSERVICES_SYMBOL_USEAAD: true
+    displayName: Publish Symbols
+    condition: succeeded()
+
   - task: APIScan@2
     inputs:
       softwareFolder: $(Agent.BuildDirectory)\scanbin
