@@ -873,19 +873,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: .9em;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .chat-implicit-hint {
+	font-style: italic;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled {
 	border-style: dashed;
-	cursor: pointer;
-	padding-right: 26px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:focus {
 	outline: none;
 	border-color: var(--vscode-focusBorder);
-}
-
-.interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit.disabled .monaco-icon-label .label-name {

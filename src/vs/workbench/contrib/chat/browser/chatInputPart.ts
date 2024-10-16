@@ -81,6 +81,7 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingAcceptAllAction, ChatEditingDiscardAllAction, ChatEditingShowChangesAction } from './chatEditingActions.js';
+import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
@@ -976,6 +977,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						isSecondary: false,
 					},
 					{
+						command: ChatEditingSaveAllAction.ID,
+						label: ChatEditingSaveAllAction.LABEL,
+						isSecondary: true,
+					},
+					{
 						command: ChatEditingDiscardAllAction.ID,
 						label: ChatEditingDiscardAllAction.LABEL,
 						isSecondary: true,
@@ -1230,11 +1236,6 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 			this.updateLabel();
 		}));
 	}
-
-	// TODO need extra context tooltip?
-	// protected override getTooltip(): string {
-	// 	return super.getTooltip() + '\n' + localize('modelPickerHint', "A chat participant may or may not choose to use the selected model");
-	// }
 
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._openContextMenu();
