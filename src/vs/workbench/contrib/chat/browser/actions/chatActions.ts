@@ -81,7 +81,8 @@ const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	name: product.defaultChatAgent?.name ?? '',
 	icon: Codicon[product.defaultChatAgent?.icon as keyof typeof Codicon ?? 'commentDiscussion'],
-	documentationUrl: product.defaultChatAgent?.documentationUrl ?? ''
+	documentationUrl: product.defaultChatAgent?.documentationUrl ?? '',
+	gettingStartedCommand: product.defaultChatAgent?.gettingStartedCommand ?? '',
 };
 
 class OpenChatGlobalAction extends Action2 {
@@ -551,6 +552,10 @@ abstract class BaseInstallChatAction extends Action2 {
 		}, ProgressLocation.Notification);
 
 		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+
+		if (defaultChat.gettingStartedCommand) {
+			await commandService.executeCommand(defaultChat.gettingStartedCommand);
+		}
 	}
 }
 
@@ -569,7 +574,7 @@ class InstallChatWithPromptAction extends BaseInstallChatAction {
 	}
 
 	protected getJustification(): string {
-		return localize('installChatGlobalAction.justification', "Chat and AI support requires this extension.");
+		return localize('installChatGlobalAction.justification', "AI support requires this extension.");
 	}
 }
 
