@@ -8,7 +8,7 @@ import { compareFileExtensions, compareFileNames, comparePaths } from '../../../
 import { SearchSortOrder } from '../../../services/search/common/search.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { createParentList, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeMatch, RenderableMatch } from './searchTreeModel/searchTreeCommon.js';
-import { isSearchTreeAIFileMatch } from './aiSearch/aiSearchModelBase.js';
+import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 
 
 let elemAIndex: number = -1;
