@@ -566,8 +566,28 @@ export class OutputPeekTree extends Disposable {
 		this._register(this.tree.onDidChangeSelection(evt => {
 			for (const element of evt.elements) {
 				if (element && 'test' in element) {
-					explorerFilter.reveal.value = element.test.item.extId;
+					explorerFilter.reveal.set(element.test.item.extId, undefined);
 					break;
+				}
+			}
+		}));
+
+		this._register(explorerFilter.onDidSelectTestInExplorer(testId => {
+			if (this.tree.getSelection().some(e => e && 'test' in e && e.test.item.extId === testId)) {
+				return;
+			}
+
+			for (const node of this.tree.getNode(null).children) {
+				if (node.element instanceof TaskElement) {
+					for (const testNode of node.children) {
+						if (testNode.element instanceof TestCaseElement && testNode.element.test.item.extId === testId) {
+							this.tree.setSelection([testNode.element]);
+							if (this.tree.getRelativeTop(testNode.element) === null) {
+								this.tree.reveal(testNode.element, 0.5);
+							}
+							break;
+						}
+					}
 				}
 			}
 		}));
