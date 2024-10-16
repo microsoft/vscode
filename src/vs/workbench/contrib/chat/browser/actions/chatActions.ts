@@ -551,10 +551,10 @@ abstract class BaseInstallChatAction extends Action2 {
 			installPreReleaseVersion: productService.quality !== 'stable'
 		}, ProgressLocation.Notification);
 
-		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		commandService.executeCommand(CHAT_OPEN_ACTION_ID);
 
 		if (defaultChat.gettingStartedCommand) {
-			await commandService.executeCommand(defaultChat.gettingStartedCommand);
+			commandService.executeCommand(defaultChat.gettingStartedCommand);
 		}
 	}
 }
