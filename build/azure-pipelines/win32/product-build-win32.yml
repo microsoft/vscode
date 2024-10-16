@@ -134,12 +134,20 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
 
+    - pwsh: |
+        $changedFiles=$(git diff HEAD~ HEAD --name-only)
+        if ($changedFiles | Select-String -Pattern 'package-lock.json') {
+          echo "##vso[task.setvariable variable=PACKAGE_JSON_CHANGED]true"
+        }
+      displayName: Determine whether a package-lock.json file changed
+
     - task: AntiMalware@4
-      displayName: Anti-Malware (OSS)
       inputs:
         InputType: Basic
         ScanType: CustomScan
         FileDirPath: '$(Build.SourcesDirectory)'
+      displayName: Anti-Malware (OSS)
+      condition: eq(variables['PACKAGE_JSON_CHANGED'], 'true')
 
   - ${{ else }}:
     - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
