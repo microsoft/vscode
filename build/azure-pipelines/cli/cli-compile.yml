@@ -111,9 +111,7 @@ steps:
       - task: CopyFiles@2
         inputs:
           SourceFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
-          Contents: |
-            'code.exe'
-            'code.pdb'
+          Contents: 'code.*'
           TargetFolder: $(Agent.TempDirectory)/binskim-cli
         displayName: Copy files for BinSkim
 
