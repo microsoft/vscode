@@ -141,12 +141,10 @@ steps:
 
   - task: PublishSymbols@2
     inputs:
+      IndexSources: false
       SymbolsFolder: '$(Agent.BuildDirectory)\symbols'
       SearchPattern: '**\*.pdb'
       SymbolServerType: TeamServices
-    env:
-      ARTIFACTSERVICES_SYMBOL_ACCOUNTNAME: microsoft
-      ARTIFACTSERVICES_SYMBOL_USEAAD: true
     displayName: Publish Symbols
     condition: succeeded()
 
