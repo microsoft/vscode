@@ -120,5 +120,14 @@ suite('TerminalClipboard', function () {
 			setConfigValue({ enableMultiLinePaste: 'auto', enableSmartPaste: false });
 			strictEqual(await testSmartPaste('/home/path space'), true);
 		});
+
+		test('Smart paste relative paths', async () => {
+			setConfigValue({ enableMultiLinePaste: 'auto', enableSmartPaste: true });
+			strictEqual(await testSmartPaste('../../../../../Program Files'), '"../../../../../Program Files"');
+			strictEqual(await testSmartPaste('..\\..\\..\\..\\..\\Program Files'), '"..\\\\..\\\\..\\\\..\\\\..\\\\Program Files"');
+
+			setConfigValue({ enableMultiLinePaste: 'auto', enableSmartPaste: false });
+			strictEqual(await testSmartPaste('../../../../../Program Files'), true);
+		});
 	});
 });
