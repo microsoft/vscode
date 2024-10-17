@@ -54,6 +54,11 @@ pin-project = "1.1.0"
 console = "0.15.7"
 bytes = "1.4.0"
 tar = "0.4.38"
+[dependencies]
+russh = "0.44.1"
+
+[dev-dependencies]
+russh = "0.44.1"
 
 [build-dependencies]
 serde = { version="1.0.163", features = ["derive"] }
