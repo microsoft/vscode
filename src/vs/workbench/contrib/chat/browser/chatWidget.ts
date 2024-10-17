@@ -548,8 +548,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const welcomeContent = this.viewModel?.model.welcomeMessage ?? this.persistedWelcomeMessage;
 		if (welcomeContent && this.welcomeMessageContainer.children.length === 0 && !this.viewOptions.renderStyle) {
 			const tips = this.viewOptions.supportsAdditionalParticipants
-				? new MarkdownString(localize('chatWidget.tips', "{0} to attach context\n\n{1} to chat with extensions", '$(attach)', '$(mention)'), { supportThemeIcons: true })
-				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} to attach context", '$(attach)'), { supportThemeIcons: true });
+				? new MarkdownString(localize('chatWidget.tips', "{0} or type {1} to attach context\n\n{2} to chat with extensions\n\nType {3} to use commands", '$(attach)', '#', '$(mention)', '/'), { supportThemeIcons: true })
+				: new MarkdownString(localize('chatWidget.tips.withoutParticipants', "{0} or type {1} to attach context", '$(attach)', '#'), { supportThemeIcons: true });
 			const welcomePart = this._register(this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, tips, },

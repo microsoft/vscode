@@ -193,6 +193,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private dependencies = new Set<IObservable<any>>();
 	private dependenciesToBeRemoved = new Set<IObservable<any>>();
 	private changeSummary: TChangeSummary | undefined = undefined;
+	private _isUpdating = false;
+	private _isComputing = false;
 
 	public override get debugName(): string {
 		return this._debugNameData.getDebugName(this) ?? '(anonymous)';
@@ -227,6 +229,10 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	public override get(): T {
+		if (this._isComputing) {
+			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
+		}
+
 		if (this.observers.size === 0) {
 			let result;
 			// Without observers, we don't know when to clean up stuff.
@@ -284,6 +290,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		let didChange = false;
 
+		this._isComputing = true;
+
 		try {
 			const changeSummary = this.changeSummary!;
 			this.changeSummary = this.createChangeSummary?.();
@@ -314,6 +322,8 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			onBugIndicatingError(e);
 		}
 
+		this._isComputing = false;
+
 		if (didChange) {
 			for (const r of this.observers) {
 				r.handleChange(this, undefined);
@@ -326,22 +336,32 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	}
 
 	// IObserver Implementation
+
 	public beginUpdate<T>(_observable: IObservable<T>): void {
+		if (this._isUpdating) {
+			throw new BugIndicatingError('Cyclic deriveds are not supported yet!');
+		}
+
 		this.updateCount++;
-		const propagateBeginUpdate = this.updateCount === 1;
-		if (this.state === DerivedState.upToDate) {
-			this.state = DerivedState.dependenciesMightHaveChanged;
-			// If we propagate begin update, that will already signal a possible change.
-			if (!propagateBeginUpdate) {
-				for (const r of this.observers) {
-					r.handlePossibleChange(this);
+		this._isUpdating = true;
+		try {
+			const propagateBeginUpdate = this.updateCount === 1;
+			if (this.state === DerivedState.upToDate) {
+				this.state = DerivedState.dependenciesMightHaveChanged;
+				// If we propagate begin update, that will already signal a possible change.
+				if (!propagateBeginUpdate) {
+					for (const r of this.observers) {
+						r.handlePossibleChange(this);
+					}
 				}
 			}
-		}
-		if (propagateBeginUpdate) {
-			for (const r of this.observers) {
-				r.beginUpdate(this); // This signals a possible change
+			if (propagateBeginUpdate) {
+				for (const r of this.observers) {
+					r.beginUpdate(this); // This signals a possible change
+				}
 			}
+		} finally {
+			this._isUpdating = false;
 		}
 	}
 
