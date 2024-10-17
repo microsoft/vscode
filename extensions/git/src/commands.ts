@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, SourceControlHistoryItemRef } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, SourceControlHistoryItemRef } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -18,7 +18,6 @@ import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
-import { RemoteSourceAction } from './api/git-base';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -89,11 +88,30 @@ class RefItem implements QuickPickItem {
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 
-	private _buttons?: QuickInputButton[];
-	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
-	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
+	private _buttons: RefItemButton[] | undefined;
+	get buttons(): RefItemButton[] | undefined {
+		if (this.options.renderDeleteBranchBtn && Array.isArray(this._buttons)) {
+			return [...this._buttons, {
+				iconPath: new ThemeIcon('trash'),
+				tooltip: l10n.t('Delete {0} branch', this.refName || this.shortCommit),
+				run: (refName: string) => {
+					if (!refName) {
+						return;
+					}
+					window.showInformationMessage(l10n.t('Do you want to delete {0} branch', refName, this.refRemote || ''), 'Yes', 'No').then(choice => {
+						if (choice === 'Yes') {
+							commands.executeCommand('git.deleteBranch', undefined, refName);
+						}
+					});
 
-	constructor(protected readonly ref: Ref) { }
+				}
+			}];
+		}
+		return this._buttons;
+	}
+	set buttons(newButtons: RefItemButton[] | undefined) { this._buttons = newButtons; }
+
+	constructor(protected readonly ref: Ref, protected readonly options: { renderDeleteBranchBtn?: boolean } = { renderDeleteBranchBtn: false }) { }
 }
 
 class CheckoutItem extends RefItem {
@@ -349,17 +367,13 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 	return itemsProcessor.processRefs(refs);
 }
 
-type RemoteSourceActionButton = {
-	iconPath: ThemeIcon;
-	tooltip: string;
-	actual: RemoteSourceAction;
-};
+type RefItemButton = NonNullable<QuickPickItem['buttons']>[number] & { run(branch: string): void };
 
 async function getRemoteRefItemButtons(repository: Repository) {
 	// Compute actions for all known remotes
-	const remoteUrlsToActions = new Map<string, RemoteSourceActionButton[]>();
+	const remoteUrlsToActions = new Map<string, RefItemButton[]>();
 
-	const getButtons = async (remoteUrl: string) => (await getRemoteSourceActions(remoteUrl)).map((action) => ({ iconPath: new ThemeIcon(action.icon), tooltip: action.label, actual: action }));
+	const getButtons = async (remoteUrl: string) => (await getRemoteSourceActions(remoteUrl)).map((action) => ({ iconPath: new ThemeIcon(action.icon), tooltip: action.label, run: action.run }));
 
 	for (const remote of repository.remotes) {
 		if (remote.fetchUrl) {
@@ -471,7 +485,7 @@ class CheckoutRefProcessor extends RefProcessor {
 		const items = this.refs.map(ref => {
 			return this.repository.isBranchProtected(ref) ?
 				new CheckoutProtectedItem(ref) :
-				new CheckoutItem(ref);
+				new CheckoutItem(ref, { renderDeleteBranchBtn: true });
 		});
 
 		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
@@ -484,12 +498,12 @@ class CheckoutRefProcessor extends RefProcessor {
 
 class CheckoutItemsProcessor extends RefItemsProcessor {
 
-	private defaultButtons: RemoteSourceActionButton[] | undefined;
+	private defaultButtons: RefItemButton[] | undefined;
 
 	constructor(
 		processors: RefProcessor[],
 		private readonly repository: Repository,
-		private readonly buttons: Map<string, RemoteSourceActionButton[]>,
+		private readonly buttons: Map<string, RefItemButton[]>,
 		private readonly detached = false) {
 		super(processors);
 
@@ -2560,10 +2574,10 @@ export class CommandCenter {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
 			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
 			disposables.push((quickPick.onDidTriggerItemButton((e) => {
-				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
+				const button = e.button as RefItemButton;
 				const item = e.item as CheckoutItem;
-				if (button.actual && item.refName) {
-					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
+				if (typeof button.run === 'function' && item.refName) {
+					button.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
 				}
 
 				c(undefined);
