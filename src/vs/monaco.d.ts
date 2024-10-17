@@ -3481,7 +3481,6 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		inlineSuggest?: IInlineSuggestOptions;
-		experimentalInlineEdit?: IInlineEditOptions;
 		/**
 		 * Smart select options.
 		 */
@@ -4593,22 +4592,6 @@ declare namespace monaco.editor {
 		fontFamily?: string | 'default';
 	}
 
-	export interface IInlineEditOptions {
-		/**
-		 * Enable or disable the rendering of automatic inline edit.
-		*/
-		enabled?: boolean;
-		showToolbar?: 'always' | 'onHover' | 'never';
-		/**
-		 * Font family for inline suggestions.
-		 */
-		fontFamily?: string | 'default';
-		/**
-		 * Does not clear active inline suggestions when the editor loses focus.
-		 */
-		keepOnBlur?: boolean;
-	}
-
 	export interface IBracketPairColorizationOptions {
 		/**
 		 * Enable or disable bracket pair colorization.
@@ -4946,95 +4929,94 @@ declare namespace monaco.editor {
 		hover = 62,
 		inDiffEditor = 63,
 		inlineSuggest = 64,
-		inlineEdit = 65,
-		letterSpacing = 66,
-		lightbulb = 67,
-		lineDecorationsWidth = 68,
-		lineHeight = 69,
-		lineNumbers = 70,
-		lineNumbersMinChars = 71,
-		linkedEditing = 72,
-		links = 73,
-		matchBrackets = 74,
-		minimap = 75,
-		mouseStyle = 76,
-		mouseWheelScrollSensitivity = 77,
-		mouseWheelZoom = 78,
-		multiCursorMergeOverlapping = 79,
-		multiCursorModifier = 80,
-		multiCursorPaste = 81,
-		multiCursorLimit = 82,
-		occurrencesHighlight = 83,
-		occurrencesHighlightDelay = 84,
-		overviewRulerBorder = 85,
-		overviewRulerLanes = 86,
-		padding = 87,
-		pasteAs = 88,
-		parameterHints = 89,
-		peekWidgetDefaultFocus = 90,
-		placeholder = 91,
-		definitionLinkOpensInPeek = 92,
-		quickSuggestions = 93,
-		quickSuggestionsDelay = 94,
-		readOnly = 95,
-		readOnlyMessage = 96,
-		renameOnType = 97,
-		renderControlCharacters = 98,
-		renderFinalNewline = 99,
-		renderLineHighlight = 100,
-		renderLineHighlightOnlyWhenFocus = 101,
-		renderValidationDecorations = 102,
-		renderWhitespace = 103,
-		revealHorizontalRightPadding = 104,
-		roundedSelection = 105,
-		rulers = 106,
-		scrollbar = 107,
-		scrollBeyondLastColumn = 108,
-		scrollBeyondLastLine = 109,
-		scrollPredominantAxis = 110,
-		selectionClipboard = 111,
-		selectionHighlight = 112,
-		selectOnLineNumbers = 113,
-		showFoldingControls = 114,
-		showUnused = 115,
-		snippetSuggestions = 116,
-		smartSelect = 117,
-		smoothScrolling = 118,
-		stickyScroll = 119,
-		stickyTabStops = 120,
-		stopRenderingLineAfter = 121,
-		suggest = 122,
-		suggestFontSize = 123,
-		suggestLineHeight = 124,
-		suggestOnTriggerCharacters = 125,
-		suggestSelection = 126,
-		tabCompletion = 127,
-		tabIndex = 128,
-		unicodeHighlighting = 129,
-		unusualLineTerminators = 130,
-		useShadowDOM = 131,
-		useTabStops = 132,
-		wordBreak = 133,
-		wordSegmenterLocales = 134,
-		wordSeparators = 135,
-		wordWrap = 136,
-		wordWrapBreakAfterCharacters = 137,
-		wordWrapBreakBeforeCharacters = 138,
-		wordWrapColumn = 139,
-		wordWrapOverride1 = 140,
-		wordWrapOverride2 = 141,
-		wrappingIndent = 142,
-		wrappingStrategy = 143,
-		showDeprecated = 144,
-		inlayHints = 145,
-		editorClassName = 146,
-		pixelRatio = 147,
-		tabFocusMode = 148,
-		layoutInfo = 149,
-		wrappingInfo = 150,
-		defaultColorDecorators = 151,
-		colorDecoratorsActivatedOn = 152,
-		inlineCompletionsAccessibilityVerbose = 153
+		letterSpacing = 65,
+		lightbulb = 66,
+		lineDecorationsWidth = 67,
+		lineHeight = 68,
+		lineNumbers = 69,
+		lineNumbersMinChars = 70,
+		linkedEditing = 71,
+		links = 72,
+		matchBrackets = 73,
+		minimap = 74,
+		mouseStyle = 75,
+		mouseWheelScrollSensitivity = 76,
+		mouseWheelZoom = 77,
+		multiCursorMergeOverlapping = 78,
+		multiCursorModifier = 79,
+		multiCursorPaste = 80,
+		multiCursorLimit = 81,
+		occurrencesHighlight = 82,
+		occurrencesHighlightDelay = 83,
+		overviewRulerBorder = 84,
+		overviewRulerLanes = 85,
+		padding = 86,
+		pasteAs = 87,
+		parameterHints = 88,
+		peekWidgetDefaultFocus = 89,
+		placeholder = 90,
+		definitionLinkOpensInPeek = 91,
+		quickSuggestions = 92,
+		quickSuggestionsDelay = 93,
+		readOnly = 94,
+		readOnlyMessage = 95,
+		renameOnType = 96,
+		renderControlCharacters = 97,
+		renderFinalNewline = 98,
+		renderLineHighlight = 99,
+		renderLineHighlightOnlyWhenFocus = 100,
+		renderValidationDecorations = 101,
+		renderWhitespace = 102,
+		revealHorizontalRightPadding = 103,
+		roundedSelection = 104,
+		rulers = 105,
+		scrollbar = 106,
+		scrollBeyondLastColumn = 107,
+		scrollBeyondLastLine = 108,
+		scrollPredominantAxis = 109,
+		selectionClipboard = 110,
+		selectionHighlight = 111,
+		selectOnLineNumbers = 112,
+		showFoldingControls = 113,
+		showUnused = 114,
+		snippetSuggestions = 115,
+		smartSelect = 116,
+		smoothScrolling = 117,
+		stickyScroll = 118,
+		stickyTabStops = 119,
+		stopRenderingLineAfter = 120,
+		suggest = 121,
+		suggestFontSize = 122,
+		suggestLineHeight = 123,
+		suggestOnTriggerCharacters = 124,
+		suggestSelection = 125,
+		tabCompletion = 126,
+		tabIndex = 127,
+		unicodeHighlighting = 128,
+		unusualLineTerminators = 129,
+		useShadowDOM = 130,
+		useTabStops = 131,
+		wordBreak = 132,
+		wordSegmenterLocales = 133,
+		wordSeparators = 134,
+		wordWrap = 135,
+		wordWrapBreakAfterCharacters = 136,
+		wordWrapBreakBeforeCharacters = 137,
+		wordWrapColumn = 138,
+		wordWrapOverride1 = 139,
+		wordWrapOverride2 = 140,
+		wrappingIndent = 141,
+		wrappingStrategy = 142,
+		showDeprecated = 143,
+		inlayHints = 144,
+		editorClassName = 145,
+		pixelRatio = 146,
+		tabFocusMode = 147,
+		layoutInfo = 148,
+		wrappingInfo = 149,
+		defaultColorDecorators = 150,
+		colorDecoratorsActivatedOn = 151,
+		inlineCompletionsAccessibilityVerbose = 152
 	}
 
 	export const EditorOptions: {
@@ -5163,7 +5145,6 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
-		inlineEdit: IEditorOption<EditorOption.inlineEdit, Readonly<Required<IInlineEditOptions>>>;
 		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;

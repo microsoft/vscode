@@ -332,11 +332,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			});
 
 			const sessions = await this._sessionsPromise;
-
-			// First we use the account specified in the options, otherwise we use the first account we have to seed auth.
-			const loginWith = options?.account?.label ?? sessions[0]?.account.label;
+			const loginWith = options?.account?.label;
 			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
-
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString, loginWith);
 			const session = await this.tokenToSession(token, scopes);

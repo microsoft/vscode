@@ -10,8 +10,10 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyEqualsExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
-import { IToolData, IToolImpl, IToolInvocation, LanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { IToolData, IToolImpl, IToolInvocation } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
 
 suite('LanguageModelToolsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,14 +24,15 @@ suite('LanguageModelToolsService', () => {
 	setup(() => {
 		const extensionService = new TestExtensionService();
 		contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
-		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService, new MockChatService()));
+		service = store.add(new LanguageModelToolsService(extensionService, contextKeyService, new MockChatService(), new TestDialogService()));
 	});
 
 	test('registerToolData', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedContentTypes: []
+			supportedContentTypes: [],
+			displayName: 'Test Tool'
 		};
 
 		const disposable = service.registerToolData(toolData);
@@ -42,7 +45,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedContentTypes: []
+			supportedContentTypes: [],
+			displayName: 'Test Tool'
 		};
 
 		store.add(service.registerToolData(toolData));
@@ -61,20 +65,23 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool1',
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
-			supportedContentTypes: []
+			supportedContentTypes: [],
+			displayName: 'Test Tool'
 		};
 
 		const toolData2: IToolData = {
 			id: 'testTool2',
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
-			supportedContentTypes: []
+			supportedContentTypes: [],
+			displayName: 'Test Tool'
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
-			supportedContentTypes: []
+			supportedContentTypes: [],
+			displayName: 'Test Tool'
 		};
 
 		store.add(service.registerToolData(toolData1));
@@ -91,7 +98,8 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedContentTypes: []
+			supportedContentTypes: [],
+			displayName: 'Test Tool'
 		};
 
 		store.add(service.registerToolData(toolData));
