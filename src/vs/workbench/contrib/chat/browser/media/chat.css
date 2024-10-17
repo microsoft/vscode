@@ -24,6 +24,10 @@
 	-webkit-user-select: text;
 }
 
+.interactive-item-container.disabled {
+	filter: blur(4px);
+}
+
 .interactive-item-container .header {
 	display: flex;
 	align-items: center;
