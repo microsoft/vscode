@@ -23,6 +23,7 @@ import { IDocumentDiff, nullDocumentDiff } from '../../../../editor/common/diff/
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../editor/common/model.js';
+import { SingleModelEditStackElement } from '../../../../editor/common/model/editStack.js';
 import { createTextBufferFactoryFromSnapshot, ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
@@ -37,6 +38,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { editorSelectionBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorCloseEvent } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
@@ -1045,8 +1047,8 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this._stateObs;
 	}
 
+	private _isFirstEditAfterStartOrSnapshot: boolean = true;
 	private _isApplyingEdits: boolean = false;
-
 	private _diffOperation: Promise<any> | undefined;
 	private _diffOperationIds: number = 0;
 
@@ -1080,6 +1082,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 	) {
 		super();
 		this.doc = resourceRef.object.textEditorModel;
@@ -1108,6 +1111,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	}
 
 	createSnapshot(requestId: string | undefined): ISnapshotEntry {
+		this._isFirstEditAfterStartOrSnapshot = true;
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
@@ -1194,10 +1198,18 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		}));
 		this._editDecorationClear.schedule();
 
+		// push stack element for the first edit
+		if (this._isFirstEditAfterStartOrSnapshot) {
+			this._isFirstEditAfterStartOrSnapshot = false;
+			const request = this._chatService.getSession(this._telemetryInfo.sessionId)?.getRequests().at(-1);
+			const label = request?.message.text ? localize('chatEditing1', "Chat Edit: '{0}'", request.message.text) : localize('chatEditing2', "Chat Edit");
+			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
+		}
+
 		// make the actual edit
 		this._isApplyingEdits = true;
 		try {
-			this.doc.applyEdits(textEdits);
+			this.doc.pushEditOperations(null, textEdits.map(TextEdit.asEditOperation), () => null);
 		} finally {
 			this._isApplyingEdits = false;
 		}

@@ -189,7 +189,7 @@ suite('Search - Viewlet', () => {
 		const fileMatch = instantiation.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
 		}, undefined, undefined, parentFolder ?? aFolderMatch('', 0), rawMatch, null, '');
-		fileMatch.createMatches(false);
+		fileMatch.createMatches();
 		store.add(fileMatch);
 		return fileMatch;
 	}
@@ -201,7 +201,7 @@ suite('Search - Viewlet', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, parent ?? aSearchResult().folderMatches()[0], searchModel.searchResult, null);
+		}, (parent ?? aSearchResult().folderMatches()[0]) as FolderMatchImpl, searchModel.searchResult, null);
 		store.add(folderMatch);
 		return folderMatch;
 	}

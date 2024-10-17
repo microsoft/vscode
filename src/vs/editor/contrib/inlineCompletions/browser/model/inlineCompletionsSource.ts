@@ -236,7 +236,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 		})));
 
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
-			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId)
+			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId, this.request)
 		);
 	}
 
@@ -273,7 +273,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 				description: 'inline-completion-tracking-range'
 			},
 		}])[0];
-		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._textModel, this._versionId));
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._textModel, this._versionId, this.request));
 		this._prependedInlineCompletionItems.push(inlineCompletion);
 	}
 }
@@ -299,6 +299,7 @@ export class InlineCompletionWithUpdatedRange {
 		public readonly decorationId: string,
 		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservable<number | null>,
+		public readonly request: UpdateRequest,
 	) {
 	}
 

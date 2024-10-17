@@ -39,13 +39,20 @@ import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { OPEN_TO_SIDE_COMMAND_ID } from '../../files/browser/fileConstants.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
-import { ContentRefData } from '../common/annotations.js';
+import { IWorkspaceSymbol } from '../../search/common/search.js';
+import { IChatContentInlineReference } from '../common/chatService.js';
 import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 const chatResourceContextKey = new RawContextKey<string>('chatAnchorResource', undefined, { type: 'URI', description: localize('resource', "The full value of the chat anchor resource, including scheme and path") });
-
+type ContentRefData =
+	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
+	| {
+		readonly kind?: undefined;
+		readonly uri: URI;
+		readonly range?: IRange;
+	};
 
 export class InlineAnchorWidget extends Disposable {
 
@@ -53,9 +60,11 @@ export class InlineAnchorWidget extends Disposable {
 
 	private readonly _chatResourceContext: IContextKey<string>;
 
+	readonly data: ContentRefData;
+
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
-		public readonly data: ContentRefData,
+		public readonly inlineReference: IChatContentInlineReference,
 		@IContextKeyService originalContextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IFileService fileService: IFileService,
@@ -70,6 +79,12 @@ export class InlineAnchorWidget extends Disposable {
 	) {
 		super();
 
+		this.data = 'uri' in inlineReference.inlineReference
+			? inlineReference.inlineReference
+			: 'name' in inlineReference.inlineReference
+				? { kind: 'symbol', symbol: inlineReference.inlineReference }
+				: { uri: inlineReference.inlineReference };
+
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 		this._chatResourceContext = chatResourceContextKey.bindTo(contextKeyService);
 
@@ -83,13 +98,13 @@ export class InlineAnchorWidget extends Disposable {
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
 		let contextMenuArg: URI | { readonly uri: URI; readonly range?: IRange };
-		if (data.kind === 'symbol') {
-			location = data.symbol.location;
+		if (this.data.kind === 'symbol') {
+			location = this.data.symbol.location;
 			contextMenuId = MenuId.ChatInlineSymbolAnchorContext;
 			contextMenuArg = location;
 
-			iconText = data.symbol.name;
-			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(data.symbol.kind))];
+			iconText = this.data.symbol.name;
+			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(this.data.symbol.kind))];
 
 			const model = modelService.getModel(location.uri);
 			if (model) {
@@ -120,7 +135,7 @@ export class InlineAnchorWidget extends Disposable {
 				});
 			}));
 		} else {
-			location = data;
+			location = this.data;
 			contextMenuId = MenuId.ChatInlineResourceAnchorContext;
 			contextMenuArg = location.uri;
 
@@ -129,7 +144,7 @@ export class InlineAnchorWidget extends Disposable {
 			this._chatResourceContext.set(location.uri.toString());
 
 			const label = labelService.getUriBasenameLabel(location.uri);
-			iconText = location.range && data.kind !== 'symbol' ?
+			iconText = location.range && this.data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				label;
 

@@ -86,8 +86,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(this._stickyLineCandidateProvider);
 
 		this._widgetState = StickyScrollWidgetState.Empty;
-		this._onDidResize();
-		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
@@ -119,6 +117,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
 		}));
+		this._onDidResize();
+		this._readConfiguration();
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {

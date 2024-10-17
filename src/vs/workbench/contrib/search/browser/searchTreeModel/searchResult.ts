@@ -13,10 +13,11 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
-import { AI_TEXT_SEARCH_RESULT_ID, arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, PLAIN_TEXT_SEARCH__RESULT_ID, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
+import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
-import { PlainTextSearchHeadingImpl, TextSearchHeadingImpl } from './textSearchHeading.js';
+import { PlainTextSearchHeadingImpl } from './textSearchHeading.js';
+import { AITextSearchHeadingImpl } from '../AISearch/aiSearchModel.js';
 
 export class SearchResultImpl extends Disposable implements ISearchResult {
 
@@ -37,8 +38,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
-		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(PlainTextSearchHeadingImpl, true, this, PLAIN_TEXT_SEARCH__RESULT_ID));
-		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(TextSearchHeadingImpl, true, this, AI_TEXT_SEARCH_RESULT_ID));
+		this._plainTextSearchResult = this._register(this.instantiationService.createInstance(PlainTextSearchHeadingImpl, this));
+		this._aiTextSearchResult = this._register(this.instantiationService.createInstance(AITextSearchHeadingImpl, this));
 
 		this._register(this._plainTextSearchResult.onChange((e) => this._onChange.fire(e)));
 		this._register(this._aiTextSearchResult.onChange((e) => this._onChange.fire(e)));
@@ -193,9 +194,9 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		this._aiTextSearchResult.hidden = false;
 
 		if (ai) {
-			this._aiTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
+			this._aiTextSearchResult.add(allRaw, searchInstanceID, silent);
 		} else {
-			this._plainTextSearchResult.add(allRaw, searchInstanceID, ai, silent);
+			this._plainTextSearchResult.add(allRaw, searchInstanceID, silent);
 		}
 	}
 

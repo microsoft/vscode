@@ -17,14 +17,13 @@ import { IReplaceService } from './../replace.js';
 import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions, resultIsMatch } from '../../../../services/search/common/search.js';
 
 import { FileMatchImpl } from './fileMatch.js';
-import { IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchNoRoot, ISearchTreeFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWorkspaceRoot, ITextSearchHeading, isSearchTreeFolderMatchNoRoot, FOLDER_MATCH_PREFIX } from './searchTreeCommon.js';
+import { IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchNoRoot, ISearchTreeFolderMatchWorkspaceRoot, ISearchModel, ISearchResult, isSearchTreeFolderMatchWorkspaceRoot, ITextSearchHeading, isSearchTreeFolderMatchNoRoot, FOLDER_MATCH_PREFIX, getFileMatches } from './searchTreeCommon.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { isINotebookFileMatchNoModel } from '../../common/searchNotebookHelpers.js';
 import { NotebookCompatibleFileMatch } from '../notebookSearch/notebookSearchModel.js';
 import { isINotebookFileMatchWithModel, getIDFromINotebookCellMatch } from '../notebookSearch/searchNotebookHelpers.js';
 import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 import { textSearchResultToMatches } from './match.js';
-
 
 export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatch {
 
@@ -35,10 +34,10 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	protected _fileMatches: ResourceMap<ISearchTreeFileMatch>;
-	protected _folderMatches: ResourceMap<ISearchTreeFolderMatchWithResource>;
-	protected _folderMatchesMap: TernarySearchTree<URI, ISearchTreeFolderMatchWithResource>;
+	protected _folderMatches: ResourceMap<FolderMatchWithResourceImpl>;
+	protected _folderMatchesMap: TernarySearchTree<URI, FolderMatchWithResourceImpl>;
 	protected _unDisposedFileMatches: ResourceMap<ISearchTreeFileMatch>;
-	protected _unDisposedFolderMatches: ResourceMap<ISearchTreeFolderMatchWithResource>;
+	protected _unDisposedFolderMatches: ResourceMap<FolderMatchWithResourceImpl>;
 	private _replacingAll: boolean = false;
 	private _name: Lazy<string>;
 	private readonly _id: string;
@@ -48,7 +47,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		_id: string,
 		protected _index: number,
 		protected _query: ITextQuery,
-		private _parent: ITextSearchHeading | ISearchTreeFolderMatch,
+		private _parent: ITextSearchHeading | FolderMatchImpl,
 		private _searchResult: ISearchResult,
 		private _closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
@@ -58,10 +57,10 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 	) {
 		super();
 		this._fileMatches = new ResourceMap<ISearchTreeFileMatch>();
-		this._folderMatches = new ResourceMap<ISearchTreeFolderMatchWithResource>();
-		this._folderMatchesMap = TernarySearchTree.forUris<ISearchTreeFolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+		this._folderMatches = new ResourceMap<FolderMatchWithResourceImpl>();
+		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResourceImpl>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 		this._unDisposedFileMatches = new ResourceMap<ISearchTreeFileMatch>();
-		this._unDisposedFolderMatches = new ResourceMap<ISearchTreeFolderMatchWithResource>();
+		this._unDisposedFolderMatches = new ResourceMap<FolderMatchWithResourceImpl>();
 		this._name = new Lazy(() => this.resource ? labelService.getUriBasenameLabel(this.resource) : '');
 		this._id = FOLDER_MATCH_PREFIX + _id;
 	}
@@ -98,8 +97,12 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		return this._name.value;
 	}
 
-	parent(): ITextSearchHeading | ISearchTreeFolderMatch {
+	parent(): ITextSearchHeading | FolderMatchImpl {
 		return this._parent;
+	}
+
+	isAIContributed(): boolean {
+		return false;
 	}
 
 	get hasChildren(): boolean {
@@ -118,14 +121,14 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		}
 	}
 
-	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: ISearchTreeFolderMatchWorkspaceRoot): ISearchTreeFolderMatchWithResource {
+	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: ISearchTreeFolderMatchWorkspaceRoot): FolderMatchWithResourceImpl {
 		const folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWithResourceImpl, resource, id, index, query, this, this._searchResult, baseWorkspaceFolder));
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
 		return folderMatch;
 	}
 
-	public configureIntermediateMatch(folderMatch: ISearchTreeFolderMatchWithResource) {
+	public configureIntermediateMatch(folderMatch: FolderMatchWithResourceImpl) {
 		const disposable = folderMatch.onChange((event) => this.onFolderChange(folderMatch, event));
 		this._register(folderMatch.onDispose(() => disposable.dispose()));
 	}
@@ -235,10 +238,10 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		return this.uriIdentityService.extUri.isEqualOrParent(child, parent) && !this.uriIdentityService.extUri.isEqual(child, parent);
 	}
 
-	private isInParentChain(folderMatch: ISearchTreeFolderMatchWithResource) {
+	private isInParentChain(folderMatch: FolderMatchWithResourceImpl) {
 
-		let matchItem: ISearchTreeFolderMatch | ITextSearchHeading = this;
-		while (isSearchTreeFolderMatch(matchItem)) {
+		let matchItem: FolderMatchImpl | ITextSearchHeading = this;
+		while (matchItem instanceof FolderMatchImpl) {
 			if (matchItem.id() === folderMatch.id()) {
 				return true;
 			}
@@ -247,12 +250,12 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		return false;
 	}
 
-	public getFolderMatch(resource: URI): ISearchTreeFolderMatchWithResource | undefined {
+	public getFolderMatch(resource: URI): FolderMatchWithResourceImpl | undefined {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
 		return folderMatch;
 	}
 
-	doAddFolder(folderMatch: ISearchTreeFolderMatchWithResource) {
+	doAddFolder(folderMatch: FolderMatchWithResourceImpl) {
 		if (this.resource && !this.uriHasParent(this.resource, folderMatch.resource)) {
 			throw Error(`${folderMatch.resource} does not belong as a child of ${this.resource}`);
 		} else if (this.isInParentChain(folderMatch)) {
@@ -289,7 +292,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		}
 	}
 
-	public onFolderChange(folderMatch: ISearchTreeFolderMatchWithResource, event: IChangeEvent): void {
+	public onFolderChange(folderMatch: FolderMatchWithResourceImpl, event: IChangeEvent): void {
 		if (!this._folderMatches.has(folderMatch.resource)) {
 			this.doAddFolder(folderMatch);
 		}
@@ -346,7 +349,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 		}
 	}
 
-	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void {
+	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void {
 		// when adding a fileMatch that has intermediate directories
 		const added: ISearchTreeFileMatch[] = [];
 		const updated: ISearchTreeFileMatch[] = [];
@@ -360,7 +363,7 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 						.results
 						.filter(resultIsMatch)
 						.forEach(m => {
-							textSearchResultToMatches(m, existingFileMatch, isAiContributed)
+							textSearchResultToMatches(m, existingFileMatch, false)
 								.forEach(m => existingFileMatch.add(m));
 						});
 				}
@@ -417,9 +420,9 @@ export class FolderMatchImpl extends Disposable implements ISearchTreeFolderMatc
 
 	disposeMatches(): void {
 		[...this._fileMatches.values()].forEach((fileMatch: ISearchTreeFileMatch) => fileMatch.dispose());
-		[...this._folderMatches.values()].forEach((folderMatch: ISearchTreeFolderMatch) => folderMatch.disposeMatches());
+		[...this._folderMatches.values()].forEach((folderMatch: FolderMatchImpl) => folderMatch.disposeMatches());
 		[...this._unDisposedFileMatches.values()].forEach((fileMatch: ISearchTreeFileMatch) => fileMatch.dispose());
-		[...this._unDisposedFolderMatches.values()].forEach((folderMatch: ISearchTreeFolderMatch) => folderMatch.disposeMatches());
+		[...this._unDisposedFolderMatches.values()].forEach((folderMatch: FolderMatchImpl) => folderMatch.disposeMatches());
 		this._fileMatches.clear();
 		this._folderMatches.clear();
 		this._unDisposedFileMatches.clear();
@@ -441,7 +444,7 @@ export class FolderMatchWithResourceImpl extends FolderMatchImpl implements ISea
 		_id: string,
 		_index: number,
 		_query: ITextQuery,
-		_parent: ITextSearchHeading | ISearchTreeFolderMatch,
+		_parent: ITextSearchHeading | FolderMatchImpl,
 		_searchResult: ISearchResult,
 		_closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
@@ -467,7 +470,7 @@ export class FolderMatchWithResourceImpl extends FolderMatchImpl implements ISea
  * FolderMatchWorkspaceRoot => folder for workspace root
  */
 export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl implements ISearchTreeFolderMatchWorkspaceRoot {
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: ITextSearchHeading, private readonly _ai: boolean,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: ITextSearchHeading,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -484,7 +487,7 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 		return this.uriIdentityService.extUri.isEqual(uri1, ur2);
 	}
 
-	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: ISearchTreeFolderMatch, rawFileMatch: IFileMatch, closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null, searchInstanceID: string): FileMatchImpl {
+	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatchImpl, rawFileMatch: IFileMatch, closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null, searchInstanceID: string): FileMatchImpl {
 		// TODO: can probably just create FileMatchImpl if we don't expect cell results from the file.
 		const fileMatch =
 			this.instantiationService.createInstance(
@@ -495,9 +498,9 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 				parent,
 				rawFileMatch,
 				closestRoot,
-				searchInstanceID
+				searchInstanceID,
 			);
-		fileMatch.createMatches(this._ai);
+		fileMatch.createMatches();
 		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
@@ -523,9 +526,9 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 		}
 
 		const root = this.closestRoot ?? this;
-		let parent: ISearchTreeFolderMatchWithResource = this;
+		let parent: FolderMatchWithResourceImpl = this;
 		for (let i = 0; i < fileMatchParentParts.length; i++) {
-			let folderMatch: ISearchTreeFolderMatchWithResource | undefined = parent.getFolderMatch(fileMatchParentParts[i]);
+			let folderMatch: FolderMatchWithResourceImpl | undefined = parent.getFolderMatch(fileMatchParentParts[i]);
 			if (!folderMatch) {
 				folderMatch = parent.createIntermediateFolderMatch(fileMatchParentParts[i], fileMatchParentParts[i].toString(), -1, this._query, root);
 			}
@@ -536,10 +539,7 @@ export class FolderMatchWorkspaceRootImpl extends FolderMatchWithResourceImpl im
 	}
 }
 
-/**
- * BaseFolderMatch => optional resource ("other files" node)
- * FolderMatch => required resource (normal folder node)
- */
+// currently, no support for AI results in out-of-workspace files
 export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTreeFolderMatchNoRoot {
 	constructor(_id: string, _index: number, _query: ITextQuery, _parent: ITextSearchHeading,
 		@IReplaceService replaceService: IReplaceService,
@@ -560,27 +560,12 @@ export class FolderMatchNoRootImpl extends FolderMatchImpl implements ISearchTre
 			this._query.maxResults,
 			this, rawFileMatch,
 			null,
-			searchInstanceID));
-		fileMatch.createMatches(false); // currently, no support for AI results in out-of-workspace files
+			searchInstanceID,
+		));
+		fileMatch.createMatches();
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
-}
-
-
-function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {
-
-	const folderMatches: ISearchTreeFolderMatchWithResource[] = [];
-	const fileMatches: ISearchTreeFileMatch[] = [];
-	matches.forEach((e) => {
-		if (isSearchTreeFileMatch(e)) {
-			fileMatches.push(e);
-		} else {
-			folderMatches.push(e);
-		}
-	});
-
-	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }
