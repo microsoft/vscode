@@ -146,6 +146,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool with the given parameters.
 		 */
+		// TODO@API name
 		export function invokeTool(id: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 

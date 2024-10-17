@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { homedir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { homedir } from 'os';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
 import * as fileSchemes from './configuration/fileSchemes';
 import { Schemes } from './configuration/schemes';
@@ -21,7 +21,7 @@ import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { NodeVersionManager } from './tsServer/nodeManager';
 import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
-import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
+import { PluginManager } from './tsServer/plugins';
 import * as Proto from './tsServer/protocol/protocol';
 import { EventName } from './tsServer/protocol/protocol.const';
 import { ITypeScriptServer, TsServerLog, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
@@ -640,7 +640,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.resetWatchers();
 		this.loadingIndicator.reset();
 
-		const previousState = this.serverState;
 		this.serverState = ServerState.None;
 
 		if (restart) {
@@ -749,10 +748,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 									minModernTsVersion.displayName),
 							});
 					} else {
-						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-							? getReportIssueArgsForError(previousState.error, previousState.tsServerLog, this.pluginManager.plugins)
-							: undefined;
-						vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
+						vscode.env.openExternal(vscode.Uri.parse('https://github.com/microsoft/vscode/wiki/TypeScript-Issues'));
 					}
 				}
 			});
@@ -1242,77 +1238,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private configurePlugin(pluginName: string, configuration: {}): any {
 		this.executeWithoutWaitingForResponse('configurePlugin', { pluginName, configuration });
 	}
-}
-
-function getReportIssueArgsForError(
-	error: TypeScriptServerError,
-	tsServerLog: TsServerLog | undefined,
-	globalPlugins: readonly TypeScriptServerPlugin[],
-): { extensionId: string; issueTitle: string; issueBody: string; issueSource: string; issueData: string } | undefined {
-	if (!error.serverStack || !error.serverMessage) {
-		return undefined;
-	}
-
-	// Note these strings are intentionally not localized
-	// as we want users to file issues in english
-
-	const sections = [
-		`❗️❗️❗️ Please fill in the sections below to help us diagnose the issue ❗️❗️❗️`,
-		`**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}`,
-		`**Steps to reproduce crash**
-
-1.
-2.
-3.`,
-	];
-
-	if (globalPlugins.length) {
-		sections.push(
-			[
-				`**Global TypeScript Server Plugins**`,
-				`❗️ Please test with extensions disabled. Extensions are the root cause of most TypeScript server crashes`,
-				globalPlugins.map(plugin => `- \`${plugin.name}\` contributed by the \`${plugin.extension.id}\` extension`).join('\n')
-			].join('\n\n')
-		);
-	}
-
-	if (tsServerLog?.type === 'file') {
-		sections.push(`**TS Server Log**
-
-❗️ Please review and upload this log file to help us diagnose this crash:
-
-\`${tsServerLog.uri.fsPath}\`
-
-The log file may contain personal data, including full paths and source code from your workspace. You can scrub the log file to remove paths or other personal information.
-`);
-	} else {
-
-		sections.push(`**TS Server Log**
-
-❗️ Server logging disabled. To help us fix crashes like this, please enable logging by setting:
-
-\`\`\`json
-"typescript.tsserver.log": "verbose"
-\`\`\`
-
-After enabling this setting, future crash reports will include the server log.`);
-	}
-
-	const serverErrorStack = `**TS Server Error Stack**
-
-Server: \`${error.serverId}\`
-
-\`\`\`
-${error.serverStack}
-\`\`\``;
-
-	return {
-		extensionId: 'vscode.typescript-language-features',
-		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
-		issueSource: 'vscode',
-		issueBody: sections.join('\n\n'),
-		issueData: serverErrorStack,
-	};
 }
 
 function getDiagnosticsKind(event: Proto.Event) {

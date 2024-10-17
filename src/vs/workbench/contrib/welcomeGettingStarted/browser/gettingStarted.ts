@@ -1603,10 +1603,14 @@ export class GettingStartedInputSerializer implements IEditorSerializer {
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): GettingStartedInput {
-		try {
-			const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
-			return new GettingStartedInput({ selectedCategory, selectedStep });
-		} catch { }
-		return new GettingStartedInput({});
+
+		return instantiationService.invokeFunction(accessor => {
+			try {
+				const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
+				return new GettingStartedInput({ selectedCategory, selectedStep }, accessor.get(IWalkthroughsService));
+			} catch { }
+			return new GettingStartedInput({}, accessor.get(IWalkthroughsService));
+
+		});
 	}
 }

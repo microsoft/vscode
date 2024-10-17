@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { historyNavigationVisible } from '../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AbstractInlineChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { CTX_INLINE_CHAT_EMPTY } from '../../../inlineChat/common/inlineChat.js';
@@ -272,7 +273,7 @@ registerActiveXtermAction({
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate(), historyNavigationVisible.isEqualTo(false)),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.Enter
 	},
@@ -317,7 +318,7 @@ registerActiveXtermAction({
 	title: localize2('previousFromHitory', 'Previous From History'),
 	precondition: TerminalChatContextKeys.focused,
 	keybinding: {
-		when: TerminalChatContextKeys.focused,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, historyNavigationVisible.isEqualTo(false)),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.UpArrow,
 	},
@@ -336,7 +337,7 @@ registerActiveXtermAction({
 	title: localize2('nextFromHitory', 'Next From History'),
 	precondition: TerminalChatContextKeys.focused,
 	keybinding: {
-		when: TerminalChatContextKeys.focused,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, historyNavigationVisible.isEqualTo(false)),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.DownArrow,
 	},
