@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 9
+// version: 10
 // https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
@@ -37,7 +37,10 @@ declare module 'vscode' {
 
 		/**
 		 * The language model must call one of the provided tools. An extension can force a particular tool to be used by using the
-		 * Required mode and only providing that one tool
+		 * Required mode and only providing that one tool.
+		 * TODO@API 'required' is not supported by CAPI
+		 * The LM provider can throw if more than one tool is provided. But this mode is supported by different models and it makes sense
+		 * to represent it in the API. We can note the limitation here.
 		 */
 		Required = 2
 	}
