@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
-import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { IViewsService } from 'vs/workbench/common/views';
-import { isNumber } from 'vs/base/common/types';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from '../../services/output/common/output.js';
+import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { UriComponents, URI } from '../../../base/common/uri.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
+import { isNumber } from '../../../base/common/types.js';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
@@ -25,7 +25,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 	constructor(
 		extHostContext: IExtHostContext,
 		@IOutputService outputService: IOutputService,
-		@IViewsService viewsService: IViewsService
+		@IViewsService viewsService: IViewsService,
 	) {
 		super();
 		this._outputService = outputService;
@@ -41,12 +41,13 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public async $register(label: string, log: boolean, file: UriComponents, languageId: string, extensionId: string): Promise<string> {
+	public async $register(label: string, file: UriComponents, languageId: string | undefined, extensionId: string): Promise<string> {
 		const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
 		MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
 		const id = `extension-output-${extensionId}-#${idCounter}-${label}`;
+		const resource = URI.revive(file);
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log, languageId });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: resource, log: false, languageId, extensionId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}

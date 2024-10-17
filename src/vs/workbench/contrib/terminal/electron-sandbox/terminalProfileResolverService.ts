@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
-import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ITerminalInstanceService } from '../browser/terminal.js';
+import { BaseTerminalProfileResolverService } from '../browser/terminalProfileResolverService.js';
+import { ITerminalProfileService } from '../common/terminal.js';
+import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 export class ElectronTerminalProfileResolverService extends BaseTerminalProfileResolverService {
 
@@ -21,27 +20,25 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHistoryService historyService: IHistoryService,
-		@ILogService logService: ILogService,
+		@ITerminalLogService logService: ITerminalLogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
 		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
 		super(
 			{
 				getDefaultSystemShell: async (remoteAuthority, platform) => {
-					const backend = terminalInstanceService.getBackend(remoteAuthority);
+					const backend = await terminalInstanceService.getBackend(remoteAuthority);
 					if (!backend) {
-						throw new Error(`Cannot get default system shell when there is no backend for remote authority '${remoteAuthority}'`);
+						throw new ErrorNoTelemetry(`Cannot get default system shell when there is no backend for remote authority '${remoteAuthority}'`);
 					}
 					return backend.getDefaultSystemShell(platform);
 				},
-				getEnvironment: (remoteAuthority) => {
-					const backend = terminalInstanceService.getBackend(remoteAuthority);
+				getEnvironment: async (remoteAuthority) => {
+					const backend = await terminalInstanceService.getBackend(remoteAuthority);
 					if (!backend) {
-						throw new Error(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
+						throw new ErrorNoTelemetry(`Cannot get environment when there is no backend for remote authority '${remoteAuthority}'`);
 					}
 					return backend.getEnvironment();
 				}
@@ -52,9 +49,7 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 			logService,
 			terminalProfileService,
 			workspaceContextService,
-			remoteAgentService,
-			storageService,
-			notificationService
+			remoteAgentService
 		);
 	}
 }

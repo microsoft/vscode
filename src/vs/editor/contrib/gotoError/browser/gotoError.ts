@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoError/browser/markerNavigationService';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IMarker } from 'vs/platform/markers/common/markers';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { MarkerNavigationWidget } from './gotoErrorWidget';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IMarkerNavigationService, MarkerList } from './markerNavigationService.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { TextEditorSelectionRevealType } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IMarker } from '../../../../platform/markers/common/markers.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { MarkerNavigationWidget } from './gotoErrorWidget.js';
 
 export class MarkerController implements IEditorContribution {
 
@@ -99,7 +99,7 @@ export class MarkerController implements IEditorContribution {
 			if (!this._widget || !this._widget.position || !this._model) {
 				return;
 			}
-			const info = this._model.find(this._editor.getModel()!.uri, this._widget!.position!);
+			const info = this._model.find(this._editor.getModel()!.uri, this._widget.position);
 			if (info) {
 				this._widget.updateMarker(info.marker);
 			} else {
@@ -277,7 +277,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	}
 }
 
-registerEditorContribution(MarkerController.ID, MarkerController);
+registerEditorContribution(MarkerController.ID, MarkerController, EditorContributionInstantiation.Lazy);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
 registerEditorAction(NextMarkerInFilesAction);

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import * as dom from '../../../../base/browser/dom.js';
+import * as cssJs from '../../../../base/browser/cssValue.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 export interface WebviewIcons {
 	readonly light: URI;
 	readonly dark: URI;
 }
 
-export class WebviewIconManager implements IDisposable {
+export class WebviewIconManager extends Disposable {
 
 	private readonly _icons = new Map<string, WebviewIcons>();
 
@@ -24,21 +25,21 @@ export class WebviewIconManager implements IDisposable {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
-		this._configService.onDidChangeConfiguration(e => {
+		super();
+		this._register(this._configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.iconTheme')) {
 				this.updateStyleSheet();
 			}
-		});
+		}));
 	}
-
-	dispose() {
-		this._styleElement?.remove();
+	override dispose() {
+		super.dispose();
 		this._styleElement = undefined;
 	}
 
 	private get styleElement(): HTMLStyleElement {
 		if (!this._styleElement) {
-			this._styleElement = dom.createStyleSheet();
+			this._styleElement = dom.createStyleSheet(undefined, undefined, this._store);
 			this._styleElement.className = 'webview-icons';
 		}
 		return this._styleElement;
@@ -66,8 +67,8 @@ export class WebviewIconManager implements IDisposable {
 				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 				try {
 					cssRules.push(
-						`.monaco-workbench.vs ${webviewSelector}, .monaco-workbench.hc-light ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
-						`.monaco-workbench.vs-dark ${webviewSelector}, .monaco-workbench.hc-black ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
+						`.monaco-workbench.vs ${webviewSelector}, .monaco-workbench.hc-light ${webviewSelector} { content: ""; background-image: ${cssJs.asCSSUrl(value.light)}; }`,
+						`.monaco-workbench.vs-dark ${webviewSelector}, .monaco-workbench.hc-black ${webviewSelector} { content: ""; background-image: ${cssJs.asCSSUrl(value.dark)}; }`
 					);
 				} catch {
 					// noop

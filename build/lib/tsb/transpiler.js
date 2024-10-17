@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Transpiler = void 0;
+exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
+const esbuild = require("esbuild");
 const ts = require("typescript");
 const threads = require("node:worker_threads");
 const Vinyl = require("vinyl");
@@ -36,11 +37,43 @@ if (!threads.isMainThread) {
         threads.parentPort.postMessage(res);
     });
 }
+class OutputFileNameOracle {
+    getOutputFileName;
+    constructor(cmdLine, configFilePath) {
+        this.getOutputFileName = (file) => {
+            try {
+                // windows: path-sep normalizing
+                file = ts.normalizePath(file);
+                if (!cmdLine.options.configFilePath) {
+                    // this is needed for the INTERNAL getOutputFileNames-call below...
+                    cmdLine.options.configFilePath = configFilePath;
+                }
+                const isDts = file.endsWith('.d.ts');
+                if (isDts) {
+                    file = file.slice(0, -5) + '.ts';
+                    cmdLine.fileNames.push(file);
+                }
+                const outfile = ts.getOutputFileNames(cmdLine, file, true)[0];
+                if (isDts) {
+                    cmdLine.fileNames.pop();
+                }
+                return outfile;
+            }
+            catch (err) {
+                console.error(file, cmdLine.fileNames);
+                console.error(err);
+                throw err;
+            }
+        };
+    }
+}
 class TranspileWorker {
+    static pool = 1;
+    id = TranspileWorker.pool++;
+    _worker = new threads.Worker(__filename);
+    _pending;
+    _durations = [];
     constructor(outFileFn) {
-        this.id = TranspileWorker.pool++;
-        this._worker = new threads.Worker(__filename);
-        this._durations = [];
         this._worker.addListener('message', (res) => {
             if (!this._pending) {
                 console.error('RECEIVING data WITHOUT request');
@@ -111,40 +144,20 @@ class TranspileWorker {
         });
     }
 }
-TranspileWorker.pool = 1;
-class Transpiler {
+class TscTranspiler {
+    _onError;
+    _cmdLine;
+    static P = Math.floor((0, node_os_1.cpus)().length * .5);
+    _outputFileNames;
+    onOutfile;
+    _workerPool = [];
+    _queue = [];
+    _allJobs = [];
     constructor(logFn, _onError, configFilePath, _cmdLine) {
         this._onError = _onError;
         this._cmdLine = _cmdLine;
-        this._workerPool = [];
-        this._queue = [];
-        this._allJobs = [];
-        logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
-        this._getOutputFileName = (file) => {
-            try {
-                // windows: path-sep normalizing
-                file = ts.normalizePath(file);
-                if (!_cmdLine.options.configFilePath) {
-                    // this is needed for the INTERNAL getOutputFileNames-call below...
-                    _cmdLine.options.configFilePath = configFilePath;
-                }
-                const isDts = file.endsWith('.d.ts');
-                if (isDts) {
-                    file = file.slice(0, -5) + '.ts';
-                    _cmdLine.fileNames.push(file);
-                }
-                const outfile = ts.getOutputFileNames(_cmdLine, file, true)[0];
-                if (isDts) {
-                    _cmdLine.fileNames.pop();
-                }
-                return outfile;
-            }
-            catch (err) {
-                console.error(file, _cmdLine.fileNames);
-                console.error(err);
-                throw new err;
-            }
-        };
+        logFn('Transpile', `will use ${TscTranspiler.P} transpile worker`);
+        this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
     }
     async join() {
         // wait for all penindg jobs
@@ -161,7 +174,7 @@ class Transpiler {
             return;
         }
         const newLen = this._queue.push(file);
-        if (newLen > Transpiler.P ** 2) {
+        if (newLen > TscTranspiler.P ** 2) {
             this._consumeQueue();
         }
     }
@@ -172,8 +185,8 @@ class Transpiler {
         }
         // kinda LAZYily create workers
         if (this._workerPool.length === 0) {
-            for (let i = 0; i < Transpiler.P; i++) {
-                this._workerPool.push(new TranspileWorker(file => this._getOutputFileName(file)));
+            for (let i = 0; i < TscTranspiler.P; i++) {
+                this._workerPool.push(new TranspileWorker(file => this._outputFileNames.getOutputFileName(file)));
             }
         }
         const freeWorker = this._workerPool.filter(w => !w.isBusy);
@@ -187,7 +200,7 @@ class Transpiler {
             }
             const job = new Promise(resolve => {
                 const consume = () => {
-                    const files = this._queue.splice(0, Transpiler.P);
+                    const files = this._queue.splice(0, TscTranspiler.P);
                     if (files.length === 0) {
                         // DONE
                         resolve(undefined);
@@ -210,11 +223,81 @@ class Transpiler {
         }
     }
 }
-exports.Transpiler = Transpiler;
-Transpiler.P = Math.floor((0, node_os_1.cpus)().length * .5);
+exports.TscTranspiler = TscTranspiler;
+class ESBuildTranspiler {
+    _logFn;
+    _onError;
+    _cmdLine;
+    _outputFileNames;
+    _jobs = [];
+    onOutfile;
+    _transformOpts;
+    constructor(_logFn, _onError, configFilePath, _cmdLine) {
+        this._logFn = _logFn;
+        this._onError = _onError;
+        this._cmdLine = _cmdLine;
+        _logFn('Transpile', `will use ESBuild to transpile source files`);
+        this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+        const isExtension = configFilePath.includes('extensions');
+        this._transformOpts = {
+            target: ['es2022'],
+            format: isExtension ? 'cjs' : 'esm',
+            platform: isExtension ? 'node' : undefined,
+            loader: 'ts',
+            sourcemap: 'inline',
+            tsconfigRaw: JSON.stringify({
+                compilerOptions: {
+                    ...this._cmdLine.options,
+                    ...{
+                        module: isExtension ? ts.ModuleKind.CommonJS : undefined
+                    }
+                }
+            }),
+            supported: {
+                'class-static-blocks': false, // SEE https://github.com/evanw/esbuild/issues/3823,
+                'dynamic-import': !isExtension, // see https://github.com/evanw/esbuild/issues/1281
+                'class-field': !isExtension
+            }
+        };
+    }
+    async join() {
+        const jobs = this._jobs.slice();
+        this._jobs.length = 0;
+        await Promise.allSettled(jobs);
+    }
+    transpile(file) {
+        if (!(file.contents instanceof Buffer)) {
+            throw Error('file.contents must be a Buffer');
+        }
+        const t1 = Date.now();
+        this._jobs.push(esbuild.transform(file.contents, {
+            ...this._transformOpts,
+            sourcefile: file.path,
+        }).then(result => {
+            // check if output of a DTS-files isn't just "empty" and iff so
+            // skip this file
+            if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
+                return;
+            }
+            const outBase = this._cmdLine.options.outDir ?? file.base;
+            const outPath = this._outputFileNames.getOutputFileName(file.path);
+            this.onOutfile(new Vinyl({
+                path: outPath,
+                base: outBase,
+                contents: Buffer.from(result.code),
+            }));
+            this._logFn('Transpile', `esbuild took ${Date.now() - t1}ms for ${file.path}`);
+        }).catch(err => {
+            this._onError(err);
+        }));
+    }
+}
+exports.ESBuildTranspiler = ESBuildTranspiler;
 function _isDefaultEmpty(src) {
     return src
         .replace('"use strict";', '')
+        .replace(/\/\/# sourceMappingURL.*^/, '')
         .replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
         .trim().length === 0;
 }
+//# sourceMappingURL=transpiler.js.map

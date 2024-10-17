@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import type { IThemable } from 'vs/base/common/styler';
-import * as nls from 'vs/nls';
-import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { attachToggleStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import * as dom from '../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
+import { HistoryInputBox, IInputBoxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event as CommonEvent } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import * as nls from '../../../../nls.js';
+import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 export interface IOptions {
 	placeholder?: string;
@@ -29,9 +28,10 @@ export interface IOptions {
 	width?: number;
 	ariaLabel?: string;
 	history?: string[];
+	inputBoxStyles: IInputBoxStyles;
 }
 
-export class PatternInputWidget extends Widget implements IThemable {
+export class PatternInputWidget extends Widget {
 
 	static OPTION_CHANGE: string = 'optionChange';
 
@@ -48,8 +48,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 	private _onCancel = this._register(new Emitter<void>());
 	onCancel: CommonEvent<void> = this._onCancel.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService protected themeService: IThemeService,
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -75,7 +74,6 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 	setWidth(newWidth: number): void {
 		this.width = newWidth;
-		this.domNode.style.width = this.width + 'px';
 		this.contextViewProvider.layout();
 		this.setInputWidth();
 	}
@@ -119,6 +117,10 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.inputBox.clearHistory();
 	}
 
+	prependHistory(history: string[]): void {
+		this.inputBox.prependHistory(history);
+	}
+
 	clear(): void {
 		this.setValue('');
 	}
@@ -135,13 +137,8 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.inputBox.showPreviousValue();
 	}
 
-	style(styles: IInputBoxStyles): void {
-		this.inputBox.style(styles);
-	}
-
 	private render(options: IOptions): void {
 		this.domNode = document.createElement('div');
-		this.domNode.style.width = this.width + 'px';
 		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
@@ -153,9 +150,9 @@ export class PatternInputWidget extends Widget implements IThemable {
 				validation: undefined
 			},
 			history: options.history || [],
-			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
+			inputBoxStyles: options.inputBoxStyles
 		}, this.contextKeyService);
-		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this._register(this.inputBox.onDidChange(() => this._onSubmit.fire(true)));
 
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
@@ -190,13 +187,12 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 	private _onChangeSearchInEditorsBoxEmitter = this._register(new Emitter<void>());
 	onChangeSearchInEditorsBox = this._onChangeSearchInEditorsBoxEmitter.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService themeService: IThemeService,
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
+		super(parent, contextViewProvider, options, contextKeyService, configurationService, keybindingService);
 	}
 
 	private useSearchInEditorsBox!: Toggle;
@@ -224,6 +220,8 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
+			hoverDelegate: getDefaultHoverDelegate('element'),
+			...defaultToggleStyles
 		}));
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
 			this._onChangeSearchInEditorsBoxEmitter.fire();
@@ -231,7 +229,6 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 				this.inputBox.focus();
 			}
 		}));
-		this._register(attachToggleStyler(this.useSearchInEditorsBox, this.themeService));
 		controlsDiv.appendChild(this.useSearchInEditorsBox.domNode);
 		super.renderSubcontrols(controlsDiv);
 	}
@@ -242,13 +239,12 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 	private _onChangeIgnoreBoxEmitter = this._register(new Emitter<void>());
 	onChangeIgnoreBox = this._onChangeIgnoreBoxEmitter.event;
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService themeService: IThemeService,
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(parent, contextViewProvider, options, themeService, contextKeyService, configurationService, keybindingService);
+		super(parent, contextViewProvider, options, contextKeyService, configurationService, keybindingService);
 	}
 
 	private useExcludesAndIgnoreFilesBox!: Toggle;
@@ -277,6 +273,8 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
+			hoverDelegate: getDefaultHoverDelegate('element'),
+			...defaultToggleStyles
 		}));
 		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
 			this._onChangeIgnoreBoxEmitter.fire();
@@ -284,7 +282,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 				this.inputBox.focus();
 			}
 		}));
-		this._register(attachToggleStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
 
 		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);
 		super.renderSubcontrols(controlsDiv);

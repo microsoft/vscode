@@ -3,46 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
-import { Delayer } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as languages from 'vs/editor/common/languages';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
-import { settingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { EditPreferenceWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { isEqual } from 'vs/base/common/resources';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { EventHelper, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
+import { Delayer } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ICursorPositionChangedEvent } from '../../../../editor/common/cursorEvents.js';
+import * as editorCommon from '../../../../editor/common/editorCommon.js';
+import * as languages from '../../../../editor/common/languages.js';
+import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX, overrideIdentifiersFromKey } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IMarkerData, IMarkerService, MarkerSeverity, MarkerTag } from '../../../../platform/markers/common/markers.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { RangeHighlightDecorations } from '../../../browser/codeeditor.js';
+import { settingsEditIcon } from './preferencesIcons.js';
+import { EditPreferenceWidget } from './preferencesWidgets.js';
+import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
+import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../../../services/preferences/common/preferencesModels.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { EXPERIMENTAL_INDICATOR_DESCRIPTION, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -353,11 +356,10 @@ class EditSettingRenderer extends Disposable {
 	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<IIndexedSetting>, e: IEditorMouseEvent): void {
 		EventHelper.stop(e.event, true);
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new SubmenuAction(`preferences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => e.event,
 			getActions: () => actions
 		});
 	}
@@ -394,25 +396,31 @@ class EditSettingRenderer extends Disposable {
 
 	private getActions(setting: IIndexedSetting, jsonSchema: IJSONSchema): IAction[] {
 		if (jsonSchema.type === 'boolean') {
-			return [<IAction>{
+			return [{
 				id: 'truthyValue',
 				label: 'true',
+				tooltip: 'true',
 				enabled: true,
-				run: () => this.updateSetting(setting.key, true, setting)
-			}, <IAction>{
+				run: () => this.updateSetting(setting.key, true, setting),
+				class: undefined
+			}, {
 				id: 'falsyValue',
 				label: 'false',
+				tooltip: 'false',
 				enabled: true,
-				run: () => this.updateSetting(setting.key, false, setting)
+				run: () => this.updateSetting(setting.key, false, setting),
+				class: undefined
 			}];
 		}
 		if (jsonSchema.enum) {
 			return jsonSchema.enum.map(value => {
-				return <IAction>{
+				return {
 					id: value,
 					label: JSON.stringify(value),
+					tooltip: JSON.stringify(value),
 					enabled: true,
-					run: () => this.updateSetting(setting.key, value, setting)
+					run: () => this.updateSetting(setting.key, value, setting),
+					class: undefined
 				};
 			});
 		}
@@ -422,11 +430,13 @@ class EditSettingRenderer extends Disposable {
 	private getDefaultActions(setting: IIndexedSetting): IAction[] {
 		if (this.isDefaultSettings()) {
 			const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
-			return [<IAction>{
+			return [{
 				id: 'setDefaultValue',
 				label: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
+				tooltip: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
 				enabled: true,
-				run: () => this.updateSetting(setting.key, setting.value, setting)
+				run: () => this.updateSetting(setting.key, setting.value, setting),
+				class: undefined
 			}];
 		}
 		return [];
@@ -480,7 +490,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		private readonly settingsEditorModel: SettingsEditorModel,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
@@ -491,6 +501,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
 		this._register(languageFeaturesService.codeActionProvider.register({ pattern: settingsEditorModel.uri.path }, this));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(() => this.delayedRender()));
 	}
 
 	private delayedRender(): void {
@@ -529,8 +540,15 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
 			for (const section of settingsGroup.sections) {
 				for (const setting of section.settings) {
+					if (OVERRIDE_PROPERTY_REGEX.test(setting.key)) {
+						if (setting.overrides) {
+							this.handleOverrides(setting.overrides, configurationRegistry, markerData);
+						}
+						continue;
+					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
+						this.handleUnstableSettingConfiguration(setting, configuration, markerData);
 						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
 							continue;
 						}
@@ -548,13 +566,8 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								this.handleWorkspaceFolderConfiguration(setting, configuration, markerData);
 								break;
 						}
-					} else if (!OVERRIDE_PROPERTY_REGEX.test(setting.key)) { // Ignore override settings (language specific settings)
-						markerData.push({
-							severity: MarkerSeverity.Hint,
-							tags: [MarkerTag.Unnecessary],
-							...setting.range,
-							message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
-						});
+					} else {
+						markerData.push(this.generateUnknownConfigurationMarker(setting));
 					}
 				}
 			}
@@ -581,21 +594,47 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		return true;
 	}
 
+	private handleOverrides(overrides: ISetting[], configurationRegistry: IStringDictionary<IRegisteredConfigurationPropertySchema>, markerData: IMarkerData[]): void {
+		for (const setting of overrides || []) {
+			const configuration = configurationRegistry[setting.key];
+			if (configuration) {
+				if (configuration.scope !== ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+					markerData.push({
+						severity: MarkerSeverity.Hint,
+						tags: [MarkerTag.Unnecessary],
+						...setting.range,
+						message: nls.localize('unsupportLanguageOverrideSetting', "This setting cannot be applied because it is not registered as language override setting.")
+					});
+				}
+			} else {
+				markerData.push(this.generateUnknownConfigurationMarker(setting));
+			}
+		}
+	}
+
 	private handleLocalUserConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
-		if (!this.userDataProfileService.currentProfile.isDefault) {
-			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope !== ConfigurationScope.APPLICATION) {
-				// If we're in the default profile setting file, and the setting is not
-				// application-scoped, fade it out.
+		if (!this.userDataProfileService.currentProfile.isDefault && !this.userDataProfileService.currentProfile.useDefaultFlags?.settings) {
+			if (isEqual(this.userDataProfilesService.defaultProfile.settingsResource, this.settingsEditorModel.uri) && !this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
+				// If we're in the default profile setting file, and the setting cannot be applied in all profiles
 				markerData.push({
 					severity: MarkerSeverity.Hint,
 					tags: [MarkerTag.Unnecessary],
 					...setting.range,
 					message: nls.localize('defaultProfileSettingWhileNonDefaultActive', "This setting cannot be applied while a non-default profile is active. It will be applied when the default profile is active.")
 				});
-			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri) && configuration.scope === ConfigurationScope.APPLICATION) {
-				// If we're in a profile setting file, and the setting is
-				// application-scoped, fade it out.
-				markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+			} else if (isEqual(this.userDataProfileService.currentProfile.settingsResource, this.settingsEditorModel.uri)) {
+				if (configuration.scope === ConfigurationScope.APPLICATION) {
+					// If we're in a profile setting file, and the setting is application-scoped, fade it out.
+					markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+				} else if (this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
+					// If we're in the non-default profile setting file, and the setting can be applied in all profiles, fade it out.
+					markerData.push({
+						severity: MarkerSeverity.Hint,
+						tags: [MarkerTag.Unnecessary],
+						...setting.range,
+						message: nls.localize('allProfileSettingWhileInNonDefaultProfileSetting', "This setting cannot be applied because it is configured to be applied in all profiles using setting {0}. Value from the default profile will be used instead.", APPLY_ALL_PROFILES_SETTING)
+					});
+				}
 			}
 		}
 		if (this.environmentService.remoteAuthority && (configuration.scope === ConfigurationScope.MACHINE || configuration.scope === ConfigurationScope.MACHINE_OVERRIDABLE)) {
@@ -657,6 +696,14 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		}
 	}
 
+	private handleUnstableSettingConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (configuration.tags?.includes('preview')) {
+			markerData.push(this.generatePreviewSettingMarker(setting));
+		} else if (configuration.tags?.includes('experimental')) {
+			markerData.push(this.generateExperimentalSettingMarker(setting));
+		}
+	}
+
 	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {
 		return {
 			severity: MarkerSeverity.Hint,
@@ -683,6 +730,15 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		};
 	}
 
+	private generateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			tags: [MarkerTag.Unnecessary],
+			...setting.range,
+			message: nls.localize('unknown configuration setting', "Unknown Configuration Setting")
+		};
+	}
+
 	private generateUntrustedSettingCodeActions(diagnostics: IMarkerData[]): languages.CodeAction[] {
 		return [{
 			title: nls.localize('manage workspace trust', "Manage Workspace Trust"),
@@ -693,6 +749,22 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			diagnostics,
 			kind: CodeActionKind.QuickFix.value
 		}];
+	}
+
+	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Info,
+			...setting.range,
+			message: PREVIEW_INDICATOR_DESCRIPTION
+		};
+	}
+
+	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Info,
+			...setting.range,
+			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
+		};
 	}
 
 	private addCodeActions(range: IRange, codeActions: languages.CodeAction[]): void {

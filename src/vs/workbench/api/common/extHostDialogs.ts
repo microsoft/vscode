@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { URI } from 'vs/base/common/uri';
-import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { URI } from '../../../base/common/uri.js';
+import { MainContext, MainThreadDiaglogsShape, IMainContext } from './extHost.protocol.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class ExtHostDialogs {
 
@@ -15,7 +17,10 @@ export class ExtHostDialogs {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDialogs);
 	}
 
-	showOpenDialog(options?: vscode.OpenDialogOptions): Promise<URI[] | undefined> {
+	showOpenDialog(extension: IExtensionDescription, options?: vscode.OpenDialogOptions): Promise<URI[] | undefined> {
+		if (options?.allowUIResources) {
+			checkProposedApiEnabled(extension, 'showLocal');
+		}
 		return this._proxy.$showOpenDialog(options).then(filepaths => {
 			return filepaths ? filepaths.map(p => URI.revive(p)) : undefined;
 		});

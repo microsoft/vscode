@@ -3,28 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./bracketMatching';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/core/editorColorRegistry';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import './bracketMatching.css';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 
-const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hcDark: '#A0A0A0', hcLight: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
+const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', '#A0A0A0', nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
 class JumpToBracketAction extends EditorAction {
 	constructor() {
@@ -53,8 +52,8 @@ class SelectToBracketAction extends EditorAction {
 			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
 			alias: 'Select to Bracket',
 			precondition: undefined,
-			description: {
-				description: `Select to Bracket`,
+			metadata: {
+				description: nls.localize2('smartSelect.selectToBracketDescription', "Select the text inside and including the brackets or curly braces"),
 				args: [{
 					name: 'args',
 					schema: {
@@ -77,6 +76,25 @@ class SelectToBracketAction extends EditorAction {
 			selectBrackets = false;
 		}
 		BracketMatchingController.get(editor)?.selectToBracket(selectBrackets);
+	}
+}
+class RemoveBracketsAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.removeBrackets',
+			label: nls.localize('smartSelect.removeBrackets', "Remove Brackets"),
+			alias: 'Remove Brackets',
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		BracketMatchingController.get(editor)?.removeBrackets(this.id);
 	}
 }
 
@@ -252,6 +270,32 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			this._editor.revealRange(newSelections[0]);
 		}
 	}
+	public removeBrackets(editSource?: string): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const model = this._editor.getModel();
+		this._editor.getSelections().forEach((selection) => {
+			const position = selection.getPosition();
+
+			let brackets = model.bracketPairs.matchBracket(position);
+			if (!brackets) {
+				brackets = model.bracketPairs.findEnclosingBrackets(position);
+			}
+			if (brackets) {
+				this._editor.pushUndoStop();
+				this._editor.executeEdits(
+					editSource,
+					[
+						{ range: brackets[0], text: '' },
+						{ range: brackets[1], text: '' }
+					]
+				);
+				this._editor.pushUndoStop();
+			}
+		});
+	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
 		description: 'bracket-match-overview',
@@ -357,19 +401,10 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 }
 
-registerEditorContribution(BracketMatchingController.ID, BracketMatchingController);
+registerEditorContribution(BracketMatchingController.ID, BracketMatchingController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorAction(SelectToBracketAction);
 registerEditorAction(JumpToBracketAction);
-registerThemingParticipant((theme, collector) => {
-	const bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
-	if (bracketMatchBackground) {
-		collector.addRule(`.monaco-editor .bracket-match { background-color: ${bracketMatchBackground}; }`);
-	}
-	const bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
-	if (bracketMatchBorder) {
-		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
-	}
-});
+registerEditorAction(RemoveBracketsAction);
 
 // Go to menu
 MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {

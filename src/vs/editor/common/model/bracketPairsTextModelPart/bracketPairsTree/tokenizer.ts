@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { NotSupportedError } from 'vs/base/common/errors';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { BracketAstNode, TextAstNode } from './ast';
-import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length';
-import { SmallImmutableSet } from './smallImmutableSet';
+import { NotSupportedError } from '../../../../../base/common/errors.js';
+import { StandardTokenType, TokenMetadata } from '../../../encodedTokenAttributes.js';
+import { IViewLineTokens } from '../../../tokens/lineTokens.js';
+import { BracketAstNode, TextAstNode } from './ast.js';
+import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets.js';
+import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length.js';
+import { SmallImmutableSet } from './smallImmutableSet.js';
 
 export interface Tokenizer {
 	readonly offset: Length;
@@ -81,7 +81,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	}
 
 	get length() {
-		return toLength(this.textBufferLineCount, this.textBufferLastLineLength);
+		return toLength(this.textBufferLineCount - 1, this.textBufferLastLineLength);
 	}
 
 	getText() {
@@ -143,7 +143,9 @@ class NonPeekableTextBufferTokenizer {
 		// We must not jump into a token!
 		if (lineIdx === this.lineIdx) {
 			this.lineCharOffset = column;
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			if (this.line !== null) {
+				this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			}
 		} else {
 			this.lineIdx = lineIdx;
 			this.lineCharOffset = column;
@@ -171,7 +173,7 @@ class NonPeekableTextBufferTokenizer {
 		if (this.line === null) {
 			this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 			this.line = this.lineTokens.getLineContent();
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens.findTokenIndexAtOffset(this.lineCharOffset);
 		}
 
 		const startLineIdx = this.lineIdx;
@@ -291,7 +293,7 @@ export class FastTokenizer implements Tokenizer {
 		let lastTokenEndOffset = 0;
 		let lastTokenEndLine = 0;
 
-		const smallTextTokens0Line = new Array<Token>();
+		const smallTextTokens0Line: Token[] = [];
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens0Line.push(
 				new Token(
@@ -301,7 +303,7 @@ export class FastTokenizer implements Tokenizer {
 			);
 		}
 
-		const smallTextTokens1Line = new Array<Token>();
+		const smallTextTokens1Line: Token[] = [];
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens1Line.push(
 				new Token(

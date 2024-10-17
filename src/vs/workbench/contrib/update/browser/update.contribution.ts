@@ -3,20 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/platform/update/common/update.config.contribution';
-import { localize } from 'vs/nls';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution } from 'vs/workbench/contrib/update/browser/update';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/common/product';
-import { IUpdateService, StateType } from 'vs/platform/update/common/update';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isWindows } from 'vs/base/common/platform';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import '../../../../platform/update/common/update.config.contribution.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { ProductContribution, UpdateContribution, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution, RELEASE_NOTES_URL, showReleaseNotesInEditor, DOWNLOAD_URL } from './update.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import product from '../../../../platform/product/common/product.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
+import { ShowCurrentReleaseNotesActionId, ShowCurrentReleaseNotesFromCurrentFileActionId } from '../common/update.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -24,20 +30,100 @@ workbench.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Rest
 workbench.registerWorkbenchContribution(UpdateContribution, LifecyclePhase.Restored);
 workbench.registerWorkbenchContribution(SwitchProductQualityContribution, LifecyclePhase.Restored);
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+// Release notes
 
-// Editor
-actionRegistry
-	.registerWorkbenchAction(SyncActionDescriptor.from(ShowCurrentReleaseNotesAction), `${product.nameShort}: Show Release Notes`, product.nameShort);
+export class ShowCurrentReleaseNotesAction extends Action2 {
 
-actionRegistry
-	.registerWorkbenchAction(SyncActionDescriptor.from(CheckForVSCodeUpdateAction), `${product.nameShort}: Check for Update`, product.nameShort, CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle));
+	constructor() {
+		super({
+			id: ShowCurrentReleaseNotesActionId,
+			title: {
+				...localize2('showReleaseNotes', "Show Release Notes"),
+				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
+			},
+			category: { value: product.nameShort, original: product.nameShort },
+			f1: true,
+			precondition: RELEASE_NOTES_URL,
+			menu: [{
+				id: MenuId.MenubarHelpMenu,
+				group: '1_welcome',
+				order: 5,
+				when: RELEASE_NOTES_URL,
+			}]
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		try {
+			await showReleaseNotesInEditor(instantiationService, productService.version, false);
+		} catch (err) {
+			if (productService.releaseNotesUrl) {
+				await openerService.open(URI.parse(productService.releaseNotesUrl));
+			} else {
+				throw new Error(localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
+			}
+		}
+	}
+}
+
+export class ShowCurrentReleaseNotesFromCurrentFileAction extends Action2 {
+
+	constructor() {
+		super({
+			id: ShowCurrentReleaseNotesFromCurrentFileActionId,
+			title: {
+				...localize2('showReleaseNotesCurrentFile', "Open Current File as Release Notes"),
+				mnemonicTitle: localize({ key: 'mshowReleaseNotes', comment: ['&& denotes a mnemonic'] }, "Show &&Release Notes"),
+			},
+			category: localize2('developerCategory', "Developer"),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		const productService = accessor.get(IProductService);
+
+		try {
+			await showReleaseNotesInEditor(instantiationService, productService.version, true);
+		} catch (err) {
+			throw new Error(localize('releaseNotesFromFileNone', "Cannot open the current file as Release Notes"));
+		}
+	}
+}
+
+registerAction2(ShowCurrentReleaseNotesAction);
+registerAction2(ShowCurrentReleaseNotesFromCurrentFileAction);
+
+// Update
+
+export class CheckForUpdateAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'update.checkForUpdate',
+			title: localize2('checkForUpdates', 'Check for Updates...'),
+			category: { value: product.nameShort, original: product.nameShort },
+			f1: true,
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const updateService = accessor.get(IUpdateService);
+		return updateService.checkForUpdates(true);
+	}
+}
 
 class DownloadUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.downloadUpdate',
-			title: { value: localize('downloadUpdate', "Download Update"), original: 'Download Update' },
+			title: localize2('downloadUpdate', 'Download Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
@@ -53,7 +139,7 @@ class InstallUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.installUpdate',
-			title: { value: localize('installUpdate', "Install Update"), original: 'Install Update' },
+			title: localize2('installUpdate', 'Install Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
@@ -69,7 +155,7 @@ class RestartToUpdateAction extends Action2 {
 	constructor() {
 		super({
 			id: 'update.restartToUpdate',
-			title: { value: localize('restartToUpdate', "Restart to Update"), original: 'Restart to Update' },
+			title: localize2('restartToUpdate', 'Restart to Update'),
 			category: { value: product.nameShort, original: product.nameShort },
 			f1: true,
 			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
@@ -81,29 +167,46 @@ class RestartToUpdateAction extends Action2 {
 	}
 }
 
+class DownloadAction extends Action2 {
+
+	static readonly ID = 'workbench.action.download';
+
+	constructor() {
+		super({
+			id: DownloadAction.ID,
+			title: localize2('openDownloadPage', "Download {0}", product.nameLong),
+			precondition: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL), // Only show when running in a web browser and a download url is available
+			f1: true,
+			menu: [{
+				id: MenuId.StatusBarWindowIndicatorMenu,
+				when: ContextKeyExpr.and(IsWebContext, DOWNLOAD_URL)
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const productService = accessor.get(IProductService);
+		const openerService = accessor.get(IOpenerService);
+
+		if (productService.downloadUrl) {
+			openerService.open(URI.parse(productService.downloadUrl));
+		}
+	}
+}
+
+registerAction2(DownloadAction);
+registerAction2(CheckForUpdateAction);
 registerAction2(DownloadUpdateAction);
 registerAction2(InstallUpdateAction);
 registerAction2(RestartToUpdateAction);
-
-// Menu
-if (ShowCurrentReleaseNotesAction.AVAILABE) {
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '1_welcome',
-		command: {
-			id: ShowCurrentReleaseNotesAction.ID,
-			title: localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
-		},
-		order: 5
-	});
-}
 
 if (isWindows) {
 	class DeveloperApplyUpdateAction extends Action2 {
 		constructor() {
 			super({
 				id: '_update.applyupdate',
-				title: { value: localize('applyUpdate', "Apply Update..."), original: 'Apply Update...' },
-				category: CATEGORIES.Developer,
+				title: localize2('applyUpdate', 'Apply Update...'),
+				category: Categories.Developer,
 				f1: true,
 				precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
 			});

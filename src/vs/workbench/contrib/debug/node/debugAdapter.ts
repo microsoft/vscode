@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
-import * as stream from 'stream';
-import * as nls from 'vs/nls';
 import * as net from 'net';
-import * as path from 'vs/base/common/path';
-import * as strings from 'vs/base/common/strings';
-import * as objects from 'vs/base/common/objects';
-import * as platform from 'vs/base/common/platform';
-import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
+import * as stream from 'stream';
+import * as objects from '../../../../base/common/objects.js';
+import * as path from '../../../../base/common/path.js';
+import * as platform from '../../../../base/common/platform.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import * as nls from '../../../../nls.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from '../common/debug.js';
+import { AbstractDebugAdapter } from '../common/abstractDebugAdapter.js';
 
 /**
  * An implementation that communicates via two streams with the debug adapter.
@@ -169,7 +167,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess | undefined;
 
-	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly outputService?: IOutputService) {
+	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string) {
 		super();
 	}
 
@@ -224,13 +222,26 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 					throw new Error(nls.localize('unableToLaunchDebugAdapterNoArgs', "Unable to launch debug adapter."));
 				}
 			} else {
+				let spawnCommand = command;
+				let spawnArgs = args;
 				const spawnOptions: cp.SpawnOptions = {
 					env: env
 				};
 				if (options.cwd) {
 					spawnOptions.cwd = options.cwd;
 				}
-				this.serverProcess = cp.spawn(command, args, spawnOptions);
+				if (platform.isWindows && (command.endsWith('.bat') || command.endsWith('.cmd'))) {
+					// https://github.com/microsoft/vscode/issues/224184
+					spawnOptions.shell = true;
+					spawnCommand = `"${command}"`;
+					spawnArgs = args.map(a => {
+						a = a.replace(/"/g, '\\"'); // Escape existing double quotes with \
+						// Wrap in double quotes
+						return `"${a}"`;
+					});
+				}
+
+				this.serverProcess = cp.spawn(spawnCommand, spawnArgs, spawnOptions);
 			}
 
 			this.serverProcess.on('error', err => {
@@ -251,19 +262,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				this._onError.fire(error);
 			});
 
-			const outputService = this.outputService;
-			if (outputService) {
-				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
-				// this.serverProcess.stdout.on('data', (data: string) => {
-				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
-				// });
-				this.serverProcess.stderr!.on('data', (data: string) => {
-					const channel = outputService.getChannel(ExtensionsChannelId);
-					channel?.append(sanitize(data));
-				});
-			} else {
-				this.serverProcess.stderr!.resume();
-			}
+			this.serverProcess.stderr!.resume();
 
 			// finally connect to the DA
 			this.connect(this.serverProcess.stdout!, this.serverProcess.stdin!);

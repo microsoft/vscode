@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
-import { Range, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import assert from 'assert';
+import { joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
+import { Range, TextSearchMatchNew, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
+import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from '../../common/search.js';
 
 suite('RipgrepTextSearchEngine', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('unicodeEscapesToPCRE2', async () => {
 		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234'), '\\x{1234}');
 		assert.strictEqual(unicodeEscapesToPCRE2('\\u1234\\u0001'), '\\x{1234}\\x{0001}');
@@ -102,10 +106,10 @@ suite('RipgrepTextSearchEngine', () => {
 	suite('RipgrepParser', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
-		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
-			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
+		function testParser(inputData: string[], expectedResults: TextSearchResultNew[]): void {
+			const testParser = new RipgrepParser(1000, TEST_FOLDER, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS);
 
-			const actualResults: TextSearchResult[] = [];
+			const actualResults: TextSearchResultNew[] = [];
 			testParser.on('result', r => {
 				actualResults.push(r);
 			});
@@ -144,14 +148,14 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('file1.js', 'foobar', 4, [{ start: 3, end: 6 }])
 				],
 				[
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
-						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 6)]
-					}
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 6),
+							sourceRange: new Range(3, 3, 3, 6),
+						}],
+						'foobar'
+					)
 				]);
 		});
 
@@ -163,30 +167,30 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('app2/file3.js', 'foobar', 4, [{ start: 3, end: 6 }]),
 				],
 				[
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
-						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 6)]
-					},
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
-						},
-						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
-						ranges: [new Range(3, 3, 3, 6)]
-					},
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
-						},
-						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
-						ranges: [new Range(3, 3, 3, 6)]
-					}
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 6),
+							sourceRange: new Range(3, 3, 3, 6),
+						}],
+						'foobar'
+					),
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'app/file2.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 6),
+							sourceRange: new Range(3, 3, 3, 6),
+						}],
+						'foobar'
+					),
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'app2/file3.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 6),
+							sourceRange: new Range(3, 3, 3, 6),
+						}],
+						'foobar'
+					)
 				]);
 		});
 
@@ -208,30 +212,30 @@ suite('RipgrepTextSearchEngine', () => {
 					dataStrs[2].substring(25)
 				],
 				[
-					{
-						preview: {
-							text: 'foo bar',
-							matches: [new Range(0, 3, 0, 7)]
-						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 3, 3, 7)]
-					},
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
-						},
-						uri: joinPath(TEST_FOLDER, 'app/file2.js'),
-						ranges: [new Range(3, 3, 3, 6)]
-					},
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 3, 0, 6)]
-						},
-						uri: joinPath(TEST_FOLDER, 'app2/file3.js'),
-						ranges: [new Range(3, 3, 3, 6)]
-					}
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 7),
+							sourceRange: new Range(3, 3, 3, 7),
+						}],
+						'foo bar'
+					),
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'app/file2.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 6),
+							sourceRange: new Range(3, 3, 3, 6),
+						}],
+						'foobar'
+					),
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'app2/file3.js'),
+						[{
+							previewRange: new Range(0, 3, 0, 6),
+							sourceRange: new Range(3, 3, 3, 6),
+						}],
+						'foobar'
+					)
 				]);
 		});
 
@@ -243,23 +247,151 @@ suite('RipgrepTextSearchEngine', () => {
 					makeRgMatch('file1.js', '', 5, []),
 				],
 				[
-					{
-						preview: {
-							text: 'foobar',
-							matches: [new Range(0, 0, 0, 1)]
-						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(3, 0, 3, 1)]
-					},
-					{
-						preview: {
-							text: '',
-							matches: [new Range(0, 0, 0, 0)]
-						},
-						uri: joinPath(TEST_FOLDER, 'file1.js'),
-						ranges: [new Range(4, 0, 4, 0)]
-					}
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[
+							{
+								previewRange: new Range(0, 0, 0, 1),
+								sourceRange: new Range(3, 0, 3, 1),
+							}
+						],
+						'foobar'
+					),
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[
+							{
+								previewRange: new Range(0, 0, 0, 0),
+								sourceRange: new Range(4, 0, 4, 0),
+							}
+						],
+						''
+					)
 				]);
 		});
+
+		test('multiple submatches without newline in between (#131507)', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foobarbazquux', 4, [{ start: 0, end: 4 }, { start: 6, end: 10 }]),
+				],
+				[
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[
+							{
+								previewRange: new Range(0, 0, 0, 4),
+								sourceRange: new Range(3, 0, 3, 4),
+							},
+							{
+								previewRange: new Range(0, 6, 0, 10),
+								sourceRange: new Range(3, 6, 3, 10),
+							}
+						],
+						'foobarbazquux'
+					)
+				]);
+		});
+
+		test('multiple submatches with newline in between (#131507)', () => {
+			testParser(
+				[
+					makeRgMatch('file1.js', 'foo\nbar\nbaz\nquux', 4, [{ start: 0, end: 5 }, { start: 8, end: 13 }]),
+				],
+				[
+					new TextSearchMatchNew(
+						joinPath(TEST_FOLDER, 'file1.js'),
+						[
+							{
+								previewRange: new Range(0, 0, 1, 1),
+								sourceRange: new Range(3, 0, 4, 1),
+							},
+							{
+								previewRange: new Range(2, 0, 3, 1),
+								sourceRange: new Range(5, 0, 6, 1),
+							}
+						],
+						'foo\nbar\nbaz\nquux'
+					)
+				]);
+		});
+	});
+
+	suite('getRgArgs', () => {
+		test('simple includes', () => {
+			// Only testing the args that come from includes.
+			function testGetRgArgs(includes: string[], expectedFromIncludes: string[]): void {
+				const query: TextSearchQueryNew = {
+					pattern: 'test'
+				};
+
+				const options: RipgrepTextSearchOptions = {
+					folderOptions: {
+						includes: includes,
+						excludes: [],
+						useIgnoreFiles: {
+							local: false,
+							global: false,
+							parent: false
+						},
+						followSymlinks: false,
+						folder: URI.file('/some/folder'),
+						encoding: 'utf8',
+					},
+					maxResults: 1000,
+				};
+				const expected = [
+					'--hidden',
+					'--no-require-git',
+					'--ignore-case',
+					...expectedFromIncludes,
+					'--no-ignore',
+					'--crlf',
+					'--fixed-strings',
+					'--no-config',
+					'--no-ignore-global',
+					'--json',
+					'--',
+					'test',
+					'.'];
+				const result = getRgArgs(query, options);
+				assert.deepStrictEqual(result, expected);
+			}
+
+			([
+				[['a/*', 'b/*'], ['-g', '!*', '-g', '/a', '-g', '/a/*', '-g', '/b', '-g', '/b/*']],
+				[['**/a/*', 'b/*'], ['-g', '!*', '-g', '/b', '-g', '/b/*', '-g', '**/a/*']],
+				[['**/a/*', '**/b/*'], ['-g', '**/a/*', '-g', '**/b/*']],
+				[['foo/*bar/something/**'], ['-g', '!*', '-g', '/foo', '-g', '/foo/*bar', '-g', '/foo/*bar/something', '-g', '/foo/*bar/something/**']],
+			].forEach(([includes, expectedFromIncludes]) => testGetRgArgs(<string[]>includes, <string[]>expectedFromIncludes)));
+		});
+	});
+
+	test('brace expansion for ripgrep', () => {
+		function testBraceExpansion(argGlob: string, expectedGlob: string[]): void {
+			const result = performBraceExpansionForRipgrep(argGlob);
+			assert.deepStrictEqual(result, expectedGlob);
+		}
+
+		[
+			['eep/{a,b}/test', ['eep/a/test', 'eep/b/test']],
+			['eep/{a,b}/{c,d,e}', ['eep/a/c', 'eep/a/d', 'eep/a/e', 'eep/b/c', 'eep/b/d', 'eep/b/e']],
+			['eep/{a,b}/\\{c,d,e}', ['eep/a/{c,d,e}', 'eep/b/{c,d,e}']],
+			['eep/{a,b\\}/test', ['eep/{a,b}/test']],
+			['eep/{a,b\\\\}/test', ['eep/a/test', 'eep/b\\\\/test']],
+			['eep/{a,b\\\\\\}/test', ['eep/{a,b\\\\}/test']],
+			['e\\{ep/{a,b}/test', ['e{ep/a/test', 'e{ep/b/test']],
+			['eep/{a,\\b}/test', ['eep/a/test', 'eep/\\b/test']],
+			['{a/*.*,b/*.*}', ['a/*.*', 'b/*.*']],
+			['{{}', ['{{}']],
+			['aa{{}', ['aa{{}']],
+			['{b{}', ['{b{}']],
+			['{{}c', ['{{}c']],
+			['{{}}', ['{{}}']],
+			['\\{{}}', ['{}']],
+			['{}foo', ['foo']],
+			['bar{ }foo', ['bar foo']],
+			['{}', ['']],
+		].forEach(([includePattern, expectedPatterns]) => testBraceExpansion(<string>includePattern, <string[]>expectedPatterns));
 	});
 });

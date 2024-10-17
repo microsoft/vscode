@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { URI } from '../../../../../base/common/uri.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotebookDiffResult } from '../notebookCommon.js';
 
 export const ID_NOTEBOOK_EDITOR_WORKER_SERVICE = 'notebookEditorWorkerService';
 export const INotebookEditorWorkerService = createDecorator<INotebookEditorWorkerService>(ID_NOTEBOOK_EDITOR_WORKER_SERVICE);
@@ -15,4 +15,5 @@ export interface INotebookEditorWorkerService {
 
 	canComputeDiff(original: URI, modified: URI): boolean;
 	computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult>;
+	canPromptRecommendation(model: URI): Promise<boolean>;
 }

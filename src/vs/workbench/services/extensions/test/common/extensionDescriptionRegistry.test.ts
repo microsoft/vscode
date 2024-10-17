@@ -3,18 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
+import assert from 'assert';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../platform/extensions/common/extensions.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../common/extensionDescriptionRegistry.js';
 
 suite('ExtensionDescriptionRegistry', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('allow removing and adding the same extension at a different version', () => {
 		const idA = new ExtensionIdentifier('a');
 		const extensionA1 = desc(idA, '1.0.0');
 		const extensionA2 = desc(idA, '2.0.0');
 
-		const registry = new ExtensionDescriptionRegistry([extensionA1]);
+		const basicActivationEventsReader: IActivationEventsReader = {
+			readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
+				return extensionDescription.activationEvents ?? [];
+			}
+		};
+
+		const registry = new ExtensionDescriptionRegistry(basicActivationEventsReader, [extensionA1]);
 		registry.deltaExtensions([extensionA2], [idA]);
 
 		assert.deepStrictEqual(registry.getAllExtensionDescriptions(), [extensionA2]);
@@ -34,7 +44,8 @@ suite('ExtensionDescriptionRegistry', () => {
 			activationEvents,
 			main: 'index.js',
 			targetPlatform: TargetPlatform.UNDEFINED,
-			extensionDependencies: []
+			extensionDependencies: [],
+			enabledApiProposals: undefined,
 		};
 	}
 });

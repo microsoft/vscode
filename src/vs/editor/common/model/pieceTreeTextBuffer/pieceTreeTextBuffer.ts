@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from 'vs/editor/common/model';
-import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
-import { countEOL, StringEOL } from 'vs/editor/common/core/eolCounter';
-import { TextChange } from 'vs/editor/common/core/textChange';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import * as strings from '../../../../base/common/strings.js';
+import { Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from '../../model.js';
+import { PieceTreeBase, StringBuffer } from './pieceTreeBase.js';
+import { countEOL, StringEOL } from '../../core/eolCounter.js';
+import { TextChange } from '../../core/textChange.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -27,7 +27,7 @@ export interface IValidatedEditOperation {
 	isAutoWhitespaceEdit: boolean;
 }
 
-export interface IReverseSingleEditOperation extends IValidEditOperation {
+interface IReverseSingleEditOperation extends IValidEditOperation {
 	sortIndex: number;
 }
 
@@ -121,7 +121,19 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 
 		const startOffset = this.getOffsetAt(range.startLineNumber, range.startColumn);
 		const endOffset = this.getOffsetAt(range.endLineNumber, range.endColumn);
-		return endOffset - startOffset;
+
+		// offsets use the text EOL, so we need to compensate for length differences
+		// if the requested EOL doesn't match the text EOL
+		let eolOffsetCompensation = 0;
+		const desiredEOL = this._getEndOfLine(eol);
+		const actualEOL = this.getEOL();
+		if (desiredEOL.length !== actualEOL.length) {
+			const delta = desiredEOL.length - actualEOL.length;
+			const eolCount = range.endLineNumber - range.startLineNumber;
+			eolOffsetCompensation = delta * eolCount;
+		}
+
+		return endOffset - startOffset + eolOffsetCompensation;
 	}
 
 	public getCharacterCountInRange(range: Range, eol: EndOfLinePreference = EndOfLinePreference.TextDefined): number {
@@ -153,6 +165,10 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		}
 
 		return this.getValueLengthInRange(range, eol);
+	}
+
+	public getNearestChunk(offset: number): string {
+		return this._pieceTree.getNearestChunk(offset);
 	}
 
 	public getLength(): number {

@@ -3,42 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue } from 'vs/base/common/arrays';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
-import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { CursorsController } from 'vs/editor/common/cursor/cursor';
-import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursorCommon';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorState, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/textModelGuides';
-import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import * as textModelEvents from 'vs/editor/common/textModelEvents';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { EditorTheme } from 'vs/editor/common/editorTheme';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
-import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
-import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
-import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
-import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ArrayQueue } from '../../../base/common/arrays.js';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Color } from '../../../base/common/color.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import * as strings from '../../../base/common/strings.js';
+import { ConfigurationChangedEvent, EditorOption, EDITOR_FONT_DEFAULTS, filterValidationDecorations } from '../config/editorOptions.js';
+import { CursorsController } from '../cursor/cursor.js';
+import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from '../cursorCommon.js';
+import { CursorChangeReason } from '../cursorEvents.js';
+import { IPosition, Position } from '../core/position.js';
+import { Range } from '../core/range.js';
+import { ISelection, Selection } from '../core/selection.js';
+import { ICommand, ICursorState, IViewState, ScrollType } from '../editorCommon.js';
+import { IEditorConfiguration } from '../config/editorConfiguration.js';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from '../model.js';
+import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from '../textModelGuides.js';
+import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from '../model/textModel.js';
+import * as textModelEvents from '../textModelEvents.js';
+import { TokenizationRegistry } from '../languages.js';
+import { ColorId } from '../encodedTokenAttributes.js';
+import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { tokenizeLineToHTML } from '../languages/textToHtmlTokenizer.js';
+import { EditorTheme } from '../editorTheme.js';
+import * as viewEvents from '../viewEvents.js';
+import { ViewLayout } from '../viewLayout/viewLayout.js';
+import { MinimapTokensColorTracker } from './minimapTokensColorTracker.js';
+import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from '../modelLineProjectionData.js';
+import { ViewEventHandler } from '../viewEventHandler.js';
+import { ICoordinatesConverter, InlineDecoration, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from '../viewModel.js';
+import { ViewModelDecorations } from './viewModelDecorations.js';
+import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from '../viewModelEventDispatcher.js';
+import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from './viewModelLines.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { GlyphMarginLanesModel } from './glyphLanesModel.js';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -50,7 +51,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
 	public readonly onEvent: Event<OutgoingViewModelEvent>;
 	public cursorConfig: CursorConfiguration;
-	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
 	private _hasFocus: boolean;
 	private readonly _viewportStart: ViewportStart;
@@ -59,6 +59,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	public readonly viewLayout: ViewLayout;
 	private readonly _cursor: CursorsController;
 	private readonly _decorations: ViewModelDecorations;
+	public readonly glyphLanes: IGlyphMarginLanesModel;
 
 	constructor(
 		editorId: number,
@@ -69,6 +70,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
+		private readonly _attachedView: IAttachedView,
+		private readonly _transactionalTarget: IBatchableTarget,
 	) {
 		super();
 
@@ -78,10 +81,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher = new ViewModelEventDispatcher();
 		this.onEvent = this._eventDispatcher.onEvent;
 		this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
-		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
 		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
 		this._hasFocus = false;
 		this._viewportStart = ViewportStart.create(this.model);
+		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
@@ -93,6 +96,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
+			const wordBreak = options.get(EditorOption.wordBreak);
 
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
@@ -103,7 +107,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.model.getOptions().tabSize,
 				wrappingStrategy,
 				wrappingInfo.wrappingColumn,
-				wrappingIndent
+				wrappingIndent,
+				wordBreak
 			);
 		}
 
@@ -115,7 +120,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._register(this.viewLayout.onDidScroll((e) => {
 			if (e.scrollTopChanged) {
-				this._tokenizeViewportSoon.schedule();
+				this._handleVisibleLinesChanged();
 			}
 			if (e.scrollTopChanged) {
 				this._viewportStart.invalidate();
@@ -182,7 +187,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._configuration.setViewLineCount(this._lines.getViewLineCount());
 	}
 
-	public tokenizeViewport(): void {
+	private getModelVisibleRanges(): Range[] {
 		const linesViewportData = this.viewLayout.getLinesViewportData();
 		const viewVisibleRange = new Range(
 			linesViewportData.startLineNumber,
@@ -191,10 +196,17 @@ export class ViewModel extends Disposable implements IViewModel {
 			this.getLineMaxColumn(linesViewportData.endLineNumber)
 		);
 		const modelVisibleRanges = this._toModelVisibleRanges(viewVisibleRange);
+		return modelVisibleRanges;
+	}
 
-		for (const modelVisibleRange of modelVisibleRanges) {
-			this.model.tokenization.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
-		}
+	public visibleLinesStabilized(): void {
+		const modelVisibleRanges = this.getModelVisibleRanges();
+		this._attachedView.setVisibleLines(modelVisibleRanges, true);
+	}
+
+	private _handleVisibleLinesChanged(): void {
+		const modelVisibleRanges = this.getModelVisibleRanges();
+		this._attachedView.setVisibleLines(modelVisibleRanges, false);
 	}
 
 	public setHasFocus(hasFocus: boolean): void {
@@ -212,34 +224,33 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionEndEvent());
 	}
 
-	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
-
-		// We might need to restore the current centered view range, so save it (if available)
-		let previousViewportStartModelPosition: Position | null = null;
-		if (this._viewportStart.isValid) {
+	private _captureStableViewport(): StableViewport {
+		// We might need to restore the current start view range, so save it (if available)
+		// But only if the scroll position is not at the top of the file
+		if (this._viewportStart.isValid && this.viewLayout.getCurrentScrollTop() > 0) {
 			const previousViewportStartViewPosition = new Position(this._viewportStart.viewLineNumber, this.getLineMinColumn(this._viewportStart.viewLineNumber));
-			previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);
+			const previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);
+			return new StableViewport(previousViewportStartModelPosition, this._viewportStart.startLineDelta);
 		}
-		let restorePreviousViewportStart = false;
+		return new StableViewport(null, 0);
+	}
 
+	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
+		const stableViewport = this._captureStableViewport();
 		const options = this._configuration.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const wrappingStrategy = options.get(EditorOption.wrappingStrategy);
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
+		const wordBreak = options.get(EditorOption.wordBreak);
 
-		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
+		if (this._lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent, wordBreak)) {
 			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 			this._cursor.onLineMappingChanged(eventsCollector);
 			this._decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
-
-			if (this.viewLayout.getCurrentScrollTop() !== 0) {
-				// Never change the scroll position from 0 to something else...
-				restorePreviousViewportStart = true;
-			}
 
 			this._updateConfigurationViewLineCount.schedule();
 		}
@@ -250,14 +261,15 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
+		if (e.hasChanged(EditorOption.renderValidationDecorations)) {
+			this._decorations.reset();
+			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+		}
+
 		eventsCollector.emitViewEvent(new viewEvents.ViewConfigurationChangedEvent(e));
 		this.viewLayout.onConfigurationChanged(e);
 
-		if (restorePreviousViewportStart && previousViewportStartModelPosition) {
-			const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(previousViewportStartModelPosition);
-			const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-			this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStart.startLineDelta }, ScrollType.Immediate);
-		}
+		stableViewport.recoverViewportStart(this.coordinatesConverter, this.viewLayout);
 
 		if (CursorConfiguration.shouldRecreate(e)) {
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
@@ -400,7 +412,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				this._eventDispatcher.endEmitViewEvents();
 			}
 
-			this._tokenizeViewportSoon.schedule();
+			this._handleVisibleLinesChanged();
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
@@ -415,10 +427,6 @@ export class ViewModel extends Disposable implements IViewModel {
 				};
 			}
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensChangedEvent(viewRanges));
-
-			if (e.tokenizationSupportChanged) {
-				this._tokenizeViewportSoon.schedule();
-			}
 			this._eventDispatcher.emitOutgoingEvent(new ModelTokensChangedEvent(e));
 		}));
 
@@ -465,11 +473,29 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 	}
 
-	public setHiddenAreas(ranges: Range[]): void {
+	private readonly hiddenAreasModel = new HiddenAreasModel();
+	private previousHiddenAreas: readonly Range[] = [];
+
+	/**
+	 * @param forceUpdate If true, the hidden areas will be updated even if the new ranges are the same as the previous ranges.
+	 * This is because the model might have changed, which resets the hidden areas, but not the last cached value.
+	 * This needs a better fix in the future.
+	*/
+	public setHiddenAreas(ranges: Range[], source?: unknown, forceUpdate?: boolean): void {
+		this.hiddenAreasModel.setHiddenAreas(source, ranges);
+		const mergedRanges = this.hiddenAreasModel.getMergedRanges();
+		if (mergedRanges === this.previousHiddenAreas && !forceUpdate) {
+			return;
+		}
+
+		this.previousHiddenAreas = mergedRanges;
+
+		const stableViewport = this._captureStableViewport();
+
 		let lineMappingChanged = false;
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			lineMappingChanged = this._lines.setHiddenAreas(ranges);
+			lineMappingChanged = this._lines.setHiddenAreas(mergedRanges);
 			if (lineMappingChanged) {
 				eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
@@ -478,6 +504,12 @@ export class ViewModel extends Disposable implements IViewModel {
 				this._decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				this.viewLayout.onHeightMaybeChanged();
+			}
+
+			const firstModelLineInViewPort = stableViewport.viewportStartModelPosition?.lineNumber;
+			const firstModelLineIsHidden = firstModelLineInViewPort && mergedRanges.some(range => range.startLineNumber <= firstModelLineInViewPort && firstModelLineInViewPort <= range.endLineNumber);
+			if (!firstModelLineIsHidden) {
+				stableViewport.recoverViewportStart(this.coordinatesConverter, this.viewLayout);
 			}
 		} finally {
 			this._eventDispatcher.endEmitViewEvents();
@@ -675,8 +707,12 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result + 2;
 	}
 
-	public getDecorationsInViewport(visibleRange: Range, onlyMinimapDecorations: boolean = false): ViewModelDecoration[] {
-		return this._decorations.getDecorationsViewportData(visibleRange, onlyMinimapDecorations).decorations;
+	public getMinimapDecorationsInRange(range: Range): ViewModelDecoration[] {
+		return this._decorations.getMinimapDecorationsInRange(range);
+	}
+
+	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
+		return this._decorations.getDecorationsViewportData(visibleRange).decorations;
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
@@ -770,6 +806,17 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
 		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
+	}
+
+	public getValueLengthInRange(range: Range, eol: EndOfLinePreference): number {
+		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
+		return this.model.getValueLengthInRange(modelRange, eol);
+	}
+
+	public modifyPosition(position: Position, offset: number): Position {
+		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(position);
+		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
+		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
@@ -1028,6 +1075,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.executeCommands(eventsCollector, commands, source));
 	}
+	public revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
+		this._withViewEventsCollector(eventsCollector => this._cursor.revealAll(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
+	}
 	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
 		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
 	}
@@ -1058,12 +1108,18 @@ export class ViewModel extends Disposable implements IViewModel {
 	//#endregion
 
 	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			return callback(eventsCollector);
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
-		}
+		return this._transactionalTarget.batchChanges(() => {
+			try {
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				return callback(eventsCollector);
+			} finally {
+				this._eventDispatcher.endEmitViewEvents();
+			}
+		});
+	}
+
+	public batchEvents(callback: () => void): void {
+		this._withViewEventsCollector(() => { callback(); });
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
@@ -1077,6 +1133,13 @@ export class ViewModel extends Disposable implements IViewModel {
 	getLineIndentColumn(lineNumber: number): number {
 		return this._lines.getLineIndentColumn(lineNumber);
 	}
+}
+
+export interface IBatchableTarget {
+	/**
+	 * Allows the target to apply the changes introduced by the callback in a batch.
+	*/
+	batchChanges<T>(cb: () => T): T;
 }
 
 class ViewportStart implements IDisposable {
@@ -1161,3 +1224,93 @@ class OverviewRulerDecorations {
 	}
 }
 
+class HiddenAreasModel {
+	private readonly hiddenAreas = new Map<unknown, Range[]>();
+	private shouldRecompute = false;
+	private ranges: Range[] = [];
+
+	setHiddenAreas(source: unknown, ranges: Range[]): void {
+		const existing = this.hiddenAreas.get(source);
+		if (existing && rangeArraysEqual(existing, ranges)) {
+			return;
+		}
+		this.hiddenAreas.set(source, ranges);
+		this.shouldRecompute = true;
+	}
+
+	/**
+	 * The returned array is immutable.
+	*/
+	getMergedRanges(): readonly Range[] {
+		if (!this.shouldRecompute) {
+			return this.ranges;
+		}
+		this.shouldRecompute = false;
+		const newRanges = Array.from(this.hiddenAreas.values()).reduce((r, hiddenAreas) => mergeLineRangeArray(r, hiddenAreas), []);
+		if (rangeArraysEqual(this.ranges, newRanges)) {
+			return this.ranges;
+		}
+		this.ranges = newRanges;
+		return this.ranges;
+	}
+}
+
+function mergeLineRangeArray(arr1: Range[], arr2: Range[]): Range[] {
+	const result = [];
+	let i = 0;
+	let j = 0;
+	while (i < arr1.length && j < arr2.length) {
+		const item1 = arr1[i];
+		const item2 = arr2[j];
+
+		if (item1.endLineNumber < item2.startLineNumber - 1) {
+			result.push(arr1[i++]);
+		} else if (item2.endLineNumber < item1.startLineNumber - 1) {
+			result.push(arr2[j++]);
+		} else {
+			const startLineNumber = Math.min(item1.startLineNumber, item2.startLineNumber);
+			const endLineNumber = Math.max(item1.endLineNumber, item2.endLineNumber);
+			result.push(new Range(startLineNumber, 1, endLineNumber, 1));
+			i++;
+			j++;
+		}
+	}
+	while (i < arr1.length) {
+		result.push(arr1[i++]);
+	}
+	while (j < arr2.length) {
+		result.push(arr2[j++]);
+	}
+	return result;
+}
+
+function rangeArraysEqual(arr1: Range[], arr2: Range[]): boolean {
+	if (arr1.length !== arr2.length) {
+		return false;
+	}
+	for (let i = 0; i < arr1.length; i++) {
+		if (!arr1[i].equalsRange(arr2[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
+ * Maintain a stable viewport by trying to keep the first line in the viewport constant.
+ */
+class StableViewport {
+	constructor(
+		public readonly viewportStartModelPosition: Position | null,
+		public readonly startLineDelta: number
+	) { }
+
+	public recoverViewportStart(coordinatesConverter: ICoordinatesConverter, viewLayout: ViewLayout): void {
+		if (!this.viewportStartModelPosition) {
+			return;
+		}
+		const viewPosition = coordinatesConverter.convertModelPositionToViewPosition(this.viewportStartModelPosition);
+		const viewPositionTop = viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+		viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this.startLineDelta }, ScrollType.Immediate);
+	}
+}

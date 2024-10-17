@@ -174,4 +174,11 @@ export class Position {
 			&& (typeof obj.column === 'number')
 		);
 	}
+
+	public toJSON(): IPosition {
+		return {
+			lineNumber: this.lineNumber,
+			column: this.column
+		};
+	}
 }

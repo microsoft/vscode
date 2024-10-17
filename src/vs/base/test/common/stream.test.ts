@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
-import { consumeReadable, consumeStream, isReadable, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from 'vs/base/common/stream';
+import assert from 'assert';
+import { timeout } from '../../common/async.js';
+import { bufferToReadable, VSBuffer } from '../../common/buffer.js';
+import { CancellationTokenSource } from '../../common/cancellation.js';
+import { consumeReadable, consumeStream, isReadable, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, prefixedReadable, prefixedStream, Readable, ReadableStream, toReadable, toStream, transform } from '../../common/stream.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Stream', () => {
 
@@ -351,14 +353,16 @@ suite('Stream', () => {
 		assert.strictEqual(end, true);
 	});
 
-	test('listenStream - dispose', () => {
+	test('listenStream - cancellation', () => {
 		const stream = newWriteableStream<string>(strings => strings.join());
 
 		let error = false;
 		let end = false;
 		let data = '';
 
-		const disposable = listenStream(stream, {
+		const cts = new CancellationTokenSource();
+
+		listenStream(stream, {
 			onData: d => {
 				data = d;
 			},
@@ -368,9 +372,9 @@ suite('Stream', () => {
 			onEnd: () => {
 				end = true;
 			}
-		});
+		}, cts.token);
 
-		disposable.dispose();
+		cts.cancel();
 
 		stream.write('Hello');
 		assert.strictEqual(data, '');
@@ -511,4 +515,6 @@ suite('Stream', () => {
 		}
 		assert.ok(error);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

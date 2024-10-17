@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from 'vs/base/common/collections';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IProcessEnvironment } from '../../../../base/common/platform.js';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 
 export const IConfigurationResolverService = createDecorator<IConfigurationResolverService>('configurationResolverService');
 
@@ -55,7 +56,7 @@ export interface IConfigurationResolverService {
 	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
-export interface PromptStringInputInfo {
+interface PromptStringInputInfo {
 	id: string;
 	type: 'promptString';
 	description: string;
@@ -63,7 +64,7 @@ export interface PromptStringInputInfo {
 	password?: boolean;
 }
 
-export interface PickStringInputInfo {
+interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
@@ -71,7 +72,7 @@ export interface PickStringInputInfo {
 	default?: string;
 }
 
-export interface CommandInputInfo {
+interface CommandInputInfo {
 	id: string;
 	type: 'command';
 	command: string;
@@ -79,3 +80,40 @@ export interface CommandInputInfo {
 }
 
 export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
+
+export enum VariableKind {
+	Unknown = 'unknown',
+
+	Env = 'env',
+	Config = 'config',
+	Command = 'command',
+	Input = 'input',
+	ExtensionInstallFolder = 'extensionInstallFolder',
+
+	WorkspaceFolder = 'workspaceFolder',
+	Cwd = 'cwd',
+	WorkspaceFolderBasename = 'workspaceFolderBasename',
+	UserHome = 'userHome',
+	LineNumber = 'lineNumber',
+	SelectedText = 'selectedText',
+	File = 'file',
+	FileWorkspaceFolder = 'fileWorkspaceFolder',
+	FileWorkspaceFolderBasename = 'fileWorkspaceFolderBasename',
+	RelativeFile = 'relativeFile',
+	RelativeFileDirname = 'relativeFileDirname',
+	FileDirname = 'fileDirname',
+	FileExtname = 'fileExtname',
+	FileBasename = 'fileBasename',
+	FileBasenameNoExtension = 'fileBasenameNoExtension',
+	FileDirnameBasename = 'fileDirnameBasename',
+	ExecPath = 'execPath',
+	ExecInstallFolder = 'execInstallFolder',
+	PathSeparator = 'pathSeparator',
+	PathSeparatorAlias = '/'
+}
+
+export class VariableError extends ErrorNoTelemetry {
+	constructor(public readonly variable: VariableKind, message?: string) {
+		super(message);
+	}
+}

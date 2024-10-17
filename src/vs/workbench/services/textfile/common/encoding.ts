@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Readable, ReadableStream, newWriteableStream, listenStream } from '../../../../base/common/stream.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../base/common/buffer.js';
+import { importAMDNodeModule } from '../../../../amdX.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -30,6 +32,7 @@ const AUTO_ENCODING_GUESS_MAX_BYTES = 512 * 128; 	// set an upper limit for the 
 export interface IDecodeStreamOptions {
 	acceptTextOnly: boolean;
 	guessEncoding: boolean;
+	candidateGuessEncodings: string[];
 	minBytesRequiredForDetection?: number;
 
 	overwriteEncoding(detectedEncoding: string | null): Promise<string>;
@@ -79,7 +82,7 @@ class DecoderStream implements IDecoderStream {
 	static async create(encoding: string): Promise<DecoderStream> {
 		let decoder: IDecoderStream | undefined = undefined;
 		if (encoding !== UTF8) {
-			const iconv = await import('@vscode/iconv-lite-umd');
+			const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 			decoder = iconv.getDecoder(toNodeEncoding(encoding));
 		} else {
 			const utf8TextDecoder = new TextDecoder();
@@ -123,7 +126,8 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 		let bytesBuffered = 0;
 
 		let decoder: IDecoderStream | undefined = undefined;
-		let sourceListener: IDisposable | undefined = undefined;
+
+		const cts = new CancellationTokenSource();
 
 		const createDecoder = async () => {
 			try {
@@ -132,7 +136,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				const detected = await detectEncodingFromBuffer({
 					buffer: VSBuffer.concat(bufferedChunks),
 					bytesRead: bytesBuffered
-				}, options.guessEncoding);
+				}, options.guessEncoding, options.candidateGuessEncodings);
 
 				// throw early if the source seems binary and
 				// we are instructed to only accept text
@@ -159,14 +163,14 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 			} catch (error) {
 
 				// Stop handling anything from the source and target
-				sourceListener?.dispose();
+				cts.cancel();
 				target.destroy();
 
 				reject(error);
 			}
 		};
 
-		sourceListener = listenStream(source, {
+		listenStream(source, {
 			onData: async chunk => {
 
 				// if the decoder is ready, we just write directly
@@ -206,12 +210,12 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 				// end the target with the remainders of the decoder
 				target.end(decoder?.end());
 			}
-		});
+		}, cts.token);
 	});
 }
 
 export async function toEncodeReadable(readable: Readable<string>, encoding: string, options?: { addBOM?: boolean }): Promise<VSBufferReadable> {
-	const iconv = await import('@vscode/iconv-lite-umd');
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 	const encoder = iconv.getEncoder(toNodeEncoding(encoding), options);
 
 	let bytesWritten = false;
@@ -260,7 +264,7 @@ export async function toEncodeReadable(readable: Readable<string>, encoding: str
 }
 
 export async function encodingExists(encoding: string): Promise<boolean> {
-	const iconv = await import('@vscode/iconv-lite-umd');
+	const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 
 	return iconv.encodingExists(toNodeEncoding(encoding));
 }
@@ -315,8 +319,8 @@ const IGNORE_ENCODINGS = ['ascii', 'utf-16', 'utf-32'];
 /**
  * Guesses the encoding from buffer.
  */
-async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
-	const jschardet = await import('jschardet');
+async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?: string[]): Promise<string | null> {
+	const jschardet = await importAMDNodeModule<typeof import('jschardet')>('jschardet', 'dist/jschardet.min.js');
 
 	// ensure to limit buffer for guessing due to https://github.com/aadsm/jschardet/issues/53
 	const limitedBuffer = buffer.slice(0, AUTO_ENCODING_GUESS_MAX_BYTES);
@@ -326,7 +330,15 @@ async function guessEncodingByBuffer(buffer: VSBuffer): Promise<string | null> {
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
-	const guessed = jschardet.detect(binaryString);
+	// ensure to convert candidate encodings to jschardet encoding names if provided
+	if (candidateGuessEncodings) {
+		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
+		if (candidateGuessEncodings.length === 0) {
+			candidateGuessEncodings = undefined;
+		}
+	}
+
+	const guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
@@ -344,11 +356,22 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'big5': 'cp950'
 };
 
+function normalizeEncoding(encodingName: string): string {
+	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
 function toIconvLiteEncoding(encodingName: string): string {
-	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+	const normalizedEncodingName = normalizeEncoding(encodingName);
 	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
 
 	return mapped || normalizedEncodingName;
+}
+
+function toJschardetEncoding(encodingName: string): string | undefined {
+	const normalizedEncodingName = normalizeEncoding(encodingName);
+	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
+
+	return mapped.guessableName;
 }
 
 function encodeLatin1(buffer: Uint8Array): string {
@@ -408,9 +431,9 @@ export interface IReadResult {
 	bytesRead: number;
 }
 
-export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: false): IDetectedEncodingResult;
-export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult>;
-export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, autoGuessEncoding?: boolean): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: false, candidateGuessEncodings?: string[]): IDetectedEncodingResult;
+export function detectEncodingFromBuffer(readResult: IReadResult, autoGuessEncoding?: boolean, candidateGuessEncodings?: string[]): Promise<IDetectedEncodingResult>;
+export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, autoGuessEncoding?: boolean, candidateGuessEncodings?: string[]): Promise<IDetectedEncodingResult> | IDetectedEncodingResult {
 
 	// Always first check for BOM to find out about encoding
 	let encoding = detectEncodingByBOMFromBuffer(buffer, bytesRead);
@@ -467,7 +490,7 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 
 	// Auto guess encoding if configured
 	if (autoGuessEncoding && !seemsBinary && !encoding && buffer) {
-		return guessEncodingByBuffer(buffer.slice(0, bytesRead)).then(guessedEncoding => {
+		return guessEncodingByBuffer(buffer.slice(0, bytesRead), candidateGuessEncodings).then(guessedEncoding => {
 			return {
 				seemsBinary: false,
 				encoding: guessedEncoding
@@ -478,12 +501,15 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 	return { seemsBinary, encoding };
 }
 
-export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string } } = {
+type EncodingsMap = { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string; guessableName?: string } };
+
+export const SUPPORTED_ENCODINGS: EncodingsMap = {
 	utf8: {
 		labelLong: 'UTF-8',
 		labelShort: 'UTF-8',
 		order: 1,
-		alias: 'utf8bom'
+		alias: 'utf8bom',
+		guessableName: 'UTF-8'
 	},
 	utf8bom: {
 		labelLong: 'UTF-8 with BOM',
@@ -495,17 +521,20 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	utf16le: {
 		labelLong: 'UTF-16 LE',
 		labelShort: 'UTF-16 LE',
-		order: 3
+		order: 3,
+		guessableName: 'UTF-16LE'
 	},
 	utf16be: {
 		labelLong: 'UTF-16 BE',
 		labelShort: 'UTF-16 BE',
-		order: 4
+		order: 4,
+		guessableName: 'UTF-16BE'
 	},
 	windows1252: {
 		labelLong: 'Western (Windows 1252)',
 		labelShort: 'Windows 1252',
-		order: 5
+		order: 5,
+		guessableName: 'windows-1252'
 	},
 	iso88591: {
 		labelLong: 'Western (ISO 8859-1)',
@@ -560,12 +589,14 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	windows1250: {
 		labelLong: 'Central European (Windows 1250)',
 		labelShort: 'Windows 1250',
-		order: 16
+		order: 16,
+		guessableName: 'windows-1250'
 	},
 	iso88592: {
 		labelLong: 'Central European (ISO 8859-2)',
 		labelShort: 'ISO 8859-2',
-		order: 17
+		order: 17,
+		guessableName: 'ISO-8859-2'
 	},
 	cp852: {
 		labelLong: 'Central European (CP 852)',
@@ -575,22 +606,26 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	windows1251: {
 		labelLong: 'Cyrillic (Windows 1251)',
 		labelShort: 'Windows 1251',
-		order: 19
+		order: 19,
+		guessableName: 'windows-1251'
 	},
 	cp866: {
 		labelLong: 'Cyrillic (CP 866)',
 		labelShort: 'CP 866',
-		order: 20
+		order: 20,
+		guessableName: 'IBM866'
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
-		order: 21
+		order: 21,
+		guessableName: 'ISO-8859-5'
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
-		order: 22
+		order: 22,
+		guessableName: 'KOI8-R'
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
@@ -605,22 +640,26 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	windows1253: {
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
-		order: 25
+		order: 25,
+		guessableName: 'windows-1253'
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
-		order: 26
+		order: 26,
+		guessableName: 'ISO-8859-7'
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
-		order: 27
+		order: 27,
+		guessableName: 'windows-1255'
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
 		labelShort: 'ISO 8859-8',
-		order: 28
+		order: 28,
+		guessableName: 'ISO-8859-8'
 	},
 	iso885910: {
 		labelLong: 'Nordic (ISO 8859-10)',
@@ -660,7 +699,8 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	cp950: {
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
-		order: 36
+		order: 36,
+		guessableName: 'Big5'
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
@@ -670,17 +710,20 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	shiftjis: {
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
-		order: 38
+		order: 38,
+		guessableName: 'SHIFT_JIS'
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
-		order: 39
+		order: 39,
+		guessableName: 'EUC-JP'
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
-		order: 40
+		order: 40,
+		guessableName: 'EUC-KR'
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
@@ -705,7 +748,8 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
-		order: 45
+		order: 45,
+		guessableName: 'GB2312'
 	},
 	cp865: {
 		labelLong: 'Nordic DOS (CP 865)',
@@ -718,3 +762,14 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		order: 47
 	}
 };
+
+export const GUESSABLE_ENCODINGS: EncodingsMap = (() => {
+	const guessableEncodings: EncodingsMap = {};
+	for (const encoding in SUPPORTED_ENCODINGS) {
+		if (SUPPORTED_ENCODINGS[encoding].guessableName) {
+			guessableEncodings[encoding] = SUPPORTED_ENCODINGS[encoding];
+		}
+	}
+
+	return guessableEncodings;
+})();

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SelectedLines } from './folding.js';
+
 export interface ILineRange {
 	startLineNumber: number;
 	endLineNumber: number;
@@ -13,6 +15,12 @@ export const enum FoldSource {
 	userDefined = 1,
 	recovered = 2
 }
+
+export const foldSourceAbbr = {
+	[FoldSource.provider]: ' ',
+	[FoldSource.userDefined]: 'u',
+	[FoldSource.recovered]: 'r',
+};
 
 export interface FoldRange {
 	startLineNumber: number;
@@ -230,22 +238,17 @@ export class FoldingRegions {
 		return -1;
 	}
 
-	private readonly sourceAbbr = {
-		[FoldSource.provider]: ' ',
-		[FoldSource.userDefined]: 'u',
-		[FoldSource.recovered]: 'r',
-	};
 
 	public toString() {
 		const res: string[] = [];
 		for (let i = 0; i < this.length; i++) {
-			res[i] = `[${this.sourceAbbr[this.getSource(i)]}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
+			res[i] = `[${foldSourceAbbr[this.getSource(i)]}${this.isCollapsed(i) ? '+' : '-'}] ${this.getStartLineNumber(i)}/${this.getEndLineNumber(i)}`;
 		}
 		return res.join(', ');
 	}
 
 	public toFoldRange(index: number): FoldRange {
-		return <FoldRange>{
+		return {
 			startLineNumber: this._startIndexes[index] & MAX_LINE_NUMBER,
 			endLineNumber: this._endIndexes[index] & MAX_LINE_NUMBER,
 			type: this._types ? this._types[index] : undefined,
@@ -298,7 +301,10 @@ export class FoldingRegions {
 	public static sanitizeAndMerge(
 		rangesA: FoldingRegions | FoldRange[],
 		rangesB: FoldingRegions | FoldRange[],
-		maxLineNumber: number | undefined): FoldRange[] {
+		maxLineNumber: number | undefined,
+		selection?: SelectedLines
+	): FoldRange[] {
+
 		maxLineNumber = maxLineNumber ?? Number.MAX_VALUE;
 
 		const getIndexedFunction = (r: FoldingRegions | FoldRange[], limit: number) => {
@@ -329,7 +335,8 @@ export class FoldingRegions {
 					} else {
 						// a previously folded range or a (possibly unfolded) recovered range
 						useRange = nextA;
-						useRange.isCollapsed = nextB.isCollapsed && nextA.endLineNumber === nextB.endLineNumber;
+						// stays collapsed if the range still has the same number of lines or the selection is not in the range or after it
+						useRange.isCollapsed = nextB.isCollapsed && (nextA.endLineNumber === nextB.endLineNumber || !selection?.startsInside(nextA.startLineNumber + 1, nextA.endLineNumber + 1));
 						useRange.source = FoldSource.provider;
 					}
 					nextA = getA(++indexA); // not necessary, just for speed

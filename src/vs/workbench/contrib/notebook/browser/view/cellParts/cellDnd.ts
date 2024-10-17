@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { Delayer } from '../../../../../../base/common/async.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import * as platform from '../../../../../../base/common/platform.js';
+import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { CellContentPart } from '../cellPart.js';
+import { BaseCellRenderTemplate, INotebookCellList } from '../notebookRenderingCommon.js';
+import { cloneNotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { CellEditType, ICellMoveEdit, SelectionStateType } from '../../../common/notebookCommon.js';
+import { cellRangesToIndexes, ICellRange } from '../../../common/notebookRange.js';
 
 const $ = DOM.$;
 
@@ -30,7 +30,7 @@ interface CellDragEvent {
 	dragPosRatio: number;
 }
 
-export class CellDragAndDropPart extends CellPart {
+export class CellDragAndDropPart extends CellContentPart {
 	constructor(
 		private readonly container: HTMLElement
 	) {
@@ -75,8 +75,8 @@ export class CellDragAndDropController extends Disposable {
 
 		this.listInsertionIndicator = DOM.append(notebookListContainer, $('.cell-list-insertion-indicator'));
 
-		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
-		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
+		this._register(DOM.addDisposableListener(notebookListContainer.ownerDocument.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
+		this._register(DOM.addDisposableListener(notebookListContainer.ownerDocument.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
 		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void, useCapture = false) => {
 			this._register(DOM.addDisposableListener(
@@ -140,13 +140,13 @@ export class CellDragAndDropController extends Disposable {
 			return undefined;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
+		const cellTop = this.list.getCellViewScrollTop(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 
 		const dragPosInElement = dragOffset - cellTop;
 		const dragPosRatio = dragPosInElement / cellHeight;
 
-		return <CellDragEvent>{
+		return {
 			browserEvent: event,
 			draggedOverCell,
 			cellTop,
@@ -228,7 +228,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean; altKey: boolean }, draggedOverCell: ICellViewModel) {
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
+		const cellTop = this.list.getCellViewScrollTop(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
@@ -307,7 +307,7 @@ export class CellDragAndDropController extends Disposable {
 		}
 
 		const onDragEnd = () => {
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+			if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 				return;
 			}
 
@@ -324,7 +324,7 @@ export class CellDragAndDropController extends Disposable {
 				return;
 			}
 
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+			if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 				return;
 			}
 
@@ -335,7 +335,7 @@ export class CellDragAndDropController extends Disposable {
 			const dragImage = dragImageProvider();
 			cellRoot.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
-			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
+			setTimeout(() => dragImage.remove(), 0); // Comment this out to debug drag image layout
 		};
 		for (const dragHandle of dragHandles) {
 			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, onDragStart));
@@ -343,7 +343,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+		if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 			return;
 		}
 
@@ -352,13 +352,13 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+		if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 			return;
 		}
 
 		const target = this.list.elementAt(dragOffsetY);
 		if (target && target !== cell) {
-			const cellTop = this.list.getAbsoluteTopOfElement(target);
+			const cellTop = this.list.getCellViewScrollTop(target);
 			const cellHeight = this.list.elementHeight(target);
 
 			const dropDirection = this.getExplicitDragDropDirection(dragOffsetY, cellTop, cellHeight);
@@ -400,7 +400,7 @@ export class CellDragAndDropController extends Disposable {
 			return;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(target);
+		const cellTop = this.list.getCellViewScrollTop(target);
 		const cellHeight = this.list.elementHeight(target);
 		const dropDirection = this.getExplicitDragDropDirection(ctx.dragOffsetY, cellTop, cellHeight);
 		this._dropImpl(cell, dropDirection, ctx, target);

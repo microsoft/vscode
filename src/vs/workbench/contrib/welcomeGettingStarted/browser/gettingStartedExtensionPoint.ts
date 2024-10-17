@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWalkthrough } from 'vs/platform/extensions/common/extensions';
-import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { localize } from '../../../../nls.js';
+import { IWalkthrough } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 
 const titleTranslated = localize('title', "Title");
 
@@ -26,6 +26,10 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				title: {
 					type: 'string',
 					description: localize('walkthroughs.title', "Title of walkthrough.")
+				},
+				icon: {
+					type: 'string',
+					description: localize('walkthroughs.icon', "Relative path to the icon of the walkthrough. The path is relative to the extension location. If not specified, the icon defaults to the extension icon if available."),
 				},
 				description: {
 					type: 'string',
@@ -211,6 +215,13 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 						}
 					}
 				}
+			}
+		}
+	},
+	activationEventsGenerator: (walkthroughContributions, result) => {
+		for (const walkthroughContribution of walkthroughContributions) {
+			if (walkthroughContribution.id) {
+				result.push(`onWalkthrough:${walkthroughContribution.id}`);
 			}
 		}
 	}

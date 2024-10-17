@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
-import { Event } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef, IView } from '../../../common/views.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ViewPaneContainer } from './viewPaneContainer.js';
+import { ViewPane, IViewPaneOptions } from './viewPane.js';
+import { Event } from '../../../../base/common/event.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
-	fromExtensionId?: ExtensionIdentifier;
+	readonly fromExtensionId?: ExtensionIdentifier;
 }
 
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
@@ -46,13 +46,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
-		}));
-
-		this._register(this.onDidChangeViewVisibility(view => {
-			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(view.id));
-			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
-				this.setFilter(descriptorMap[1].get(view.id)!);
-			}
 		}));
 
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
@@ -123,7 +116,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return views;
 	}
 
-	override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
@@ -135,6 +128,17 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
 		return panes;
+	}
+
+	override openView(id: string, focus?: boolean): IView | undefined {
+		const result = super.openView(id, focus);
+		if (result) {
+			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(id));
+			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
+				this.setFilter(descriptorMap[1].get(id)!);
+			}
+		}
+		return result;
 	}
 
 	abstract override getTitle(): string;

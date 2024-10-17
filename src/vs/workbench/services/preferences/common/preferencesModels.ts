@@ -3,32 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, coalesce } from 'vs/base/common/arrays';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Emitter, Event } from 'vs/base/common/event';
-import { JSONVisitor, visit } from 'vs/base/common/json';
-import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IExtensionInfo, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
+import { tail, coalesce } from '../../../../base/common/arrays.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { JSONVisitor, visit } from '../../../../base/common/json.js';
+import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { ITextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import * as nls from '../../../../nls.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationDefaultValueSource, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorModel } from '../../../common/editor/editorModel.js';
+import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from './preferences.js';
+import { FOLDER_SCOPES, WORKSPACE_SCOPES } from '../../configuration/common/configuration.js';
+import { createValidator } from './preferencesValidation.js';
 
 export const nullRange: IRange = { startLineNumber: -1, startColumn: -1, endLineNumber: -1, endColumn: -1 };
-export function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
+function isNullRange(range: IRange): boolean { return range.startLineNumber === -1 && range.startColumn === -1 && range.endLineNumber === -1 && range.endColumn === -1; }
 
-export abstract class AbstractSettingsModel extends EditorModel {
+abstract class AbstractSettingsModel extends EditorModel {
 
 	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
 
@@ -57,18 +56,6 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			});
 	}
 
-	private compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
-		const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
-		const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
-		if (aOrMax < bOrMax) {
-			return -1;
-		} else if (aOrMax > bOrMax) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		const allGroups = this.filterGroups;
 
@@ -91,32 +78,6 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 
-		filterMatches.sort((a, b) => {
-			if (a.matchType !== b.matchType) {
-				// Sort by match type if the match types are not the same.
-				// The priority of the match type is given by the SettingMatchType enum.
-				return b.matchType - a.matchType;
-			} else {
-				// The match types are the same.
-				if (a.setting.extensionInfo && b.setting.extensionInfo
-					&& a.setting.extensionInfo.id === b.setting.extensionInfo.id) {
-					// These settings belong to the same extension.
-					if (a.setting.categoryLabel !== b.setting.categoryLabel
-						&& (a.setting.categoryOrder !== undefined || b.setting.categoryOrder !== undefined)
-						&& a.setting.categoryOrder !== b.setting.categoryOrder) {
-						// These two settings don't belong to the same category and have different category orders.
-						return this.compareTwoNullableNumbers(a.setting.categoryOrder, b.setting.categoryOrder);
-					} else if (a.setting.categoryLabel === b.setting.categoryLabel
-						&& (a.setting.order !== undefined || b.setting.order !== undefined)
-						&& a.setting.order !== b.setting.order) {
-						// These two settings belong to the same category, but have different orders.
-						return this.compareTwoNullableNumbers(a.setting.order, b.setting.order);
-					}
-				}
-				// In the worst case, go back to lexicographical order.
-				return b.score - a.score;
-			}
-		});
 		return filterMatches;
 	}
 
@@ -256,6 +217,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 	private readonly _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
+	private additionalGroups: ISettingsGroup[] = [];
 	private dirty = false;
 
 	constructor(
@@ -276,15 +238,20 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 		}));
 	}
 
+	/** Doesn't include the "Commonly Used" group */
 	protected override get filterGroups(): ISettingsGroup[] {
-		// Don't filter "commonly used"
 		return this.settingsGroups.slice(1);
 	}
 
 	get settingsGroups(): ISettingsGroup[] {
 		const groups = this._defaultSettings.getSettingsGroups(this.dirty);
 		this.dirty = false;
-		return groups;
+		return [...groups, ...this.additionalGroups];
+	}
+
+	/** For programmatically added groups outside of registered configurations */
+	setAdditionalGroups(groups: ISettingsGroup[]) {
+		this.additionalGroups = groups;
 	}
 
 	findValueMatches(filter: string, setting: ISetting): IRange[] {
@@ -378,7 +345,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 					valueRange: nullRange,
 					descriptionRanges: [],
 					overrides: [],
-					overrideOf: withNullAsUndefined(overrideSetting)
+					overrideOf: overrideSetting ?? undefined,
 				};
 				if (previousParents.length === settingsPropertyIndex + 1) {
 					settings.push(setting);
@@ -455,7 +422,8 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 	if (!model.isDisposed()) {
 		visit(model.getValue(), visitor);
 	}
-	return settings.length > 0 ? [<ISettingsGroup>{
+	return settings.length > 0 ? [{
+		id: model.isDisposed() ? '' : model.id,
 		sections: [
 			{
 				settings
@@ -464,7 +432,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		title: '',
 		titleRange: nullRange,
 		range
-	}] : [];
+	} satisfies ISettingsGroup] : [];
 }
 
 export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
@@ -493,14 +461,21 @@ export class DefaultSettings extends Disposable {
 	private _contentWithoutMostCommonlyUsed: string | undefined;
 	private _settingsByName = new Map<string, ISetting>();
 
-	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		private _mostCommonlyUsedSettingsKeys: string[],
 		readonly target: ConfigurationTarget,
+		readonly configurationService: IConfigurationService
 	) {
 		super();
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.source === ConfigurationTarget.DEFAULT) {
+				this.reset();
+				this._onDidChange.fire();
+			}
+		}));
 	}
 
 	getContent(forceUpdate = false): string {
@@ -533,10 +508,16 @@ export class DefaultSettings extends Disposable {
 		this._contentWithoutMostCommonlyUsed = this.toContent(this._allSettingsGroups, 1);
 	}
 
+	private reset(): void {
+		this._content = undefined;
+		this._contentWithoutMostCommonlyUsed = undefined;
+		this._allSettingsGroups = undefined;
+	}
+
 	private parse(): ISettingsGroup[] {
 		const settingsGroups = this.getRegisteredGroups();
 		this.initAllSettingsMap(settingsGroups);
-		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
+		const mostCommonlyUsed = this.getMostCommonlyUsedSettings();
 		return [mostCommonlyUsed, ...settingsGroups];
 	}
 
@@ -569,11 +550,11 @@ export class DefaultSettings extends Disposable {
 		}
 	}
 
-	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
+	private getMostCommonlyUsedSettings(): ISettingsGroup {
 		const settings = coalesce(this._mostCommonlyUsedSettingsKeys.map(key => {
 			const setting = this._settingsByName.get(key);
 			if (setting) {
-				return <ISetting>{
+				return {
 					description: setting.description,
 					key: setting.key,
 					value: setting.value,
@@ -586,12 +567,12 @@ export class DefaultSettings extends Disposable {
 					enum: setting.enum,
 					enumDescriptions: setting.enumDescriptions,
 					descriptionRanges: []
-				};
+				} satisfies ISetting;
 			}
 			return null;
 		}));
 
-		return <ISettingsGroup>{
+		return {
 			id: 'mostCommonlyUsed',
 			range: nullRange,
 			title: nls.localize('commonlyUsed', "Commonly Used"),
@@ -601,7 +582,7 @@ export class DefaultSettings extends Disposable {
 					settings
 				}
 			]
-		};
+		} satisfies ISettingsGroup;
 	}
 
 	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup, seenSettings?: { [key: string]: boolean }): ISettingsGroup[] {
@@ -664,10 +645,9 @@ export class DefaultSettings extends Disposable {
 		// Try using the title if the category id wasn't given
 		// (in which case the category id is the same as the extension id)
 		const categoryLabel = config.extensionInfo?.id === config.id ? config.title : config.id;
-		const categoryOrder = config.order;
 
 		for (const key in settingsObject) {
-			const prop = settingsObject[key];
+			const prop: IConfigurationPropertySchema = settingsObject[key];
 			if (this.matchesScope(prop)) {
 				const value = prop.default;
 				let description = (prop.markdownDescription || prop.description || '');
@@ -710,12 +690,16 @@ export class DefaultSettings extends Disposable {
 					isLanguageTagSetting = true;
 				}
 
-				let defaultValueSource: string | IExtensionInfo | undefined;
+				let defaultValueSource: ConfigurationDefaultValueSource | undefined;
 				if (!isLanguageTagSetting) {
 					const registeredConfigurationProp = prop as IRegisteredConfigurationPropertySchema;
 					if (registeredConfigurationProp && registeredConfigurationProp.defaultValueSource) {
 						defaultValueSource = registeredConfigurationProp.defaultValueSource;
 					}
+				}
+
+				if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
+					console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
 				}
 
 				result.push({
@@ -737,6 +721,7 @@ export class DefaultSettings extends Disposable {
 					enum: enumToUse,
 					enumDescriptions: enumDescriptions,
 					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
+					enumItemLabels: prop.enumItemLabels,
 					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
@@ -745,14 +730,12 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels,
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
 					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
-					categoryLabel,
-					categoryOrder
+					categoryLabel
 				});
 			}
 		}
@@ -857,12 +840,12 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			.sort((a, b) => a.order - b.order);
 		const nonEmptyResultGroups = resultGroups.filter(group => group.result.filterMatches.length);
 
-		const startLine = tail(this.settingsGroups).range.endLineNumber + 2;
+		const startLine = tail(this.settingsGroups)!.range.endLineNumber + 2;
 		const { settingsGroups: filteredGroups, matches } = this.writeResultGroups(nonEmptyResultGroups, startLine);
 
 		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
-			<IFilterResult>{
+			{
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
@@ -912,9 +895,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		filterMatches = filterMatches
 			.map(filteredMatch => {
 				// Fix match ranges to offset from setting start line
-				return <ISettingMatch>{
+				return {
 					setting: filteredMatch.setting,
 					score: filteredMatch.score,
+					matchType: filteredMatch.matchType,
 					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 						return new Range(
 							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
@@ -928,19 +912,18 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		builder.pushGroup(settingsGroup);
 
 		// builder has rewritten settings ranges, fix match ranges
-		const fixedMatches = flatten(
-			filterMatches
-				.map(m => m.matches || [])
-				.map((settingMatches, i) => {
-					const setting = settingsGroup.sections[0].settings[i];
-					return settingMatches.map(range => {
-						return new Range(
-							range.startLineNumber + setting.range.startLineNumber,
-							range.startColumn,
-							range.endLineNumber + setting.range.startLineNumber,
-							range.endColumn);
-					});
-				}));
+		const fixedMatches = filterMatches
+			.map(m => m.matches || [])
+			.flatMap((settingMatches, i) => {
+				const setting = settingsGroup.sections[0].settings[i];
+				return settingMatches.map(range => {
+					return new Range(
+						range.startLineNumber + setting.range.startLineNumber,
+						range.startColumn,
+						range.endLineNumber + setting.range.startLineNumber,
+						range.endColumn);
+				});
+			});
 
 		return fixedMatches;
 	}
@@ -984,7 +967,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
-		return <ISettingsGroup>{
+		return {
 			id: resultGroup.id,
 			range: nullRange,
 			title: resultGroup.label,
@@ -1090,7 +1073,7 @@ class SettingsContentBuilder {
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
-		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+		if (setting.enum && setting.enumDescriptions?.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
 				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
 				const line = desc ?
@@ -1154,9 +1137,15 @@ export class DefaultRawSettingsEditorModel extends Disposable {
 
 	private _content: string | null = null;
 
+	private readonly _onDidContentChanged = this._register(new Emitter<void>());
+	readonly onDidContentChanged = this._onDidContentChanged.event;
+
 	constructor(private defaultSettings: DefaultSettings) {
 		super();
-		this._register(defaultSettings.onDidChange(() => this._content = null));
+		this._register(defaultSettings.onDidChange(() => {
+			this._content = null;
+			this._onDidContentChanged.fire();
+		}));
 	}
 
 	get content(): string {

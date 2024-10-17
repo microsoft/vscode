@@ -3,93 +3,112 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { illegalArgument, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../common/core/range.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentColorProvider, IColorInformation, IColorPresentation } from '../../../common/languages.js';
+import { IModelService } from '../../../common/services/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { DefaultDocumentColorProvider } from './defaultDocumentColorProvider.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../browser/editorExtensions.js';
 
-
-export interface IColorData {
-	colorInfo: IColorInformation;
-	provider: DocumentColorProvider;
-}
-
-export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
-	const colors: IColorData[] = [];
-	const providers = registry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
-		if (Array.isArray(result)) {
-			for (const colorInfo of result) {
-				colors.push({ colorInfo, provider });
-			}
-		}
-	}));
-
-	return Promise.all(promises).then(() => colors);
+export async function getColors(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean = true): Promise<IColorData[]> {
+	return _findColorData<IColorData>(new ColorDataCollector(), colorProviderRegistry, model, token, isDefaultColorDecoratorsEnabled);
 }
 
 export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
 	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 
-CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (accessor, ...args) {
+export interface IColorData {
+	colorInfo: IColorInformation;
+	provider: DocumentColorProvider;
+}
 
-	const [resource] = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
+export interface IExtColorData { range: IRange; color: [number, number, number, number] }
+
+interface DataCollector<T> {
+	compute(provider: DocumentColorProvider, model: ITextModel, token: CancellationToken, result: T[]): Promise<boolean>;
+}
+
+class ColorDataCollector implements DataCollector<IColorData> {
+	constructor() { }
+	async compute(provider: DocumentColorProvider, model: ITextModel, token: CancellationToken, colors: IColorData[]): Promise<boolean> {
+		const documentColors = await provider.provideDocumentColors(model, token);
+		if (Array.isArray(documentColors)) {
+			for (const colorInfo of documentColors) {
+				colors.push({ colorInfo, provider });
+			}
+		}
+		return Array.isArray(documentColors);
 	}
+}
+
+export class ExtColorDataCollector implements DataCollector<IExtColorData> {
+	constructor() { }
+	async compute(provider: DocumentColorProvider, model: ITextModel, token: CancellationToken, colors: IExtColorData[]): Promise<boolean> {
+		const documentColors = await provider.provideDocumentColors(model, token);
+		if (Array.isArray(documentColors)) {
+			for (const colorInfo of documentColors) {
+				colors.push({ range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
+			}
+		}
+		return Array.isArray(documentColors);
+	}
+
+}
+
+export class ColorPresentationsCollector implements DataCollector<IColorPresentation> {
+	constructor(private colorInfo: IColorInformation) { }
+	async compute(provider: DocumentColorProvider, model: ITextModel, _token: CancellationToken, colors: IColorPresentation[]): Promise<boolean> {
+		const documentColors = await provider.provideColorPresentations(model, this.colorInfo, CancellationToken.None);
+		if (Array.isArray(documentColors)) {
+			colors.push(...documentColors);
+		}
+		return Array.isArray(documentColors);
+	}
+}
+
+export async function _findColorData<T extends IColorPresentation | IExtColorData | IColorData>(collector: DataCollector<T>, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<T[]> {
+	let validDocumentColorProviderFound = false;
+	let defaultProvider: DefaultDocumentColorProvider | undefined;
+	const colorData: T[] = [];
+	const documentColorProviders = colorProviderRegistry.ordered(model);
+	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
+		const provider = documentColorProviders[i];
+		if (provider instanceof DefaultDocumentColorProvider) {
+			defaultProvider = provider;
+		} else {
+			try {
+				if (await collector.compute(provider, model, token, colorData)) {
+					validDocumentColorProviderFound = true;
+				}
+			} catch (e) {
+				onUnexpectedExternalError(e);
+			}
+		}
+	}
+	if (validDocumentColorProviderFound) {
+		return colorData;
+	}
+	if (defaultProvider && isDefaultColorDecoratorsEnabled) {
+		await collector.compute(defaultProvider, model, token, colorData);
+		return colorData;
+	}
+	return [];
+}
+
+export function _setupColorCommand(accessor: ServicesAccessor, resource: URI): { model: ITextModel; colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>; isDefaultColorDecoratorsEnabled: boolean } {
 	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(resource);
 	if (!model) {
 		throw illegalArgument();
 	}
+	const isDefaultColorDecoratorsEnabled = accessor.get(IConfigurationService).getValue<boolean>('editor.defaultColorDecorators', { resource });
+	return { model, colorProviderRegistry, isDefaultColorDecoratorsEnabled };
+}
 
-	const rawCIs: { range: IRange; color: [number, number, number, number] }[] = [];
-	const providers = colorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
-		if (Array.isArray(result)) {
-			for (const ci of result) {
-				rawCIs.push({ range: ci.range, color: [ci.color.red, ci.color.green, ci.color.blue, ci.color.alpha] });
-			}
-		}
-	}));
-
-	return Promise.all(promises).then(() => rawCIs);
-});
-
-
-CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (accessor, ...args) {
-
-	const [color, context] = args;
-	const { uri, range } = context;
-	if (!(uri instanceof URI) || !Array.isArray(color) || color.length !== 4 || !Range.isIRange(range)) {
-		throw illegalArgument();
-	}
-	const [red, green, blue, alpha] = color;
-
-	const { colorProvider: colorProviderRegistry } = accessor.get(ILanguageFeaturesService);
-	const model = accessor.get(IModelService).getModel(uri);
-	if (!model) {
-		throw illegalArgument();
-	}
-
-	const colorInfo = {
-		range,
-		color: { red, green, blue, alpha }
-	};
-
-	const presentations: IColorPresentation[] = [];
-	const providers = colorProviderRegistry.ordered(model).reverse();
-	const promises = providers.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
-		if (Array.isArray(result)) {
-			presentations.push(...result);
-		}
-	}));
-	return Promise.all(promises).then(() => presentations);
-});

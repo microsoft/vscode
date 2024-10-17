@@ -22,26 +22,30 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options)
 	};
 }
 
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing } = options;
 
-	const electron = await measureAndLog(playwright._electron.launch({
+	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
-		env: configuration.env as { [key: string]: string }
+		env: configuration.env as { [key: string]: string },
+		timeout: 0
 	}), 'playwright-electron#launch', logger);
 
-	const window = await measureAndLog(electron.firstWindow(), 'playwright-electron#firstWindow', logger);
+	let window = electron.windows()[0];
+	if (!window) {
+		window = await measureAndLog(() => electron.waitForEvent('window', { timeout: 0 }), 'playwright-electron#firstWindow', logger);
+	}
 
 	const context = window.context();
 
 	if (tracing) {
 		try {
-			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Electron): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}

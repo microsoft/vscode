@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Expression, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DebugModel, Expression } from '../../common/debugModel.js';
+import { createMockDebugModel } from './mockDebugModel.js';
 
 // Expressions
 
@@ -19,11 +20,11 @@ function assertWatchExpressions(watchExpressions: Expression[], expectedName: st
 }
 
 suite('Debug - Watch', () => {
-
 	let model: DebugModel;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		model = createMockDebugModel();
+		model = createMockDebugModel(disposables);
 	});
 
 	test('watch expressions', () => {

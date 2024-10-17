@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { MainThreadDiaglogsShape, MainContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { URI } from '../../../base/common/uri.js';
+import { MainThreadDiaglogsShape, MainContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { Schemas } from '../../../base/common/network.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDialogs)
 export class MainThreadDialogs implements MainThreadDiaglogsShape {
@@ -46,12 +47,12 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			canSelectMany: options?.canSelectMany,
 			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
 			title: options?.title || undefined,
-			availableFileSystems: []
+			availableFileSystems: options?.allowUIResources ? [Schemas.vscodeRemote, Schemas.file] : []
 		};
 		if (options?.filters) {
 			result.filters = [];
 			for (const [key, value] of Object.entries(options.filters)) {
-				result.filters!.push({ name: key, extensions: value });
+				result.filters.push({ name: key, extensions: value });
 			}
 		}
 		return result;

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { ISplice } from 'vs/base/common/sequence';
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind.js';
+import { CancellationToken } from './cancellation.js';
+import { CancellationError } from './errors.js';
+import { ISplice } from './sequence.js';
 
 /**
  * Returns the last element of an array.
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
 	return array[array.length - (1 + n)];
 }
 
@@ -106,27 +107,6 @@ export function binarySearch2(length: number, compareToKey: (index: number) => n
 	return -(low + 1);
 }
 
-/**
- * Takes a sorted array and a function p. The array is sorted in such a way that all elements where p(x) is false
- * are located before all elements where p(x) is true.
- * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
- */
-export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boolean): number {
-	let low = 0, high = array.length;
-	if (high === 0) {
-		return 0; // no children
-	}
-	while (low < high) {
-		const mid = Math.floor((low + high) / 2);
-		if (p(array[mid])) {
-			high = mid;
-		} else {
-			low = mid + 1;
-		}
-	}
-	return low;
-}
-
 type Compare<T> = (a: T, b: T) => number;
 
 
@@ -177,7 +157,44 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 	return result;
 }
 
+/**
+ * Splits the given items into a list of (non-empty) groups.
+ * `shouldBeGrouped` is used to decide if two consecutive items should be in the same group.
+ * The order of the items is preserved.
+ */
+export function* groupAdjacentBy<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
+	let currentGroup: T[] | undefined;
+	let last: T | undefined;
+	for (const item of items) {
+		if (last !== undefined && shouldBeGrouped(last, item)) {
+			currentGroup!.push(item);
+		} else {
+			if (currentGroup) {
+				yield currentGroup;
+			}
+			currentGroup = [item];
+		}
+		last = item;
+	}
+	if (currentGroup) {
+		yield currentGroup;
+	}
+}
+
+export function forEachAdjacent<T>(arr: T[], f: (item1: T | undefined, item2: T | undefined) => void): void {
+	for (let i = 0; i <= arr.length; i++) {
+		f(i === 0 ? undefined : arr[i - 1], i === arr.length ? undefined : arr[i]);
+	}
+}
+
+export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, element: T, after: T | undefined) => void): void {
+	for (let i = 0; i < arr.length; i++) {
+		f(i === 0 ? undefined : arr[i - 1], arr[i], i + 1 === arr.length ? undefined : arr[i + 1]);
+	}
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 
@@ -314,7 +331,7 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirstInSorted(result, e => compare(element, e) < 0);
+			const j = findFirstIdxMonotonousOrArrLen(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}
@@ -324,13 +341,13 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
  * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	return <T[]>array.filter(e => !!e);
+	return array.filter((e): e is T => !!e);
 }
 
 /**
  * Remove all falsy values from `array`. The original array IS modified.
  */
-export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
+export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts array is Array<T> {
 	let to = 0;
 	for (let i = 0; i < array.length; i++) {
 		if (!!array[i]) {
@@ -344,7 +361,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 /**
  * @deprecated Use `Array.copyWithin` instead
  */
-export function move(array: any[], from: number, to: number): void {
+export function move(array: unknown[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
 }
 
@@ -368,7 +385,7 @@ export function isNonEmptyArray<T>(obj: T[] | readonly T[] | undefined | null): 
  * Removes duplicates from the given array. The optional keyFn allows to specify
  * how elements are checked for equality by returning an alternate value for each.
  */
-export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = value => value): T[] {
+export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => unknown = value => value): T[] {
 	const seen = new Set<any>();
 
 	return array.filter(element => {
@@ -396,38 +413,6 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 	};
 }
 
-export function findLast<T>(arr: readonly T[], predicate: (item: T) => boolean): T | undefined {
-	const idx = lastIndex(arr, predicate);
-	if (idx === -1) {
-		return undefined;
-	}
-	return arr[idx];
-}
-
-export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
-	for (let i = array.length - 1; i >= 0; i--) {
-		const element = array[i];
-
-		if (fn(element)) {
-			return i;
-		}
-	}
-
-	return -1;
-}
-
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[0] : notFoundValue;
-}
-
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
-export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
-export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
-	return array.length > 0 ? array[array.length - 1] : notFoundValue;
-}
-
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
@@ -436,13 +421,6 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	}
 
 	return result;
-}
-
-/**
- * @deprecated Use `[].flat()`
- */
-export function flatten<T>(arr: T[][]): T[] {
-	return (<T[]>[]).concat(...arr);
 }
 
 export function range(to: number): number[];
@@ -592,20 +570,6 @@ export function getRandomElement<T>(arr: T[]): T | undefined {
 }
 
 /**
- * Returns the first mapped value of the array which is not undefined.
- */
-export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undefined): R | undefined {
-	for (const value of array) {
-		const mapped = mapFn(value);
-		if (mapped !== undefined) {
-			return mapped;
-		}
-	}
-
-	return undefined;
-}
-
-/**
  * Insert the new items in the array.
  * @param array The original array.
  * @param start The zero-based location in the array from which to start inserting elements.
@@ -636,7 +600,11 @@ export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
  */
 export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
 	const index = getActualStartIndex(array, start);
-	const result = array.splice(index, deleteCount);
+	let result = array.splice(index, deleteCount);
+	if (result === undefined) {
+		// see https://bugs.webkit.org/show_bug.cgi?id=261140
+		result = [];
+	}
 	insertInto(array, index, newItems);
 	return result;
 }
@@ -663,6 +631,10 @@ export type CompareResult = number;
 export namespace CompareResult {
 	export function isLessThan(result: CompareResult): boolean {
 		return result < 0;
+	}
+
+	export function isLessThanOrEqual(result: CompareResult): boolean {
+		return result <= 0;
 	}
 
 	export function isGreaterThan(result: CompareResult): boolean {
@@ -706,47 +678,10 @@ export function tieBreakComparators<TItem>(...comparators: Comparator<TItem>[]):
 */
 export const numberComparator: Comparator<number> = (a, b) => a - b;
 
-/**
- * Returns the first item that is equal to or greater than every other item.
-*/
-export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
-	if (items.length === 0) {
-		return undefined;
-	}
+export const booleanComparator: Comparator<boolean> = (a, b) => numberComparator(a ? 1 : 0, b ? 1 : 0);
 
-	let max = items[0];
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (comparator(item, max) > 0) {
-			max = item;
-		}
-	}
-	return max;
-}
-
-/**
- * Returns the last item that is equal to or greater than every other item.
-*/
-export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
-	if (items.length === 0) {
-		return undefined;
-	}
-
-	let max = items[0];
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (comparator(item, max) >= 0) {
-			max = item;
-		}
-	}
-	return max;
-}
-
-/**
- * Returns the first item that is equal to or less than every other item.
-*/
-export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
-	return findMaxBy(items, (a, b) => -comparator(a, b));
+export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
+	return (a, b) => -comparator(a, b);
 }
 
 export class ArrayQueue<T> {
@@ -904,4 +839,52 @@ export class CallbackIterable<T> {
 		});
 		return result;
 	}
+}
+
+/**
+ * Represents a re-arrangement of items in an array.
+ */
+export class Permutation {
+	constructor(private readonly _indexMap: readonly number[]) { }
+
+	/**
+	 * Returns a permutation that sorts the given array according to the given compare function.
+	 */
+	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
+		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
+		return new Permutation(sortIndices);
+	}
+
+	/**
+	 * Returns a new array with the elements of the given array re-arranged according to this permutation.
+	 */
+	apply<T>(arr: readonly T[]): T[] {
+		return arr.map((_, index) => arr[this._indexMap[index]]);
+	}
+
+	/**
+	 * Returns a new permutation that undoes the re-arrangement of this permutation.
+	*/
+	inverse(): Permutation {
+		const inverseIndexMap = this._indexMap.slice();
+		for (let i = 0; i < this._indexMap.length; i++) {
+			inverseIndexMap[this._indexMap[i]] = i;
+		}
+		return new Permutation(inverseIndexMap);
+	}
+}
+
+/**
+ * Asynchronous variant of `Array.find()`, returning the first element in
+ * the array for which the predicate returns true.
+ *
+ * This implementation does not bail early and waits for all promises to
+ * resolve before returning.
+ */
+export async function findAsync<T>(array: readonly T[], predicate: (element: T, index: number) => Promise<boolean>): Promise<T | undefined> {
+	const results = await Promise.all(array.map(
+		async (element, index) => ({ element, ok: await predicate(element, index) })
+	));
+
+	return results.find(r => r.ok)?.element;
 }

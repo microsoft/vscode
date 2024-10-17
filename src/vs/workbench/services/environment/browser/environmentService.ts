@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath } from 'vs/platform/window/common/window';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { memoize } from 'vs/base/common/decorators';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { LogLevelToString } from 'vs/platform/log/common/log';
-import { isUndefined } from 'vs/base/common/types';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { Schemas } from '../../../../base/common/network.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../../platform/environment/common/environment.js';
+import { IPath } from '../../../../platform/window/common/window.js';
+import { IWorkbenchEnvironmentService } from '../common/environmentService.js';
+import { IWorkbenchConstructionOptions } from '../../../browser/web.api.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { memoize } from '../../../../base/common/decorators.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { parseLineAndColumnAware } from '../../../../base/common/extpath.js';
+import { LogLevelToString } from '../../../../platform/log/common/log.js';
+import { isUndefined } from '../../../../base/common/types.js';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from '../../../../platform/environment/common/environmentService.js';
 
 export const IBrowserWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, IBrowserWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -31,6 +32,11 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	 * Options used to configure the workbench.
 	 */
 	readonly options?: IWorkbenchConstructionOptions;
+
+	/**
+	 * Gets whether a resolver extension is expected for the environment.
+	 */
+	readonly expectsResolverExtension: boolean;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
@@ -41,16 +47,59 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
 	@memoize
+	get expectsResolverExtension(): boolean {
+		return !!this.options.remoteAuthority?.includes('+') && !this.options.webSocketFactory;
+	}
+
+	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
-	get logsPath(): string { return this.logsHome.path; }
+	get logLevel(): string | undefined {
+		const logLevelFromPayload = this.payload?.get('logLevel');
+		if (logLevelFromPayload) {
+			return logLevelFromPayload.split(',').find(entry => !EXTENSION_IDENTIFIER_WITH_LOG_REGEX.test(entry));
+		}
+
+		return this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined;
+	}
+
+	get extensionLogLevel(): [string, string][] | undefined {
+		const logLevelFromPayload = this.payload?.get('logLevel');
+		if (logLevelFromPayload) {
+			const result: [string, string][] = [];
+			for (const entry of logLevelFromPayload.split(',')) {
+				const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
+				if (matches && matches[1] && matches[2]) {
+					result.push([matches[1], matches[2]]);
+				}
+			}
+
+			return result.length ? result : undefined;
+		}
+
+		return this.options.developmentOptions?.extensionLogLevel !== undefined ? this.options.developmentOptions?.extensionLogLevel.map(([extension, logLevel]) => ([extension, LogLevelToString(logLevel)])) : undefined;
+	}
+
+	get profDurationMarkers(): string[] | undefined {
+		const profDurationMarkersFromPayload = this.payload?.get('profDurationMarkers');
+		if (profDurationMarkersFromPayload) {
+			const result: string[] = [];
+			for (const entry of profDurationMarkersFromPayload.split(',')) {
+				result.push(entry);
+			}
+
+			return result.length === 2 ? result : undefined;
+		}
+
+		return undefined;
+	}
 
 	@memoize
-	get logLevel(): string | undefined { return this.payload?.get('logLevel') || (this.options.developmentOptions?.logLevel !== undefined ? LogLevelToString(this.options.developmentOptions?.logLevel) : undefined); }
+	get windowLogsPath(): URI { return this.logsHome; }
 
 	@memoize
-	get logFile(): URI { return joinPath(this.logsHome, 'window.log'); }
+	get logFile(): URI { return joinPath(this.windowLogsPath, 'window.log'); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.vscodeUserData }); }
@@ -81,12 +130,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.workspaceId); }
 
 	@memoize
-	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
-
-	@memoize
-	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
-
-	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize
@@ -100,6 +143,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
+
+	@memoize
+	get extHostTelemetryLogFile(): URI {
+		return joinPath(this.extHostLogsPath, 'extensionTelemetry.log');
+	}
 
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
@@ -183,12 +231,12 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '3c8520fab514b9f56070214496b26ff68d1b1cb5')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? 'ef65ac1ba57f57f2a3961bfe94aa20481caca4c6')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 
 	@memoize
-	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
+	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
 
 	@memoize
 	get disableTelemetry(): boolean { return false; }
@@ -209,7 +257,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
-	get lastActiveProfile(): string | undefined { return this.payload?.get('lastActiveProfile'); }
+	get profile(): string | undefined { return this.payload?.get('profile'); }
 
 	editSessionId: string | undefined = this.options.editSessionId;
 
@@ -217,7 +265,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	constructor(
 		private readonly workspaceId: string,
-		private readonly logsHome: URI,
+		readonly logsHome: URI,
 		readonly options: IWorkbenchConstructionOptions,
 		private readonly productService: IProductService
 	) {

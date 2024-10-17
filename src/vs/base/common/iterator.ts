@@ -5,7 +5,7 @@
 
 export namespace Iterable {
 
-	export function is<T = any>(thing: any): thing is IterableIterator<T> {
+	export function is<T = any>(thing: any): thing is Iterable<T> {
 		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
 	}
 
@@ -18,8 +18,22 @@ export namespace Iterable {
 		yield element;
 	}
 
+	export function wrap<T>(iterableOrElement: Iterable<T> | T): Iterable<T> {
+		if (is(iterableOrElement)) {
+			return iterableOrElement;
+		} else {
+			return single(iterableOrElement);
+		}
+	}
+
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
 		return iterable || _empty;
+	}
+
+	export function* reverse<T>(array: Array<T>): Iterable<T> {
+		for (let i = array.length - 1; i >= 0; i--) {
+			yield array[i];
+		}
 	}
 
 	export function isEmpty<T>(iterable: Iterable<T> | undefined | null): boolean {
@@ -30,16 +44,17 @@ export namespace Iterable {
 		return iterable[Symbol.iterator]().next().value;
 	}
 
-	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => unknown): boolean {
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
 		for (const element of iterable) {
-			if (predicate(element)) {
+			if (predicate(element, i++)) {
 				return true;
 			}
 		}
 		return false;
 	}
 
-	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): T | undefined;
+	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): R | undefined;
 	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined;
 	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined {
 		for (const element of iterable) {
@@ -68,19 +83,16 @@ export namespace Iterable {
 		}
 	}
 
-	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
-		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
-			}
+	export function* flatMap<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => Iterable<R>): Iterable<R> {
+		let index = 0;
+		for (const element of iterable) {
+			yield* fn(element, index++);
 		}
 	}
 
-	export function* concatNested<T>(iterables: Iterable<Iterable<T>>): Iterable<T> {
+	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
 		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
-			}
+			yield* iterable;
 		}
 	}
 
@@ -90,13 +102,6 @@ export namespace Iterable {
 			value = reducer(value, element);
 		}
 		return value;
-	}
-
-	export function forEach<T>(iterable: Iterable<T>, fn: (t: T, index: number) => any): void {
-		let index = 0;
-		for (const element of iterable) {
-			fn(element, index++);
-		}
 	}
 
 	/**
@@ -144,32 +149,11 @@ export namespace Iterable {
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
 	}
 
-	/**
-	 * Consumes `atMost` elements from iterable and returns the consumed elements,
-	 * and an iterable for the rest of the elements.
-	 */
-	export function collect<T>(iterable: Iterable<T>): T[] {
-		return consume(iterable)[0];
-	}
-
-	/**
-	 * Returns whether the iterables are the same length and all items are
-	 * equal using the comparator function.
-	 */
-	export function equals<T>(a: Iterable<T>, b: Iterable<T>, comparator = (at: T, bt: T) => at === bt) {
-		const ai = a[Symbol.iterator]();
-		const bi = b[Symbol.iterator]();
-		while (true) {
-			const an = ai.next();
-			const bn = bi.next();
-
-			if (an.done !== bn.done) {
-				return false;
-			} else if (an.done) {
-				return true;
-			} else if (!comparator(an.value, bn.value)) {
-				return false;
-			}
+	export async function asyncToArray<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+		const result: T[] = [];
+		for await (const item of iterable) {
+			result.push(item);
 		}
+		return Promise.resolve(result);
 	}
 }

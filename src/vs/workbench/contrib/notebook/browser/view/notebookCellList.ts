@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from 'vs/base/common/platform';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { Range } from 'vs/editor/common/core/range';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { clamp } from 'vs/base/common/numbers';
-import { ISplice } from 'vs/base/common/sequence';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
-const enum CellRevealType {
-	Line,
-	Range
-}
+import * as DOM from '../../../../../base/browser/dom.js';
+import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IListRenderer, IListVirtualDelegate, ListError } from '../../../../../base/browser/ui/list/list.js';
+import { IListStyles, IStyleController } from '../../../../../base/browser/ui/list/listWidget.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
+import { ScrollEvent } from '../../../../../base/common/scrollable.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumComputer.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IListService, IWorkbenchListOptions, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { CursorAtBoundary, ICellViewModel, CellEditState, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../common/notebookCommon.js';
+import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from '../../common/notebookRange.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../common/notebookContextKeys.js';
+import { clamp } from '../../../../../base/common/numbers.js';
+import { ISplice } from '../../../../../base/common/sequence.js';
+import { BaseCellRenderTemplate, INotebookCellList } from './notebookRenderingCommon.js';
+import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { MarkupCellViewModel } from '../viewModel/markupCellViewModel.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IListViewOptions, IListView } from '../../../../../base/browser/ui/list/listView.js';
+import { NotebookCellListView } from './notebookCellListView.js';
+import { NotebookOptions } from '../notebookOptions.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { NotebookCellAnchor } from './notebookCellAnchor.js';
+import { NotebookViewZones } from '../viewParts/notebookViewZones.js';
 
 const enum CellRevealPosition {
 	Top,
@@ -68,11 +68,6 @@ function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange[]) {
 	return result;
 }
 
-export interface IFocusNextPreviousDelegate {
-	onFocusNext(applyFocusNext: () => void): void;
-	onFocusPrevious(applyFocusPrevious: () => void): void;
-}
-
 export const NOTEBOOK_WEBVIEW_BOUNDARY = 5000;
 
 function validateWebviewBoundary(element: HTMLElement) {
@@ -81,6 +76,8 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
+	protected override readonly view!: NotebookCellListView<CellViewModel>;
+	private viewZones!: NotebookViewZones;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -90,10 +87,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	get scrollableElement(): HTMLElement {
 		return this.view.scrollableElementDomNode;
 	}
-	private _previousFocusedElements: CellViewModel[] = [];
+	private _previousFocusedElements: readonly CellViewModel[] = [];
 	private readonly _localDisposableStore = new DisposableStore();
 	private readonly _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
+	private _notebookCellAnchor: NotebookCellAnchor;
 
 	private readonly _onDidRemoveOutputs = this._localDisposableStore.add(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
@@ -137,31 +135,31 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _isInLayout: boolean = false;
 
-	private readonly _viewContext: ViewContext;
-
 	private _webviewElement: FastDomNode<HTMLElement> | null = null;
 
 	get webviewElement() {
 		return this._webviewElement;
 	}
 
+	get inRenderingTransaction() {
+		return this.view.inRenderingTransaction;
+	}
+
 	constructor(
 		private listUser: string,
-		parentContainer: HTMLElement,
 		container: HTMLElement,
-		viewContext: ViewContext,
+		private readonly notebookOptions: NotebookOptions,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, instantiationService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
-		this._viewContext = viewContext;
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -175,8 +173,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
 		notebookEditorCursorAtBoundaryContext.set('none');
 
+		const notebookEditorCursorAtLineBoundaryContext = NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY.bindTo(contextKeyService);
+		notebookEditorCursorAtLineBoundaryContext.set('none');
+
 		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
 		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
+
+		this._notebookCellAnchor = new NotebookCellAnchor(notebookExecutionStateService, configurationService, this.onDidScroll);
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {
@@ -191,6 +194,21 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 					break;
 				default:
 					notebookEditorCursorAtBoundaryContext.set('none');
+					break;
+			}
+
+			switch (element.cursorAtLineBoundary()) {
+				case CursorAtLineBoundary.Both:
+					notebookEditorCursorAtLineBoundaryContext.set('both');
+					break;
+				case CursorAtLineBoundary.Start:
+					notebookEditorCursorAtLineBoundaryContext.set('start');
+					break;
+				case CursorAtLineBoundary.End:
+					notebookEditorCursorAtLineBoundaryContext.set('end');
+					break;
+				default:
+					notebookEditorCursorAtLineBoundaryContext.set('none');
 					break;
 			}
 
@@ -223,17 +241,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			notebookEditorCursorAtBoundaryContext.set('none');
 		}));
 
-		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
-			const focus = this.getFocusedElements()[0];
-
-			if (focus && focus.cellKind === CellKind.Markup && !focus.isInputCollapsed && !this._viewModel?.options.isReadOnly) {
-				// scroll the cell into view if out of viewport
-				this.revealElementInView(focus);
-				focus.updateEditState(CellEditState.Editing, 'dbclick');
-				focus.focusMode = CellFocusMode.Editor;
-			}
-		}));
-
 		// update visibleRanges
 		const updateVisibleRanges = () => {
 			if (!this.view.length) {
@@ -262,7 +269,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		this._localDisposableStore.add(this.view.onDidChangeContentHeight(() => {
 			if (this._isInLayout) {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				DOM.scheduleAtNextAnimationFrame(DOM.getWindow(container), () => {
 					updateVisibleRanges();
 				});
 			}
@@ -270,12 +277,25 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}));
 		this._localDisposableStore.add(this.view.onDidScroll(() => {
 			if (this._isInLayout) {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				DOM.scheduleAtNextAnimationFrame(DOM.getWindow(container), () => {
 					updateVisibleRanges();
 				});
 			}
 			updateVisibleRanges();
 		}));
+	}
+
+	protected override createListView(container: HTMLElement, virtualDelegate: IListVirtualDelegate<CellViewModel>, renderers: IListRenderer<any, any>[], viewOptions: IListViewOptions<CellViewModel>): IListView<CellViewModel> {
+		const listView = new NotebookCellListView(container, virtualDelegate, renderers, viewOptions);
+		this.viewZones = new NotebookViewZones(listView, this);
+		return listView;
+	}
+
+	/**
+	 * Test Only
+	 */
+	_getView() {
+		return this.view;
 	}
 
 	attachWebview(element: HTMLElement) {
@@ -317,6 +337,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				return;
 			}
 
+			// update whitespaces which are anchored to the model indexes
+			this.viewZones.onCellsChanged(e);
+
 			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
 			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
 
@@ -334,7 +357,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (e.synchronous) {
 				this._updateElementsInWebview(viewDiffs);
 			} else {
-				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.rowsContainer), () => {
 					if (this._isDisposed) {
 						return;
 					}
@@ -422,6 +445,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (!hasDifference) {
 				// they call 'setHiddenAreas' for a reason, even if the ranges are still the same, it's possible that the hiddenRangeSum is not update to date
 				this._updateHiddenRangePrefixSum(newRanges);
+				this.viewZones.onHiddenRangesChange();
+				this.viewZones.layout();
 				return false;
 			}
 		}
@@ -433,11 +458,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		// set hidden ranges prefix sum
 		this._updateHiddenRangePrefixSum(newRanges);
+		// Update view zone positions after hidden ranges change
+		this.viewZones.onHiddenRangesChange();
 
 		if (triggerViewUpdate) {
 			this.updateHiddenAreasInView(oldRanges, newRanges);
 		}
 
+		this.viewZones.layout();
 		return true;
 	}
 
@@ -487,13 +515,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._updateElementsInWebview(viewDiffs);
 	}
 
-	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
+	splice2(start: number, deleteCount: number, elements: readonly CellViewModel[] = []): void {
 		// we need to convert start and delete count based on hidden ranges
 		if (start < 0 || start > this.view.length) {
 			return;
 		}
 
-		const focusInside = DOM.isAncestor(document.activeElement, this.rowsContainer);
+		const focusInside = DOM.isAncestorOfActiveElement(this.rowsContainer);
 		super.splice(start, deleteCount, elements);
 		if (focusInside) {
 			this.domFocus();
@@ -510,6 +538,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// after splice, the selected cells are deleted
 			this._viewModel!.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 		}
+
+		this.viewZones.layout();
 	}
 
 	getModelIndex(cell: CellViewModel): number | undefined {
@@ -546,6 +576,36 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return undefined;
 		} else {
 			return viewIndexInfo.index;
+		}
+	}
+
+	convertModelIndexToViewIndex(modelIndex: number): number {
+		if (!this.hiddenRangesPrefixSum) {
+			return modelIndex;
+		}
+
+		if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+			// it's already after the last hidden range
+			return Math.min(this.length, this.hiddenRangesPrefixSum.getTotalSum());
+		}
+
+		return this.hiddenRangesPrefixSum.getIndexOf(modelIndex).index;
+	}
+
+	modelIndexIsVisible(modelIndex: number): boolean {
+		if (!this.hiddenRangesPrefixSum) {
+			return true;
+		}
+
+		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+				// it's already after the last hidden range
+				return true;
+			}
+			return false;
+		} else {
+			return true;
 		}
 	}
 
@@ -678,6 +738,26 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.setSelection(indices);
 	}
 
+	getCellViewScrollTop(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+		if (index === undefined || index < 0 || index >= this.length) {
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		return this.view.elementTop(index);
+	}
+
+	getCellViewScrollBottom(cell: ICellViewModel) {
+		const index = this._getViewIndexUpperBound(cell);
+		if (index === undefined || index < 0 || index >= this.length) {
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		const top = this.view.elementTop(index);
+		const height = this.view.elementHeight(index);
+		return top + height;
+	}
+
 	override setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
 		if (ignoreTextModelUpdate) {
 			super.setFocus(indexes, browserEvent);
@@ -741,7 +821,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	/**
 	 * The range will be revealed with as little scrolling as possible.
 	 */
-	revealElementsInView(range: ICellRange) {
+	revealCells(range: ICellRange) {
 		const startIndex = this._getViewIndexUpperBound2(range.start);
 
 		if (startIndex < 0) {
@@ -782,438 +862,74 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		}
 
-
-		this._revealInView(startIndex);
+		this._revealInViewWithMinimalScrolling(startIndex);
 	}
 
-	isScrolledToBottom() {
-		if (this.length === 0) {
-			return true;
+	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
+		const firstIndex = this.view.firstMostlyVisibleIndex;
+		const elementHeight = this.view.elementHeight(viewIndex);
+
+		if (viewIndex <= firstIndex || (!firstLine && elementHeight >= this.view.renderHeight)) {
+			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
+		} else {
+			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, firstLine);
 		}
-
-		const last = this.length - 1;
-		const bottom = this.view.elementHeight(last) + this.view.elementTop(last);
-		const wrapperBottom = this.getViewScrollTop() + this.view.renderHeight;
-
-		if (bottom <= wrapperBottom) {
-			return true;
-		}
-
-		return false;
 	}
 
 	scrollToBottom() {
 		const scrollHeight = this.view.scrollHeight;
 		const scrollTop = this.getViewScrollTop();
 		const wrapperBottom = this.getViewScrollBottom();
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
 
-		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop) - topInsertToolbarHeight);
+		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop));
 	}
 
-	revealElementInView(cell: ICellViewModel) {
+	/**
+	 * Reveals the given cell in the notebook cell list. The cell will come into view syncronously
+	 * but the cell's editor will be attached asyncronously if it was previously out of view.
+	 * @returns The promise to await for the cell editor to be attached
+	 */
+	async revealCell(cell: ICellViewModel, revealType: CellRevealType): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
-		if (index >= 0) {
-			this._revealInView(index);
-		}
-	}
-
-	revealElementInViewAtTop(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			this._revealInternal(index, false, CellRevealPosition.Top);
-		}
-	}
-
-	revealElementInCenterIfOutsideViewport(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			this._revealInCenterIfOutsideViewport(index);
-		}
-	}
-
-	revealElementInCenter(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			this._revealInCenter(index);
-		}
-	}
-
-	async revealElementInCenterIfOutsideViewportAsync(cell: ICellViewModel): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealIfOutsideViewportAsync(index, CellRevealPosition.Center);
-		}
-	}
-
-	async revealNearTopIfOutsideViewportAync(cell: ICellViewModel): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealIfOutsideViewportAsync(index, CellRevealPosition.NearTop);
-		}
-	}
-
-	async revealElementLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealLineInViewAsync(index, line);
-		}
-	}
-
-	async revealElementLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealLineInCenterAsync(index, line);
-		}
-	}
-
-	async revealElementLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealLineInCenterIfOutsideViewportAsync(index, line);
-		}
-	}
-
-	async revealElementRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealRangeInView(index, range);
-		}
-	}
-
-	async revealElementRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealRangeInCenterAsync(index, range);
-		}
-	}
-
-	async revealElementRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealRangeInCenterIfOutsideViewportAsync(index, range);
-		}
-	}
-
-	async revealElementOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		const index = this._getViewIndexUpperBound(cell);
-
-		if (index >= 0) {
-			return this._revealOffset(index, offset);
-		}
-	}
-
-	domElementOfElement(element: ICellViewModel): HTMLElement | null {
-		const index = this._getViewIndexUpperBound(element);
-		if (index >= 0) {
-			return this.view.domElement(index);
-		}
-
-		return null;
-	}
-
-	focusView() {
-		this.view.domNode.focus();
-	}
-
-	getAbsoluteTopOfElement(element: ICellViewModel): number {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
-			this._getViewIndexUpperBound(element);
-			throw new ListError(this.listUser, `Invalid index ${index}`);
-		}
-
-		return this.view.elementTop(index);
-	}
-
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
-	}
-
-	isElementAboveViewport(index: number) {
-		const elementTop = this.view.elementTop(index);
-		const elementBottom = elementTop + this.view.elementHeight(index);
-
-		return elementBottom < this.scrollTop;
-	}
-
-	updateElementHeight2(element: ICellViewModel, size: number): void {
-		const index = this._getViewIndexUpperBound(element);
-		if (index === undefined || index < 0 || index >= this.length) {
+		if (index < 0) {
 			return;
 		}
 
-		if (this.isElementAboveViewport(index)) {
-			// update element above viewport
-			const oldHeight = this.elementHeight(element);
-			const delta = oldHeight - size;
-			if (this._webviewElement) {
-				Event.once(this.view.onWillScroll)(() => {
-					const webviewTop = parseInt(this._webviewElement!.domNode.style.top, 10);
-					if (validateWebviewBoundary(this._webviewElement!.domNode)) {
-						this._webviewElement!.setTop(webviewTop - delta);
-					} else {
-						// When the webview top boundary is below the list view scrollable element top boundary, then we can't insert a markdown cell at the top
-						// or when its bottom boundary is above the list view bottom boundary, then we can't insert a markdown cell at the end
-						// thus we have to revert the webview element position to initial state `-NOTEBOOK_WEBVIEW_BOUNDARY`.
-						// this will trigger one visual flicker (as we need to update element offsets in the webview)
-						// but as long as NOTEBOOK_WEBVIEW_BOUNDARY is large enough, it will happen less often
-						this._webviewElement!.setTop(-NOTEBOOK_WEBVIEW_BOUNDARY);
-					}
-				});
-			}
-			this.view.updateElementHeight(index, size, null);
-			return;
+		switch (revealType) {
+			case CellRevealType.Top:
+				this._revealInternal(index, false, CellRevealPosition.Top);
+				break;
+			case CellRevealType.Center:
+				this._revealInternal(index, false, CellRevealPosition.Center);
+				break;
+			case CellRevealType.CenterIfOutsideViewport:
+				this._revealInternal(index, true, CellRevealPosition.Center);
+				break;
+			case CellRevealType.NearTopIfOutsideViewport:
+				this._revealInternal(index, true, CellRevealPosition.NearTop);
+				break;
+			case CellRevealType.FirstLineIfOutsideViewport:
+				this._revealInViewWithMinimalScrolling(index, true);
+				break;
+			case CellRevealType.Default:
+				this._revealInViewWithMinimalScrolling(index);
+				break;
 		}
 
-		const focused = this.getFocus();
-		if (!focused.length) {
-			this.view.updateElementHeight(index, size, null);
-			return;
-		}
-
-		const focus = focused[0];
-
-		if (focus <= index) {
-			this.view.updateElementHeight(index, size, focus);
-			return;
-		}
-
-		// the `element` is in the viewport, it's very often that the height update is triggerred by user interaction (collapse, run cell)
-		// then we should make sure that the `element`'s visual view position doesn't change.
-
-		if (this.view.elementTop(index) >= this.view.scrollTop) {
-			this.view.updateElementHeight(index, size, index);
-			return;
-		}
-
-		this.view.updateElementHeight(index, size, focus);
-	}
-
-	// override
-	override domFocus() {
-		const focused = this.getFocusedElements()[0];
-		const focusedDomElement = focused && this.domElementOfElement(focused);
-
-		if (document.activeElement && focusedDomElement && focusedDomElement.contains(document.activeElement)) {
-			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
-			return;
-		}
-
-		if (!isMacintosh && document.activeElement && isContextMenuFocused()) {
-			return;
-		}
-
-		super.domFocus();
-	}
-
-	focusContainer() {
-		super.domFocus();
-	}
-
-	getViewScrollTop() {
-		return this.view.getScrollTop();
-	}
-
-	getViewScrollBottom() {
-		const topInsertToolbarHeight = this._viewContext.notebookOptions.computeTopInsertToolbarHeight(this.viewModel?.viewType);
-		return this.getViewScrollTop() + this.view.renderHeight - topInsertToolbarHeight;
-	}
-
-	private _revealOffset(viewIndex: number, offset: number) {
-		const element = this.view.element(viewIndex);
-		const elementTop = this.view.elementTop(viewIndex);
-		if (element instanceof MarkupCellViewModel) {
-			return this._revealInCenterIfOutsideViewport(viewIndex);
-		} else {
-			const rangeOffset = element.layoutInfo.outputContainerOffset + offset;
-			this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
-			this.view.setScrollTop(elementTop + rangeOffset - this.view.renderHeight / 2);
-		}
-	}
-
-	private _revealRange(viewIndex: number, range: Range, revealType: CellRevealType, newlyCreated: boolean, alignToBottom: boolean) {
-		const element = this.view.element(viewIndex);
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-		const elementTop = this.view.elementTop(viewIndex);
-		const positionTop = elementTop + positionOffset;
-
-		// TODO@rebornix 30 ---> line height * 1.5
-		if (positionTop < scrollTop) {
-			this.view.setScrollTop(positionTop - 30);
-		} else if (positionTop > wrapperBottom) {
-			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
-		} else if (newlyCreated) {
-			// newly scrolled into view
-			if (alignToBottom) {
-				// align to the bottom
-				this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
-			} else {
-				// align to to top
-				this.view.setScrollTop(positionTop - 30);
-			}
-		}
-
-		if (revealType === CellRevealType.Range) {
-			element.revealRangeInCenter(range);
-		}
-	}
-
-	// List items have real dynamic heights, which means after we set `scrollTop` based on the `elementTop(index)`, the element at `index` might still be removed from the view once all relayouting tasks are done.
-	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
-	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.
-	private async _revealRangeInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const elementTop = this.view.elementTop(viewIndex);
-		const element = this.view.element(viewIndex);
-
-		if (element.editorAttached) {
-			this._revealRange(viewIndex, range, revealType, false, false);
-		} else {
-			const elementHeight = this.view.elementHeight(viewIndex);
-			let upwards = false;
-
-			if (elementTop + elementHeight < scrollTop) {
-				// scroll downwards
-				this.view.setScrollTop(elementTop);
-				upwards = false;
-			} else if (elementTop > wrapperBottom) {
-				// scroll upwards
-				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
-				upwards = true;
-			}
-
-			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
-				element.onDidChangeEditorAttachState(() => {
-					element.editorAttached ? resolve() : reject();
-				});
-			});
-
-			return editorAttachedPromise.then(() => {
-				this._revealRange(viewIndex, range, revealType, true, upwards);
-			});
-		}
-	}
-
-	private async _revealLineInViewAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
-	}
-
-	private async _revealRangeInView(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInternalAsync(viewIndex, range, CellRevealType.Range);
-	}
-
-	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
-		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
-			const element = this.view.element(viewIndex);
-			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
-			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
-
-			if (revealType === CellRevealType.Range) {
-				element.revealRangeInCenter(range);
-			}
-		};
-
-		const elementTop = this.view.elementTop(viewIndex);
-		const viewItemOffset = elementTop;
-		this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
-		const element = this.view.element(viewIndex);
-
-		if (!element.editorAttached) {
-			return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
-		} else {
-			reveal(viewIndex, range, revealType);
-		}
-	}
-
-	private async _revealLineInCenterAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInCenterInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
-	}
-
-	private _revealRangeInCenterAsync(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInCenterInternalAsync(viewIndex, range, CellRevealType.Range);
-	}
-
-	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
-		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
-			const element = this.view.element(viewIndex);
-			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
-			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
-
-			if (revealType === CellRevealType.Range) {
-				element.revealRangeInCenter(range);
-			}
-		};
-
-		const scrollTop = this.getViewScrollTop();
-		const wrapperBottom = this.getViewScrollBottom();
-		const elementTop = this.view.elementTop(viewIndex);
-		const viewItemOffset = elementTop;
-		const element = this.view.element(viewIndex);
-		const positionOffset = viewItemOffset + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-
-		if (positionOffset < scrollTop || positionOffset > wrapperBottom) {
-			// let it render
-			this.view.setScrollTop(positionOffset - this.view.renderHeight / 2);
-
-			// after rendering, it might be pushed down due to markdown cell dynamic height
-			const newPositionOffset = this.view.elementTop(viewIndex) + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			this.view.setScrollTop(newPositionOffset - this.view.renderHeight / 2);
-
-			// reveal editor
-			if (!element.editorAttached) {
-				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
-			} else {
-				// for example markdown
-			}
-		} else {
-			if (element.editorAttached) {
-				element.revealRangeInCenter(range);
-			} else {
-				// for example, markdown cell in preview mode
-				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range, revealType));
-			}
-		}
-	}
-
-	private async _revealIfOutsideViewportAsync(viewIndex: number, revealPosition: CellRevealPosition): Promise<void> {
-		this._revealInternal(viewIndex, true, revealPosition);
-		const element = this.view.element(viewIndex);
-
-		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (element.getEditState() === CellEditState.Editing && !element.editorAttached) {
-			return getEditorAttachedPromise(element);
+		if ((
+			// wait for the editor to be created if the cell is in editing mode
+			cell.getEditState() === CellEditState.Editing
+			// wait for the editor to be created if we are revealing the first line of the cell
+			|| (revealType === CellRevealType.FirstLineIfOutsideViewport && cell.cellKind === CellKind.Code)
+		) && !cell.editorAttached) {
+			return getEditorAttachedPromise(cell);
 		}
 
 		return;
 	}
 
-	private async _revealLineInCenterIfOutsideViewportAsync(viewIndex: number, line: number): Promise<void> {
-		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, new Range(line, 1, line, 1), CellRevealType.Line);
-	}
-
-	private async _revealRangeInCenterIfOutsideViewportAsync(viewIndex: number, range: Range): Promise<void> {
-		return this._revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex, range, CellRevealType.Range);
-	}
-
-	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition) {
+	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition, firstLine?: boolean) {
 		if (viewIndex >= this.view.length) {
 			return;
 		}
@@ -1223,15 +939,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const elementTop = this.view.elementTop(viewIndex);
 		const elementBottom = this.view.elementHeight(viewIndex) + elementTop;
 
-		if (ignoreIfInsideViewport
-			&& elementTop >= scrollTop
-			&& elementBottom < wrapperBottom) {
-
-			if (revealPosition === CellRevealPosition.Center
-				&& elementBottom > wrapperBottom
-				&& elementTop > (scrollTop + wrapperBottom) / 2) {
-				// the element is partially visible and it's below the center of the viewport
-			} else {
+		if (ignoreIfInsideViewport) {
+			if (elementTop >= scrollTop && elementBottom < wrapperBottom) {
+				// element is already fully visible
 				return;
 			}
 		}
@@ -1261,6 +971,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 				break;
 			case CellRevealPosition.Bottom:
+				if (firstLine) {
+					const lineHeight = this.viewModel?.layoutInfo?.fontInfo.lineHeight ?? 15;
+					const padding = this.notebookOptions.getLayoutConfiguration().cellTopMargin + this.notebookOptions.getLayoutConfiguration().editorTopPadding;
+					const firstLineLocation = elementTop + lineHeight + padding;
+					if (firstLineLocation < wrapperBottom) {
+						// first line is already visible
+						return;
+					}
+
+					this.view.setScrollTop(this.scrollTop + (firstLineLocation - wrapperBottom));
+					break;
+				}
 				this.view.setScrollTop(this.scrollTop + (elementBottom - wrapperBottom));
 				this.view.setScrollTop(this.scrollTop + (this.view.elementTop(viewIndex) + this.view.elementHeight(viewIndex) - this.getViewScrollBottom()));
 				break;
@@ -1269,24 +991,320 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	private _revealInView(viewIndex: number) {
-		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex <= firstIndex) {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Top);
-		} else {
-			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom);
+	//#region Reveal Cell Editor Range asynchronously
+	async revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void> {
+		const index = this._getViewIndexUpperBound(cell);
+
+		if (index < 0) {
+			return;
+		}
+
+		switch (revealType) {
+			case CellRevealRangeType.Default:
+				return this._revealRangeInternalAsync(index, range);
+			case CellRevealRangeType.Center:
+				return this._revealRangeInCenterInternalAsync(index, range);
+			case CellRevealRangeType.CenterIfOutsideViewport:
+				return this._revealRangeInCenterIfOutsideViewportInternalAsync(index, range);
 		}
 	}
 
-	private _revealInCenter(viewIndex: number) {
-		this._revealInternal(viewIndex, false, CellRevealPosition.Center);
+	// List items have real dynamic heights, which means after we set `scrollTop` based on the `elementTop(index)`, the element at `index` might still be removed from the view once all relayouting tasks are done.
+	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
+	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.
+	private async _revealRangeInternalAsync(viewIndex: number, range: Selection | Range): Promise<void> {
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const elementTop = this.view.elementTop(viewIndex);
+		const element = this.view.element(viewIndex);
+
+		if (element.editorAttached) {
+			this._revealRangeCommon(viewIndex, range);
+		} else {
+			const elementHeight = this.view.elementHeight(viewIndex);
+			let alignHint: 'top' | 'bottom' | undefined = undefined;
+
+			if (elementTop + elementHeight <= scrollTop) {
+				// scroll up
+				this.view.setScrollTop(elementTop);
+				alignHint = 'top';
+			} else if (elementTop >= wrapperBottom) {
+				// scroll down
+				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+				alignHint = 'bottom';
+			}
+
+			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
+				element.onDidChangeEditorAttachState(() => {
+					element.editorAttached ? resolve() : reject();
+				});
+			});
+
+			return editorAttachedPromise.then(() => {
+				this._revealRangeCommon(viewIndex, range, alignHint);
+			});
+		}
+	}
+
+	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Selection | Range): Promise<void> {
+		const reveal = (viewIndex: number, range: Range) => {
+			const element = this.view.element(viewIndex);
+			const positionOffset = element.getPositionScrollTopOffset(range);
+			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
+			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
+			element.revealRangeInCenter(range);
+		};
+
+		const elementTop = this.view.elementTop(viewIndex);
+		const viewItemOffset = elementTop;
+		this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+		const element = this.view.element(viewIndex);
+
+		if (!element.editorAttached) {
+			return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range));
+		} else {
+			reveal(viewIndex, range);
+		}
+	}
+
+	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Selection | Range): Promise<void> {
+		const reveal = (viewIndex: number, range: Range) => {
+			const element = this.view.element(viewIndex);
+			const positionOffset = element.getPositionScrollTopOffset(range);
+			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
+			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
+
+			element.revealRangeInCenter(range);
+		};
+
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const elementTop = this.view.elementTop(viewIndex);
+		const viewItemOffset = elementTop;
+		const element = this.view.element(viewIndex);
+		const positionOffset = viewItemOffset + element.getPositionScrollTopOffset(range);
+
+		if (positionOffset < scrollTop || positionOffset > wrapperBottom) {
+			// let it render
+			this.view.setScrollTop(positionOffset - this.view.renderHeight / 2);
+
+			// after rendering, it might be pushed down due to markdown cell dynamic height
+			const newPositionOffset = this.view.elementTop(viewIndex) + element.getPositionScrollTopOffset(range);
+			this.view.setScrollTop(newPositionOffset - this.view.renderHeight / 2);
+
+			// reveal editor
+			if (!element.editorAttached) {
+				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range));
+			} else {
+				// for example markdown
+			}
+		} else {
+			if (element.editorAttached) {
+				element.revealRangeInCenter(range);
+			} else {
+				// for example, markdown cell in preview mode
+				return getEditorAttachedPromise(element).then(() => reveal(viewIndex, range));
+			}
+		}
+	}
+
+	private _revealRangeCommon(viewIndex: number, range: Selection | Range, alignHint?: 'top' | 'bottom' | undefined) {
+		const element = this.view.element(viewIndex);
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const positionOffset = element.getPositionScrollTopOffset(range);
+		const elementOriginalHeight = this.view.elementHeight(viewIndex);
+		if (positionOffset >= elementOriginalHeight) {
+			// we are revealing a range that is beyond current element height
+			// if we don't update the element height now, and directly `setTop` to reveal the range
+			// the element might be scrolled out of view
+			// next frame, when we update the element height, the element will never be scrolled back into view
+			const newTotalHeight = element.layoutInfo.totalHeight;
+			this.updateElementHeight(viewIndex, newTotalHeight);
+		}
+		const elementTop = this.view.elementTop(viewIndex);
+		const positionTop = elementTop + positionOffset;
+
+		// TODO@rebornix 30 ---> line height * 1.5
+		if (positionTop < scrollTop) {
+			this.view.setScrollTop(positionTop - 30);
+		} else if (positionTop > wrapperBottom) {
+			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
+		} else if (alignHint === 'bottom') {
+			// Scrolled into view from below
+			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
+		} else if (alignHint === 'top') {
+			// Scrolled into view from above
+			this.view.setScrollTop(positionTop - 30);
+		}
+	}
+	//#endregion
+
+
+
+	/**
+	 * Reveals the specified offset of the given cell in the center of the viewport.
+	 * This enables revealing locations in the output as well as the input.
+	 */
+	revealCellOffsetInCenter(cell: ICellViewModel, offset: number) {
+		const viewIndex = this._getViewIndexUpperBound(cell);
+
+		if (viewIndex >= 0) {
+			const element = this.view.element(viewIndex);
+			const elementTop = this.view.elementTop(viewIndex);
+			if (element instanceof MarkupCellViewModel) {
+				return this._revealInCenterIfOutsideViewport(viewIndex);
+			} else {
+				const rangeOffset = element.layoutInfo.outputContainerOffset + Math.min(offset, element.layoutInfo.outputTotalHeight);
+				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
+				this.view.setScrollTop(elementTop + rangeOffset - this.view.renderHeight / 2);
+			}
+		}
+	}
+
+	revealOffsetInCenterIfOutsideViewport(offset: number) {
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+
+		if (offset < scrollTop || offset > wrapperBottom) {
+			this.view.setScrollTop(offset - this.view.renderHeight / 2);
+		}
 	}
 
 	private _revealInCenterIfOutsideViewport(viewIndex: number) {
 		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 	}
 
-	setCellSelection(cell: ICellViewModel, range: Range) {
+	domElementOfElement(element: ICellViewModel): HTMLElement | null {
+		const index = this._getViewIndexUpperBound(element);
+		if (index >= 0) {
+			return this.view.domElement(index);
+		}
+
+		return null;
+	}
+
+	focusView() {
+		this.view.domNode.focus();
+	}
+
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {
+		this.view.delegateVerticalScrollbarPointerDown(browserEvent);
+	}
+
+	private isElementAboveViewport(index: number) {
+		const elementTop = this.view.elementTop(index);
+		const elementBottom = elementTop + this.view.elementHeight(index);
+
+		return elementBottom < this.scrollTop;
+	}
+
+	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex: number | null = null): void {
+		const index = this._getViewIndexUpperBound(element);
+		if (index === undefined || index < 0 || index >= this.length) {
+			return;
+		}
+
+		if (this.isElementAboveViewport(index)) {
+			// update element above viewport
+			const oldHeight = this.elementHeight(element);
+			const delta = oldHeight - size;
+			if (this._webviewElement) {
+				Event.once(this.view.onWillScroll)(() => {
+					const webviewTop = parseInt(this._webviewElement!.domNode.style.top, 10);
+					if (validateWebviewBoundary(this._webviewElement!.domNode)) {
+						this._webviewElement!.setTop(webviewTop - delta);
+					} else {
+						// When the webview top boundary is below the list view scrollable element top boundary, then we can't insert a markdown cell at the top
+						// or when its bottom boundary is above the list view bottom boundary, then we can't insert a markdown cell at the end
+						// thus we have to revert the webview element position to initial state `-NOTEBOOK_WEBVIEW_BOUNDARY`.
+						// this will trigger one visual flicker (as we need to update element offsets in the webview)
+						// but as long as NOTEBOOK_WEBVIEW_BOUNDARY is large enough, it will happen less often
+						this._webviewElement!.setTop(-NOTEBOOK_WEBVIEW_BOUNDARY);
+					}
+				});
+			}
+			this.view.updateElementHeight(index, size, anchorElementIndex);
+			this.viewZones.layout();
+			return;
+		}
+
+		if (anchorElementIndex !== null) {
+			this.view.updateElementHeight(index, size, anchorElementIndex);
+			this.viewZones.layout();
+			return;
+		}
+
+		const focused = this.getFocus();
+		const focus = focused.length ? focused[0] : null;
+
+		if (focus) {
+			// If the cell is growing, we should favor anchoring to the focused cell
+			const heightDelta = size - this.view.elementHeight(index);
+
+			if (this._notebookCellAnchor.shouldAnchor(this.view, focus, heightDelta, this.element(index))) {
+				this.view.updateElementHeight(index, size, focus);
+				this.viewZones.layout();
+				return;
+			}
+		}
+
+		this.view.updateElementHeight(index, size, null);
+		this.viewZones.layout();
+		return;
+	}
+
+	changeViewZones(callback: (accessor: INotebookViewZoneChangeAccessor) => void): void {
+		if (this.viewZones.changeViewZones(callback)) {
+			this.viewZones.layout();
+		}
+	}
+
+	// override
+	override domFocus() {
+		const focused = this.getFocusedElements()[0];
+		const focusedDomElement = focused && this.domElementOfElement(focused);
+
+		if (this.view.domNode.ownerDocument.activeElement && focusedDomElement && focusedDomElement.contains(this.view.domNode.ownerDocument.activeElement)) {
+			// for example, when focus goes into monaco editor, if we refocus the list view, the editor will lose focus.
+			return;
+		}
+
+		if (!isMacintosh && this.view.domNode.ownerDocument.activeElement && !!DOM.findParentWithClass(<HTMLElement>this.view.domNode.ownerDocument.activeElement, 'context-view')) {
+			return;
+		}
+
+		super.domFocus();
+	}
+
+	focusContainer(clearSelection: boolean) {
+		if (clearSelection) {
+			// allow focus to be between cells
+			this._viewModel?.updateSelectionsState({
+				kind: SelectionStateType.Handle,
+				primary: null,
+				selections: []
+			}, 'view');
+			this.setFocus([], undefined, true);
+			this.setSelection([], undefined, true);
+		}
+
+		super.domFocus();
+	}
+
+	getViewScrollTop() {
+		return this.view.getScrollTop();
+	}
+
+	getViewScrollBottom() {
+		return this.getViewScrollTop() + this.view.renderHeight;
+	}
+
+	setCellEditorSelection(cell: ICellViewModel, range: Range) {
 		const element = cell as CellViewModel;
 		if (element.editorAttached) {
 			element.setSelection(range);
@@ -1294,7 +1312,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			getEditorAttachedPromise(element).then(() => { element.setSelection(range); });
 		}
 	}
-
 
 	override style(styles: IListStyles) {
 		const selectorSuffix = this.view.domId;
@@ -1305,11 +1322,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const content: string[] = [];
 
 		if (styles.listBackground) {
-			if (styles.listBackground.isOpaque()) {
-				content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
-			} else if (!isMacintosh) { // subpixel AA doesn't exist in macOS
-				console.warn(`List with id '${selectorSuffix}' was styled with a non-opaque background color. This will break sub-pixel antialiasing.`);
-			}
+			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows { background: ${styles.listBackground}; }`);
 		}
 
 		if (styles.listFocusBackground) {
@@ -1385,11 +1398,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (styles.listDropOverBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }
 			`);
 		}
 
@@ -1422,6 +1435,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._isDisposed = true;
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
+		this._notebookCellAnchor.dispose();
+		this.viewZones.dispose();
 		super.dispose();
 
 		// un-ref
@@ -1439,74 +1454,6 @@ export class ListViewInfoAccessor extends Disposable {
 		readonly list: INotebookCellList
 	) {
 		super();
-	}
-
-	setScrollTop(scrollTop: number) {
-		this.list.scrollTop = scrollTop;
-	}
-
-	isScrolledToBottom() {
-		return this.list.isScrolledToBottom();
-	}
-
-	scrollToBottom() {
-		this.list.scrollToBottom();
-	}
-
-	revealCellRangeInView(range: ICellRange) {
-		return this.list.revealElementsInView(range);
-	}
-
-	revealInView(cell: ICellViewModel) {
-		this.list.revealElementInView(cell);
-	}
-
-	revealInViewAtTop(cell: ICellViewModel) {
-		this.list.revealElementInViewAtTop(cell);
-	}
-
-	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this.list.revealElementInCenterIfOutsideViewport(cell);
-	}
-
-	async revealInCenterIfOutsideViewportAsync(cell: ICellViewModel) {
-		return this.list.revealElementInCenterIfOutsideViewportAsync(cell);
-	}
-
-	revealInCenter(cell: ICellViewModel) {
-		this.list.revealElementInCenter(cell);
-	}
-
-	async revealNearTopIfOutsideViewportAync(cell: ICellViewModel) {
-		return this.list.revealNearTopIfOutsideViewportAync(cell);
-	}
-
-	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInViewAsync(cell, line);
-	}
-
-	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInCenterAsync(cell, line);
-	}
-
-	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this.list.revealElementLineInCenterIfOutsideViewportAsync(cell, line);
-	}
-
-	async revealRangeInViewAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealElementRangeInViewAsync(cell, range);
-	}
-
-	async revealRangeInCenterAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealElementRangeInCenterAsync(cell, range);
-	}
-
-	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Range): Promise<void> {
-		return this.list.revealElementRangeInCenterIfOutsideViewportAsync(cell, range);
-	}
-
-	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		return this.list.revealElementOffsetInCenterAsync(cell, offset);
 	}
 
 	getViewIndex(cell: ICellViewModel): number {
@@ -1561,29 +1508,13 @@ export class ListViewInfoAccessor extends Disposable {
 		return this.list.viewModel?.getCellsInRange(range) ?? [];
 	}
 
-	setCellEditorSelection(cell: ICellViewModel, range: Range): void {
-		this.list.setCellSelection(cell, range);
-	}
-
-	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this.list.setHiddenAreas(_ranges, true);
-	}
-
 	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[] {
 		return this.list?.getVisibleRangesPlusViewportAboveAndBelow() ?? [];
 	}
-
-	triggerScroll(event: IMouseWheelEvent) {
-		this.list.triggerScrollFromMouseWheelEvent(event);
-	}
 }
 
-function getEditorAttachedPromise(element: CellViewModel) {
+function getEditorAttachedPromise(element: ICellViewModel) {
 	return new Promise<void>((resolve, reject) => {
 		Event.once(element.onDidChangeEditorAttachState)(() => element.editorAttached ? resolve() : reject());
 	});
-}
-
-function isContextMenuFocused() {
-	return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
 }

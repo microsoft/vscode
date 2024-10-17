@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as esbuild from 'esbuild';
 import * as ts from 'typescript';
 import * as threads from 'node:worker_threads';
 import * as Vinyl from 'vinyl';
@@ -46,6 +47,47 @@ if (!threads.isMainThread) {
 		}
 		threads.parentPort!.postMessage(res);
 	});
+}
+
+class OutputFileNameOracle {
+
+	readonly getOutputFileName: (name: string) => string;
+
+	constructor(cmdLine: ts.ParsedCommandLine, configFilePath: string) {
+		// very complicated logic to re-use TS internal functions to know the output path
+		// given a TS input path and its config
+		type InternalTsApi = typeof ts & {
+			normalizePath(path: string): string;
+			getOutputFileNames(commandLine: ts.ParsedCommandLine, inputFileName: string, ignoreCase: boolean): readonly string[];
+		};
+		this.getOutputFileName = (file) => {
+			try {
+
+				// windows: path-sep normalizing
+				file = (<InternalTsApi>ts).normalizePath(file);
+
+				if (!cmdLine.options.configFilePath) {
+					// this is needed for the INTERNAL getOutputFileNames-call below...
+					cmdLine.options.configFilePath = configFilePath;
+				}
+				const isDts = file.endsWith('.d.ts');
+				if (isDts) {
+					file = file.slice(0, -5) + '.ts';
+					cmdLine.fileNames.push(file);
+				}
+				const outfile = (<InternalTsApi>ts).getOutputFileNames(cmdLine, file, true)[0];
+				if (isDts) {
+					cmdLine.fileNames.pop();
+				}
+				return outfile;
+
+			} catch (err) {
+				console.error(file, cmdLine.fileNames);
+				console.error(err);
+				throw err;
+			}
+		};
+	}
 }
 
 class TranspileWorker {
@@ -141,12 +183,18 @@ class TranspileWorker {
 	}
 }
 
+export interface ITranspiler {
+	onOutfile?: (file: Vinyl) => void;
+	join(): Promise<void>;
+	transpile(file: Vinyl): void;
+}
 
-export class Transpiler {
+export class TscTranspiler implements ITranspiler {
 
 	static P = Math.floor(cpus().length * .5);
 
-	private readonly _getOutputFileName: (name: string) => string;
+	private readonly _outputFileNames: OutputFileNameOracle;
+
 
 	public onOutfile?: (file: Vinyl) => void;
 
@@ -160,42 +208,8 @@ export class Transpiler {
 		configFilePath: string,
 		private readonly _cmdLine: ts.ParsedCommandLine
 	) {
-		logFn('Transpile', `will use ${Transpiler.P} transpile worker`);
-
-
-		// very complicated logic to re-use TS internal functions to know the output path
-		// given a TS input path and its config
-		type InternalTsApi = typeof ts & {
-			normalizePath(path: string): string;
-			getOutputFileNames(commandLine: ts.ParsedCommandLine, inputFileName: string, ignoreCase: boolean): readonly string[];
-		};
-		this._getOutputFileName = (file) => {
-			try {
-
-				// windows: path-sep normalizing
-				file = (<InternalTsApi>ts).normalizePath(file);
-
-				if (!_cmdLine.options.configFilePath) {
-					// this is needed for the INTERNAL getOutputFileNames-call below...
-					_cmdLine.options.configFilePath = configFilePath;
-				}
-				const isDts = file.endsWith('.d.ts');
-				if (isDts) {
-					file = file.slice(0, -5) + '.ts';
-					_cmdLine.fileNames.push(file);
-				}
-				const outfile = (<InternalTsApi>ts).getOutputFileNames(_cmdLine, file, true)[0];
-				if (isDts) {
-					_cmdLine.fileNames.pop();
-				}
-				return outfile;
-
-			} catch (err) {
-				console.error(file, _cmdLine.fileNames);
-				console.error(err);
-				throw new err;
-			}
-		};
+		logFn('Transpile', `will use ${TscTranspiler.P} transpile worker`);
+		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
 	}
 
 	async join() {
@@ -218,7 +232,7 @@ export class Transpiler {
 		}
 
 		const newLen = this._queue.push(file);
-		if (newLen > Transpiler.P ** 2) {
+		if (newLen > TscTranspiler.P ** 2) {
 			this._consumeQueue();
 		}
 	}
@@ -232,8 +246,8 @@ export class Transpiler {
 
 		// kinda LAZYily create workers
 		if (this._workerPool.length === 0) {
-			for (let i = 0; i < Transpiler.P; i++) {
-				this._workerPool.push(new TranspileWorker(file => this._getOutputFileName(file)));
+			for (let i = 0; i < TscTranspiler.P; i++) {
+				this._workerPool.push(new TranspileWorker(file => this._outputFileNames.getOutputFileName(file)));
 			}
 		}
 
@@ -251,7 +265,7 @@ export class Transpiler {
 			const job = new Promise(resolve => {
 
 				const consume = () => {
-					const files = this._queue.splice(0, Transpiler.P);
+					const files = this._queue.splice(0, TscTranspiler.P);
 					if (files.length === 0) {
 						// DONE
 						resolve(undefined);
@@ -277,9 +291,91 @@ export class Transpiler {
 	}
 }
 
+export class ESBuildTranspiler implements ITranspiler {
+
+	private readonly _outputFileNames: OutputFileNameOracle;
+	private _jobs: Promise<any>[] = [];
+
+	onOutfile?: ((file: Vinyl) => void) | undefined;
+
+	private readonly _transformOpts: esbuild.TransformOptions;
+
+	constructor(
+		private readonly _logFn: (topic: string, message: string) => void,
+		private readonly _onError: (err: any) => void,
+		configFilePath: string,
+		private readonly _cmdLine: ts.ParsedCommandLine
+	) {
+		_logFn('Transpile', `will use ESBuild to transpile source files`);
+		this._outputFileNames = new OutputFileNameOracle(_cmdLine, configFilePath);
+
+		const isExtension = configFilePath.includes('extensions');
+
+		this._transformOpts = {
+			target: ['es2022'],
+			format: isExtension ? 'cjs' : 'esm',
+			platform: isExtension ? 'node' : undefined,
+			loader: 'ts',
+			sourcemap: 'inline',
+			tsconfigRaw: JSON.stringify({
+				compilerOptions: {
+					...this._cmdLine.options,
+					...{
+						module: isExtension ? ts.ModuleKind.CommonJS : undefined
+					} satisfies ts.CompilerOptions
+				}
+			}),
+			supported: {
+				'class-static-blocks': false, // SEE https://github.com/evanw/esbuild/issues/3823,
+				'dynamic-import': !isExtension, // see https://github.com/evanw/esbuild/issues/1281
+				'class-field': !isExtension
+			}
+		};
+	}
+
+	async join(): Promise<void> {
+		const jobs = this._jobs.slice();
+		this._jobs.length = 0;
+		await Promise.allSettled(jobs);
+	}
+
+	transpile(file: Vinyl): void {
+		if (!(file.contents instanceof Buffer)) {
+			throw Error('file.contents must be a Buffer');
+		}
+		const t1 = Date.now();
+		this._jobs.push(esbuild.transform(file.contents, {
+			...this._transformOpts,
+			sourcefile: file.path,
+		}).then(result => {
+
+			// check if output of a DTS-files isn't just "empty" and iff so
+			// skip this file
+			if (file.path.endsWith('.d.ts') && _isDefaultEmpty(result.code)) {
+				return;
+			}
+
+			const outBase = this._cmdLine.options.outDir ?? file.base;
+			const outPath = this._outputFileNames.getOutputFileName(file.path);
+
+			this.onOutfile!(new Vinyl({
+				path: outPath,
+				base: outBase,
+				contents: Buffer.from(result.code),
+			}));
+
+			this._logFn('Transpile', `esbuild took ${Date.now() - t1}ms for ${file.path}`);
+
+		}).catch(err => {
+			this._onError(err);
+		}));
+	}
+}
+
 function _isDefaultEmpty(src: string): boolean {
 	return src
 		.replace('"use strict";', '')
+		.replace(/\/\/# sourceMappingURL.*^/, '')
 		.replace(/\/\*[\s\S]*?\*\/|([^\\:]|^)\/\/.*$/gm, '$1')
 		.trim().length === 0;
 }

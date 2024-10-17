@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from 'vs/editor/common/languages';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
-import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IFoundBracket } from '../../../common/textModelBracketPairs.js';
+import { TextModel } from '../../../common/model/textModel.js';
+import { ITokenizationSupport, TokenizationRegistry, EncodedTokenizationResult } from '../../../common/languages.js';
+import { StandardTokenType, MetadataConsts } from '../../../common/encodedTokenAttributes.js';
+import { CharacterPair } from '../../../common/languages/languageConfiguration.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { TestLineToken } from '../core/testLineToken.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../testTextModel.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 function createTextModelWithBrackets(disposables: DisposableStore, text: string, brackets: CharacterPair[]): TextModel {
 	const languageId = 'bracketMode2';
@@ -32,6 +33,9 @@ function createTextModelWithBrackets(disposables: DisposableStore, text: string,
 }
 
 suite('TextModelWithTokens', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function testBrackets(contents: string[], brackets: CharacterPair[]): void {
 		const languageId = 'testMode';
 		const disposables = new DisposableStore();
@@ -194,6 +198,8 @@ suite('TextModelWithTokens - bracket matching', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('bracket matching 1', () => {
 		const text =
 			')]}{[(' + '\n' +
@@ -272,6 +278,8 @@ suite('TextModelWithTokens - bracket matching', () => {
 });
 
 suite('TextModelWithTokens 2', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('bracket matching 3', () => {
 		const text = [
@@ -352,8 +360,8 @@ suite('TextModelWithTokens 2', () => {
 
 		disposables.add(languageService.registerLanguage({ id: mode1 }));
 		disposables.add(languageService.registerLanguage({ id: mode2 }));
-		const encodedMode1 = languageIdCodec!.encodeLanguageId(mode1);
-		const encodedMode2 = languageIdCodec!.encodeLanguageId(mode2);
+		const encodedMode1 = languageIdCodec.encodeLanguageId(mode1);
+		const encodedMode2 = languageIdCodec.encodeLanguageId(mode2);
 
 		const otherMetadata1 = (
 			(encodedMode1 << MetadataConsts.LANGUAGEID_OFFSET)
@@ -458,7 +466,7 @@ suite('TextModelWithTokens 2', () => {
 
 		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
-		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
+		const encodedMode = languageIdCodec.encodeLanguageId(mode);
 
 		const otherMetadata = (
 			(encodedMode << MetadataConsts.LANGUAGEID_OFFSET)
@@ -534,6 +542,8 @@ suite('TextModelWithTokens 2', () => {
 
 suite('TextModelWithTokens regression tests', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
@@ -586,12 +596,12 @@ suite('TextModelWithTokens regression tests', () => {
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 1)]);
 
-		model.setMode(LANG_ID1);
+		model.setLanguage(LANG_ID1);
 
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 11)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 12)]);
 
-		model.setMode(LANG_ID2);
+		model.setLanguage(LANG_ID2);
 
 		assertViewLineTokens(model, 1, false, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, false, [createViewLineToken(9, 1)]);
@@ -699,7 +709,10 @@ suite('TextModelWithTokens regression tests', () => {
 });
 
 suite('TextModel.getLineIndentGuide', () => {
-	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function assertIndentGuides(lines: [number, number, number, number, string][], indentSize: number): void {
 		const languageId = 'testLang';
 		const disposables = new DisposableStore();
 		const instantiationService = createModelServices(disposables);
@@ -708,7 +721,7 @@ suite('TextModel.getLineIndentGuide', () => {
 
 		const text = lines.map(l => l[4]).join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, text, languageId));
-		model.updateOptions({ tabSize: tabSize });
+		model.updateOptions({ indentSize: indentSize });
 
 		const actualIndents = model.guides.getLinesIndentGuides(1, model.getLineCount());
 

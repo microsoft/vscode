@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as processes from 'vs/base/common/processes';
+import assert from 'assert';
+import * as processes from '../../common/processes.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Processes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('sanitizeProcessEnvironment', () => {
 		const env = {
 			FOO: 'bar',
@@ -19,7 +22,7 @@ suite('Processes', () => {
 			VSCODE_DEV: 'x',
 			VSCODE_IPC_HOOK: 'x',
 			VSCODE_NLS_CONFIG: 'x',
-			VSCODE_PORTABLE: 'x',
+			VSCODE_PORTABLE: '3',
 			VSCODE_PID: 'x',
 			VSCODE_SHELL_LOGIN: '1',
 			VSCODE_CODE_CACHE_PATH: 'x',
@@ -30,6 +33,7 @@ suite('Processes', () => {
 		processes.sanitizeProcessEnvironment(env);
 		assert.strictEqual(env['FOO'], 'bar');
 		assert.strictEqual(env['VSCODE_SHELL_LOGIN'], '1');
-		assert.strictEqual(Object.keys(env).length, 2);
+		assert.strictEqual(env['VSCODE_PORTABLE'], '3');
+		assert.strictEqual(Object.keys(env).length, 3);
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
+import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { IEncryptionService } from '../../../../platform/encryption/common/encryptionService.js';
 
-registerMainProcessRemoteService(IEncryptionService, 'encryption', { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(IEncryptionService, 'encryption');

@@ -3,30 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
-import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
-import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ResourceMap, ResourceSet } from 'vs/base/common/map';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { URI } from 'vs/base/common/uri';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IBulkEditOptions, IBulkEditPreviewHandler, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { WorkspaceEdit } from '../../../../editor/common/languages.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { BulkCellEdits, ResourceNotebookCellEdit } from './bulkCellEdits.js';
+import { BulkFileEdits } from './bulkFileEdits.js';
+import { BulkTextEdits } from './bulkTextEdits.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
+
+function liftEdits(edits: ResourceEdit[]): ResourceEdit[] {
+	return edits.map(edit => {
+		if (ResourceTextEdit.is(edit)) {
+			return ResourceTextEdit.lift(edit);
+		}
+		if (ResourceFileEdit.is(edit)) {
+			return ResourceFileEdit.lift(edit);
+		}
+		if (ResourceNotebookCellEdit.is(edit)) {
+			return ResourceNotebookCellEdit.lift(edit);
+		}
+		throw new Error('Unsupported edit');
+	});
+}
 
 class BulkEdit {
 
@@ -164,10 +180,11 @@ export class BulkEditService implements IBulkEditService {
 		return Boolean(this._previewHandler);
 	}
 
-	async apply(edits: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async apply(editsIn: ResourceEdit[] | WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+		let edits = liftEdits(Array.isArray(editsIn) ? editsIn : editsIn.edits);
 
 		if (edits.length === 0) {
-			return { ariaSummary: localize('nothing', "Made no edits") };
+			return { ariaSummary: localize('nothing', "Made no edits"), isApplied: false };
 		}
 
 		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
@@ -180,6 +197,8 @@ export class BulkEditService implements IBulkEditService {
 			const candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
+			} else if (isDiffEditor(candidate)) {
+				codeEditor = candidate.getModifiedEditor();
 			}
 		}
 
@@ -231,7 +250,7 @@ export class BulkEditService implements IBulkEditService {
 				await this._saveAll(resources);
 			}
 
-			return { ariaSummary: bulkEdit.ariaMessage() };
+			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: edits.length > 0 };
 		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
@@ -260,19 +279,38 @@ export class BulkEditService implements IBulkEditService {
 	}
 
 	private async _shouldVeto(label: string | undefined, reason: ShutdownReason): Promise<boolean> {
-		label = label || localize('fileOperation', "File operation");
-		const reasonLabel = reason === ShutdownReason.CLOSE ? localize('closeTheWindow', "Close Window") : reason === ShutdownReason.LOAD ? localize('changeWorkspace', "Change Workspace") :
-			reason === ShutdownReason.RELOAD ? localize('reloadTheWindow', "Reload Window") : localize('quit', "Quit");
+		let message: string;
+		let primaryButton: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('closeTheWindow.message', "Are you sure you want to close the window?");
+				primaryButton = localize({ key: 'closeTheWindow', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('changeWorkspace.message', "Are you sure you want to change the workspace?");
+				primaryButton = localize({ key: 'changeWorkspace', comment: ['&& denotes a mnemonic'] }, "Change &&Workspace");
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('reloadTheWindow.message', "Are you sure you want to reload the window?");
+				primaryButton = localize({ key: 'reloadTheWindow', comment: ['&& denotes a mnemonic'] }, "&&Reload Window");
+				break;
+			default:
+				message = localize('quit.message', "Are you sure you want to quit?");
+				primaryButton = localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit");
+				break;
+		}
+
 		const result = await this._dialogService.confirm({
-			message: localize('areYouSureQuiteBulkEdit', "Are you sure you want to {0}? '{1}' is in progress.", reasonLabel.toLowerCase(), label),
-			primaryButton: reasonLabel
+			message,
+			detail: localize('areYouSureQuiteBulkEdit.detail', "'{0}' is in progress.", label || localize('fileOperation', "File operation")),
+			primaryButton
 		});
 
 		return !result.confirmed;
 	}
 }
 
-registerSingleton(IBulkEditService, BulkEditService, true);
+registerSingleton(IBulkEditService, BulkEditService, InstantiationType.Delayed);
 
 const autoSaveSetting = 'files.refactoring.autoSave';
 

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import * as Platform from 'vs/base/common/platform';
-import * as uuid from 'vs/base/common/uuid';
-import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
-import { mixin } from 'vs/base/common/objects';
-import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
-import { Gesture } from 'vs/base/browser/touch';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import * as Platform from '../../../../base/common/platform.js';
+import * as uuid from '../../../../base/common/uuid.js';
+import { cleanRemoteAuthority } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { mixin } from '../../../../base/common/objects.js';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from '../../../../platform/telemetry/common/telemetry.js';
+import { Gesture } from '../../../../base/browser/touch.js';
 
 /**
  * General function to help reduce the individuality of user agents
@@ -20,7 +20,7 @@ function cleanUserAgent(userAgent: string): string {
 	return userAgent.replace(/(\d+\.\d+)(\.\d+)+/g, '$1');
 }
 
-export async function resolveWorkbenchCommonProperties(
+export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
 	version: string | undefined,
@@ -29,8 +29,8 @@ export async function resolveWorkbenchCommonProperties(
 	productIdentifier?: string,
 	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: any }
-): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result: { [name: string]: string | boolean | undefined } = Object.create(null);
+): ICommonProperties {
+	const result: ICommonProperties = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 

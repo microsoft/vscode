@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandMetadata } from '../../../../platform/commands/common/commands.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
+import { MenuRegistry, MenuId, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 
 export function getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
 	const unboundCommands: string[] = [];
@@ -24,8 +24,8 @@ export function getAllUnboundCommands(boundCommands: Map<string, boolean>): stri
 		}
 		if (!includeCommandWithArgs) {
 			const command = CommandsRegistry.getCommand(id);
-			if (command && typeof command.description === 'object'
-				&& isNonEmptyArray((<ICommandHandlerDescription>command.description).args)) { // command with args
+			if (command && typeof command.metadata === 'object'
+				&& isNonEmptyArray((<ICommandMetadata>command.metadata).args)) { // command with args
 				return;
 			}
 		}

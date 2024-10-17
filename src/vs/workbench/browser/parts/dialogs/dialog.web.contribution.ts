@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IDialogHandler, IDialogResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
-import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
-import { DialogService } from 'vs/workbench/services/dialogs/common/dialogService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IDialogHandler, IDialogResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IDialogsModel, IDialogViewItem } from '../../../common/dialogs.js';
+import { BrowserDialogHandler } from './dialogHandler.js';
+import { DialogService } from '../../../services/dialogs/common/dialogService.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dialogHandler';
+
 	private readonly model: IDialogsModel;
-	private readonly impl: IDialogHandler;
+	private readonly impl: Lazy<IDialogHandler>;
 
 	private currentDialog: IDialogViewItem | undefined;
 
@@ -29,7 +30,6 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IDialogService private dialogService: IDialogService,
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
-		@IThemeService themeService: IThemeService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
@@ -37,7 +37,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		this.impl = new BrowserDialogHandler(logService, layoutService, themeService, keybindingService, instantiationService, productService, clipboardService);
+		this.impl = new Lazy(() => new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService));
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -54,18 +54,22 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		while (this.model.dialogs.length) {
 			this.currentDialog = this.model.dialogs[0];
 
-			let result: IDialogResult | undefined = undefined;
-			if (this.currentDialog.args.confirmArgs) {
-				const args = this.currentDialog.args.confirmArgs;
-				result = await this.impl.confirm(args.confirmation);
-			} else if (this.currentDialog.args.inputArgs) {
-				const args = this.currentDialog.args.inputArgs;
-				result = await this.impl.input(args.severity, args.message, args.buttons, args.inputs, args.options);
-			} else if (this.currentDialog.args.showArgs) {
-				const args = this.currentDialog.args.showArgs;
-				result = await this.impl.show(args.severity, args.message, args.buttons, args.options);
-			} else {
-				await this.impl.about();
+			let result: IDialogResult | Error | undefined = undefined;
+			try {
+				if (this.currentDialog.args.confirmArgs) {
+					const args = this.currentDialog.args.confirmArgs;
+					result = await this.impl.value.confirm(args.confirmation);
+				} else if (this.currentDialog.args.inputArgs) {
+					const args = this.currentDialog.args.inputArgs;
+					result = await this.impl.value.input(args.input);
+				} else if (this.currentDialog.args.promptArgs) {
+					const args = this.currentDialog.args.promptArgs;
+					result = await this.impl.value.prompt(args.prompt);
+				} else {
+					await this.impl.value.about();
+				}
+			} catch (error) {
+				result = error;
 			}
 
 			this.currentDialog.close(result);
@@ -74,5 +78,8 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(
+	DialogHandlerContribution.ID,
+	DialogHandlerContribution,
+	WorkbenchPhase.BlockStartup // Block to allow for dialogs to show before restore finished
+);

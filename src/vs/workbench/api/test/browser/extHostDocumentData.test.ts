@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { Position } from 'vs/workbench/api/common/extHostTypes';
-import { Range } from 'vs/editor/common/core/range';
-import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/base/test/common/mock';
-import * as perfData from './extHostDocumentData.test.perf-data';
-import { setDefaultGetWordAtTextConfig } from 'vs/editor/common/core/wordHelper';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtHostDocumentData } from '../../common/extHostDocumentData.js';
+import { Position } from '../../common/extHostTypes.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { MainThreadDocumentsShape } from '../../common/extHost.protocol.js';
+import { IModelChangedEvent } from '../../../../editor/common/model/mirrorTextModel.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import * as perfData from './extHostDocumentData.test.perf-data.js';
+import { setDefaultGetWordAtTextConfig } from '../../../../editor/common/core/wordHelper.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDocumentData', () => {
 
@@ -38,6 +39,8 @@ suite('ExtHostDocumentData', () => {
 			'and finished with the fourth.', //29
 		], '\n', 1, 'text', false);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('readonly-ness', () => {
 		assert.throws(() => (data as any).document.uri = null);
@@ -437,6 +440,8 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.PositionToOffset, e);
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.OffsetToPosition, e);
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('line mapping', () => {
 		testLineMappingAfterEvents([

@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ClientConnectionEvent, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import assert from 'assert';
+import { timeout } from '../../../../common/async.js';
+import { VSBuffer } from '../../../../common/buffer.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../common/cancellation.js';
+import { canceled } from '../../../../common/errors.js';
+import { Emitter, Event } from '../../../../common/event.js';
+import { DisposableStore } from '../../../../common/lifecycle.js';
+import { isEqual } from '../../../../common/resources.js';
+import { URI } from '../../../../common/uri.js';
+import { BufferReader, BufferWriter, ClientConnectionEvent, deserialize, IChannel, IMessagePassingProtocol, IPCClient, IPCServer, IServerChannel, ProxyChannel, serialize } from '../../common/ipc.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 
 class QueueProtocol implements IMessagePassingProtocol {
 
@@ -19,7 +21,7 @@ class QueueProtocol implements IMessagePassingProtocol {
 	private buffers: VSBuffer[] = [];
 
 	private readonly _onMessage = new Emitter<VSBuffer>({
-		onFirstListenerDidAdd: () => {
+		onDidAddFirstListener: () => {
 			for (const buffer of this.buffers) {
 				this._onMessage.fire(buffer);
 			}
@@ -27,7 +29,7 @@ class QueueProtocol implements IMessagePassingProtocol {
 			this.buffers = [];
 			this.buffering = false;
 		},
-		onLastListenerRemove: () => {
+		onDidRemoveLastListener: () => {
 			this.buffering = true;
 		}
 	});
@@ -111,6 +113,8 @@ interface ITestService {
 
 class TestService implements ITestService {
 
+	private readonly disposables = new DisposableStore();
+
 	private readonly _onPong = new Emitter<string>();
 	readonly onPong = this._onPong.event;
 
@@ -131,7 +135,7 @@ class TestService implements ITestService {
 			return Promise.reject(canceled());
 		}
 
-		return new Promise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
+		return new Promise((_, e) => this.disposables.add(cancellationToken.onCancellationRequested(() => e(canceled()))));
 	}
 
 	buffersLength(buffers: VSBuffer[]): Promise<number> {
@@ -148,6 +152,10 @@ class TestService implements ITestService {
 
 	context(context?: unknown): Promise<unknown> {
 		return Promise.resolve(context);
+	}
+
+	dispose() {
+		this.disposables.dispose();
 	}
 }
 
@@ -213,6 +221,8 @@ class TestChannelClient implements ITestService {
 
 suite('Base IPC', function () {
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('createProtocolPair', async function () {
 		const [clientProtocol, serverProtocol] = createProtocolPair();
 
@@ -236,19 +246,14 @@ suite('Base IPC', function () {
 		let ipcService: ITestService;
 
 		setup(function () {
-			service = new TestService();
-			const testServer = new TestIPCServer();
+			service = store.add(new TestService());
+			const testServer = store.add(new TestIPCServer());
 			server = testServer;
 
 			server.registerChannel(TestChannelId, new TestChannel(service));
 
-			client = testServer.createConnection('client1');
+			client = store.add(testServer.createConnection('client1'));
 			ipcService = new TestChannelClient(client.getChannel(TestChannelId));
-		});
-
-		teardown(function () {
-			client.dispose();
-			server.dispose();
 		});
 
 		test('call success', async function () {
@@ -301,7 +306,7 @@ suite('Base IPC', function () {
 		test('listen to events', async function () {
 			const messages: string[] = [];
 
-			ipcService.onPong(msg => messages.push(msg));
+			store.add(ipcService.onPong(msg => messages.push(msg)));
 			await timeout(0);
 
 			assert.deepStrictEqual(messages, []);
@@ -319,6 +324,22 @@ suite('Base IPC', function () {
 			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.strictEqual(r, 5);
 		});
+
+		test('round trips numbers', () => {
+			const input = [
+				0,
+				1,
+				-1,
+				12345,
+				-12345,
+				42.6,
+				123412341234
+			];
+
+			const writer = new BufferWriter();
+			serialize(writer, input);
+			assert.deepStrictEqual(deserialize(new BufferReader(writer.buffer)), input);
+		});
 	});
 
 	suite('one to one (proxy)', function () {
@@ -327,20 +348,21 @@ suite('Base IPC', function () {
 		let service: TestService;
 		let ipcService: ITestService;
 
+		const disposables = new DisposableStore();
+
 		setup(function () {
-			service = new TestService();
-			const testServer = new TestIPCServer();
+			service = store.add(new TestService());
+			const testServer = disposables.add(new TestIPCServer());
 			server = testServer;
 
-			server.registerChannel(TestChannelId, ProxyChannel.fromService(service));
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service, disposables));
 
-			client = testServer.createConnection('client1');
+			client = disposables.add(testServer.createConnection('client1'));
 			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId));
 		});
 
 		teardown(function () {
-			client.dispose();
-			server.dispose();
+			disposables.clear();
 		});
 
 		test('call success', async function () {
@@ -360,7 +382,7 @@ suite('Base IPC', function () {
 		test('listen to events', async function () {
 			const messages: string[] = [];
 
-			ipcService.onPong(msg => messages.push(msg));
+			disposables.add(ipcService.onPong(msg => messages.push(msg)));
 			await timeout(0);
 
 			assert.deepStrictEqual(messages, []);
@@ -393,20 +415,21 @@ suite('Base IPC', function () {
 		let service: TestService;
 		let ipcService: ITestService;
 
+		const disposables = new DisposableStore();
+
 		setup(function () {
-			service = new TestService();
-			const testServer = new TestIPCServer();
+			service = store.add(new TestService());
+			const testServer = disposables.add(new TestIPCServer());
 			server = testServer;
 
-			server.registerChannel(TestChannelId, ProxyChannel.fromService(service));
+			server.registerChannel(TestChannelId, ProxyChannel.fromService(service, disposables));
 
-			client = testServer.createConnection('client1');
+			client = disposables.add(testServer.createConnection('client1'));
 			ipcService = ProxyChannel.toService(client.getChannel(TestChannelId), { context: 'Super Context' });
 		});
 
 		teardown(function () {
-			client.dispose();
-			server.dispose();
+			disposables.clear();
 		});
 
 		test('call extra context', async function () {
@@ -417,20 +440,20 @@ suite('Base IPC', function () {
 
 	suite('one to many', function () {
 		test('all clients get pinged', async function () {
-			const service = new TestService();
+			const service = store.add(new TestService());
 			const channel = new TestChannel(service);
-			const server = new TestIPCServer();
+			const server = store.add(new TestIPCServer());
 			server.registerChannel('channel', channel);
 
 			let client1GotPinged = false;
-			const client1 = server.createConnection('client1');
+			const client1 = store.add(server.createConnection('client1'));
 			const ipcService1 = new TestChannelClient(client1.getChannel('channel'));
-			ipcService1.onPong(() => client1GotPinged = true);
+			store.add(ipcService1.onPong(() => client1GotPinged = true));
 
 			let client2GotPinged = false;
-			const client2 = server.createConnection('client2');
+			const client2 = store.add(server.createConnection('client2'));
 			const ipcService2 = new TestChannelClient(client2.getChannel('channel'));
-			ipcService2.onPong(() => client2GotPinged = true);
+			store.add(ipcService2.onPong(() => client2GotPinged = true));
 
 			await timeout(1);
 			service.ping('hello');
@@ -438,24 +461,20 @@ suite('Base IPC', function () {
 			await timeout(1);
 			assert(client1GotPinged, 'client 1 got pinged');
 			assert(client2GotPinged, 'client 2 got pinged');
-
-			client1.dispose();
-			client2.dispose();
-			server.dispose();
 		});
 
 		test('server gets pings from all clients (broadcast channel)', async function () {
-			const server = new TestIPCServer();
+			const server = store.add(new TestIPCServer());
 
 			const client1 = server.createConnection('client1');
-			const clientService1 = new TestService();
+			const clientService1 = store.add(new TestService());
 			const clientChannel1 = new TestChannel(clientService1);
 			client1.registerChannel('channel', clientChannel1);
 
 			const pings: string[] = [];
 			const channel = server.getChannel('channel', () => true);
 			const service = new TestChannelClient(channel);
-			service.onPong(msg => pings.push(msg));
+			store.add(service.onPong(msg => pings.push(msg)));
 
 			await timeout(1);
 			clientService1.ping('hello 1');
@@ -464,7 +483,7 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(pings, ['hello 1']);
 
 			const client2 = server.createConnection('client2');
-			const clientService2 = new TestService();
+			const clientService2 = store.add(new TestService());
 			const clientChannel2 = new TestChannel(clientService2);
 			client2.registerChannel('channel', clientChannel2);
 
@@ -487,7 +506,6 @@ suite('Base IPC', function () {
 			assert.deepStrictEqual(pings, ['hello 1', 'hello 2', 'hello again 2']);
 
 			client2.dispose();
-			server.dispose();
 		});
 	});
 });

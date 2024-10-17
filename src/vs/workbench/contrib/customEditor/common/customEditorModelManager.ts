@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
-import { IReference } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICustomEditorModel, ICustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICustomEditorModel, ICustomEditorModelManager } from './customEditor.js';
 
 export class CustomEditorModelManager implements ICustomEditorModelManager {
 
@@ -45,8 +45,8 @@ export class CustomEditorModelManager implements ICustomEditorModelManager {
 		return entry.model.then(model => {
 			return {
 				object: model,
-				dispose: once(() => {
-					if (--entry!.counter <= 0) {
+				dispose: createSingleCallFunction(() => {
+					if (--entry.counter <= 0) {
 						entry.model.then(x => x.dispose());
 						this._references.delete(key);
 					}

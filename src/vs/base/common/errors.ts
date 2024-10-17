@@ -74,8 +74,34 @@ export class ErrorHandler {
 
 export const errorHandler = new ErrorHandler();
 
+/** @skipMangle */
 export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) => void): void {
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
+}
+
+/**
+ * Returns if the error is a SIGPIPE error. SIGPIPE errors should generally be
+ * logged at most once, to avoid a loop.
+ *
+ * @see https://github.com/microsoft/vscode-remote-release/issues/6481
+ */
+export function isSigPipeError(e: unknown): e is Error {
+	if (!e || typeof e !== 'object') {
+		return false;
+	}
+
+	const cast = e as Record<string, string | undefined>;
+	return cast.code === 'EPIPE' && cast.syscall?.toUpperCase() === 'WRITE';
+}
+
+/**
+ * This function should only be called with errors that indicate a bug in the product.
+ * E.g. buggy extensions/invalid user-input/network issues should not be able to trigger this code path.
+ * If they are, this indicates there is also a bug in the product.
+*/
+export function onBugIndicatingError(e: any): undefined {
+	errorHandler.onUnexpectedError(e);
+	return undefined;
 }
 
 export function onUnexpectedError(e: any): undefined {
@@ -121,17 +147,30 @@ export function transformErrorForSerialization(error: any): any {
 	return error;
 }
 
+export function transformErrorFromSerialization(data: SerializedError): Error {
+	let error: Error;
+	if (data.noTelemetry) {
+		error = new ErrorNoTelemetry();
+	} else {
+		error = new Error();
+		error.name = data.name;
+	}
+	error.message = data.message;
+	error.stack = data.stack;
+	return error;
+}
+
 // see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
 export interface V8CallSite {
-	getThis(): any;
-	getTypeName(): string;
-	getFunction(): string;
-	getFunctionName(): string;
-	getMethodName(): string;
-	getFileName(): string;
-	getLineNumber(): number;
-	getColumnNumber(): number;
-	getEvalOrigin(): string;
+	getThis(): unknown;
+	getTypeName(): string | null;
+	getFunction(): Function | undefined;
+	getFunctionName(): string | null;
+	getMethodName(): string | null;
+	getFileName(): string | null;
+	getLineNumber(): number | null;
+	getColumnNumber(): number | null;
+	getEvalOrigin(): string | undefined;
 	isToplevel(): boolean;
 	isEval(): boolean;
 	isNative(): boolean;
@@ -185,16 +224,10 @@ export function illegalState(name?: string): Error {
 	}
 }
 
-export function readonly(name?: string): Error {
-	return name
-		? new Error(`readonly property '${name} cannot be changed'`)
-		: new Error('readonly property cannot be changed');
-}
-
-export function disposed(what: string): Error {
-	const result = new Error(`${what} has been disposed`);
-	result.name = 'DISPOSED';
-	return result;
+export class ReadonlyError extends TypeError {
+	constructor(name?: string) {
+		super(name ? `${name} is read-only and cannot be changed` : 'Cannot change read-only property');
+	}
 }
 
 export function getErrorMessage(err: any): string {
@@ -243,7 +276,7 @@ export class ErrorNoTelemetry extends Error {
 
 	constructor(msg?: string) {
 		super(msg);
-		this.name = 'ErrorNoTelemetry';
+		this.name = 'CodeExpectedError';
 	}
 
 	public static fromError(err: Error): ErrorNoTelemetry {
@@ -258,7 +291,7 @@ export class ErrorNoTelemetry extends Error {
 	}
 
 	public static isErrorNoTelemetry(err: Error): err is ErrorNoTelemetry {
-		return err.name === 'ErrorNoTelemetry';
+		return err.name === 'CodeExpectedError';
 	}
 }
 
@@ -274,7 +307,6 @@ export class BugIndicatingError extends Error {
 
 		// Because we know for sure only buggy code throws this,
 		// we definitely want to break here and fix the bug.
-		// eslint-disable-next-line no-debugger
-		debugger;
+		// debugger;
 	}
 }

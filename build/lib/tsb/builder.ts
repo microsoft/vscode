@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { statSync, readFileSync } from 'fs';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as utils from './utils';
 import * as colors from 'ansi-colors';
 import * as ts from 'typescript';
 import * as Vinyl from 'vinyl';
+import { RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
@@ -112,7 +113,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 					if (/\.d\.ts$/.test(fileName)) {
 						// if it's already a d.ts file just emit it signature
 						const snapshot = host.getScriptSnapshot(fileName);
-						const signature = crypto.createHash('md5')
+						const signature = crypto.createHash('sha256')
 							.update(snapshot.getText(0, snapshot.getLength()))
 							.digest('base64');
 
@@ -133,7 +134,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						}
 
 						if (/\.d\.ts$/.test(file.name)) {
-							signature = crypto.createHash('md5')
+							signature = crypto.createHash('sha256')
 								.update(file.text)
 								.digest('base64');
 
@@ -158,8 +159,81 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 								const dirname = path.dirname(vinyl.relative);
 								const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
 
-								const sourceMap = JSON.parse(sourcemapFile.text);
+								let sourceMap = <RawSourceMap>JSON.parse(sourcemapFile.text);
 								sourceMap.sources[0] = tsname.replace(/\\/g, '/');
+
+								// check for an "input source" map and combine them
+								// in step 1 we extract all line edit from the input source map, and
+								// in step 2 we apply the line edits to the typescript source map
+								const snapshot = host.getScriptSnapshot(fileName);
+								if (snapshot instanceof VinylScriptSnapshot && snapshot.sourceMap) {
+									const inputSMC = new SourceMapConsumer(snapshot.sourceMap);
+									const tsSMC = new SourceMapConsumer(sourceMap);
+									let didChange = false;
+									const smg = new SourceMapGenerator({
+										file: sourceMap.file,
+										sourceRoot: sourceMap.sourceRoot
+									});
+
+									// step 1
+									const lineEdits = new Map<number, [from: number, to: number][]>();
+									inputSMC.eachMapping(m => {
+										if (m.originalLine === m.generatedLine) {
+											// same line mapping
+											let array = lineEdits.get(m.originalLine);
+											if (!array) {
+												array = [];
+												lineEdits.set(m.originalLine, array);
+											}
+											array.push([m.originalColumn, m.generatedColumn]);
+										} else {
+											// NOT SUPPORTED
+										}
+									});
+
+									// step 2
+									tsSMC.eachMapping(m => {
+										didChange = true;
+										const edits = lineEdits.get(m.originalLine);
+										let originalColumnDelta = 0;
+										if (edits) {
+											for (const [from, to] of edits) {
+												if (to >= m.originalColumn) {
+													break;
+												}
+												originalColumnDelta = from - to;
+											}
+										}
+										smg.addMapping({
+											source: m.source,
+											name: m.name,
+											generated: { line: m.generatedLine, column: m.generatedColumn },
+											original: { line: m.originalLine, column: m.originalColumn + originalColumnDelta }
+										});
+									});
+
+									if (didChange) {
+
+										[tsSMC, inputSMC].forEach((consumer) => {
+											(<SourceMapConsumer & { sources: string[] }>consumer).sources.forEach((sourceFile: any) => {
+												(<any>smg)._sources.add(sourceFile);
+												const sourceContent = consumer.sourceContentFor(sourceFile);
+												if (sourceContent !== null) {
+													smg.setSourceContent(sourceFile, sourceContent);
+												}
+											});
+										});
+
+										sourceMap = JSON.parse(smg.toString());
+
+										// const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
+										// fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
+										// 	await fs.promises.writeFile(filename, smg.toString());
+										// 	await fs.promises.writeFile('/Users/jrieken/Code/vscode/src2/' + vinyl.relative, vinyl.contents);
+										// });
+									}
+								}
+
 								(<any>vinyl).sourceMap = sourceMap;
 							}
 						}
@@ -353,7 +427,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 			const MB = 1024 * 1024;
 			_log(
 				'[tsb]',
-				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
+				`time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`
 			);
 			headUsed = headNow;
 		});
@@ -397,9 +471,12 @@ class VinylScriptSnapshot extends ScriptSnapshot {
 
 	private readonly _base: string;
 
-	constructor(file: Vinyl) {
+	readonly sourceMap?: RawSourceMap;
+
+	constructor(file: Vinyl & { sourceMap?: RawSourceMap }) {
 		super(file.contents!.toString(), file.stat!.mtime);
 		this._base = file.base;
+		this.sourceMap = file.sourceMap;
 	}
 
 	getBase(): string {
@@ -474,9 +551,9 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 			try {
 				result = new VinylScriptSnapshot(new Vinyl(<any>{
 					path: filename,
-					contents: readFileSync(filename),
+					contents: fs.readFileSync(filename),
 					base: this.getCompilationSettings().outDir,
-					stat: statSync(filename)
+					stat: fs.statSync(filename)
 				}));
 				this.addScriptSnapshot(filename, result);
 			} catch (e) {
@@ -583,7 +660,10 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 
 			while (!found && dirname.indexOf(stopDirname) === 0) {
 				dirname = path.dirname(dirname);
-				const resolvedPath = path.resolve(dirname, ref.fileName);
+				let resolvedPath = path.resolve(dirname, ref.fileName);
+				if (resolvedPath.endsWith('.js')) {
+					resolvedPath = resolvedPath.slice(0, -3);
+				}
 				const normalizedPath = normalize(resolvedPath);
 
 				if (this.getScriptSnapshot(normalizedPath + '.ts')) {

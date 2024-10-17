@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { CodeAction, CodeActionList, CodeActionProvider, WorkspaceEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
-import { getSurroundableSnippets, SurroundWithSnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/commands/surroundWithSnippet';
-import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ISnippetsService } from './snippets';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { CodeAction, CodeActionList, CodeActionProvider, WorkspaceEdit } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/types.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ApplyFileSnippetAction } from './commands/fileTemplateSnippets.js';
+import { getSurroundableSnippets, SurroundWithSnippetEditorAction } from './commands/surroundWithSnippet.js';
+import { Snippet } from './snippetsFile.js';
+import { ISnippetsService } from './snippets.js';
 
 class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 
 	private static readonly _MAX_CODE_ACTIONS = 4;
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
-		kind: CodeActionKind.Refactor.value,
-		title: SurroundWithSnippetEditorAction.options.title.value,
+		kind: CodeActionKind.SurroundWith.value,
+		title: localize('more', "More..."),
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,
 			title: SurroundWithSnippetEditorAction.options.title.value,
@@ -53,8 +53,8 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 				break;
 			}
 			actions.push({
-				title: localize('codeAction', "Surround With: {0}", snippet.name),
-				kind: CodeActionKind.Refactor.value,
+				title: localize('codeAction', "{0}", snippet.name),
+				kind: CodeActionKind.SurroundWith.value,
 				edit: asWorkspaceEdit(model, range, snippet)
 			});
 		}
@@ -72,14 +72,14 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
 		title: localize('overflow.start.title', 'Start with Snippet'),
-		kind: CodeActionKind.Refactor.value,
+		kind: CodeActionKind.SurroundWith.value,
 		command: {
 			id: ApplyFileSnippetAction.Id,
 			title: ''
 		}
 	};
 
-	readonly providedCodeActionKinds?: readonly string[] = [CodeActionKind.Refactor.value];
+	readonly providedCodeActionKinds?: readonly string[] = [CodeActionKind.SurroundWith.value];
 
 	constructor(@ISnippetsService private readonly _snippetService: ISnippetsService) { }
 
@@ -97,7 +97,7 @@ class FileTemplateCodeActionProvider implements CodeActionProvider {
 			}
 			actions.push({
 				title: localize('title', 'Start with: {0}', snippet.name),
-				kind: CodeActionKind.Refactor.value,
+				kind: CodeActionKind.SurroundWith.value,
 				edit: asWorkspaceEdit(model, model.getFullModelRange(), snippet)
 			});
 		}

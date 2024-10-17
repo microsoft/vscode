@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls.js';
+import { ExtensionToggleData } from '../common/preferences.js';
+
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
@@ -12,11 +14,28 @@ export interface ITOCEntry<T> {
 	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry<string> = {
-	id: 'commonlyUsed',
-	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
-};
+const defaultCommonlyUsedSettings: string[] = [
+	'files.autoSave',
+	'editor.fontSize',
+	'editor.fontFamily',
+	'editor.tabSize',
+	'editor.renderWhitespace',
+	'editor.cursorStyle',
+	'editor.multiCursorModifier',
+	'editor.insertSpaces',
+	'editor.wordWrap',
+	'files.exclude',
+	'files.associations',
+	'workbench.editor.enablePreview'
+];
+
+export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
+	return {
+		id: 'commonlyUsed',
+		label: localize('commonlyUsed', "Commonly Used"),
+		settings: toggleData?.commonlyUsed ?? defaultCommonlyUsedSettings
+	};
+}
 
 export const tocData: ITOCEntry<string> = {
 	id: 'root',
@@ -51,6 +70,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'editor/diffEditor',
 					label: localize('diffEditor', "Diff Editor"),
 					settings: ['diffEditor.*']
+				},
+				{
+					id: 'editor/multiDiffEditor',
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
+					settings: ['multiDiffEditor.*']
 				},
 				{
 					id: 'editor/minimap',
@@ -123,6 +147,16 @@ export const tocData: ITOCEntry<string> = {
 			label: localize('features', "Features"),
 			children: [
 				{
+					id: 'features/accessibilitySignals',
+					label: localize('accessibility.signals', 'Accessibility Signals'),
+					settings: ['accessibility.signal*']
+				},
+				{
+					id: 'features/accessibility',
+					label: localize('accessibility', "Accessibility"),
+					settings: ['accessibility.*']
+				},
+				{
 					id: 'features/explorer',
 					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
@@ -131,8 +165,7 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/search',
 					label: localize('search', "Search"),
 					settings: ['search.*']
-				}
-				,
+				},
 				{
 					id: 'features/debug',
 					label: localize('debug', "Debug"),
@@ -194,9 +227,19 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['notebook.*', 'interactiveWindow.*']
 				},
 				{
-					id: 'features/audioCues',
-					label: localize('audioCues', 'Audio Cues'),
-					settings: ['audioCues.*']
+					id: 'features/mergeEditor',
+					label: localize('mergeEditor', 'Merge Editor'),
+					settings: ['mergeEditor.*']
+				},
+				{
+					id: 'features/chat',
+					label: localize('chat', 'Chat'),
+					settings: ['chat.*', 'inlineChat.*']
+				},
+				{
+					id: 'features/issueReporter',
+					label: localize('issueReporter', 'Issue Reporter'),
+					settings: ['issueReporter.*']
 				}
 			]
 		},
@@ -228,12 +271,23 @@ export const tocData: ITOCEntry<string> = {
 					id: 'application/settingsSync',
 					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
+				},
+				{
+					id: 'application/experimental',
+					label: localize('experimental', "Experimental"),
+					settings: ['application.experimental.*']
+				},
+				{
+					id: 'application/other',
+					label: localize('other', "Other"),
+					settings: ['application.*']
 				}
 			]
 		},
 		{
 			id: 'security',
 			label: localize('security', "Security"),
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

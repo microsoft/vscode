@@ -3,16 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
-import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
-import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import assert from 'assert';
+import { promiseWithResolvers, timeout } from '../../../../base/common/async.js';
+import { Mutable } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from '../../common/extHostExtensionActivator.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../../services/extensions/common/extensionDescriptionRegistry.js';
+import { ExtensionActivationReason, MissingExtensionDependency } from '../../../services/extensions/common/extensions.js';
 
 suite('ExtensionsActivator', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const idA = new ExtensionIdentifier(`a`);
 	const idB = new ExtensionIdentifier(`b`);
@@ -81,9 +85,12 @@ suite('ExtensionsActivator', () => {
 
 	test('Supports having resolved extensions', async () => {
 		const host = new SimpleExtensionsActivatorHost();
+		const bExt = desc(idB);
+		delete (<Mutable<IExtensionDescription>>bExt).main;
+		delete (<Mutable<IExtensionDescription>>bExt).browser;
 		const activator = createActivator(host, [
 			desc(idA, [idB])
-		], [idB]);
+		], [bExt]);
 
 		await activator.activateByEvent('*', false);
 		assert.deepStrictEqual(host.activateCalls, [idA]);
@@ -96,9 +103,11 @@ suite('ExtensionsActivator', () => {
 			[idA, extActivationA],
 			[idB, extActivationB]
 		]);
+		const bExt = desc(idB);
+		(<Mutable<IExtensionDescription>>bExt).api = 'none';
 		const activator = createActivator(host, [
 			desc(idA, [idB])
-		], [], [idB]);
+		], [bExt]);
 
 		const activate = activator.activateByEvent('*', false);
 
@@ -223,15 +232,12 @@ suite('ExtensionsActivator', () => {
 	}
 
 	class ExtensionActivationPromiseSource {
-		private _resolve!: (value: ActivatedExtension) => void;
-		private _reject!: (err: Error) => void;
+		private readonly _resolve: (value: ActivatedExtension) => void;
+		private readonly _reject: (err: Error) => void;
 		public readonly promise: Promise<ActivatedExtension>;
 
 		constructor() {
-			this.promise = new Promise<ActivatedExtension>((resolve, reject) => {
-				this._resolve = resolve;
-				this._reject = reject;
-			});
+			({ promise: this.promise, resolve: this._resolve, reject: this._reject } = promiseWithResolvers<ActivatedExtension>());
 		}
 
 		public resolve(): void {
@@ -243,9 +249,16 @@ suite('ExtensionsActivator', () => {
 		}
 	}
 
-	function createActivator(host: IExtensionsActivatorHost, extensionDescriptions: IExtensionDescription[], resolvedExtensions: ExtensionIdentifier[] = [], hostExtensions: ExtensionIdentifier[] = []): ExtensionsActivator {
-		const registry = new ExtensionDescriptionRegistry(extensionDescriptions);
-		return new ExtensionsActivator(registry, resolvedExtensions, hostExtensions, host, new NullLogService());
+	const basicActivationEventsReader: IActivationEventsReader = {
+		readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
+			return extensionDescription.activationEvents ?? [];
+		}
+	};
+
+	function createActivator(host: IExtensionsActivatorHost, extensionDescriptions: IExtensionDescription[], otherHostExtensionDescriptions: IExtensionDescription[] = []): ExtensionsActivator {
+		const registry = new ExtensionDescriptionRegistry(basicActivationEventsReader, extensionDescriptions);
+		const globalRegistry = new ExtensionDescriptionRegistry(basicActivationEventsReader, extensionDescriptions.concat(otherHostExtensionDescriptions));
+		return new ExtensionsActivator(registry, globalRegistry, host, new NullLogService());
 	}
 
 	function desc(id: ExtensionIdentifier, deps: ExtensionIdentifier[] = [], activationEvents: string[] = ['*']): IExtensionDescription {
@@ -262,7 +275,8 @@ suite('ExtensionsActivator', () => {
 			activationEvents,
 			main: 'index.js',
 			targetPlatform: TargetPlatform.UNDEFINED,
-			extensionDependencies: deps.map(d => d.value)
+			extensionDependencies: deps.map(d => d.value),
+			enabledApiProposals: undefined,
 		};
 	}
 

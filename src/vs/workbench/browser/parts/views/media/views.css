@@ -17,6 +17,14 @@
 
 /* Misc */
 
+.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight,
+.pane-body .monaco-tl-contents .monaco-highlighted-label .highlight {
+	color: unset !important;
+	background-color: var(--vscode-list-filterMatchBackground);
+	outline: 1px dotted var(--vscode-list-filterMatchBorder);
+	outline-offset: -1px;
+}
+
 .monaco-workbench .tree-explorer-viewlet-tree-view {
 	height: 100%;
 }
@@ -38,6 +46,23 @@
 	padding-left: 24px;
 }
 
+.monaco-workbench .tree-explorer-viewlet-tree-view .message p > a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .rendered-message {
+	width: 100%;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container {
+	width: 100%;
+	max-width: 300px;
+	margin: auto;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container:not(:last-child) {
+	padding-bottom: 8px;
+}
 .monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }
@@ -74,6 +99,9 @@
 .monaco-workbench .pane > .pane-body .welcome-view-content > .button-container {
 	width: 100%;
 	max-width: 300px;
+}
+
+.monaco-workbench:not(.reduce-motion) .pane > .pane-body .welcome-view-content > .button-container {
 	transition: 0.2s max-width ease-out;
 }
 
@@ -120,6 +148,25 @@
 	padding-left: 3px;
 }
 
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
+	background-color: var(--vscode-checkbox-selectBackground);
+	border: 1px solid var(--vscode-checkbox-selectBorder);
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
+	width: 16px;
+	height: 16px;
+	margin: 3px 6px 3px 0px;
+	padding: 0px;
+	border: 1px solid var(--vscode-checkbox-border);
+	opacity: 1;
+	background-color: var(--vscode-checkbox-background);
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox.codicon {
+	font-size: 13px;
+	line-height: 15px;
+}
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
 	line-height: normal;
 	flex: 1;
@@ -136,7 +183,8 @@
 	display: block;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
+.timeline-tree-view .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon,
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -150,13 +198,16 @@
 	-moz-osx-font-smoothing: grayscale;
 }
 
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.disabled {
+	opacity: 0.6;
+}
 /* makes spinning icons square */
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
 	padding-left: 6px;
 	margin-left: -6px;
 }
 
-.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.codicon {
 	color: currentColor !important;
 }
 
@@ -166,6 +217,7 @@
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
+	margin-right: 4px;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
@@ -180,4 +232,83 @@
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
+}
+
+/* filter view pane */
+
+.monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.viewpane-filter-container {
+	max-width: inherit;
+}
+
+.viewpane-filter-container {
+	cursor: default;
+	display: flex;
+}
+
+.viewpane-filter-container.grow {
+	flex: 1;
+}
+
+.viewpane-filter-container > .viewpane-filter {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	position: relative;
+}
+
+.viewpane-filter-container > .viewpane-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.pane-header .viewpane-filter-container > .viewpane-filter .monaco-inputbox .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .viewpane-filter-container > .viewpane-filter .monaco-inputbox {
+	height: 25px;
+}
+
+.viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls > .viewpane-filter-badge {
+	margin: 4px 2px 4px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.viewpane-filter > .viewpane-filter-controls > .viewpane-filter-badge.hidden,
+.viewpane-filter.small > .viewpane-filter-controls > .viewpane-filter-badge {
+	display: none;
+}
+
+.panel > .title .monaco-action-bar .action-item.viewpane-filter-container {
+	max-width: 400px;
+	min-width: 150px;
+	margin-right: 10px;
+}
+
+.pane-body .viewpane-filter-container:not(:empty) {
+	flex: 1;
+	margin: 10px 20px;
+	height: initial;
+}
+
+.pane-body .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-item {
+	margin-right: 4px;
+}
+
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked {
+	border-color: var(--vscode-inputOption-activeBorder);
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
 }

@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import * as errors from './errors.js';
+import * as platform from './platform.js';
+import { equalsIgnoreCase, startsWithIgnoreCase } from './strings.js';
+import { URI } from './uri.js';
+import * as paths from './path.js';
 
 export namespace Schemas {
 
@@ -52,17 +55,18 @@ export namespace Schemas {
 
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
+	export const vscodeManagedRemoteResource = 'vscode-managed-remote-resource';
+
 	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
-	export const vscodeNotebook = 'vscode-notebook';
-
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
-
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+	export const vscodeNotebookCellMetadataDiff = 'vscode-notebook-cell-metadata-diff';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
-	export const vscodeInteractive = 'vscode-interactive';
+	export const vscodeNotebookCellOutputDiff = 'vscode-notebook-cell-output-diff';
+	export const vscodeNotebookMetadata = 'vscode-notebook-metadata';
 	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';
@@ -70,6 +74,15 @@ export namespace Schemas {
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
 	export const vscodeTerminal = 'vscode-terminal';
+
+	/** Scheme used for code blocks in chat. */
+	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
+
+	/** Scheme used for LHS of code compare (aka diff) blocks in chat. */
+	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
+
+	/** Scheme used for the chat input editor. */
+	export const vscodeChatSesssion = 'vscode-chat-editor';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -106,6 +119,38 @@ export namespace Schemas {
 	 * Scheme used for the Source Control commit input's text document
 	 */
 	export const vscodeSourceControl = 'vscode-scm';
+
+	/**
+	 * Scheme used for input box for creating comments.
+	 */
+	export const commentsInput = 'comment';
+
+	/**
+	 * Scheme used for special rendering of settings in the release notes
+	 */
+	export const codeSetting = 'code-setting';
+
+	/**
+	 * Scheme used for output panel resources
+	 */
+	export const outputChannel = 'output';
+
+	/**
+	 * Scheme used for the accessible view
+	 */
+	export const accessibleView = 'accessible-view';
+}
+
+export function matchesScheme(target: URI | string, scheme: string): boolean {
+	if (URI.isUri(target)) {
+		return equalsIgnoreCase(target.scheme, scheme);
+	} else {
+		return startsWithIgnoreCase(target, scheme + ':');
+	}
+}
+
+export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
+	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';
@@ -117,7 +162,7 @@ class RemoteAuthoritiesImpl {
 	private readonly _connectionTokens: { [authority: string]: string | undefined } = Object.create(null);
 	private _preferredWebSchema: 'http' | 'https' = 'http';
 	private _delegate: ((uri: URI) => URI) | null = null;
-	private _remoteResourcesPath: string = `/${Schemas.vscodeRemoteResource}`;
+	private _serverRootPath: string = '/';
 
 	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
@@ -127,8 +172,16 @@ class RemoteAuthoritiesImpl {
 		this._delegate = delegate;
 	}
 
-	setServerRootPath(serverRootPath: string): void {
-		this._remoteResourcesPath = `${serverRootPath}/${Schemas.vscodeRemoteResource}`;
+	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
+		this._serverRootPath = getServerRootPath(product, serverBasePath);
+	}
+
+	getServerRootPath(): string {
+		return this._serverRootPath;
+	}
+
+	private get _remoteResourcesPath(): string {
+		return paths.posix.join(this._serverRootPath, Schemas.vscodeRemoteResource);
 	}
 
 	set(authority: string, host: string, port: number): void {
@@ -146,11 +199,16 @@ class RemoteAuthoritiesImpl {
 
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
-			return this._delegate(uri);
+			try {
+				return this._delegate(uri);
+			} catch (err) {
+				errors.onUnexpectedError(err);
+				return uri;
+			}
 		}
 		const authority = uri.authority;
 		let host = this._hosts[authority];
-		if (host && host.indexOf(':') !== -1) {
+		if (host && host.indexOf(':') !== -1 && host.indexOf('[') === -1) {
 			host = `[${host}]`;
 		}
 		const port = this._ports[authority];
@@ -170,9 +228,31 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
+export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
+	return paths.posix.join(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+}
+
+/**
+ * A string pointing to a path inside the app. It should not begin with ./ or ../
+ */
+export type AppResourcePath = (
+	`a${string}` | `b${string}` | `c${string}` | `d${string}` | `e${string}` | `f${string}`
+	| `g${string}` | `h${string}` | `i${string}` | `j${string}` | `k${string}` | `l${string}`
+	| `m${string}` | `n${string}` | `o${string}` | `p${string}` | `q${string}` | `r${string}`
+	| `s${string}` | `t${string}` | `u${string}` | `v${string}` | `w${string}` | `x${string}`
+	| `y${string}` | `z${string}`
+);
+
+export const builtinExtensionsPath: AppResourcePath = 'vs/../../extensions';
+export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
+export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
+export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
+
+export const VSCODE_AUTHORITY = 'vscode-app';
+
 class FileAccessImpl {
 
-	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
+	private static readonly FALLBACK_AUTHORITY = VSCODE_AUTHORITY;
 
 	/**
 	 * Returns a URI to use in contexts where the browser is responsible
@@ -180,11 +260,18 @@ class FileAccessImpl {
 	 *
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
-	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath);
+		return this.uriToBrowserUri(uri);
+	}
 
+	/**
+	 * Returns a URI to use in contexts where the browser is responsible
+	 * for loading (e.g. fetch()) or when used within the DOM.
+	 *
+	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
+	 */
+	uriToBrowserUri(uri: URI): URI {
 		// Handle remote URIs via `RemoteAuthorities`
 		if (uri.scheme === Schemas.vscodeRemote) {
 			return RemoteAuthorities.rewrite(uri);
@@ -198,7 +285,7 @@ class FileAccessImpl {
 				// ...and we run in native environments
 				platform.isNative ||
 				// ...or web worker extensions on desktop
-				(platform.isWebWorker && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				(platform.webWorkerOrigin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
 		) {
 			return uri.with({
@@ -220,11 +307,16 @@ class FileAccessImpl {
 	 * Returns the `file` URI to use in contexts where node.js
 	 * is responsible for loading.
 	 */
-	asFileUri(uri: URI): URI;
-	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asFileUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath);
+		return this.uriToFileUri(uri);
+	}
 
+	/**
+	 * Returns the `file` URI to use in contexts where node.js
+	 * is responsible for loading.
+	 */
+	uriToFileUri(uri: URI): URI {
 		// Only convert the URI if it is `vscode-file:` scheme
 		if (uri.scheme === Schemas.vscodeFileResource) {
 			return uri.with({
@@ -246,8 +338,71 @@ class FileAccessImpl {
 			return uriOrModule;
 		}
 
+		if (globalThis._VSCODE_FILE_ROOT) {
+			const rootUriOrPath = globalThis._VSCODE_FILE_ROOT;
+
+			// File URL (with scheme)
+			if (/^\w[\w\d+.-]*:\/\//.test(rootUriOrPath)) {
+				return URI.joinPath(URI.parse(rootUriOrPath, true), uriOrModule);
+			}
+
+			// File Path (no scheme)
+			const modulePath = paths.join(rootUriOrPath, uriOrModule);
+			return URI.file(modulePath);
+		}
+
 		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
+
+
+export namespace COI {
+
+	const coiHeaders = new Map<'3' | '2' | '1' | string, Record<string, string>>([
+		['1', { 'Cross-Origin-Opener-Policy': 'same-origin' }],
+		['2', { 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+	]);
+
+	export const CoopAndCoep = Object.freeze(coiHeaders.get('3'));
+
+	const coiSearchParamName = 'vscode-coi';
+
+	/**
+	 * Extract desired headers from `vscode-coi` invocation
+	 */
+	export function getHeadersFromQuery(url: string | URI | URL): Record<string, string> | undefined {
+		let params: URLSearchParams | undefined;
+		if (typeof url === 'string') {
+			params = new URL(url).searchParams;
+		} else if (url instanceof URL) {
+			params = url.searchParams;
+		} else if (URI.isUri(url)) {
+			params = new URL(url.toString(true)).searchParams;
+		}
+		const value = params?.get(coiSearchParamName);
+		if (!value) {
+			return undefined;
+		}
+		return coiHeaders.get(value);
+	}
+
+	/**
+	 * Add the `vscode-coi` query attribute based on wanting `COOP` and `COEP`. Will be a noop when `crossOriginIsolated`
+	 * isn't enabled the current context
+	 */
+	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
+		if (!(<any>globalThis).crossOriginIsolated) {
+			// depends on the current context being COI
+			return;
+		}
+		const value = coop && coep ? '3' : coep ? '2' : '1';
+		if (urlOrSearch instanceof URLSearchParams) {
+			urlOrSearch.set(coiSearchParamName, value);
+		} else {
+			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+		}
+	}
+}

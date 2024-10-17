@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as labels from 'vs/base/common/labels';
-import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
+import assert from 'assert';
+import * as labels from '../../common/labels.js';
+import { isMacintosh, isWindows, OperatingSystem } from '../../common/platform.js';
+import { URI } from '../../common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {
@@ -59,7 +60,7 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
 		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
 		assert.deepStrictEqual(labels.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.\\', 'a', 'b', 'b\\c', 'a\\c']);
-		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
+		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-sandbox', 'src\\vs\\workbench\\parts\\execution\\electron-sandbox\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-sandbox']), ['…\\execution\\electron-sandbox', '…\\something', '…\\terminal\\…']);
 	});
 
 	(isWindows ? test.skip : test)('shorten - not windows', () => {
@@ -137,6 +138,10 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
+
+		// real world example (other)
+		t = '${dirty}${activeEditorShort}${separator}${rootNameShort}${separator}${appName}';
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco (Workspace)', rootNameShort: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
 	});
 
 	test('mnemonicButtonLabel', () => {
@@ -157,6 +162,7 @@ suite('Labels', () => {
 	test('getPathLabel', () => {
 		const winFileUri = URI.file('c:/some/folder/file.txt');
 		const nixFileUri = URI.file('/some/folder/file.txt');
+		const nixBadFileUri = URI.revive({ scheme: 'vscode', authority: 'file', path: '//some/folder/file.txt' });
 		const uncFileUri = URI.file('c:/some/folder/file.txt').with({ authority: 'auth' });
 		const remoteFileUri = URI.file('/some/folder/file.txt').with({ scheme: 'vscode-test', authority: 'auth' });
 
@@ -185,6 +191,7 @@ suite('Labels', () => {
 
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: nixUserHome } }), '\\some\\folder\\file.txt');
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixBadFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '/some/folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
 
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: remoteUserHome } }), '\\some\\folder\\file.txt');
@@ -227,4 +234,6 @@ suite('Labels', () => {
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -3,25 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from 'vs/base/common/uuid';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { URI } from 'vs/base/common/uri';
-import { locale } from 'vs/base/common/platform';
-import { joinPath } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
-import { asWebviewUri } from 'vs/workbench/common/webview';
-import { ResourceMap } from 'vs/base/common/map';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { generateTokensCSSForColorMap } from '../../../../editor/common/languages/supports/tokenization.js';
+import { TokenizationRegistry } from '../../../../editor/common/languages.js';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
+import { URI } from '../../../../base/common/uri.js';
+import { language } from '../../../../base/common/platform.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { asWebviewUri } from '../../webview/common/webview.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { gettingStartedContentRegistry } from '../common/gettingStartedContent.js';
 
 
 export class GettingStartedDetailsRenderer {
-	private mdCache = new ResourceMap<Promise<string>>();
-	private svgCache = new ResourceMap<Promise<string>>();
+	private mdCache = new ResourceMap<string>();
+	private svgCache = new ResourceMap<string>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -60,10 +61,15 @@ export class GettingStartedDetailsRenderer {
 						padding: 0;
 						height: inherit;
 					}
+					.theme-picker-row {
+						display: flex;
+						justify-content: center;
+						gap: 32px;
+					}
 					checklist {
 						display: flex;
-						flex-wrap: wrap;
-						justify-content: space-around;
+						gap: 32px;
+						flex-direction: column;
 					}
 					checkbox {
 						display: flex;
@@ -73,14 +79,19 @@ export class GettingStartedDetailsRenderer {
 						cursor: pointer;
 					}
 					checkbox > img {
-						margin-bottom: 4px;
+						margin-bottom: 8px !important;
 					}
 					checkbox.checked > img {
 						box-sizing: border-box;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);
-						outline-offset: 2px;
+						outline-offset: 4px;
+						border-radius: 4px;
+					}
+					.theme-picker-link {
+						margin-top: 16px;
+						color: var(--vscode-textLink-foreground);
 					}
 					blockquote > p:first-child {
 						margin-top: 0;
@@ -92,6 +103,9 @@ export class GettingStartedDetailsRenderer {
 					vertically-centered {
 						padding-top: 5px;
 						padding-bottom: 5px;
+						display: flex;
+						justify-content: center;
+						flex-direction: column;
 					}
 					html {
 						height: 100%;
@@ -112,6 +126,7 @@ export class GettingStartedDetailsRenderer {
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
+
 				document.querySelectorAll('[when-checked]').forEach(el => {
 					el.addEventListener('click', () => {
 						vscode.postMessage(el.getAttribute('when-checked'));
@@ -186,18 +201,19 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
-	private readAndCacheSVGFile(path: URI): Promise<string> {
+	private async readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
-			this.svgCache.set(path, this.readContentsOfPath(path, false));
+			const contents = await this.readContentsOfPath(path, false);
+			this.svgCache.set(path, contents);
 		}
 		return assertIsDefined(this.svgCache.get(path));
 	}
 
-	private readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
-			this.mdCache.set(path,
-				this.readContentsOfPath(path).then(rawContents =>
-					renderMarkdownDocument(transformUris(rawContents, base), this.extensionService, this.languageService, true, true)));
+			const contents = await this.readContentsOfPath(path);
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
+			this.mdCache.set(path, markdownContents);
 		}
 		return assertIsDefined(this.mdCache.get(path));
 	}
@@ -206,19 +222,22 @@ export class GettingStartedDetailsRenderer {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
 			if (useModuleId && moduleId) {
-				const contents = await new Promise<string>(c => {
-					require([moduleId], content => {
-						c(content.default());
-					});
+				const contents = await new Promise<string>((resolve, reject) => {
+					const provider = gettingStartedContentRegistry.getProvider(moduleId);
+					if (!provider) {
+						reject(`Getting started: no provider registered for ${moduleId}`);
+					} else {
+						resolve(provider());
+					}
 				});
 				return contents;
 			}
 		} catch { }
 
 		try {
-			const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
+			const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${language}.md`) });
 
-			const generalizedLocale = locale?.replace(/-.*$/, '');
+			const generalizedLocale = language?.replace(/-.*$/, '');
 			const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
 
 			const fileExists = (file: URI) => this.fileService
@@ -248,7 +267,7 @@ export class GettingStartedDetailsRenderer {
 
 const transformUri = (src: string, base: URI) => {
 	const path = joinPath(base, src);
-	return asWebviewUri(path).toString();
+	return asWebviewUri(path).toString(true);
 };
 
 const transformUris = (content: string, base: URI): string => content

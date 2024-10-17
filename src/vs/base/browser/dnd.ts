@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
+import { addDisposableListener, getWindow } from './dom.js';
+import { Disposable } from '../common/lifecycle.js';
+import { Mimes } from '../common/mime.js';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
@@ -71,20 +71,36 @@ export const DataTransfers = {
 	/**
 	 * Typically transfer type for copy/paste transfers.
 	 */
-	TEXT: Mimes.text
+	TEXT: Mimes.text,
+
+	/**
+	 * Internal type used to pass around text/uri-list data.
+	 *
+	 * This is needed to work around https://bugs.chromium.org/p/chromium/issues/detail?id=239745.
+	 */
+	INTERNAL_URI_LIST: 'application/vnd.code.uri-list',
 };
 
-export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {
+export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
 	const dragImage = document.createElement('div');
 	dragImage.className = clazz;
 	dragImage.textContent = label;
 
+	if (foregroundColor) {
+		dragImage.style.color = foregroundColor;
+	}
+
+	if (backgroundColor) {
+		dragImage.style.background = backgroundColor;
+	}
+
 	if (event.dataTransfer) {
-		document.body.appendChild(dragImage);
+		const ownerDocument = getWindow(event).document;
+		ownerDocument.body.appendChild(dragImage);
 		event.dataTransfer.setDragImage(dragImage, -10, -10);
 
 		// Removes the element when the DND operation is done
-		setTimeout(() => document.body.removeChild(dragImage), 0);
+		setTimeout(() => dragImage.remove(), 0);
 	}
 }
 

@@ -4,20 +4,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createTypeScriptBuilder = exports.CancellationToken = void 0;
-const fs_1 = require("fs");
+exports.CancellationToken = void 0;
+exports.createTypeScriptBuilder = createTypeScriptBuilder;
+const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const utils = require("./utils");
 const colors = require("ansi-colors");
 const ts = require("typescript");
 const Vinyl = require("vinyl");
+const source_map_1 = require("source-map");
 var CancellationToken;
 (function (CancellationToken) {
     CancellationToken.None = {
         isCancellationRequested() { return false; }
     };
-})(CancellationToken = exports.CancellationToken || (exports.CancellationToken = {}));
+})(CancellationToken || (exports.CancellationToken = CancellationToken = {}));
 function normalize(path) {
     return path.replace(/\\/g, '/');
 }
@@ -88,7 +90,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                     if (/\.d\.ts$/.test(fileName)) {
                         // if it's already a d.ts file just emit it signature
                         const snapshot = host.getScriptSnapshot(fileName);
-                        const signature = crypto.createHash('md5')
+                        const signature = crypto.createHash('sha256')
                             .update(snapshot.getText(0, snapshot.getLength()))
                             .digest('base64');
                         return resolve({
@@ -105,7 +107,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                             continue;
                         }
                         if (/\.d\.ts$/.test(file.name)) {
-                            signature = crypto.createHash('md5')
+                            signature = crypto.createHash('sha256')
                                 .update(file.text)
                                 .digest('base64');
                             if (!userWantsDeclarations) {
@@ -125,8 +127,74 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
                                 const basename = path.basename(vinyl.relative, extname);
                                 const dirname = path.dirname(vinyl.relative);
                                 const tsname = (dirname === '.' ? '' : dirname + '/') + basename + '.ts';
-                                const sourceMap = JSON.parse(sourcemapFile.text);
+                                let sourceMap = JSON.parse(sourcemapFile.text);
                                 sourceMap.sources[0] = tsname.replace(/\\/g, '/');
+                                // check for an "input source" map and combine them
+                                // in step 1 we extract all line edit from the input source map, and
+                                // in step 2 we apply the line edits to the typescript source map
+                                const snapshot = host.getScriptSnapshot(fileName);
+                                if (snapshot instanceof VinylScriptSnapshot && snapshot.sourceMap) {
+                                    const inputSMC = new source_map_1.SourceMapConsumer(snapshot.sourceMap);
+                                    const tsSMC = new source_map_1.SourceMapConsumer(sourceMap);
+                                    let didChange = false;
+                                    const smg = new source_map_1.SourceMapGenerator({
+                                        file: sourceMap.file,
+                                        sourceRoot: sourceMap.sourceRoot
+                                    });
+                                    // step 1
+                                    const lineEdits = new Map();
+                                    inputSMC.eachMapping(m => {
+                                        if (m.originalLine === m.generatedLine) {
+                                            // same line mapping
+                                            let array = lineEdits.get(m.originalLine);
+                                            if (!array) {
+                                                array = [];
+                                                lineEdits.set(m.originalLine, array);
+                                            }
+                                            array.push([m.originalColumn, m.generatedColumn]);
+                                        }
+                                        else {
+                                            // NOT SUPPORTED
+                                        }
+                                    });
+                                    // step 2
+                                    tsSMC.eachMapping(m => {
+                                        didChange = true;
+                                        const edits = lineEdits.get(m.originalLine);
+                                        let originalColumnDelta = 0;
+                                        if (edits) {
+                                            for (const [from, to] of edits) {
+                                                if (to >= m.originalColumn) {
+                                                    break;
+                                                }
+                                                originalColumnDelta = from - to;
+                                            }
+                                        }
+                                        smg.addMapping({
+                                            source: m.source,
+                                            name: m.name,
+                                            generated: { line: m.generatedLine, column: m.generatedColumn },
+                                            original: { line: m.originalLine, column: m.originalColumn + originalColumnDelta }
+                                        });
+                                    });
+                                    if (didChange) {
+                                        [tsSMC, inputSMC].forEach((consumer) => {
+                                            consumer.sources.forEach((sourceFile) => {
+                                                smg._sources.add(sourceFile);
+                                                const sourceContent = consumer.sourceContentFor(sourceFile);
+                                                if (sourceContent !== null) {
+                                                    smg.setSourceContent(sourceFile, sourceContent);
+                                                }
+                                            });
+                                        });
+                                        sourceMap = JSON.parse(smg.toString());
+                                        // const filename = '/Users/jrieken/Code/vscode/src2/' + vinyl.relative + '.map';
+                                        // fs.promises.mkdir(path.dirname(filename), { recursive: true }).then(async () => {
+                                        // 	await fs.promises.writeFile(filename, smg.toString());
+                                        // 	await fs.promises.writeFile('/Users/jrieken/Code/vscode/src2/' + vinyl.relative, vinyl.contents);
+                                        // });
+                                    }
+                                }
                                 vinyl.sourceMap = sourceMap;
                             }
                         }
@@ -287,7 +355,7 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
             // print stats
             const headNow = process.memoryUsage().heapUsed;
             const MB = 1024 * 1024;
-            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgCyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
+            _log('[tsb]', `time:  ${colors.yellow((Date.now() - t1) + 'ms')} + \nmem:  ${colors.cyan(Math.ceil(headNow / MB) + 'MB')} ${colors.bgcyan('delta: ' + Math.ceil((headNow - headUsed) / MB))}`);
             headUsed = headNow;
         });
     }
@@ -297,8 +365,9 @@ function createTypeScriptBuilder(config, projectFile, cmd) {
         languageService: service
     };
 }
-exports.createTypeScriptBuilder = createTypeScriptBuilder;
 class ScriptSnapshot {
+    _text;
+    _mtime;
     constructor(text, mtime) {
         this._text = text;
         this._mtime = mtime;
@@ -317,24 +386,32 @@ class ScriptSnapshot {
     }
 }
 class VinylScriptSnapshot extends ScriptSnapshot {
+    _base;
+    sourceMap;
     constructor(file) {
         super(file.contents.toString(), file.stat.mtime);
         this._base = file.base;
+        this.sourceMap = file.sourceMap;
     }
     getBase() {
         return this._base;
     }
 }
 class LanguageServiceHost {
+    _cmdLine;
+    _projectPath;
+    _log;
+    _snapshots;
+    _filesInProject;
+    _filesAdded;
+    _dependencies;
+    _dependenciesRecomputeList;
+    _fileNameToDeclaredModule;
+    _projectVersion;
     constructor(_cmdLine, _projectPath, _log) {
         this._cmdLine = _cmdLine;
         this._projectPath = _projectPath;
         this._log = _log;
-        this.directoryExists = ts.sys.directoryExists;
-        this.getDirectories = ts.sys.getDirectories;
-        this.fileExists = ts.sys.fileExists;
-        this.readFile = ts.sys.readFile;
-        this.readDirectory = ts.sys.readDirectory;
         this._snapshots = Object.create(null);
         this._filesInProject = new Set(_cmdLine.fileNames);
         this._filesAdded = new Set();
@@ -377,9 +454,9 @@ class LanguageServiceHost {
             try {
                 result = new VinylScriptSnapshot(new Vinyl({
                     path: filename,
-                    contents: (0, fs_1.readFileSync)(filename),
+                    contents: fs.readFileSync(filename),
                     base: this.getCompilationSettings().outDir,
-                    stat: (0, fs_1.statSync)(filename)
+                    stat: fs.statSync(filename)
                 }));
                 this.addScriptSnapshot(filename, result);
             }
@@ -389,6 +466,7 @@ class LanguageServiceHost {
         }
         return result;
     }
+    static _declareModule = /declare\s+module\s+('|")(.+)\1/g;
     addScriptSnapshot(filename, snapshot) {
         this._projectVersion++;
         filename = normalize(filename);
@@ -432,6 +510,11 @@ class LanguageServiceHost {
     getDefaultLibFileName(options) {
         return ts.getDefaultLibFilePath(options);
     }
+    directoryExists = ts.sys.directoryExists;
+    getDirectories = ts.sys.getDirectories;
+    fileExists = ts.sys.fileExists;
+    readFile = ts.sys.readFile;
+    readDirectory = ts.sys.readDirectory;
     // ---- dependency management
     collectDependents(filename, target) {
         while (this._dependenciesRecomputeList.length) {
@@ -467,7 +550,10 @@ class LanguageServiceHost {
             let found = false;
             while (!found && dirname.indexOf(stopDirname) === 0) {
                 dirname = path.dirname(dirname);
-                const resolvedPath = path.resolve(dirname, ref.fileName);
+                let resolvedPath = path.resolve(dirname, ref.fileName);
+                if (resolvedPath.endsWith('.js')) {
+                    resolvedPath = resolvedPath.slice(0, -3);
+                }
                 const normalizedPath = normalize(resolvedPath);
                 if (this.getScriptSnapshot(normalizedPath + '.ts')) {
                     this._dependencies.inertEdge(filename, normalizedPath + '.ts');
@@ -488,4 +574,4 @@ class LanguageServiceHost {
         });
     }
 }
-LanguageServiceHost._declareModule = /declare\s+module\s+('|")(.+)\1/g;
+//# sourceMappingURL=builder.js.map

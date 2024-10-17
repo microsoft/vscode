@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
-import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { getInstanceFromResource, getTerminalResourcesFromDragEvent, getTerminalUri, IPartialDragEvent } from '../../browser/terminalUri.js';
 
 function fakeDragEvent(data: string): IPartialDragEvent {
 	return {
@@ -17,6 +18,8 @@ function fakeDragEvent(data: string): IPartialDragEvent {
 }
 
 suite('terminalUri', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('getTerminalResourcesFromDragEvent', () => {
 		test('should give undefined when no terminal resources is in event', () => {
 			deepStrictEqual(

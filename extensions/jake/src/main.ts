@@ -7,8 +7,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off';
 
@@ -60,8 +58,8 @@ function getOutputChannel(): vscode.OutputChannel {
 }
 
 function showError() {
-	vscode.window.showWarningMessage(localize('jakeTaskDetectError', 'Problem finding jake tasks. See the output for more information.'),
-		localize('jakeShowOutput', 'Go to output')).then(() => {
+	vscode.window.showWarningMessage(vscode.l10n.t("Problem finding jake tasks. See the output for more information."),
+		vscode.l10n.t("Go to output")).then(() => {
 			getOutputChannel().show(true);
 		});
 }
@@ -189,7 +187,7 @@ class FolderDetector {
 			if (err.stdout) {
 				channel.appendLine(err.stdout);
 			}
-			channel.appendLine(localize('execFailed', 'Auto detecting Jake for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown'));
+			channel.appendLine(vscode.l10n.t("Auto detecting Jake for folder {0} failed with error: {1}', this.workspaceFolder.name, err.error ? err.error.toString() : 'unknown"));
 			showError();
 			return emptyTasks;
 		}
@@ -292,7 +290,7 @@ class TaskDetector {
 		if (this.detectors.size === 0) {
 			return Promise.resolve([]);
 		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTasks();
+			return this.detectors.values().next().value!.getTasks();
 		} else {
 			const promises: Promise<vscode.Task[]>[] = [];
 			for (const detector of this.detectors.values()) {
@@ -314,7 +312,7 @@ class TaskDetector {
 		if (this.detectors.size === 0) {
 			return undefined;
 		} else if (this.detectors.size === 1) {
-			return this.detectors.values().next().value.getTask(task);
+			return this.detectors.values().next().value!.getTask(task);
 		} else {
 			if ((task.scope === vscode.TaskScope.Workspace) || (task.scope === vscode.TaskScope.Global)) {
 				// Not supported, we don't have enough info to create the task.

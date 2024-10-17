@@ -13,7 +13,6 @@
 .monaco-list.mouse-support {
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 }
 
 .monaco-list > .monaco-scrollable-element {
@@ -41,6 +40,12 @@
 .monaco-list.mouse-support .monaco-list-row {
 	cursor: pointer;
 	touch-action: none;
+}
+
+/* Make sure the scrollbar renders above overlays (sticky scroll) */
+.monaco-list .monaco-scrollable-element > .scrollbar.vertical,
+.monaco-pane-view > .monaco-split-view2.vertical > .monaco-scrollable-element > .scrollbar.vertical {
+	z-index: 14;
 }
 
 /* for OS X ballistic scrolling */

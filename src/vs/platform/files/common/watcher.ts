@@ -3,47 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from 'vs/base/common/glob';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { isAbsolute } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
-import { FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
+import { Event } from '../../../base/common/event.js';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { isAbsolute } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { FileChangeFilter, FileChangeType, IFileChange, isParent } from './files.js';
 
 interface IWatchRequest {
 
 	/**
 	 * The path to watch.
 	 */
-	path: string;
+	readonly path: string;
 
 	/**
 	 * Whether to watch recursively or not.
 	 */
-	recursive: boolean;
+	readonly recursive: boolean;
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
-	 *
-	 * Paths or basic glob patterns that are relative will be
-	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
 	 */
-	excludes: string[];
+	readonly excludes: string[];
 
 	/**
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
-	 *
-	 * Paths or basic glob patterns that are relative will be
-	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
 	 */
-	includes?: Array<string | IRelativePattern>;
+	readonly includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, file change events from the watcher that
+	 * are a result of this watch request will carry the same
+	 * id.
+	 */
+	readonly correlationId?: number;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	readonly filter?: FileChangeFilter;
+}
+
+export interface IWatchRequestWithCorrelation extends IWatchRequest {
+	readonly correlationId: number;
+}
+
+export function isWatchRequestWithCorrelation(request: IWatchRequest): request is IWatchRequestWithCorrelation {
+	return typeof request.correlationId === 'number';
 }
 
 export interface INonRecursiveWatchRequest extends IWatchRequest {
@@ -51,7 +65,7 @@ export interface INonRecursiveWatchRequest extends IWatchRequest {
 	/**
 	 * The watcher will be non-recursive.
 	 */
-	recursive: false;
+	readonly recursive: false;
 }
 
 export interface IRecursiveWatchRequest extends IWatchRequest {
@@ -59,7 +73,7 @@ export interface IRecursiveWatchRequest extends IWatchRequest {
 	/**
 	 * The watcher will be recursive.
 	 */
-	recursive: true;
+	readonly recursive: true;
 
 	/**
 	 * @deprecated this only exists for WSL1 support and should never
@@ -74,13 +88,18 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
-interface IWatcher {
+export interface IWatcherErrorEvent {
+	readonly error: string;
+	readonly request?: IUniversalWatchRequest;
+}
+
+export interface IWatcher {
 
 	/**
 	 * A normalized file change event from the raw events
 	 * the watcher emits.
 	 */
-	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+	readonly onDidChangeFile: Event<IFileChange[]>;
 
 	/**
 	 * An event to indicate a message that should get logged.
@@ -92,7 +111,7 @@ interface IWatcher {
 	 * that is unrecoverable. Listeners should restart the
 	 * watcher if possible.
 	 */
-	readonly onDidError: Event<string>;
+	readonly onDidError: Event<IWatcherErrorEvent>;
 
 	/**
 	 * Configures the watcher to watch according to the
@@ -117,6 +136,20 @@ export interface IRecursiveWatcher extends IWatcher {
 	watch(requests: IRecursiveWatchRequest[]): Promise<void>;
 }
 
+export interface IRecursiveWatcherWithSubscribe extends IRecursiveWatcher {
+
+	/**
+	 * Subscribe to file events for the given path. The callback is called
+	 * whenever a file event occurs for the path. If the watcher failed,
+	 * the error parameter is set to `true`.
+	 *
+	 * @returns an `IDisposable` to stop listening to events or `undefined`
+	 * if no events can be watched for the path given the current set of
+	 * recursive watch requests.
+	 */
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined;
+}
+
 export interface IRecursiveWatcherOptions {
 
 	/**
@@ -126,7 +159,7 @@ export interface IRecursiveWatcherOptions {
 	 * @deprecated this only exists for WSL1 support and should never
 	 * be used in any other case.
 	 */
-	usePolling: boolean | string[];
+	readonly usePolling: boolean | string[];
 
 	/**
 	 * If polling is enabled (via `usePolling`), defines the duration
@@ -135,7 +168,7 @@ export interface IRecursiveWatcherOptions {
 	 * @deprecated this only exists for WSL1 support and should never
 	 * be used in any other case.
 	 */
-	pollingInterval?: number;
+	readonly pollingInterval?: number;
 }
 
 export interface INonRecursiveWatcher extends IWatcher {
@@ -158,12 +191,12 @@ export abstract class AbstractWatcherClient extends Disposable {
 	private restartCounter = 0;
 
 	constructor(
-		private readonly onFileChanges: (changes: IDiskFileChange[]) => void,
+		private readonly onFileChanges: (changes: IFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private options: {
-			type: string;
-			restartOnError: boolean;
+			readonly type: string;
+			readonly restartOnError: boolean;
 		}
 	) {
 		super();
@@ -184,25 +217,51 @@ export abstract class AbstractWatcherClient extends Disposable {
 		// Wire in event handlers
 		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
 		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
-		disposables.add(this.watcher.onDidError(error => this.onError(error)));
+		disposables.add(this.watcher.onDidError(e => this.onError(e.error, e.request)));
 	}
 
-	protected onError(error: string): void {
+	protected onError(error: string, failedRequest?: IUniversalWatchRequest): void {
 
-		// Restart on error (up to N times, if enabled)
-		if (this.options.restartOnError) {
+		// Restart on error (up to N times, if possible)
+		if (this.canRestart(error, failedRequest)) {
 			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
-				this.error(`restarting watcher after error: ${error}`);
+				this.error(`restarting watcher after unexpected error: ${error}`);
 				this.restart(this.requests);
 			} else {
-				this.error(`gave up attempting to restart watcher after error: ${error}`);
+				this.error(`gave up attempting to restart watcher after unexpected error: ${error}`);
 			}
 		}
 
-		// Do not attempt to restart if not enabled
+		// Do not attempt to restart otherwise, report the error
 		else {
 			this.error(error);
 		}
+	}
+
+	private canRestart(error: string, failedRequest?: IUniversalWatchRequest): boolean {
+		if (!this.options.restartOnError) {
+			return false; // disabled by options
+		}
+
+		if (failedRequest) {
+			// do not treat a failing request as a reason to restart the entire
+			// watcher. it is possible that from a large amount of watch requests
+			// some fail and we would constantly restart all requests only because
+			// of that. rather, continue the watcher and leave the failed request
+			return false;
+		}
+
+		if (
+			error.indexOf('No space left on device') !== -1 ||
+			error.indexOf('EMFILE') !== -1
+		) {
+			// do not restart when the error indicates that the system is running
+			// out of handles for file watching. this is not recoverable anyway
+			// and needs changes to the system before continuing
+			return false;
+		}
+
+		return true;
 	}
 
 	private restart(requests: IUniversalWatchRequest[]): void {
@@ -228,6 +287,10 @@ export abstract class AbstractWatcherClient extends Disposable {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
+	protected trace(message: string) {
+		this.onLogMessage({ type: 'trace', message: `[File Watcher (${this.options.type})] ${message}` });
+	}
+
 	override dispose(): void {
 
 		// Render the watcher invalid from here
@@ -240,7 +303,7 @@ export abstract class AbstractWatcherClient extends Disposable {
 export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -253,7 +316,7 @@ export abstract class AbstractNonRecursiveWatcherClient extends AbstractWatcherC
 export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -263,24 +326,20 @@ export abstract class AbstractUniversalWatcherClient extends AbstractWatcherClie
 	protected abstract override createWatcher(disposables: DisposableStore): IUniversalWatcher;
 }
 
-export interface IDiskFileChange {
-	type: FileChangeType;
-	path: string;
-}
-
 export interface ILogMessage {
-	type: 'trace' | 'warn' | 'error' | 'info' | 'debug';
-	message: string;
+	readonly type: 'trace' | 'warn' | 'error' | 'info' | 'debug';
+	readonly message: string;
 }
 
-export function toFileChanges(changes: IDiskFileChange[]): IFileChange[] {
+export function reviveFileChanges(changes: IFileChange[]): IFileChange[] {
 	return changes.map(change => ({
 		type: change.type,
-		resource: uri.file(change.path)
+		resource: URI.revive(change.resource),
+		cId: change.cId
 	}));
 }
 
-export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
+export function coalesceEvents(changes: IFileChange[]): IFileChange[] {
 
 	// Build deltas
 	const coalescer = new EventCoalescer();
@@ -318,18 +377,18 @@ export function parseWatcherPatterns(path: string, patterns: Array<string | IRel
 
 class EventCoalescer {
 
-	private readonly coalesced = new Set<IDiskFileChange>();
-	private readonly mapPathToChange = new Map<string, IDiskFileChange>();
+	private readonly coalesced = new Set<IFileChange>();
+	private readonly mapPathToChange = new Map<string, IFileChange>();
 
-	private toKey(event: IDiskFileChange): string {
+	private toKey(event: IFileChange): string {
 		if (isLinux) {
-			return event.path;
+			return event.resource.fsPath;
 		}
 
-		return event.path.toLowerCase(); // normalise to file system case sensitivity
+		return event.resource.fsPath.toLowerCase(); // normalise to file system case sensitivity
 	}
 
-	processEvent(event: IDiskFileChange): void {
+	processEvent(event: IFileChange): void {
 		const existingEvent = this.mapPathToChange.get(this.toKey(event));
 
 		let keepEvent = false;
@@ -341,7 +400,7 @@ class EventCoalescer {
 
 			// macOS/Windows: track renames to different case
 			// by keeping both CREATE and DELETE events
-			if (existingEvent.path !== event.path && (event.type === FileChangeType.DELETED || event.type === FileChangeType.ADDED)) {
+			if (existingEvent.resource.fsPath !== event.resource.fsPath && (event.type === FileChangeType.DELETED || event.type === FileChangeType.ADDED)) {
 				keepEvent = true;
 			}
 
@@ -376,8 +435,8 @@ class EventCoalescer {
 		}
 	}
 
-	coalesce(): IDiskFileChange[] {
-		const addOrChangeEvents: IDiskFileChange[] = [];
+	coalesce(): IFileChange[] {
+		const addOrChangeEvents: IFileChange[] = [];
 		const deletedPaths: string[] = [];
 
 		// This algorithm will remove all DELETE events up to the root folder
@@ -396,16 +455,54 @@ class EventCoalescer {
 
 			return true; // keep DELETE
 		}).sort((e1, e2) => {
-			return e1.path.length - e2.path.length; // shortest path first
+			return e1.resource.fsPath.length - e2.resource.fsPath.length; // shortest path first
 		}).filter(e => {
-			if (deletedPaths.some(deletedPath => isParent(e.path, deletedPath, !isLinux /* ignorecase */))) {
+			if (deletedPaths.some(deletedPath => isParent(e.resource.fsPath, deletedPath, !isLinux /* ignorecase */))) {
 				return false; // DELETE is ignored if parent is deleted already
 			}
 
 			// otherwise mark as deleted
-			deletedPaths.push(e.path);
+			deletedPaths.push(e.resource.fsPath);
 
 			return true;
 		}).concat(addOrChangeEvents);
 	}
+}
+
+export function isFiltered(event: IFileChange, filter: FileChangeFilter | undefined): boolean {
+	if (typeof filter === 'number') {
+		switch (event.type) {
+			case FileChangeType.ADDED:
+				return (filter & FileChangeFilter.ADDED) === 0;
+			case FileChangeType.DELETED:
+				return (filter & FileChangeFilter.DELETED) === 0;
+			case FileChangeType.UPDATED:
+				return (filter & FileChangeFilter.UPDATED) === 0;
+		}
+	}
+
+	return false;
+}
+
+export function requestFilterToString(filter: FileChangeFilter | undefined): string {
+	if (typeof filter === 'number') {
+		const filters = [];
+		if (filter & FileChangeFilter.ADDED) {
+			filters.push('Added');
+		}
+		if (filter & FileChangeFilter.DELETED) {
+			filters.push('Deleted');
+		}
+		if (filter & FileChangeFilter.UPDATED) {
+			filters.push('Updated');
+		}
+
+		if (filters.length === 0) {
+			return '<all>';
+		}
+
+		return `[${filters.join(', ')}]`;
+	}
+
+	return '<none>';
 }

@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
-import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
-import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
-import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { LanguageId, StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { LanguageId, MetadataConsts, StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { LanguageAgnosticBracketTokens } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/brackets.js';
+import { Length, lengthAdd, lengthsToRange, lengthZero } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/length.js';
+import { DenseKeyProvider } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet.js';
+import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { createModelServices, instantiateTextModel } from '../../testTextModel.js';
 
 suite('Bracket Pair Colorizer - Tokenizer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basic', () => {
 		const mode1 = 'testMode1';
 		const disposableStore = new DisposableStore();
@@ -124,7 +128,7 @@ function tokenToObj(token: Token, offset: Length, model: TextModel, keyProvider:
 	};
 }
 
-class TokenizedDocument {
+export class TokenizedDocument {
 	private readonly tokensByLine: readonly TokenInfo[][];
 	constructor(tokens: TokenInfo[]) {
 		const tokensByLine = new Array<TokenInfo[]>();
@@ -189,7 +193,7 @@ class TokenizedDocument {
 	}
 }
 
-class TokenInfo {
+export class TokenInfo {
 	constructor(
 		public readonly text: string,
 		public readonly languageId: LanguageId,

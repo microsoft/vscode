@@ -9,8 +9,9 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin dustypomerleau/rust-syntax syntaxes/rust.tmLanguage.json ./syntaxes/rust.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammar.mjs"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

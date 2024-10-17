@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import * as strings from 'vs/base/common/strings';
-import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
-import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import assert from 'assert';
+import * as strings from '../../../../../base/common/strings.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DefaultEndOfLine } from '../../../../common/model.js';
+import { createTextBufferFactory } from '../../../../common/model/textModel.js';
 
-export function testTextBufferFactory(text: string, eol: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean): void {
-	const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(text).create(DefaultEndOfLine.LF).textBuffer;
+function testTextBufferFactory(text: string, eol: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean): void {
+	const { disposable, textBuffer } = createTextBufferFactory(text).create(DefaultEndOfLine.LF);
 
 	assert.strictEqual(textBuffer.mightContainNonBasicASCII(), mightContainNonBasicASCII);
 	assert.strictEqual(textBuffer.mightContainRTL(), mightContainRTL);
 	assert.strictEqual(textBuffer.getEOL(), eol);
+	disposable.dispose();
 }
 
 suite('ModelBuilder', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('t1', () => {
 		testTextBufferFactory('', '\n', false, false);
@@ -45,10 +48,6 @@ suite('ModelBuilder', () => {
 
 	test('carriage return detection (3 \\r\\n 0 \\n)', () => {
 		testTextBufferFactory('Hello world\r\nHow are you?\r\nIs everything good today?\r\nDo you enjoy the weather?', '\r\n', false, false);
-	});
-
-	test('BOM handling', () => {
-		testTextBufferFactory(strings.UTF8_BOM_CHARACTER + 'Hello world!', '\n', false, false);
 	});
 
 	test('BOM handling', () => {

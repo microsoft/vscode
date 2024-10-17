@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CursorConfiguration, ICursorSimpleModel, SingleCursorState, IColumnSelectData } from 'vs/editor/common/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { CursorConfiguration, ICursorSimpleModel, SingleCursorState, IColumnSelectData, SelectionStartKind } from '../cursorCommon.js';
+import { Position } from '../core/position.js';
+import { Range } from '../core/range.js';
 
 export class ColumnSelection {
 
@@ -48,7 +48,7 @@ export class ColumnSelection {
 			}
 
 			result.push(new SingleCursorState(
-				new Range(lineNumber, startColumn, lineNumber, startColumn), 0,
+				new Range(lineNumber, startColumn, lineNumber, startColumn), SelectionStartKind.Simple, 0,
 				new Position(lineNumber, endColumn), 0
 			));
 		}
@@ -60,7 +60,7 @@ export class ColumnSelection {
 				const maxColumn = model.getLineMaxColumn(lineNumber);
 
 				result.push(new SingleCursorState(
-					new Range(lineNumber, maxColumn, lineNumber, maxColumn), 0,
+					new Range(lineNumber, maxColumn, lineNumber, maxColumn), SelectionStartKind.Simple, 0,
 					new Position(lineNumber, maxColumn), 0
 				));
 			}

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { parseSavedSearchEditor, parseSerializedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { SearchConfiguration } from './searchEditorInput';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { Emitter } from 'vs/base/common/event';
-import { ResourceMap } from 'vs/base/common/map';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { parseSavedSearchEditor, parseSerializedSearchEditor } from './searchEditorSerialization.js';
+import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
+import { SearchConfiguration, SearchEditorWorkingCopyTypeId } from './constants.js';
+import { assertIsDefined } from '../../../../base/common/types.js';
+import { createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { SEARCH_RESULT_LANGUAGE_ID } from '../../../services/search/common/search.js';
 
 export type SearchEditorData = { resultsModel: ITextModel; configurationModel: SearchConfigurationModel };
 
@@ -30,9 +30,7 @@ export class SearchConfigurationModel {
 export class SearchEditorModel {
 	constructor(
 		private resource: URI,
-		@IWorkingCopyBackupService readonly workingCopyBackupService: IWorkingCopyBackupService,
-	) {
-	}
+	) { }
 
 	async resolve(): Promise<SearchEditorData> {
 		return assertIsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
@@ -67,7 +65,7 @@ class SearchEditorModelFactory {
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById('search-result'), resource),
+							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -100,7 +98,7 @@ class SearchEditorModelFactory {
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.createModel(contents ?? '', languageService.createById('search-result'), resource),
+							resultsModel: modelService.createModel(contents ?? '', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -134,7 +132,7 @@ class SearchEditorModelFactory {
 
 						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
 						return ({
-							resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
+							resultsModel: modelService.createModel(text ?? '', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -151,7 +149,7 @@ class SearchEditorModelFactory {
 		if (!model && backup) {
 			const factory = await createTextBufferFactoryFromStream(backup.value);
 
-			model = modelService.createModel(factory, languageService.createById('search-result'), resource);
+			model = modelService.createModel(factory, languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource);
 		}
 
 		if (model) {
@@ -159,7 +157,7 @@ class SearchEditorModelFactory {
 			const { text, config } = parseSerializedSearchEditor(existingFile);
 			modelService.destroyModel(resource);
 			return ({
-				resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
+				resultsModel: modelService.createModel(text ?? '', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 				configurationModel: new SearchConfigurationModel(config)
 			});
 		}

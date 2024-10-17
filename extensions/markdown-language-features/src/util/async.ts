@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vscode';
-
 export interface ITask<T> {
 	(): T;
 }
@@ -12,65 +10,55 @@ export interface ITask<T> {
 export class Delayer<T> {
 
 	public defaultDelay: number;
-	private timeout: any; // Timer
-	private completionPromise: Promise<T | null> | null;
-	private onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
-	private task: ITask<T> | null;
+	private _timeout: any; // Timer
+	private _cancelTimeout: Promise<T | null> | null;
+	private _onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
+	private _task: ITask<T> | null;
 
 	constructor(defaultDelay: number) {
 		this.defaultDelay = defaultDelay;
-		this.timeout = null;
-		this.completionPromise = null;
-		this.onSuccess = null;
-		this.task = null;
+		this._timeout = null;
+		this._cancelTimeout = null;
+		this._onSuccess = null;
+		this._task = null;
 	}
 
 	dispose() {
-		this.cancelTimeout();
+		this._doCancelTimeout();
 	}
 
 	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T | null> {
-		this.task = task;
+		this._task = task;
 		if (delay >= 0) {
-			this.cancelTimeout();
+			this._doCancelTimeout();
 		}
 
-		if (!this.completionPromise) {
-			this.completionPromise = new Promise<T | undefined>((resolve) => {
-				this.onSuccess = resolve;
+		if (!this._cancelTimeout) {
+			this._cancelTimeout = new Promise<T | undefined>((resolve) => {
+				this._onSuccess = resolve;
 			}).then(() => {
-				this.completionPromise = null;
-				this.onSuccess = null;
-				const result = this.task && this.task();
-				this.task = null;
+				this._cancelTimeout = null;
+				this._onSuccess = null;
+				const result = this._task && this._task?.();
+				this._task = null;
 				return result;
 			});
 		}
 
-		if (delay >= 0 || this.timeout === null) {
-			this.timeout = setTimeout(() => {
-				this.timeout = null;
-				this.onSuccess?.(undefined);
+		if (delay >= 0 || this._timeout === null) {
+			this._timeout = setTimeout(() => {
+				this._timeout = null;
+				this._onSuccess?.(undefined);
 			}, delay >= 0 ? delay : this.defaultDelay);
 		}
 
-		return this.completionPromise;
+		return this._cancelTimeout;
 	}
 
-	private cancelTimeout(): void {
-		if (this.timeout !== null) {
-			clearTimeout(this.timeout);
-			this.timeout = null;
+	private _doCancelTimeout(): void {
+		if (this._timeout !== null) {
+			clearTimeout(this._timeout);
+			this._timeout = null;
 		}
-	}
-}
-
-export function setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
-	if (global.setImmediate) {
-		const handle = global.setImmediate(callback, ...args);
-		return { dispose: () => global.clearImmediate(handle) };
-	} else {
-		const handle = setTimeout(callback, 0, ...args);
-		return { dispose: () => clearTimeout(handle) };
 	}
 }

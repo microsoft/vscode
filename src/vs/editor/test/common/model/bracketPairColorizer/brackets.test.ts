@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
-import { SmallImmutableSet, DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
-import { Token, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { LanguageAgnosticBracketTokens } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/brackets.js';
+import { SmallImmutableSet, DenseKeyProvider } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet.js';
+import { Token, TokenKind } from '../../../../common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.js';
+import { TestLanguageConfigurationService } from '../../modes/testLanguageConfigurationService.js';
 
 suite('Bracket Pair Colorizer - Brackets', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Basic', () => {
 		const languageId = 'testMode1';
 		const denseKeyProvider = new DenseKeyProvider<string>();
@@ -24,7 +27,7 @@ suite('Bracket Pair Colorizer - Brackets', () => {
 		};
 
 		const disposableStore = new DisposableStore();
-		const languageConfigService = new TestLanguageConfigurationService();
+		const languageConfigService = disposableStore.add(new TestLanguageConfigurationService());
 		disposableStore.add(languageConfigService.register(languageId, {
 			brackets: [
 				['{', '}'], ['[', ']'], ['(', ')'],

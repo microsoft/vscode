@@ -3,43 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
-import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { normalizeDriveLetter, tildify } from 'vs/base/common/labels';
-import { isWindows } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { ltrim } from 'vs/base/common/strings';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from 'vs/workbench/browser/labels';
-import { FileKind } from 'vs/platform/files/common/files';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { dispose } from 'vs/base/common/lifecycle';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
-import { ILabelService } from 'vs/platform/label/common/label';
-import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import * as nls from '../../../../nls.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { normalize, isAbsolute, posix } from '../../../../base/common/path.js';
+import { ViewPane, ViewAction } from '../../../browser/parts/views/viewPane.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { renderViewTree } from './baseDebugView.js';
+import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE, LOADED_SCRIPTS_VIEW_ID } from '../common/debug.js';
+import { Source } from '../common/debugSource.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { normalizeDriveLetter, tildify } from '../../../../base/common/labels.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ltrim } from '../../../../base/common/strings.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLabel } from '../../../browser/labels.js';
+import { FileKind } from '../../../../platform/files/common/files.js';
+import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { WorkbenchCompressibleObjectTree } from '../../../../platform/list/browser/listService.js';
+import { dispose } from '../../../../base/common/lifecycle.js';
+import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
+import { DebugContentProvider } from '../common/debugContentProvider.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import type { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import type { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+
+import { IViewDescriptorService } from '../../../common/views.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -434,13 +438,14 @@ export class LoadedScriptsView extends ViewPane {
 		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -478,9 +483,7 @@ export class LoadedScriptsView extends ViewPane {
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				}
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
 
@@ -571,7 +574,7 @@ export class LoadedScriptsView extends ViewPane {
 		this._register(this.debugService.onDidNewSession(registerSessionListeners));
 		this.debugService.getModel().getSessions().forEach(registerSessionListeners);
 
-		this._register(this.debugService.onDidEndSession(session => {
+		this._register(this.debugService.onDidEndSession(({ session }) => {
 			root.remove(session.getId());
 			this.changeScheduler.schedule();
 		}));
@@ -617,9 +620,13 @@ export class LoadedScriptsView extends ViewPane {
 		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
+	}
+
+	collapseAll(): void {
+		this.tree.collapseAll();
 	}
 
 	override dispose(): void {
@@ -764,3 +771,24 @@ class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem, FuzzyScore> {
 		return TreeVisibility.Recurse;
 	}
 }
+registerAction2(class Collapse extends ViewAction<LoadedScriptsView> {
+	constructor() {
+		super({
+			id: 'loadedScripts.collapse',
+			viewId: LOADED_SCRIPTS_VIEW_ID,
+			title: nls.localize('collapse', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 30,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', LOADED_SCRIPTS_VIEW_ID)
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: LoadedScriptsView) {
+		view.collapseAll();
+	}
+});

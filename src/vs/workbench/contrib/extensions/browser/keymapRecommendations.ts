@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { ExtensionRecommendations, ExtensionRecommendation } from './extensionRecommendations.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ExtensionRecommendationReason } from '../../../services/extensionRecommendations/common/extensionRecommendations.js';
 
 export class KeymapRecommendations extends ExtensionRecommendations {
 
@@ -20,8 +20,8 @@ export class KeymapRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		if (this.productService.keymapExtensionTips) {
-			this._recommendations = this.productService.keymapExtensionTips.map(extensionId => (<ExtensionRecommendation>{
-				extensionId: extensionId.toLowerCase(),
+			this._recommendations = this.productService.keymapExtensionTips.map(extensionId => ({
+				extension: extensionId.toLowerCase(),
 				reason: {
 					reasonId: ExtensionRecommendationReason.Application,
 					reasonText: ''

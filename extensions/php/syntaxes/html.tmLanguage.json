@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-php/blob/master/grammars/html.cson",
+		"This file has been converted from https://github.com/KapitanOczywisty/language-php/blob/master/grammars/html.cson",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/ff64523c94c014d68f5dec189b05557649c5872a",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/ff64523c94c014d68f5dec189b05557649c5872a",
 	"name": "PHP",
 	"scopeName": "text.html.php",
 	"injections": {

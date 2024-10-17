@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugConfiguration, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import * as nls from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IDebugConfiguration, IDebugService } from './debug.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 export class DebugLifecycle implements IWorkbenchContribution {
+	private disposable: IDisposable;
+
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
-		lifecycleService.onBeforeShutdown(async e => e.veto(this.shouldVetoShutdown(e.reason), 'veto.debug'));
+		this.disposable = lifecycleService.onBeforeShutdown(async e => e.veto(this.shouldVetoShutdown(e.reason), 'veto.debug'));
 	}
 
 	private shouldVetoShutdown(_reason: ShutdownReason): boolean | Promise<boolean> {
@@ -34,6 +37,10 @@ export class DebugLifecycle implements IWorkbenchContribution {
 		return this.showWindowCloseConfirmation(rootSessions.length);
 	}
 
+	public dispose() {
+		return this.disposable.dispose();
+	}
+
 	private async showWindowCloseConfirmation(numSessions: number): Promise<boolean> {
 		let message: string;
 		if (numSessions === 1) {
@@ -44,7 +51,7 @@ export class DebugLifecycle implements IWorkbenchContribution {
 		const res = await this.dialogService.confirm({
 			message,
 			type: 'warning',
-			primaryButton: nls.localize('debug.stop', "Stop Debugging")
+			primaryButton: nls.localize({ key: 'debug.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging")
 		});
 		return !res.confirmed;
 	}

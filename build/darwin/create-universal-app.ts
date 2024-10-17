@@ -3,62 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { makeUniversalApp } from 'vscode-universal-bundler';
-import { spawn } from '@malept/cross-spawn-promise';
-import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as product from '../../product.json';
+import * as fs from 'fs';
+import * as minimatch from 'minimatch';
+import { makeUniversalApp } from 'vscode-universal-bundler';
 
-async function main() {
-	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+const root = path.dirname(path.dirname(__dirname));
+
+async function main(buildDir?: string) {
 	const arch = process.env['VSCODE_ARCH'];
 
 	if (!buildDir) {
-		throw new Error('$AGENT_BUILDDIRECTORY not set');
+		throw new Error('Build dir not provided');
 	}
 
+	const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 	const appName = product.nameLong + '.app';
 	const x64AppPath = path.join(buildDir, 'VSCode-darwin-x64', appName);
 	const arm64AppPath = path.join(buildDir, 'VSCode-darwin-arm64', appName);
-	const x64AsarPath = path.join(x64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
-	const arm64AsarPath = path.join(arm64AppPath, 'Contents', 'Resources', 'app', 'node_modules.asar');
+	const asarRelativePath = path.join('Contents', 'Resources', 'app', 'node_modules.asar');
 	const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
 	const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
+
+	const filesToSkip = [
+		'**/CodeResources',
+		'**/Credits.rtf',
+	];
 
 	await makeUniversalApp({
 		x64AppPath,
 		arm64AppPath,
-		x64AsarPath,
-		arm64AsarPath,
-		filesToSkip: [
-			'product.json',
-			'Credits.rtf',
-			'CodeResources',
-			'fsevents.node',
-			'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
-			'MainMenu.nib', // Generated sequence is not deterministic with Xcode 13
-			'.npmrc'
-		],
+		asarPath: asarRelativePath,
 		outAppPath,
-		force: true
+		force: true,
+		mergeASARs: true,
+		x64ArchFiles: '*/kerberos.node',
+		filesToSkipComparison: (file: string) => {
+			for (const expected of filesToSkip) {
+				if (minimatch(file, expected)) {
+					return true;
+				}
+			}
+			return false;
+		}
 	});
 
-	const productJson = await fs.readJson(productJsonPath);
+	const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
 	Object.assign(productJson, {
 		darwinUniversalAssetId: 'darwin-universal'
 	});
-	await fs.writeJson(productJsonPath, productJson);
-
-	// Verify if native module architecture is correct
-	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node']);
-	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
-	if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
-		throw new Error(`Invalid arch, got : ${lipoOutput}`);
-	}
+	fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'));
 }
 
 if (require.main === module) {
-	main().catch(err => {
+	main(process.argv[2]).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

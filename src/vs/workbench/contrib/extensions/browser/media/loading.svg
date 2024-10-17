@@ -1,36 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="575" height="6px">
-  <style>
+<?xml version='1.0' standalone='no' ?>
+<svg xmlns='http://www.w3.org/2000/svg' version='1.1' width='10px' height='10px'>
+	<style>
     circle {
-      animation: ball 2.5s cubic-bezier(0.000, 1.000, 1.000, 0.000) infinite;
-      fill: #bbb;
+      animation: ball 0.6s linear infinite;
     }
 
-    #balls {
-      animation: balls 2.5s linear infinite;
-    }
-
-    #circle2 { animation-delay: 0.1s; }
-    #circle3 { animation-delay: 0.2s; }
-    #circle4 { animation-delay: 0.3s; }
-    #circle5 { animation-delay: 0.4s; }
+    circle:nth-child(2) { animation-delay: 0.075s; }
+    circle:nth-child(3) { animation-delay: 0.15s; }
+    circle:nth-child(4) { animation-delay: 0.225s; }
+    circle:nth-child(5) { animation-delay: 0.3s; }
+    circle:nth-child(6) { animation-delay: 0.375s; }
+    circle:nth-child(7) { animation-delay: 0.45s; }
+    circle:nth-child(8) { animation-delay: 0.525s; }
 
     @keyframes ball {
-      from { transform: none; }
-      20% { transform: none; }
-      80% { transform: translateX(864px); }
-      to { transform: translateX(864px); }
+      from { opacity: 1; }
+      to { opacity: 0.3; }
     }
-
-    @keyframes balls {
-      from { transform: translateX(-40px); }
-      to { transform: translateX(30px); }
-    }
-  </style>
-  <g id="balls">
-    <circle class="circle" id="circle1" cx="-115" cy="3" r="3"/>
-    <circle class="circle" id="circle2" cx="-130" cy="3" r="3" />
-    <circle class="circle" id="circle3" cx="-145" cy="3" r="3" />
-    <circle class="circle" id="circle4" cx="-160" cy="3" r="3" />
-    <circle class="circle" id="circle5" cx="-175" cy="3" r="3" />
-  </g>
+	</style>
+	<g>
+		<circle cx='5' cy='1' r='1' style='opacity:0.3;' />
+		<circle cx='7.8284' cy='2.1716' r='1' style='opacity:0.3;' />
+		<circle cx='9' cy='5' r='1' style='opacity:0.3;' />
+		<circle cx='7.8284' cy='7.8284' r='1' style='opacity:0.3;' />
+		<circle cx='5' cy='9' r='1' style='opacity:0.3;' />
+		<circle cx='2.1716' cy='7.8284' r='1' style='opacity:0.3;' />
+		<circle cx='1' cy='5' r='1' style='opacity:0.3;' />
+		<circle cx='2.1716' cy='2.1716' r='1' style='opacity:0.3;' />
+	</g>
 </svg>

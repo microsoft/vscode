@@ -1,0 +1,85 @@
+[package]
+name = "code-cli"
+version = "0.1.0"
+edition = "2021"
+default-run = "code"
+
+[lib]
+name = "cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "code"
+
+[dependencies]
+futures = "0.3.28"
+clap = { version = "4.3.0", features = ["derive", "env"] }
+open = "4.1.0"
+reqwest = { version = "0.11.22", default-features = false, features = ["json", "stream", "native-tls"] }
+tokio = { version = "1.28.2", features = ["full"] }
+tokio-util = { version = "0.7.8", features = ["compat", "codec"] }
+flate2 = { version = "1.0.26", default-features = false, features = ["zlib"] }
+zip = { version = "0.6.6", default-features = false, features = ["time", "deflate-zlib"] }
+regex = "1.8.3"
+lazy_static = "1.4.0"
+sysinfo = { version = "0.29.0", default-features = false }
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
+rmp-serde = "1.1.1"
+uuid = { version = "1.4", features = ["serde", "v4"] }
+dirs = "5.0.1"
+rand = "0.8.5"
+opentelemetry = { version = "0.19.0", features = ["rt-tokio"] }
+serde_bytes = "0.11.9"
+chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
+gethostname = "0.4.3"
+libc = "0.2.144"
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "8cae9b2a24c65c6c1958f5a0e77d72b23b5c6c30", default-features = false, features = ["connections"] }
+keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl", "platform-windows", "platform-macos", "linux-keyutils"] }
+dialoguer = "0.10.4"
+hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
+indicatif = "0.17.4"
+tempfile = "3.5.0"
+clap_lex = "0.7.0"
+url = "2.3.1"
+async-trait = "0.1.68"
+log = "0.4.18"
+const_format = "0.2.31"
+sha2 = "0.10.6"
+base64 = "0.21.2"
+shell-escape = "0.1.5"
+thiserror = "1.0.40"
+cfg-if = "1.0.0"
+pin-project = "1.1.0"
+console = "0.15.7"
+bytes = "1.4.0"
+tar = "0.4.38"
+
+[build-dependencies]
+serde = { version="1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.50.0"
+winapi = "0.3.9"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "3.13.1", default-features = false, features = ["tokio"] }
+
+[patch.crates-io]
+russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+
+[features]
+default = []
+vsda = []
+vscode-encrypt = []

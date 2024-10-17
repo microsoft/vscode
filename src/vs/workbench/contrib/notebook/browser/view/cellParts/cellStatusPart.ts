@@ -3,34 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter, Event } from 'vs/base/common/event';
-import { stripIcons } from 'vs/base/common/iconLabels';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { isThemeColor } from 'vs/editor/common/editorCommon';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
+import { SimpleIconLabel } from '../../../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../../base/common/actions.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, dispose } from '../../../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { isThemeColor } from '../../../../../../editor/common/editorCommon.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ThemeColor } from '../../../../../../base/common/themables.js';
+import { INotebookCellActionContext } from '../../controller/coreActions.js';
+import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellContentPart } from '../cellPart.js';
+import { ClickTargetType, IClickTarget } from './cellWidgets.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { CellStatusbarAlignment, INotebookCellStatusBarItem } from '../../../common/notebookCommon.js';
+import { IHoverDelegate, IHoverDelegateOptions } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
+import type { IManagedHoverTooltipMarkdownString } from '../../../../../../base/browser/ui/hover/hover.js';
 
 const $ = DOM.$;
 
 
-export class CellEditorStatusBar extends CellPart {
+export class CellEditorStatusBar extends CellContentPart {
 	readonly statusBarContainer: HTMLElement;
 
 	private readonly leftItemsContainer: HTMLElement;
@@ -45,12 +51,16 @@ export class CellEditorStatusBar extends CellPart {
 	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
 
+	private readonly hoverDelegate: IHoverDelegate;
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _cellContainer: HTMLElement,
 		editorPart: HTMLElement,
 		private readonly _editor: ICodeEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -63,6 +73,28 @@ export class CellEditorStatusBar extends CellPart {
 
 		this.itemsDisposable = this._register(new DisposableStore());
 
+		this.hoverDelegate = new class implements IHoverDelegate {
+			private _lastHoverHideTime: number = 0;
+
+			readonly showHover = (options: IHoverDelegateOptions) => {
+				options.position = options.position ?? {};
+				options.position.hoverPosition = HoverPosition.ABOVE;
+				return hoverService.showHover(options);
+			};
+
+			readonly placement = 'element';
+
+			get delay(): number {
+				return Date.now() - this._lastHoverHideTime < 200
+					? 0  // show instantly when a hover was recently shown
+					: configurationService.getValue<number>('workbench.hover.delay');
+			}
+
+			onDidHideHover() {
+				this._lastHoverHideTime = Date.now();
+			}
+		};
+
 		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.updateContext(this.currentContext)));
 
 		this._register(DOM.addDisposableListener(this.statusBarContainer, DOM.EventType.CLICK, e => {
@@ -73,7 +105,17 @@ export class CellEditorStatusBar extends CellPart {
 					event: e
 				});
 			} else {
-				if ((e.target as HTMLElement).classList.contains('cell-status-item-has-command')) {
+				const target = e.target;
+				let itemHasCommand = false;
+				if (target && DOM.isHTMLElement(target)) {
+					const targetElement = <HTMLElement>target;
+					if (targetElement.classList.contains('cell-status-item-has-command')) {
+						itemHasCommand = true;
+					} else if (targetElement.parentElement && targetElement.parentElement.classList.contains('cell-status-item-has-command')) {
+						itemHasCommand = true;
+					}
+				}
+				if (itemHasCommand) {
 					this._onDidClick.fire({
 						type: ClickTargetType.ContributedCommandItem,
 						event: e
@@ -91,20 +133,31 @@ export class CellEditorStatusBar extends CellPart {
 
 
 	override didRenderCell(element: ICellViewModel): void {
-		this.updateContext(<INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		});
+		if (this._notebookEditor.hasModel()) {
+			const context: (INotebookCellActionContext & { $mid: number }) = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			this.updateContext(context);
+		}
 
 		if (this._editor) {
 			// Focus Mode
 			const updateFocusModeForEditorEvent = () => {
-				element.focusMode =
-					this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))
-						? CellFocusMode.Editor
-						: CellFocusMode.Container;
+				if (this._editor && (this._editor.hasWidgetFocus() || (this.statusBarContainer.ownerDocument.activeElement && this.statusBarContainer.contains(this.statusBarContainer.ownerDocument.activeElement)))) {
+					element.focusMode = CellFocusMode.Editor;
+				} else {
+					const currentMode = element.focusMode;
+					if (currentMode === CellFocusMode.ChatInput) {
+						element.focusMode = CellFocusMode.ChatInput;
+					} else if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
+						element.focusMode = CellFocusMode.Output;
+					} else {
+						element.focusMode = CellFocusMode.Container;
+					}
+				}
 			};
 
 			this.cellDisposables.add(this._editor.onDidFocusEditorWidget(() => {
@@ -116,7 +169,7 @@ export class CellEditorStatusBar extends CellPart {
 				// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
 				if (
 					this._notebookEditor.hasEditorFocus() &&
-					!(document.activeElement && this.statusBarContainer.contains(document.activeElement))) {
+					!(this.statusBarContainer.ownerDocument.activeElement && this.statusBarContainer.contains(this.statusBarContainer.ownerDocument.activeElement))) {
 					updateFocusModeForEditorEvent();
 				}
 			}));
@@ -195,7 +248,7 @@ export class CellEditorStatusBar extends CellPart {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
 				for (const deletedItem of deleted) {
-					container.removeChild(deletedItem.container);
+					deletedItem.container.remove();
 					deletedItem.dispose();
 				}
 			}
@@ -205,7 +258,7 @@ export class CellEditorStatusBar extends CellPart {
 				if (existingItem) {
 					existingItem.updateItem(newLeftItem, maxItemWidth);
 				} else {
-					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, newLeftItem, maxItemWidth);
+					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, this._editor, newLeftItem, maxItemWidth);
 					renderedItems.push(item);
 					container.appendChild(item.container);
 				}
@@ -232,16 +285,19 @@ class CellStatusBarItem extends Disposable {
 	}
 
 	private _currentItem!: INotebookCellStatusBarItem;
-	private _itemDisposables = this._register(new DisposableStore());
+	private readonly _itemDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _context: INotebookCellActionContext,
+		private readonly _hoverDelegate: IHoverDelegate,
+		private readonly _editor: ICodeEditor | undefined,
 		itemModel: INotebookCellStatusBarItem,
 		maxWidth: number | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -252,7 +308,7 @@ class CellStatusBarItem extends Disposable {
 		this._itemDisposables.clear();
 
 		if (!this._currentItem || this._currentItem.text !== item.text) {
-			new SimpleIconLabel(this.container).text = item.text.replace(/\n/g, ' ');
+			this._itemDisposables.add(new SimpleIconLabel(this.container)).text = item.text.replace(/\n/g, ' ');
 		}
 
 		const resolveColor = (color: ThemeColor | string) => {
@@ -282,7 +338,11 @@ class CellStatusBarItem extends Disposable {
 
 		this.container.setAttribute('aria-label', ariaLabel);
 		this.container.setAttribute('role', role || '');
-		this.container.title = item.tooltip ?? '';
+
+		if (item.tooltip) {
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip, markdownNotSupportedFallback: undefined } satisfies IManagedHoverTooltipMarkdownString;
+			this._itemDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, this.container, hoverContent));
+		}
 
 		this.container.classList.toggle('cell-status-item-has-command', !!item.command);
 		if (item.command) {
@@ -313,10 +373,13 @@ class CellStatusBarItem extends Disposable {
 		const id = typeof command === 'string' ? command : command.id;
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
-		args.unshift(this._context);
+		if (typeof command === 'string' || !command.arguments || !Array.isArray(command.arguments) || command.arguments.length === 0) {
+			args.unshift(this._context);
+		}
 
 		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {
+			this._editor?.focus();
 			await this._commandService.executeCommand(id, ...args);
 		} catch (error) {
 			this._notificationService.error(toErrorMessage(error));

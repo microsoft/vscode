@@ -3,33 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DataTransfers } from 'vs/base/browser/dnd';
-import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { parse } from 'vs/base/common/marshalling';
-import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { extractSelection } from 'vs/platform/opener/common/opener';
-import { Registry } from 'vs/platform/registry/common/platform';
-
-export interface FileAdditionalNativeProperties {
-	/**
-	 * The real path to the file on the users filesystem. Only available on electron.
-	 */
-	readonly path?: string;
-}
+import { DataTransfers } from '../../../base/browser/dnd.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { DragMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { coalesce } from '../../../base/common/arrays.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { ResourceMap } from '../../../base/common/map.js';
+import { parse } from '../../../base/common/marshalling.js';
+import { Schemas } from '../../../base/common/network.js';
+import { isNative, isWeb } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { IDialogService } from '../../dialogs/common/dialogs.js';
+import { IBaseTextResourceEditorInput } from '../../editor/common/editor.js';
+import { HTMLFileSystemProvider } from '../../files/browser/htmlFileSystemProvider.js';
+import { WebFileSystemAccess } from '../../files/browser/webFileSystemAccess.js';
+import { ByteSize, IFileService } from '../../files/common/files.js';
+import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
+import { extractSelection } from '../../opener/common/opener.js';
+import { Registry } from '../../registry/common/platform.js';
 
 
 //#region Editor / Resources DND
@@ -84,9 +77,9 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		if (e.dataTransfer?.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file && (file as FileAdditionalNativeProperties).path /* Electron only */) {
+				if (file && getPathForFile(file)) {
 					try {
-						editors.push({ resource: URI.file((file as FileAdditionalNativeProperties).path!), isExternal: true, allowWorkspaceOpen: true });
+						editors.push({ resource: URI.file(getPathForFile(file)!), isExternal: true, allowWorkspaceOpen: true });
 					} catch (error) {
 						// Invalid URI
 					}
@@ -121,7 +114,22 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		}
 	}
 
-	return editors;
+	// Prevent duplicates: it is possible that we end up with the same
+	// dragged editor multiple times because multiple data transfers
+	// are being used (https://github.com/microsoft/vscode/issues/128925)
+
+	const coalescedEditors: IDraggedResourceEditorInput[] = [];
+	const seen = new ResourceMap<boolean>();
+	for (const editor of editors) {
+		if (!editor.resource) {
+			coalescedEditors.push(editor);
+		} else if (!seen.has(editor.resource)) {
+			coalescedEditors.push(editor);
+			seen.set(editor.resource, true);
+		}
+	}
+
+	return coalescedEditors;
 }
 
 export async function extractEditorsAndFilesDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
@@ -168,7 +176,7 @@ interface IFileTransferData {
 async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
 
 	// Try to extract via `FileSystemHandle`
-	if (WebFileSystemAccess.supported(window)) {
+	if (WebFileSystemAccess.supported(mainWindow)) {
 		const items = event.dataTransfer?.items;
 		if (items) {
 			return extractFileTransferData(accessor, items);
@@ -186,6 +194,7 @@ async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent
 
 async function extractFileTransferData(accessor: ServicesAccessor, items: DataTransferItemList): Promise<IFileTransferData[]> {
 	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file);
+	// eslint-disable-next-line no-restricted-syntax
 	if (!(fileSystemProvider instanceof HTMLFileSystemProvider)) {
 		return []; // only supported when running in web
 	}
@@ -240,7 +249,7 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 
 			// Skip for very large files because this operation is unbuffered
 			if (file.size > 100 * ByteSize.MB) {
-				dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
+				dialogService.warn(localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
 				continue;
 			}
 
@@ -254,7 +263,7 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 
 			reader.onload = async event => {
 				const name = file.name;
-				const loadResult = withNullAsUndefined(event.target?.result);
+				const loadResult = event.target?.result ?? undefined;
 				if (typeof name !== 'string' || typeof loadResult === 'undefined') {
 					result.complete(undefined);
 					return;
@@ -315,7 +324,7 @@ export interface IDragAndDropContributionRegistry {
 	getAll(): IterableIterator<IDragAndDropContribution>;
 }
 
-export interface IDragAndDropContribution {
+interface IDragAndDropContribution {
 	readonly dataFormatKey: string;
 	getEditorInputs(data: string): IDraggedResourceEditorInput[];
 	setData(resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
@@ -341,5 +350,66 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
+
+//#endregion
+
+//#region DND Utilities
+
+/**
+ * A singleton to store transfer data during drag & drop operations that are only valid within the application.
+ */
+export class LocalSelectionTransfer<T> {
+
+	private static readonly INSTANCE = new LocalSelectionTransfer();
+
+	private data?: T[];
+	private proto?: T;
+
+	private constructor() {
+		// protect against external instantiation
+	}
+
+	static getInstance<T>(): LocalSelectionTransfer<T> {
+		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
+	}
+
+	hasData(proto: T): boolean {
+		return proto && proto === this.proto;
+	}
+
+	clearData(proto: T): void {
+		if (this.hasData(proto)) {
+			this.proto = undefined;
+			this.data = undefined;
+		}
+	}
+
+	getData(proto: T): T[] | undefined {
+		if (this.hasData(proto)) {
+			return this.data;
+		}
+
+		return undefined;
+	}
+
+	setData(data: T[], proto: T): void {
+		if (proto) {
+			this.data = data;
+			this.proto = proto;
+		}
+	}
+}
+
+/**
+ * A helper to get access to Electrons `webUtils.getPathForFile` function
+ * in a safe way without crashing the application when running in the web.
+ */
+export function getPathForFile(file: File): string | undefined {
+	if (isNative && typeof (globalThis as any).vscode?.webUtils?.getPathForFile === 'function') {
+		return (globalThis as any).vscode.webUtils.getPathForFile(file);
+	}
+
+	return undefined;
+}
 
 //#endregion

@@ -3,30 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
-import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/platform/files/common/fileService';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { deepClone } from 'vs/base/common/objects';
-import { IPolicyService } from 'vs/platform/policy/common/policy';
-import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import assert from 'assert';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { DefaultConfiguration, PolicyConfiguration } from '../../common/configurations.js';
+import { IFileService } from '../../../files/common/files.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { Registry } from '../../../registry/common/platform.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { IPolicyService } from '../../../policy/common/policy.js';
+import { FilePolicyService } from '../../../policy/common/filePolicyService.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('PolicyConfiguration', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let testObject: PolicyConfiguration;
 	let fileService: IFileService;
 	let policyService: IPolicyService;
 	const policyFile = URI.file('policyFile').with({ scheme: 'vscode-tests' });
-	const disposables = new DisposableStore();
 	const policyConfigurationNode: IConfigurationNode = {
 		'id': 'policyConfiguration',
 		'order': 1,
@@ -60,16 +61,14 @@ suite('PolicyConfiguration', () => {
 	suiteTeardown(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([policyConfigurationNode]));
 
 	setup(async () => {
-		const defaultConfiguration = disposables.add(new DefaultConfiguration());
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(policyFile.scheme, diskFileSystemProvider);
-		policyService = new FilePolicyService(policyFile, fileService, new NullLogService());
+		disposables.add(fileService.registerProvider(policyFile.scheme, diskFileSystemProvider));
+		policyService = disposables.add(new FilePolicyService(policyFile, fileService, new NullLogService()));
 		testObject = disposables.add(new PolicyConfiguration(defaultConfiguration, policyService, new NullLogService()));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('initialize: with policies', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicySettingA': 'policyValueA' })));

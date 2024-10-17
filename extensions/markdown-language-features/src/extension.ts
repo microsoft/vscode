@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { BaseLanguageClient, LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
-import { startClient } from './client';
+import { LanguageClient, ServerOptions, TransportKind } from 'vscode-languageclient/node';
+import { MdLanguageClient, startClient } from './client/client';
 import { activateShared } from './extension.shared';
 import { VsCodeOutputLogger } from './logging';
 import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
 import { githubSlugifier } from './slugify';
-import { IMdWorkspace, VsCodeMdWorkspace } from './workspace';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions(context);
@@ -22,21 +21,21 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const engine = new MarkdownItEngine(contributions, githubSlugifier, logger);
 
-	const workspace = new VsCodeMdWorkspace();
-	context.subscriptions.push(workspace);
-
-	const client = await startServer(context, workspace, engine);
-	context.subscriptions.push({
-		dispose: () => client.stop()
-	});
-	activateShared(context, client, workspace, engine, logger, contributions);
+	const client = await startServer(context, engine);
+	context.subscriptions.push(client);
+	activateShared(context, client, engine, logger, contributions);
 }
 
-function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, parser: IMdParser): Promise<BaseLanguageClient> {
-	const clientMain = vscode.extensions.getExtension('vscode.markdown-language-features')?.packageJSON?.main || '';
+function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
+	const isDebugBuild = context.extension.packageJSON.main.includes('/out/');
 
-	const serverMain = `./server/${clientMain.indexOf('/dist/') !== -1 ? 'dist' : 'out'}/node/main`;
-	const serverModule = context.asAbsolutePath(serverMain);
+	const serverModule = context.asAbsolutePath(
+		isDebugBuild
+			// For local non bundled version of vscode-markdown-languageserver
+			// ? './node_modules/vscode-markdown-languageserver/out/node/workerMain'
+			? './node_modules/vscode-markdown-languageserver/dist/node/workerMain'
+			: './dist/serverWorkerMain'
+	);
 
 	// The debug options for the server
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=' + (7000 + Math.round(Math.random() * 999))] };
@@ -47,7 +46,11 @@ function startServer(context: vscode.ExtensionContext, workspace: IMdWorkspace, 
 		run: { module: serverModule, transport: TransportKind.ipc },
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
+
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = vscode.l10n.uri?.toString() ?? '';
+
 	return startClient((id, name, clientOptions) => {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
-	}, workspace, parser);
+	}, parser);
 }

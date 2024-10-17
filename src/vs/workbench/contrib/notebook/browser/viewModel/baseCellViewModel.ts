@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as model from 'vs/editor/common/model';
-import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { CellEditState, CellFocusMode, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, IDisposable, IReference, MutableDisposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { IEditorCommentsOptions } from '../../../../../editor/common/config/editorOptions.js';
+import { IPosition } from '../../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import * as editorCommon from '../../../../../editor/common/editorCommon.js';
+import * as model from '../../../../../editor/common/model.js';
+import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { IWordWrapTransientState, readTransientState, writeTransientState } from '../../../codeEditor/browser/toggleWordWrap.js';
+import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
+import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from '../notebookBrowser.js';
+import { NotebookOptionsChangeEvent } from '../notebookOptions.js';
+import { CellViewModelStateChangeEvent } from '../notebookViewEvents.js';
+import { ViewContext } from './viewContext.js';
+import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
+import { CellKind, INotebookCellStatusBarItem, INotebookFindOptions } from '../../common/notebookCommon.js';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -84,6 +86,15 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ cellLineNumberChanged: true });
 	}
 
+	private _commentOptions: IEditorCommentsOptions;
+	public get commentOptions(): IEditorCommentsOptions {
+		return this._commentOptions;
+	}
+
+	public set commentOptions(newOptions: IEditorCommentsOptions) {
+		this._commentOptions = newOptions;
+	}
+
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
 	get focusMode() {
 		return this._focusMode;
@@ -103,6 +114,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
+	private readonly _textModelRefChangeDisposable = this._register(new MutableDisposable());
 
 	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
 	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
@@ -156,7 +168,18 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ outputCollapsedChanged: true });
 	}
 
+	protected _commentHeight = 0;
+
+	set commentHeight(height: number) {
+		if (this._commentHeight === height) {
+			return;
+		}
+		this._commentHeight = height;
+		this.layoutChange({ commentHeight: true }, 'BaseCellViewModel#commentHeight');
+	}
+
 	private _isDisposed = false;
+	private _isReadonly = false;
 
 	constructor(
 		readonly viewType: string,
@@ -196,14 +219,27 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this.model.collapseState?.outputCollapsed) {
 			this._outputCollapsed = true;
 		}
+
+		this._commentOptions = this._configurationService.getValue<IEditorCommentsOptions>('editor.comments', { overrideIdentifier: this.language });
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.comments')) {
+				this._commentOptions = this._configurationService.getValue<IEditorCommentsOptions>('editor.comments', { overrideIdentifier: this.language });
+			}
+		}));
 	}
 
 
-	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
-	abstract hasDynamicHeight(): boolean;
+	updateOptions(e: NotebookOptionsChangeEvent): void {
+		if (this._textEditor && typeof e.readonly === 'boolean') {
+			this._textEditor.updateOptions({ readOnly: e.readonly });
+		}
+		if (typeof e.readonly === 'boolean') {
+			this._isReadonly = e.readonly;
+		}
+	}
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
-	abstract layoutChange(change: any): void;
+	abstract layoutChange(change: CellLayoutChangeEvent, source?: string): void;
 
 	assertTextModelAttached(): boolean {
 		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
@@ -219,7 +255,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	// 	}
 	// }
 
-	attachTextEditor(editor: ICodeEditor) {
+	attachTextEditor(editor: ICodeEditor, estimatedHasHorizontalScrolling?: boolean) {
 		if (!editor.hasModel()) {
 			throw new Error('Invalid editor: model is missing');
 		}
@@ -234,16 +270,37 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._textEditor = editor;
-
+		if (this._isReadonly) {
+			editor.updateOptions({ readOnly: this._isReadonly });
+		}
 		if (this._editorViewStates) {
 			this._restoreViewState(this._editorViewStates);
+		} else {
+			// If no real editor view state was persisted, restore a default state.
+			// This forces the editor to measure its content width immediately.
+			if (estimatedHasHorizontalScrolling) {
+				this._restoreViewState({
+					contributionsState: {},
+					cursorState: [],
+					viewState: {
+						scrollLeft: 0,
+						firstPosition: { lineNumber: 1, column: 1 },
+						firstPositionDeltaTop: this._viewContext.notebookOptions.getLayoutConfiguration().editorTopPadding
+					}
+				});
+			}
 		}
 
 		if (this._editorTransientState) {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor.changeDecorations((accessor) => {
+		if (this._isDisposed) {
+			// Restore View State could adjust the editor layout and trigger a list view update. The list view update might then dispose this view model.
+			return;
+		}
+
+		editor.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones
@@ -257,8 +314,16 @@ export abstract class BaseCellViewModel extends Disposable {
 			});
 		});
 
-		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
-		// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
+		this._editorListeners.push(editor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
+		const inlineChatController = InlineChatController.get(this._textEditor);
+		if (inlineChatController) {
+			this._editorListeners.push(inlineChatController.onWillStartSession(() => {
+				if (this.textBuffer.getLength() === 0) {
+					this.enableAutoLanguageDetection();
+				}
+			}));
+		}
+
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();
 	}
@@ -286,14 +351,23 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._textModelRef.dispose();
 			this._textModelRef = undefined;
 		}
+		this._textModelRefChangeDisposable.clear();
 	}
 
 	getText(): string {
 		return this.model.getValue();
 	}
 
+	getAlternativeId(): number {
+		return this.model.alternativeId;
+	}
+
 	getTextLength(): number {
 		return this.model.getTextLength();
+	}
+
+	enableAutoLanguageDetection() {
+		this.model.enableAutoLanguageDetection();
 	}
 
 	private saveViewState(): void {
@@ -359,7 +433,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._resolvedDecorations.delete(decorationId);
 	}
 
-	deltaModelDecorations(oldDecorations: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	deltaModelDecorations(oldDecorations: readonly string[], newDecorations: readonly model.IModelDeltaDecoration[]): string[] {
 		oldDecorations.forEach(id => {
 			this.removeModelDecoration(id);
 		});
@@ -373,10 +447,26 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _removeCellDecoration(decorationId: string) {
 		const options = this._resolvedCellDecorations.get(decorationId);
+		this._resolvedCellDecorations.delete(decorationId);
 
 		if (options) {
+			for (const existingOptions of this._resolvedCellDecorations.values()) {
+				// don't remove decorations that are applied from other entries
+				if (options.className === existingOptions.className) {
+					options.className = undefined;
+				}
+				if (options.outputClassName === existingOptions.outputClassName) {
+					options.outputClassName = undefined;
+				}
+				if (options.gutterClassName === existingOptions.gutterClassName) {
+					options.gutterClassName = undefined;
+				}
+				if (options.topClassName === existingOptions.topClassName) {
+					options.topClassName = undefined;
+				}
+			}
+
 			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
-			this._resolvedCellDecorations.delete(decorationId);
 		}
 	}
 
@@ -413,7 +503,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		return ret;
 	}
 
-	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookCellStatusBarItem[]): string[] {
+	deltaCellStatusBarItems(oldItems: readonly string[], newItems: readonly INotebookCellStatusBarItem[]): string[] {
 		oldItems.forEach(id => {
 			const item = this._cellStatusBarItems.get(id);
 			if (item) {
@@ -447,12 +537,24 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	setSelections(selections: Selection[]) {
 		if (selections.length) {
-			this._textEditor?.setSelections(selections);
+			if (this._textEditor) {
+				this._textEditor?.setSelections(selections);
+			} else if (this._editorViewStates) {
+				this._editorViewStates.cursorState = selections.map(selection => {
+					return {
+						inSelectionMode: !selection.isEmpty(),
+						selectionStart: selection.getStartPosition(),
+						position: selection.getEndPosition(),
+					};
+				});
+			}
 		}
 	}
 
 	getSelections() {
-		return this._textEditor?.getSelections() || [];
+		return this._textEditor?.getSelections()
+			?? this._editorViewStates?.cursorState.map(state => new Selection(state.selectionStart.lineNumber, state.selectionStart.column, state.position.lineNumber, state.position.column))
+			?? [];
 	}
 
 	getSelectionsStartPosition(): IPosition[] | undefined {
@@ -474,13 +576,43 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
-	getPositionScrollTopOffset(line: number, column: number): number {
+	getPositionScrollTopOffset(range: Selection | Range): number {
 		if (!this._textEditor) {
 			return 0;
 		}
 
+
+		const position = range instanceof Selection ? range.getPosition() : range.getStartPosition();
+
 		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
+		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
+	}
+
+	cursorAtLineBoundary(): CursorAtLineBoundary {
+		if (!this._textEditor || !this.textModel || !this._textEditor.hasTextFocus()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const selection = this._textEditor.getSelection();
+
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const currentLineLength = this.textModel.getLineLength(selection.startLineNumber);
+
+		if (currentLineLength === 0) {
+			return CursorAtLineBoundary.Both;
+		}
+
+		switch (selection.startColumn) {
+			case 1:
+				return CursorAtLineBoundary.Start;
+			case currentLineLength + 1:
+				return CursorAtLineBoundary.End;
+			default:
+				return CursorAtLineBoundary.None;
+		}
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {
@@ -501,7 +633,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
-		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel!.getLineCount(), this.textModel!.getLineLength(this.textModel!.getLineCount()));
+		const lastViewLineTop = this._textEditor.getTopForPosition(this.textModel.getLineCount(), this.textModel.getLineLength(this.textModel.getLineCount()));
 		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
 		if (selectionTop === lastViewLineTop) {
@@ -559,8 +691,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			if (!this._textModelRef) {
 				throw new Error(`Cannot resolve text model for ${this.uri}`);
 			}
-
-			this._register(this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent()));
+			this._textModelRefChangeDisposable.value = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
 		}
 
 		return this.textModel!;
@@ -568,20 +699,21 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	protected abstract onDidChangeTextModelContent(): void;
 
-	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
+	protected cellStartFind(value: string, options: INotebookFindOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
+
+		const lineCount = this.textBuffer.getLineCount();
+		const findRange: IRange[] = options.findScope?.selectedTextRanges ?? [new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1)];
 
 		if (this.assertTextModelAttached()) {
 			cellMatches = this.textModel!.findMatches(
 				value,
-				false,
+				findRange,
 				options.regex || false,
 				options.caseSensitive || false,
 				options.wholeWord ? options.wordSeparators || null : null,
 				options.regex || false);
 		} else {
-			const lineCount = this.textBuffer.getLineCount();
-			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -589,7 +721,9 @@ export abstract class BaseCellViewModel extends Disposable {
 				return null;
 			}
 
-			cellMatches = this.textBuffer.findMatchesLineByLine(fullRange, searchData, options.regex || false, 1000);
+			findRange.forEach(range => {
+				cellMatches.push(...this.textBuffer.findMatchesLineByLine(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), searchData, options.regex || false, 1000));
+			});
 		}
 
 		return cellMatches;

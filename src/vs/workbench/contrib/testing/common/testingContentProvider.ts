@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
-import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILanguageSelection, ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITestResultService } from './testResultService.js';
+import { TestMessageType } from './testTypes.js';
+import { TEST_DATA_SCHEME, TestUriType, parseTestUri } from './testingUri.js';
 
 /**
  * A content provider that returns various outputs for tests. This is used
@@ -43,8 +46,42 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 		}
 
 		const result = this.resultService.getResult(parsed.resultId);
-		const test = result?.getStateById(parsed.testExtId);
+		if (!result) {
+			return null;
+		}
 
+		if (parsed.type === TestUriType.TaskOutput) {
+			const task = result.tasks[parsed.taskIndex];
+			const model = this.modelService.createModel('', null, resource, false);
+			const append = (text: string) => model.applyEdits([{
+				range: { startColumn: 1, endColumn: 1, startLineNumber: Infinity, endLineNumber: Infinity },
+				text,
+			}]);
+
+			const init = VSBuffer.concat(task.output.buffers, task.output.length).toString();
+			append(removeAnsiEscapeCodes(init));
+
+			let hadContent = init.length > 0;
+			const dispose = new DisposableStore();
+			dispose.add(task.output.onDidWriteData(d => {
+				hadContent ||= d.byteLength > 0;
+				append(removeAnsiEscapeCodes(d.toString()));
+			}));
+			task.output.endPromise.then(() => {
+				if (dispose.isDisposed) {
+					return;
+				}
+				if (!hadContent) {
+					append(localize('runNoOutout', 'The test run did not record any output.'));
+					dispose.dispose();
+				}
+			});
+			model.onWillDispose(() => dispose.dispose());
+
+			return model;
+		}
+
+		const test = result?.getStateById(parsed.testExtId);
 		if (!test) {
 			return null;
 		}
@@ -55,6 +92,16 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 			case TestUriType.ResultActualOutput: {
 				const message = test.tasks[parsed.taskIndex].messages[parsed.messageIndex];
 				if (message?.type === TestMessageType.Error) { text = message.actual; }
+				break;
+			}
+			case TestUriType.TestOutput: {
+				text = '';
+				const output = result.tasks[parsed.taskIndex].output;
+				for (const message of test.tasks[parsed.taskIndex].messages) {
+					if (message.type === TestMessageType.Output) {
+						text += removeAnsiEscapeCodes(output.getRange(message.offset, message.length).toString());
+					}
+				}
 				break;
 			}
 			case TestUriType.ResultExpectedOutput: {
@@ -69,10 +116,10 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 				}
 
 				if (message.type === TestMessageType.Output) {
-					const content = await result!.getOutputRange(message.offset, message.length);
+					const content = result.tasks[parsed.taskIndex].output.getRange(message.offset, message.length);
 					text = removeAnsiEscapeCodes(content.toString());
 				} else if (typeof message.message === 'string') {
-					text = message.message;
+					text = removeAnsiEscapeCodes(message.message);
 				} else {
 					text = message.message.value;
 					language = this.languageService.createById('markdown');

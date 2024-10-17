@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex } from 'vs/workbench/services/themes/common/productIconThemeSchema';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { fontWeightRegex, fontStyleRegex, fontSizeRegex, fontIdRegex } from './productIconThemeSchema.js';
 
 const schemaId = 'vscode://schemas/icon-theme';
 const schema: IJSONSchema = {
@@ -28,6 +28,30 @@ const schema: IJSONSchema = {
 			type: 'string',
 			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
 
+		},
+		rootFolder: {
+			type: 'string',
+			description: nls.localize('schema.rootFolder', 'The folder icon for collapsed root folders, and if rootFolderExpanded is not set, also for expanded root folders.')
+		},
+		rootFolderExpanded: {
+			type: 'string',
+			description: nls.localize('schema.rootFolderExpanded', 'The folder icon for expanded root folders. The expanded root folder icon is optional. If not set, the icon defined for root folder will be shown.')
+		},
+		rootFolderNames: {
+			type: 'object',
+			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
+			}
+		},
+		rootFolderNamesExpanded: {
+			type: 'object',
+			description: nls.localize('schema.rootFolderNamesExpanded', 'Associates root folder names to icons for expanded root folders. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.rootFolderNameExpanded', 'The ID of the icon definition for the association.')
+			}
 		},
 		folderNames: {
 			type: 'object',
@@ -90,6 +114,18 @@ const schema: IJSONSchema = {
 				folderNamesExpanded: {
 					$ref: '#/definitions/folderNamesExpanded'
 				},
+				rootFolder: {
+					$ref: '#/definitions/rootFolder'
+				},
+				rootFolderExpanded: {
+					$ref: '#/definitions/rootFolderExpanded'
+				},
+				rootFolderNames: {
+					$ref: '#/definitions/rootFolderNames'
+				},
+				rootFolderNamesExpanded: {
+					$ref: '#/definitions/rootFolderNamesExpanded'
+				},
 				fileExtensions: {
 					$ref: '#/definitions/fileExtensions'
 				},
@@ -149,7 +185,7 @@ const schema: IJSONSchema = {
 					},
 					size: {
 						type: 'string',
-						description: nls.localize('schema.font-size', 'The default size of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-size for valid values.'),
+						description: nls.localize('schema.font-size', 'The default size of the font. We strongly recommend using a percentage value, for example: 125%.'),
 						pattern: fontSizeRegex
 					}
 				},
@@ -205,6 +241,18 @@ const schema: IJSONSchema = {
 		},
 		folderNamesExpanded: {
 			$ref: '#/definitions/folderNamesExpanded'
+		},
+		rootFolder: {
+			$ref: '#/definitions/rootFolder'
+		},
+		rootFolderExpanded: {
+			$ref: '#/definitions/rootFolderExpanded'
+		},
+		rootFolderNames: {
+			$ref: '#/definitions/rootFolderNames'
+		},
+		rootFolderNamesExpanded: {
+			$ref: '#/definitions/rootFolderNamesExpanded'
 		},
 		fileExtensions: {
 			$ref: '#/definitions/fileExtensions'

@@ -31,6 +31,10 @@
 	box-sizing: border-box;
 }
 
+.monaco-pane-view .pane > .pane-header.not-collapsible {
+	cursor: default;
+}
+
 .monaco-pane-view .pane > .pane-header > .title {
 	text-transform: uppercase;
 }

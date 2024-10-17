@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotificationService, NotificationMessage } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { hash } from 'vs/base/common/hash';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { INotificationService, NotificationMessage, NotificationPriority } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { hash } from '../../../../base/common/hash.js';
 
 export interface NotificationMetrics {
-	id: string;
-	silent: boolean;
-	source?: string;
+	readonly id: string;
+	readonly silent: boolean;
+	readonly source?: string;
 }
 
 export type NotificationMetricsClassification = {
@@ -44,12 +44,12 @@ export class NotificationsTelemetry extends Disposable implements IWorkbenchCont
 	private registerListeners(): void {
 		this._register(this.notificationService.onDidAddNotification(notification => {
 			const source = notification.source && typeof notification.source !== 'string' ? notification.source.id : notification.source;
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', notificationToMetrics(notification.message, source, !!notification.silent));
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:show', notificationToMetrics(notification.message, source, notification.priority === NotificationPriority.SILENT));
 		}));
 
 		this._register(this.notificationService.onDidRemoveNotification(notification => {
 			const source = notification.source && typeof notification.source !== 'string' ? notification.source.id : notification.source;
-			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', notificationToMetrics(notification.message, source, !!notification.silent));
+			this.telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:close', notificationToMetrics(notification.message, source, notification.priority === NotificationPriority.SILENT));
 		}));
 	}
 }

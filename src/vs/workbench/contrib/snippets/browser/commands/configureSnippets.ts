@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isValidBasename } from 'vs/base/common/extpath';
-import { extname } from 'vs/base/common/path';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { SnippetsAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
+import { extname } from '../../../../../base/common/path.js';
+import { basename, joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { getIconClassesForLanguageId } from '../../../../../editor/common/services/getIconClasses.js';
+import * as nls from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { SnippetsAction } from './abstractSnippetsActions.js';
+import { ISnippetsService } from '../snippets.js';
+import { SnippetSource } from '../snippetsFile.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
 namespace ISnippetPick {
 	export function is(thing: object | undefined): thing is ISnippetPick {
@@ -32,12 +34,13 @@ interface ISnippetPick extends IQuickPickItem {
 	hint?: true;
 }
 
-async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService) {
+async function computePicks(snippetService: ISnippetsService, userDataProfileService: IUserDataProfileService, languageService: ILanguageService, labelService: ILabelService) {
 
 	const existing: ISnippetPick[] = [];
 	const future: ISnippetPick[] = [];
 
 	const seen = new Set<string>();
+	const added = new Map<string, { snippet: ISnippetPick; detail: string }>();
 
 	for (const file of await snippetService.getSnippetFiles()) {
 
@@ -52,7 +55,13 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 
 			// list scopes for global snippets
 			const names = new Set<string>();
+			let source: string | undefined;
+
 			outer: for (const snippet of file.data) {
+				if (!source) {
+					source = snippet.source;
+				}
+
 				for (const scope of snippet.scopes) {
 					const name = languageService.getLanguageName(scope);
 					if (name) {
@@ -66,13 +75,26 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				}
 			}
 
-			existing.push({
+			const snippet: ISnippetPick = {
 				label: basename(file.location),
 				filepath: file.location,
 				description: names.size === 0
 					? nls.localize('global.scope', "(global)")
 					: nls.localize('global.1', "({0})", [...names].join(', '))
-			});
+			};
+			existing.push(snippet);
+
+			if (!source) {
+				continue;
+			}
+
+			const detail = nls.localize('detail.label', "({0}) {1}", source, labelService.getUriLabel(file.location, { relative: true }));
+			const lastItem = added.get(basename(file.location));
+			if (lastItem) {
+				snippet.detail = detail;
+				lastItem.snippet.detail = lastItem.detail;
+			}
+			added.set(basename(file.location), { snippet, detail });
 
 		} else {
 			// language snippet
@@ -94,7 +116,8 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				label: languageId,
 				description: `(${label})`,
 				filepath: joinPath(dir, `${languageId}.json`),
-				hint: true
+				hint: true,
+				iconClasses: getIconClassesForLanguageId(languageId)
 			});
 		}
 	}
@@ -200,24 +223,19 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await textFileService.write(pick.filepath, contents);
 }
 
-export class ConfigureSnippets extends SnippetsAction {
-
+export class ConfigureSnippetsAction extends SnippetsAction {
 	constructor() {
 		super({
 			id: 'workbench.action.openSnippets',
-			title: {
-				value: nls.localize('openSnippet.label', "Configure User Snippets"),
-				original: 'Configure User Snippets'
-			},
+			title: nls.localize2('openSnippet.label', "Configure Snippets"),
 			shortTitle: {
-				value: nls.localize('userSnippets', "User Snippets"),
-				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"),
-				original: 'User Snippets'
+				...nls.localize2('userSnippets', "Snippets"),
+				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "&&Snippets"),
 			},
+			f1: true,
 			menu: [
-				{ id: MenuId.CommandPalette },
-				{ id: MenuId.MenubarPreferencesMenu, group: '3_snippets', order: 1 },
-				{ id: MenuId.GlobalActivity, group: '3_snippets', order: 1 },
+				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 5 },
+				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 5 },
 			]
 		});
 	}
@@ -232,8 +250,9 @@ export class ConfigureSnippets extends SnippetsAction {
 		const workspaceService = accessor.get(IWorkspaceContextService);
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
+		const labelService = accessor.get(ILabelService);
 
-		const picks = await computePicks(snippetService, userDataProfileService, languageService);
+		const picks = await computePicks(snippetService, userDataProfileService, languageService, labelService);
 		const existing: QuickPickInput[] = picks.existing;
 
 		type SnippetPick = IQuickPickItem & { uri: URI } & { scope: string };

@@ -7,13 +7,13 @@ import * as cookie from 'cookie';
 import * as fs from 'fs';
 import * as http from 'http';
 import * as url from 'url';
-import * as path from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
-import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
-import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { Promises } from 'vs/base/node/pfs';
+import * as path from '../../base/common/path.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { connectionTokenCookieName, connectionTokenQueryName } from '../../base/common/network.js';
+import { ServerParsedArgs } from './serverEnvironmentService.js';
+import { Promises } from '../../base/node/pfs.js';
 
-const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
+const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
 export const enum ServerConnectionTokenType {
 	None,
@@ -29,17 +29,6 @@ export class NoneServerConnectionToken {
 	}
 }
 
-export class OptionalServerConnectionToken {
-	public readonly type = ServerConnectionTokenType.Optional;
-
-	constructor(public readonly value: string) {
-	}
-
-	public validate(connectionToken: any): boolean {
-		return (connectionToken === this.value);
-	}
-}
-
 export class MandatoryServerConnectionToken {
 	public readonly type = ServerConnectionTokenType.Mandatory;
 
@@ -51,7 +40,7 @@ export class MandatoryServerConnectionToken {
 	}
 }
 
-export type ServerConnectionToken = NoneServerConnectionToken | OptionalServerConnectionToken | MandatoryServerConnectionToken;
+export type ServerConnectionToken = NoneServerConnectionToken | MandatoryServerConnectionToken;
 
 export class ServerConnectionTokenParseError {
 	constructor(
@@ -63,7 +52,6 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 	const withoutConnectionToken = args['without-connection-token'];
 	const connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
-	const compatibility = (args['compatibility'] === '1.63');
 
 	if (withoutConnectionToken) {
 		if (typeof connectionToken !== 'undefined' || typeof connectionTokenFile !== 'undefined') {
@@ -85,7 +73,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 		}
 
 		if (!connectionTokenRegex.test(rawConnectionToken)) {
-			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z or -.`);
+			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`);
 		}
 
 		return new MandatoryServerConnectionToken(rawConnectionToken);
@@ -96,18 +84,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 			return new ServerConnectionTokenParseError(`The connection token '${connectionToken} does not adhere to the characters 0-9, a-z, A-Z or -.`);
 		}
 
-		if (compatibility) {
-			// TODO: Remove this case soon
-			return new OptionalServerConnectionToken(connectionToken);
-		}
-
 		return new MandatoryServerConnectionToken(connectionToken);
-	}
-
-	if (compatibility) {
-		// TODO: Remove this case soon
-		console.log(`Breaking change in the next release: Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
-		return new OptionalServerConnectionToken(await defaultValue());
 	}
 
 	return new MandatoryServerConnectionToken(await defaultValue());
@@ -123,7 +100,7 @@ export async function determineServerConnectionToken(args: ServerParsedArgs): Pr
 
 		// First try to find a connection token
 		try {
-			const fileContents = await Promises.readFile(storageLocation);
+			const fileContents = await fs.promises.readFile(storageLocation);
 			const connectionToken = fileContents.toString().replace(/\r?\n$/, '');
 			if (connectionTokenRegex.test(connectionToken)) {
 				return connectionToken;

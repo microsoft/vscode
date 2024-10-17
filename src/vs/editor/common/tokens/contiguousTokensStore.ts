@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { ContiguousTokensEditing, EMPTY_LINE_TOKENS, toUint32Array } from 'vs/editor/common/tokens/contiguousTokensEditing';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
+import * as arrays from '../../../base/common/arrays.js';
+import { Position } from '../core/position.js';
+import { IRange } from '../core/range.js';
+import { ContiguousTokensEditing, EMPTY_LINE_TOKENS, toUint32Array } from './contiguousTokensEditing.js';
+import { LineTokens } from './lineTokens.js';
+import { ILanguageIdCodec } from '../languages.js';
+import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata } from '../encodedTokenAttributes.js';
+import { ITextModel } from '../model.js';
+import { ContiguousMultilineTokens } from './contiguousMultilineTokens.js';
 
 /**
  * Represents contiguous tokens in a text model.
@@ -28,6 +30,10 @@ export class ContiguousTokensStore {
 	public flush(): void {
 		this._lineTokens = [];
 		this._len = 0;
+	}
+
+	get hasTokens(): boolean {
+		return this._lineTokens.length > 0;
 	}
 
 	public getTokens(topLevelLanguageId: string, lineIndex: number, lineText: string): LineTokens {
@@ -203,6 +209,39 @@ export class ContiguousTokensStore {
 	}
 
 	//#endregion
+
+	public setMultilineTokens(tokens: ContiguousMultilineTokens[], textModel: ITextModel): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
+		if (tokens.length === 0) {
+			return { changes: [] };
+		}
+
+		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
+
+		for (let i = 0, len = tokens.length; i < len; i++) {
+			const element = tokens[i];
+			let minChangedLineNumber = 0;
+			let maxChangedLineNumber = 0;
+			let hasChange = false;
+			for (let lineNumber = element.startLineNumber; lineNumber <= element.endLineNumber; lineNumber++) {
+				if (hasChange) {
+					this.setTokens(textModel.getLanguageId(), lineNumber - 1, textModel.getLineLength(lineNumber), element.getLineTokens(lineNumber), false);
+					maxChangedLineNumber = lineNumber;
+				} else {
+					const lineHasChange = this.setTokens(textModel.getLanguageId(), lineNumber - 1, textModel.getLineLength(lineNumber), element.getLineTokens(lineNumber), true);
+					if (lineHasChange) {
+						hasChange = true;
+						minChangedLineNumber = lineNumber;
+						maxChangedLineNumber = lineNumber;
+					}
+				}
+			}
+			if (hasChange) {
+				ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber, });
+			}
+		}
+
+		return { changes: ranges };
+	}
 }
 
 function getDefaultMetadata(topLevelLanguageId: LanguageId): number {

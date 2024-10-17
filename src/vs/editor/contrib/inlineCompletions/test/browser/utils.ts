@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from 'vs/editor/common/languages';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { Position } from '../../../../common/core/position.js';
+import { ITextModel } from '../../../../common/model.js';
+import { InlineCompletion, InlineCompletionContext, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { autorun } from '../../../../../base/common/observable.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -76,30 +77,24 @@ export class GhostTextContext extends Disposable {
 		return this._currentPrettyViewState;
 	}
 
-	constructor(private readonly model: GhostTextWidgetModel, private readonly editor: ITestCodeEditor) {
+	constructor(model: InlineCompletionsModel, private readonly editor: ITestCodeEditor) {
 		super();
 
-		this._register(
-			model.onDidChange(() => {
-				this.update();
-			})
-		);
-		this.update();
-	}
+		this._register(autorun(reader => {
+			/** @description update */
+			const ghostText = model.primaryGhostText.read(reader);
+			let view: string | undefined;
+			if (ghostText) {
+				view = ghostText.render(this.editor.getValue(), true);
+			} else {
+				view = this.editor.getValue();
+			}
 
-	private update(): void {
-		const ghostText = this.model?.ghostText;
-		let view: string | undefined;
-		if (ghostText) {
-			view = ghostText.render(this.editor.getValue(), true);
-		} else {
-			view = this.editor.getValue();
-		}
-
-		if (this._currentPrettyViewState !== view) {
-			this.prettyViewStates.push(view);
-		}
-		this._currentPrettyViewState = view;
+			if (this._currentPrettyViewState !== view) {
+				this.prettyViewStates.push(view);
+			}
+			this._currentPrettyViewState = view;
+		}));
 	}
 
 	public getAndClearViewStates(): (string | undefined)[] {
@@ -136,3 +131,4 @@ export class GhostTextContext extends Disposable {
 		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
 	}
 }
+

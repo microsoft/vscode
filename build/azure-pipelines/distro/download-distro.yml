@@ -1,0 +1,55 @@
+steps:
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
+  # TODO@joaomoreno: Keep pwsh once we move out of running entire jobs in containers
+  - pwsh: |
+      "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$Home/_netrc" -Encoding ASCII
+    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    displayName: Setup distro auth (Windows)
+
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      $ArchivePath = "$(Agent.TempDirectory)/distro.zip"
+      $PackageJson = Get-Content -Path package.json -Raw | ConvertFrom-Json
+      $DistroVersion = $PackageJson.distro
+
+      Invoke-WebRequest -Uri "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion" `
+        -OutFile $ArchivePath `
+        -Headers @{ "Accept" = "application/vnd.github+json"; "Authorization" = "Bearer $(github-distro-mixin-password)"; "X-GitHub-Api-Version" = "2022-11-28" }
+
+      New-Item -ItemType Directory -Path .build -Force
+      Expand-Archive -Path $ArchivePath -DestinationPath .build
+      Rename-Item -Path ".build/microsoft-vscode-distro-$DistroVersion" -NewName distro
+    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    displayName: Download distro (Windows)
+
+  - script: |
+      mkdir -p .build
+      cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Setup distro auth (non-Windows)
+
+  - script: |
+      set -e
+      ArchivePath="$(Agent.TempDirectory)/distro.zip"
+      DistroVersion=$(node -p "require('./package.json').distro")
+
+      curl -H "Accept: application/vnd.github+json" \
+        -H "Authorization: Bearer $(github-distro-mixin-password)" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        -o $ArchivePath \
+        -L "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion"
+
+      unzip $ArchivePath -d .build
+      mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Download distro (non-Windows)

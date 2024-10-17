@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IColorPresentation } from 'vs/editor/common/languages';
+import { Color } from '../../../../base/common/color.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IColorPresentation } from '../../../common/languages.js';
 
 export class ColorPickerModel {
 
@@ -63,12 +63,28 @@ export class ColorPickerModel {
 	}
 
 	guessColorPresentation(color: Color, originalText: string): void {
+		let presentationIndex = -1;
 		for (let i = 0; i < this.colorPresentations.length; i++) {
 			if (originalText.toLowerCase() === this.colorPresentations[i].label) {
-				this.presentationIndex = i;
-				this._onDidChangePresentation.fire(this.presentation);
+				presentationIndex = i;
 				break;
 			}
+		}
+
+		if (presentationIndex === -1) {
+			// check which color presentation text has same prefix as original text's prefix
+			const originalTextPrefix = originalText.split('(')[0].toLowerCase();
+			for (let i = 0; i < this.colorPresentations.length; i++) {
+				if (this.colorPresentations[i].label.toLowerCase().startsWith(originalTextPrefix)) {
+					presentationIndex = i;
+					break;
+				}
+			}
+		}
+
+		if (presentationIndex !== -1 && presentationIndex !== this.presentationIndex) {
+			this.presentationIndex = presentationIndex;
+			this._onDidChangePresentation.fire(this.presentation);
 		}
 	}
 

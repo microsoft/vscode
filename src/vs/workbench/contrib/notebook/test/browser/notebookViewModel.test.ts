@@ -3,32 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { insertCellAtIndex, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
+import { TrackedRangeStickiness } from '../../../../../editor/common/model.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { insertCellAtIndex, runDeleteAction } from '../../browser/controller/cellOperations.js';
+import { NotebookEventDispatcher } from '../../browser/viewModel/eventDispatcher.js';
+import { NotebookViewModel } from '../../browser/viewModel/notebookViewModelImpl.js';
+import { ViewContext } from '../../browser/viewModel/viewContext.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellKind, diff } from '../../common/notebookCommon.js';
+import { NotebookOptions } from '../../browser/notebookOptions.js';
+import { ICellRange } from '../../common/notebookRange.js';
+import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
+import { INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
+import { IBaseCellEditorOptions } from '../../browser/notebookBrowser.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
 
 suite('NotebookViewModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let textModelService: ITextModelService;
@@ -36,6 +43,8 @@ suite('NotebookViewModel', () => {
 	let undoRedoService: IUndoRedoService;
 	let modelService: IModelService;
 	let languageService: ILanguageService;
+	let languageDetectionService: ILanguageDetectionService;
+	let notebookExecutionStateService: INotebookExecutionStateService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -45,6 +54,8 @@ suite('NotebookViewModel', () => {
 		undoRedoService = instantiationService.get(IUndoRedoService);
 		modelService = instantiationService.get(IModelService);
 		languageService = instantiationService.get(ILanguageService);
+		languageDetectionService = instantiationService.get(ILanguageDetectionService);
+		notebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -53,11 +64,18 @@ suite('NotebookViewModel', () => {
 	suiteTeardown(() => disposables.dispose());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, languageService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService, languageDetectionService);
 		const model = new NotebookEditorTestModel(notebook);
-		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher());
-		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const options = new NotebookOptions(mainWindow, false, undefined, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService));
+		const eventDispatcher = new NotebookEventDispatcher();
+		const viewContext = new ViewContext(options, eventDispatcher, () => ({} as IBaseCellEditorOptions));
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService, notebookExecutionStateService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
+		notebook.dispose();
+		model.dispose();
+		options.dispose();
+		eventDispatcher.dispose();
+		viewModel.dispose();
 	});
 
 	test('insert/delete', async function () {
@@ -76,6 +94,9 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 2);
 				assert.strictEqual(viewModel.getCellIndex(cell), -1);
+
+				cell.dispose();
+				cell.model.dispose();
 			}
 		);
 	});
@@ -102,6 +123,11 @@ suite('NotebookViewModel', () => {
 				assert.strictEqual(viewModel.length, 3);
 				assert.strictEqual(viewModel.notebookDocument.cells.length, 3);
 				assert.strictEqual(viewModel.getCellIndex(cell2), 2);
+
+				cell.dispose();
+				cell.model.dispose();
+				cell2.dispose();
+				cell2.model.dispose();
 			}
 		);
 	});
@@ -133,6 +159,8 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 }
 
 suite('NotebookViewModel Decorations', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('tracking range', async function () {
 		await withTestNotebook(
 			[
@@ -150,7 +178,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2,
 				});
 
-				insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true, true);
+				const cell1 = insertCellAtIndex(viewModel, 0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
 
@@ -164,7 +192,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2
 				});
 
-				insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true, true);
+				const cell2 = insertCellAtIndex(viewModel, 3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true, true);
 				assert.deepStrictEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -184,6 +212,11 @@ suite('NotebookViewModel Decorations', () => {
 
 					end: 1
 				});
+
+				cell1.dispose();
+				cell1.model.dispose();
+				cell2.dispose();
+				cell2.model.dispose();
 			}
 		);
 	});
@@ -265,13 +298,11 @@ suite('NotebookViewModel Decorations', () => {
 			return original.indexOf(a) >= 0;
 		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
 	});
-
-	test('hidden ranges', async function () {
-
-	});
 });
 
 suite('NotebookViewModel API', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('#115432, get nearest code cell', async function () {
 		await withTestNotebook(
 			[

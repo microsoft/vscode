@@ -15,10 +15,10 @@ export interface LastScrollLocation {
 
 export class TopmostLineMonitor extends Disposable {
 
-	private readonly pendingUpdates = new ResourceMap<number>();
-	private readonly throttle = 50;
-	private previousTextEditorInfo = new ResourceMap<LastScrollLocation>();
-	private previousStaticEditorInfo = new ResourceMap<LastScrollLocation>();
+	private readonly _pendingUpdates = new ResourceMap<number>();
+	private readonly _throttle = 50;
+	private _previousTextEditorInfo = new ResourceMap<LastScrollLocation>();
+	private _previousStaticEditorInfo = new ResourceMap<LastScrollLocation>();
 
 	constructor() {
 		super();
@@ -43,28 +43,28 @@ export class TopmostLineMonitor extends Disposable {
 	public readonly onDidChanged = this._onChanged.event;
 
 	public setPreviousStaticEditorLine(scrollLocation: LastScrollLocation): void {
-		this.previousStaticEditorInfo.set(scrollLocation.uri, scrollLocation);
+		this._previousStaticEditorInfo.set(scrollLocation.uri, scrollLocation);
 	}
 
 	public getPreviousStaticEditorLineByUri(resource: vscode.Uri): number | undefined {
-		const scrollLoc = this.previousStaticEditorInfo.get(resource);
-		this.previousStaticEditorInfo.delete(resource);
+		const scrollLoc = this._previousStaticEditorInfo.get(resource);
+		this._previousStaticEditorInfo.delete(resource);
 		return scrollLoc?.line;
 	}
 
 
 	public setPreviousTextEditorLine(scrollLocation: LastScrollLocation): void {
-		this.previousTextEditorInfo.set(scrollLocation.uri, scrollLocation);
+		this._previousTextEditorInfo.set(scrollLocation.uri, scrollLocation);
 	}
 
 	public getPreviousTextEditorLineByUri(resource: vscode.Uri): number | undefined {
-		const scrollLoc = this.previousTextEditorInfo.get(resource);
-		this.previousTextEditorInfo.delete(resource);
+		const scrollLoc = this._previousTextEditorInfo.get(resource);
+		this._previousTextEditorInfo.delete(resource);
 		return scrollLoc?.line;
 	}
 
 	public getPreviousStaticTextEditorLineByUri(resource: vscode.Uri): number | undefined {
-		const state = this.previousStaticEditorInfo.get(resource);
+		const state = this._previousStaticEditorInfo.get(resource);
 		return state?.line;
 	}
 
@@ -72,20 +72,20 @@ export class TopmostLineMonitor extends Disposable {
 		resource: vscode.Uri,
 		line: number
 	) {
-		if (!this.pendingUpdates.has(resource)) {
+		if (!this._pendingUpdates.has(resource)) {
 			// schedule update
 			setTimeout(() => {
-				if (this.pendingUpdates.has(resource)) {
+				if (this._pendingUpdates.has(resource)) {
 					this._onChanged.fire({
 						resource,
-						line: this.pendingUpdates.get(resource) as number
+						line: this._pendingUpdates.get(resource) as number
 					});
-					this.pendingUpdates.delete(resource);
+					this._pendingUpdates.delete(resource);
 				}
-			}, this.throttle);
+			}, this._throttle);
 		}
 
-		this.pendingUpdates.set(resource, line);
+		this._pendingUpdates.set(resource, line);
 	}
 }
 

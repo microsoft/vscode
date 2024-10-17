@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Selection } from 'vs/editor/common/core/selection';
-import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/browser/sortLinesCommand';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { SortLinesCommand } from '../../browser/sortLinesCommand.js';
+import { testCommand } from '../../../../test/browser/testCommand.js';
 
 function testSortLinesAscendingCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new SortLinesCommand(sel, false), expectedLines, expectedSelection);
@@ -16,6 +17,8 @@ function testSortLinesDescendingCommand(lines: string[], selection: Selection, e
 }
 
 suite('Editor Contrib - Sort Lines Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('no op unless at least two lines selected 1', function () {
 		testSortLinesAscendingCommand(

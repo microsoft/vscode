@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getFirstFrame } from 'vs/base/common/console';
-import { normalize } from 'vs/base/common/path';
+import assert from 'assert';
+import { getFirstFrame } from '../../common/console.js';
+import { normalize } from '../../common/path.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Console', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getFirstFrame', () => {
 		let stack = 'at vscode.commands.registerCommand (/Users/someone/Desktop/test-ts/out/src/extension.js:18:17)';

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import * as dom from '../../base/browser/dom.js';
+import { GlobalPointerMoveMonitor } from '../../base/browser/globalPointerMoveMonitor.js';
+import { StandardMouseEvent } from '../../base/browser/mouseEvent.js';
+import { RunOnceScheduler } from '../../base/common/async.js';
+import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { ICodeEditor } from './editorBrowser.js';
+import { asCssVariable } from '../../platform/theme/common/colorRegistry.js';
+import { ThemeColor } from '../../base/common/themables.js';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -23,8 +23,8 @@ export class PageCoordinates {
 		public readonly y: number
 	) { }
 
-	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - window.scrollX, this.y - window.scrollY);
+	public toClientCoordinates(targetWindow: Window): ClientCoordinates {
+		return new ClientCoordinates(this.x - targetWindow.scrollX, this.y - targetWindow.scrollY);
 	}
 }
 
@@ -43,8 +43,8 @@ export class ClientCoordinates {
 		public readonly clientY: number
 	) { }
 
-	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + window.scrollX, this.clientY + window.scrollY);
+	public toPageCoordinates(targetWindow: Window): PageCoordinates {
+		return new PageCoordinates(this.clientX + targetWindow.scrollX, this.clientY + targetWindow.scrollY);
 	}
 }
 
@@ -128,7 +128,7 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	public readonly relativePos: CoordinatesRelativeToEditor;
 
 	constructor(e: MouseEvent, isFromPointerCapture: boolean, editorViewDomNode: HTMLElement) {
-		super(e);
+		super(dom.getWindow(editorViewDomNode), e);
 		this.isFromPointerCapture = isFromPointerCapture;
 		this.pos = new PageCoordinates(this.posx, this.posy);
 		this.editorPos = createEditorPagePosition(editorViewDomNode);
@@ -241,9 +241,9 @@ export class GlobalEditorPointerMoveMonitor extends Disposable {
 
 		// Add a <<capture>> keydown event listener that will cancel the monitoring
 		// if something other than a modifier key is pressed
-		this._keydownListener = dom.addStandardDisposableListener(<any>document, 'keydown', (e) => {
-			const kb = e.toKeybinding();
-			if (kb.isModifierKey()) {
+		this._keydownListener = dom.addStandardDisposableListener(<any>initialElement.ownerDocument, 'keydown', (e) => {
+			const chord = e.toKeyCodeChord();
+			if (chord.isModifierKey()) {
 				// Allow modifier keys
 				return;
 			}
@@ -342,6 +342,7 @@ export interface CssProperties {
 	fontWeight?: string;
 	fontSize?: string;
 	fontFamily?: string;
+	unicodeBidi?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
@@ -357,7 +358,8 @@ export interface CssProperties {
 
 class RefCountedCssRule {
 	private _referenceCount: number = 0;
-	private _styleElement: HTMLStyleElement;
+	private _styleElement: HTMLStyleElement | undefined;
+	private readonly _styleElementDisposables: DisposableStore;
 
 	constructor(
 		public readonly key: string,
@@ -365,10 +367,8 @@ class RefCountedCssRule {
 		_containerElement: HTMLElement | undefined,
 		public readonly properties: CssProperties,
 	) {
-		this._styleElement = dom.createStyleSheet(
-			_containerElement
-		);
-
+		this._styleElementDisposables = new DisposableStore();
+		this._styleElement = dom.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
 		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 
@@ -378,7 +378,7 @@ class RefCountedCssRule {
 			const value = (properties as any)[prop] as string | ThemeColor;
 			let cssValue;
 			if (typeof value === 'object') {
-				cssValue = `var(${asCssVariableName(value.id)})`;
+				cssValue = asCssVariable(value.id);
 			} else {
 				cssValue = value;
 			}
@@ -391,7 +391,8 @@ class RefCountedCssRule {
 	}
 
 	public dispose(): void {
-		this._styleElement.remove();
+		this._styleElementDisposables.dispose();
+		this._styleElement = undefined;
 	}
 
 	public increaseRefCount(): void {

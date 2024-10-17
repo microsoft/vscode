@@ -3,30 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposed } from 'vs/base/common/errors';
-import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { equals as objectEquals } from 'vs/base/common/objects';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IRange } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { IDecorationOptions, IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
-import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
-import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IEditorControl } from 'vs/workbench/common/editor';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { illegalArgument } from '../../../base/common/errors.js';
+import { IDisposable, dispose, DisposableStore } from '../../../base/common/lifecycle.js';
+import { equals as objectEquals } from '../../../base/common/objects.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
+import { IDecorationOptions, IDecorationRenderOptions } from '../../../editor/common/editorCommon.js';
+import { ISingleEditOperation } from '../../../editor/common/core/editOperation.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from '../../../platform/editor/common/editor.js';
+import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { MainThreadTextEditor } from './mainThreadEditor.js';
+import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType } from '../common/extHost.protocol.js';
+import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { IChange } from '../../../editor/common/diff/legacyLinesDiffComputer.js';
+import { IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IEditorControl } from '../../common/editor.js';
+import { getCodeEditor, ICodeEditor } from '../../../editor/browser/editorBrowser.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { DirtyDiffContribution } from '../../contrib/scm/browser/dirtydiffDecorator.js';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -51,6 +53,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -125,7 +128,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorResolution.DISABLED
+			override: EditorResolution.EXCLUSIVE_ONLY
 		};
 
 		const input: IResourceEditorInput = {
@@ -133,11 +136,14 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, options.position));
+		const editor = await this._editorService.openEditor(input, columnToEditorGroup(this._editorGroupService, this._configurationService, options.position));
 		if (!editor) {
 			return undefined;
 		}
-		return this._editorLocator.findTextEditorIdFor(editor);
+		// Composite editors are made up of many editors so we return the active one at the time of opening
+		const editorControl = editor.getControl();
+		const codeEditor = getCodeEditor(editorControl);
+		return codeEditor ? this._editorLocator.getIdOfCodeEditor(codeEditor) : undefined;
 	}
 
 	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
@@ -147,7 +153,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			await this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, columnToEditorGroup(this._editorGroupService, position));
+			}, columnToEditorGroup(this._editorGroupService, this._configurationService, position));
 			return;
 		}
 	}
@@ -168,7 +174,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setSelections(selections);
 		return Promise.resolve(undefined);
@@ -178,7 +184,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setDecorations(key, ranges);
 		return Promise.resolve(undefined);
@@ -188,7 +194,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		key = `${this._instanceId}-${key}`;
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setDecorationsFast(key, ranges);
 		return Promise.resolve(undefined);
@@ -197,7 +203,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.revealRange(range, revealType);
 		return Promise.resolve();
@@ -206,7 +212,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		editor.setConfiguration(options);
 		return Promise.resolve(undefined);
@@ -215,7 +221,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		return Promise.resolve(editor.applyEdits(modelVersionId, edits, opts));
 	}
@@ -223,7 +229,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	$tryInsertSnippet(id: string, modelVersionId: number, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
 		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
-			return Promise.reject(disposed(`TextEditor(${id})`));
+			return Promise.reject(illegalArgument(`TextEditor(${id})`));
 		}
 		return Promise.resolve(editor.insertSnippet(modelVersionId, template, ranges, opts));
 	}
@@ -240,7 +246,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._codeEditorService.removeDecorationType(key);
 	}
 
-	$getDiffInformation(id: string): Promise<ILineChange[]> {
+	$getDiffInformation(id: string): Promise<IChange[]> {
 		const editor = this._editorLocator.getEditor(id);
 
 		if (!editor) {
@@ -263,7 +269,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		const dirtyDiffContribution = codeEditor.getContribution('editor.contrib.dirtydiff');
 
 		if (dirtyDiffContribution) {
-			return Promise.resolve((dirtyDiffContribution as any).getChanges());
+			return Promise.resolve((dirtyDiffContribution as DirtyDiffContribution).getChanges());
 		}
 
 		return Promise.resolve([]);

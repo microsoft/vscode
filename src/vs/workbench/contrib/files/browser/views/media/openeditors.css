@@ -3,6 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.pane-header .open-editors-dirty-count-container {
+	min-width: fit-content;
+	display: flex;
+	align-items: center;
+}
+
+.pane.horizontal:not(.expanded) .pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge,
+.pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge.hidden {
+	display: none;
+}
+
+.pane-header .open-editors-dirty-count-container > .dirty-count.monaco-count-badge {
+	padding: 2px 4px;
+	margin-left: 6px;
+	min-height: auto;
+}
+
 .open-editors .monaco-list .monaco-list-row:hover > .monaco-action-bar,
 .open-editors .monaco-list .monaco-list-row.focused > .monaco-action-bar,
 .open-editors .monaco-list .monaco-list-row.dirty > .monaco-action-bar,
@@ -20,11 +37,15 @@
 }
 
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-pinned::before {
-	content: "\ebb2"; /* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	/* use `pinned-dirty` icon unicode for sticky-dirty indication */
+	content: var(--vscode-icon-pinned-dirty-content);
+	font-family: var(--vscode-icon-pinned-dirty-font-family);
 }
 
 .open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .codicon-close::before {
-	content: "\ea71"; /* use `circle-filled` icon unicode for dirty indication */
+	/* use `circle-filled` icon unicode for dirty indication */
+	content: var(--vscode-icon-circle-filled-content);
+	font-family: var(--vscode-icon-circle-filled-font-family);
 }
 
 .open-editors .monaco-list .monaco-list-row > .monaco-action-bar .action-close-all-files,

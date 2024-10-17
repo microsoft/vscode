@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sha1Hex } from 'vs/base/browser/hash';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
-import { IDiagnosticsService, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { isWindows } from 'vs/base/common/platform';
-import { getRemotes, AllowedSecondLevelDomains, getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService, IFileStat } from '../../../../platform/files/common/files.js';
+import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ITextFileService, } from '../../../services/textfile/common/textfiles.js';
+import { IWorkspaceTagsService, Tags, getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from '../common/workspaceTags.js';
+import { IDiagnosticsService, IWorkspaceInformation } from '../../../../platform/diagnostics/common/diagnostics.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { AllowedSecondLevelDomains, getDomainsOfRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): Promise<string[]> {
-	return Promise.all(getRemotes(text, stripEndingDotGit).map(remote => sha1Hex(remote)));
+	return baseGetHashedRemotesFromConfig(text, stripEndingDotGit, hashAsync);
 }
 
 export class WorkspaceTags implements IWorkbenchContribution {
@@ -36,7 +36,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		if (this.telemetryService.telemetryLevel.value === TelemetryLevel.USAGE) {
+		if (this.telemetryService.telemetryLevel === TelemetryLevel.USAGE) {
 			this.report();
 		}
 	}
@@ -74,16 +74,15 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 		const state = this.contextService.getWorkbenchState();
 		const telemetryId = await this.workspaceTagsService.getTelemetryWorkspaceId(workspace, state);
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			return {
-				id: workspace.id,
-				telemetryId,
-				rendererSessionId: info.sessionId,
-				folders: workspace.folders,
-				transient: workspace.transient,
-				configuration: workspace.configuration
-			};
-		});
+
+		return {
+			id: workspace.id,
+			telemetryId,
+			rendererSessionId: this.telemetryService.sessionId,
+			folders: workspace.folders,
+			transient: workspace.transient,
+			configuration: workspace.configuration
+		};
 	}
 
 	private reportWorkspaceTags(tags: Tags): void {

@@ -5,17 +5,18 @@
 
 /*eslint-env mocha*/
 
+const fs = require('fs');
+
 (function () {
-	const fs = require('fs');
 	const originals = {};
 	let logging = false;
 	let withStacks = false;
 
-	self.beginLoggingFS = (_withStacks) => {
+	globalThis.beginLoggingFS = (_withStacks) => {
 		logging = true;
 		withStacks = _withStacks || false;
 	};
-	self.endLoggingFS = () => {
+	globalThis.endLoggingFS = () => {
 		logging = false;
 		withStacks = false;
 	};
@@ -64,42 +65,69 @@ const assert = require('assert');
 const path = require('path');
 const glob = require('glob');
 const util = require('util');
-const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
+const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
 	util.inspect['defaultOptions'].customInspect = false;
 }
 
+// VSCODE_GLOBALS: package/product.json
+globalThis._VSCODE_PRODUCT_JSON = require('../../../product.json');
+globalThis._VSCODE_PACKAGE_JSON = require('../../../package.json');
+
+// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
+Object.assign(globalThis, {
+	__readFileInTests: path => fs.promises.readFile(path, 'utf-8'),
+	__writeFileInTests: (path, contents) => fs.promises.writeFile(path, contents),
+	__readDirInTests: path => fs.promises.readdir(path),
+	__unlinkInTests: path => fs.promises.unlink(path),
+	__mkdirPInTests: path => fs.promises.mkdir(path, { recursive: true }),
+});
+
+const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
+const _loaderErrors = [];
 let _out;
+
+function initNls(opts) {
+	if (opts.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		globalThis._VSCODE_NLS_MESSAGES = require(`../../../out-build/nls.messages.json`);
+	}
+}
 
 function initLoader(opts) {
 	const outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../../${outdir}`);
 
-	// setup loader
-	loader = require(`${_out}/vs/loader`);
-	const loaderConfig = {
-		nodeRequire: require,
-		nodeMain: __filename,
-		catchError: true,
-		baseUrl: bootstrap.fileUriFromPath(path.join(__dirname, '../../../src'), { isWindows: process.platform === 'win32' }),
-		paths: {
-			'vs': `../${outdir}/vs`,
-			'lib': `../${outdir}/lib`,
-			'bootstrap-fork': `../${outdir}/bootstrap-fork`
-		}
-	};
+	const baseUrl = pathToFileURL(path.join(__dirname, `../../../${outdir}/`));
+	globalThis._VSCODE_FILE_ROOT = baseUrl.href;
 
-	if (opts.coverage) {
-		// initialize coverage if requested
-		coverage.initialize(loaderConfig);
+	// set loader
+	/**
+	 * @param {string[]} modules
+	 * @param {(...args:any[]) => void} callback
+	 */
+	function esmRequire(modules, callback, errorback) {
+		const tasks = modules.map(mod => {
+			const url = new URL(`./${mod}.js`, baseUrl).href;
+			return import(url).catch(err => {
+				console.log(mod, url);
+				console.log(err);
+				_loaderErrors.push(err);
+				throw err;
+			});
+		});
+
+		Promise.all(tasks).then(modules => callback(...modules)).catch(errorback);
 	}
 
-	loader.require.config(loaderConfig);
+	loader = { require: esmRequire };
 }
 
 function createCoverageReport(opts) {
@@ -115,18 +143,24 @@ function loadWorkbenchTestingUtilsModule() {
 	});
 }
 
+async function loadModules(modules) {
+	for (const file of modules) {
+		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
+		const m = await new Promise((resolve, reject) => loader.require([file], resolve, reject));
+		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
+		mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
+	}
+}
+
 function loadTestModules(opts) {
 
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
-			file = file.replace(/^src/, 'out');
-			file = file.replace(/\.ts$/, '.js');
-			return path.relative(_out, file).replace(/\.js$/, '');
+			file = file.replace(/^src[\\/]/, '');
+			return file.replace(/\.[jt]s$/, '');
 		});
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
-		});
+		return loadModules(modules);
 	}
 
 	const pattern = opts.runGlob || _tests_glob;
@@ -140,37 +174,107 @@ function loadTestModules(opts) {
 			const modules = files.map(file => file.replace(/\.js$/, ''));
 			resolve(modules);
 		});
-	}).then(modules => {
-		return new Promise((resolve, reject) => {
-			loader.require(modules, resolve, reject);
-		});
-	});
+	}).then(loadModules);
 }
 
-function loadTests(opts) {
+/** @type Mocha.Test */
+let currentTest;
+
+async function loadTests(opts) {
+
+	//#region Unexpected Output
+
+	const _allowedTestOutput = [
+		/The vm module of Node\.js is deprecated in the renderer process and will be removed./,
+	];
+
+	// allow snapshot mutation messages locally
+	if (!IS_CI) {
+		_allowedTestOutput.push(/Creating new snapshot in/);
+		_allowedTestOutput.push(/Deleting [0-9]+ old snapshots/);
+	}
+
+	const perTestCoverage = opts['per-test-coverage'] ? await PerTestCoverage.init() : undefined;
+
+	const _allowedTestsWithOutput = new Set([
+		'creates a snapshot', // self-testing
+		'validates a snapshot', // self-testing
+		'cleans up old snapshots', // self-testing
+		'issue #149412: VS Code hangs when bad semantic token data is received', // https://github.com/microsoft/vscode/issues/192440
+		'issue #134973: invalid semantic tokens should be handled better', // https://github.com/microsoft/vscode/issues/192440
+		'issue #148651: VSCode UI process can hang if a semantic token with negative values is returned by language service', // https://github.com/microsoft/vscode/issues/192440
+		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
+		'property limits', // https://github.com/microsoft/vscode/issues/192443
+		'Error events', // https://github.com/microsoft/vscode/issues/192443
+		'fetch returns keybinding with user first if title and id matches', //
+		'throw ListenerLeakError'
+	]);
+
+	const _allowedSuitesWithOutput = new Set([
+		'InteractiveChatController'
+	]);
+
+	let _testsWithUnexpectedOutput = false;
+
+	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
+		console[consoleFn.name] = function (msg) {
+			if (!currentTest) {
+				consoleFn.apply(console, arguments);
+			} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title) && !_allowedSuitesWithOutput.has(currentTest.parent?.title)) {
+				_testsWithUnexpectedOutput = true;
+				consoleFn.apply(console, arguments);
+			}
+		};
+	}
+
+	//#endregion
+
+	//#region Unexpected / Loader Errors
 
 	const _unexpectedErrors = [];
-	const _loaderErrors = [];
 
-	// collect loader errors
-	loader.require.config({
-		onError(err) {
-			_loaderErrors.push(err);
-			console.error(err);
-		}
-	});
+	const _allowedTestsWithUnhandledRejections = new Set([
+		// Lifecycle tests
+		'onWillShutdown - join with error is handled',
+		'onBeforeShutdown - veto with error is treated as veto',
+		'onBeforeShutdown - final veto with error is treated as veto',
+		// Search tests
+		'Search Model: Search reports timed telemetry on search when error is called'
+	]);
 
-	// collect unexpected errors
 	loader.require(['vs/base/common/errors'], function (errors) {
-		errors.setUnexpectedErrorHandler(function (err) {
+
+		const onUnexpectedError = function (err) {
+			if (err.name === 'Canceled') {
+				return; // ignore canceled errors that are common
+			}
+
 			let stack = (err ? err.stack : null);
 			if (!stack) {
 				stack = new Error().stack;
 			}
 
 			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
+		};
+
+		process.on('uncaughtException', error => onUnexpectedError(error));
+		process.on('unhandledRejection', (reason, promise) => {
+			onUnexpectedError(reason);
+			promise.catch(() => { });
 		});
+		window.addEventListener('unhandledrejection', event => {
+			event.preventDefault(); // Do not log to test output, we show an error later when test ends
+			event.stopPropagation();
+
+			if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
+				onUnexpectedError(event.reason);
+			}
+		});
+
+		errors.setUnexpectedErrorHandler(err => unexpectedErrorHandler(err));
 	});
+
+	//#endregion
 
 	return loadWorkbenchTestingUtilsModule().then((workbenchTestingModule) => {
 		const assertCleanState = workbenchTestingModule.assertCleanState;
@@ -181,24 +285,35 @@ function loadTests(opts) {
 			});
 		});
 
-		return loadTestModules(opts).then(() => {
-			suite('Unexpected Errors & Loader Errors', function () {
-				test('should not have unexpected errors', function () {
-					const errors = _unexpectedErrors.concat(_loaderErrors);
-					if (errors.length) {
-						errors.forEach(function (stack) {
-							console.error('');
-							console.error(stack);
-						});
-						assert.ok(false, errors);
-					}
-				});
-
-				test('assertCleanState - check that registries are clean and objects are disposed at the end of test running', () => {
-					assertCleanState();
-				});
-			});
+		setup(async () => {
+			await perTestCoverage?.startTest();
 		});
+
+		teardown(async () => {
+			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
+
+			// should not have unexpected output
+			if (_testsWithUnexpectedOutput && !opts.dev) {
+				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
+			}
+
+			// should not have unexpected errors
+			const errors = _unexpectedErrors.concat(_loaderErrors);
+			if (errors.length) {
+				for (const error of errors) {
+					console.error(`Error: Test run should not have unexpected errors:\n${error}`);
+				}
+				assert.ok(false, 'Error: Test run should not have unexpected errors.');
+			}
+		});
+
+		suiteTeardown(() => { // intentionally not in teardown because some tests only cleanup in suiteTeardown
+
+			// should have cleaned up in registries
+			assertCleanState();
+		});
+
+		return loadTestModules(opts);
 	});
 }
 
@@ -233,6 +348,7 @@ function serializeError(err) {
 	return {
 		message: err.message,
 		stack: err.stack,
+		snapshotPath: err.snapshotPath,
 		actual: safeStringify({ value: err.actual }),
 		expected: safeStringify({ value: err.expected }),
 		uncaught: err.uncaught,
@@ -299,7 +415,7 @@ function runTests(opts) {
 			mocha.grep(opts.grep);
 		}
 
-		if (!opts.debug) {
+		if (!opts.dev) {
 			mocha.reporter(IPCReporter);
 		}
 
@@ -309,9 +425,10 @@ function runTests(opts) {
 			});
 		});
 
-		if (opts.debug) {
-			runner.on('fail', (test, err) => {
+		runner.on('test', test => currentTest = test);
 
+		if (opts.dev) {
+			runner.on('fail', (test, err) => {
 				console.error(test.fullTitle());
 				console.error(err.stack);
 			});
@@ -319,14 +436,37 @@ function runTests(opts) {
 	});
 }
 
-ipcRenderer.on('run', (e, opts) => {
+ipcRenderer.on('run', async (_e, opts) => {
+	initNls(opts);
 	initLoader(opts);
-	runTests(opts).catch(err => {
+
+	await Promise.resolve(globalThis._VSCODE_TEST_INIT);
+
+	try {
+		await runTests(opts);
+	} catch (err) {
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
-
 		console.error(err);
 		ipcRenderer.send('error', err);
-	});
+	}
 });
+
+class PerTestCoverage {
+	static async init() {
+		await ipcRenderer.invoke('startCoverage');
+		return new PerTestCoverage();
+	}
+
+	async startTest() {
+		if (!this.didInit) {
+			this.didInit = true;
+			await ipcRenderer.invoke('snapshotCoverage');
+		}
+	}
+
+	async finishTest(file, fullTitle) {
+		await ipcRenderer.invoke('snapshotCoverage', { file, fullTitle });
+	}
+}

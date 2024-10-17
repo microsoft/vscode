@@ -10,6 +10,7 @@
 	bottom: 31px;
 	display: none;
 	overflow: hidden;
+	border-radius: 4px;
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {
@@ -41,4 +42,26 @@
 
 .monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar .actions-container {
 	justify-content: flex-end;
+}
+
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:not(:last-child) > .notification-list-item {
+	border-bottom: 1px solid var(--vscode-notifications-border);
+}
+
+.monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
+	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
+}
+
+/* Icons */
+
+.monaco-workbench > .notifications-center .codicon.codicon-error {
+	color: var(--vscode-notificationsErrorIcon-foreground) !important;
+}
+
+.monaco-workbench > .notifications-center .codicon.codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
+}
+
+.monaco-workbench > .notifications-center .codicon.codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important;
 }

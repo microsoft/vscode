@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { compareAnything } from 'vs/base/common/comparers';
-import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from 'vs/base/common/filters';
-import { hash } from 'vs/base/common/hash';
-import { sep } from 'vs/base/common/path';
-import { isLinux, isWindows } from 'vs/base/common/platform';
-import { equalsIgnoreCase, stripWildcards } from 'vs/base/common/strings';
+import { CharCode } from './charCode.js';
+import { compareAnything } from './comparers.js';
+import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, matchesPrefix } from './filters.js';
+import { hash } from './hash.js';
+import { sep } from './path.js';
+import { isLinux, isWindows } from './platform.js';
+import { equalsIgnoreCase, stripWildcards } from './strings.js';
 
 //#region Fuzzy scorer
 
@@ -19,7 +19,7 @@ export type FuzzyScorerCache = { [key: string]: IItemScore };
 const NO_MATCH = 0;
 const NO_SCORE: FuzzyScore = [NO_MATCH, []];
 
-// const DEBUG = false;
+// const DEBUG = true;
 // const DEBUG_MATRIX = false;
 
 export function scoreFuzzy(target: string, query: string, queryLower: string, allowNonContiguousMatches: boolean): FuzzyScore {
@@ -149,7 +149,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 
 	// Print matrix
 	// if (DEBUG_MATRIX) {
-	// printMatrix(query, target, matches, scores);
+	// 	printMatrix(query, target, matches, scores);
 	// }
 
 	return [scores[queryLength * targetLength - 1], positions.reverse()];
@@ -162,11 +162,15 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		return score; // no match of characters
 	}
 
+	// if (DEBUG) {
+	// 	console.groupCollapsed(`%cFound a match of char: ${queryLowerCharAtIndex} at index ${targetIndex}`, 'font-weight: normal');
+	// }
+
 	// Character match bonus
 	score += 1;
 
 	// if (DEBUG) {
-	// console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLowerCharAtIndex} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
+	// 	console.log(`%cCharacter match bonus: +1`, 'font-weight: normal');
 	// }
 
 	// Consecutive match bonus
@@ -174,7 +178,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		score += (matchesSequenceLength * 5);
 
 		// if (DEBUG) {
-		// console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
+		// 	console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
 		// }
 	}
 
@@ -204,7 +208,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// console.log(`After separator bonus: +${separatorBonus}`);
+			// 	console.log(`After separator bonus: +${separatorBonus}`);
 			// }
 		}
 
@@ -222,6 +226,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	}
 
 	// if (DEBUG) {
+	// 	console.log(`Total score: ${score}`);
 	// 	console.groupEnd();
 	// }
 

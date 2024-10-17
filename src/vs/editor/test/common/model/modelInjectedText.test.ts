@@ -3,33 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/textModelEvents';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { EditOperation } from '../../../common/core/editOperation.js';
+import { Range } from '../../../common/core/range.js';
+import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from '../../../common/textModelEvents.js';
+import { createTextModel } from '../testTextModel.js';
 
 suite('Editor Model - Injected Text Events', () => {
-	let thisModel: TextModel;
-
-	setup(() => {
-		thisModel = createTextModel('First Line\nSecond Line');
-	});
-
-	teardown(() => {
-		thisModel.dispose();
-	});
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Basic', () => {
+		const thisModel = store.add(createTextModel('First Line\nSecond Line'));
+
 		const recordedChanges = new Array<unknown>();
 
-		thisModel.onDidChangeContentOrInjectedText((e) => {
+		store.add(thisModel.onDidChangeContentOrInjectedText((e) => {
 			const changes = (e instanceof InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
 			for (const change of changes) {
 				recordedChanges.push(mapChange(change));
 			}
-		});
+		}));
 
 		// Initial decoration
 		let decorations = thisModel.deltaDecorations([], [{

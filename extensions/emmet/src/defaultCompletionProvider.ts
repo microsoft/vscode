@@ -31,7 +31,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			if (expandedText.startsWith('<')) {
 				this.lastCompletionType = 'html';
-			} else if (expandedText.includes(':') && expandedText.endsWith(';')) {
+			} else if (expandedText.indexOf(':') > 0 && expandedText.endsWith(';')) {
 				this.lastCompletionType = 'css';
 			} else {
 				this.lastCompletionType = undefined;
@@ -186,13 +186,6 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 			const config = getEmmetConfiguration(syntax!);
 			const result = helper.doComplete(toLSTextDocument(document), position, syntax, config);
-
-			// https://github.com/microsoft/vscode/issues/86941
-			if (result && result.items && result.items.length === 1) {
-				if (result.items[0].label === 'widows: ;') {
-					return undefined;
-				}
-			}
 
 			const newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {

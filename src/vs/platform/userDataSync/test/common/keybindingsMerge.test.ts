@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { merge } from '../../common/keybindingsMerge.js';
+import { TestUserDataSyncUtilService } from './userDataSyncClient.js';
 
 suite('KeybindingsMerge - No Conflicts', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge when local and remote are same with one entry', async () => {
 		const localContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
@@ -542,7 +545,7 @@ suite('KeybindingsMerge - No Conflicts', () => {
 ]`);
 	});
 
-	test('merge when local and remote has moved forwareded with conflicts', async () => {
+	test('merge when local and remote has moved forwareded with conflicts (2)', async () => {
 		const baseContent = stringify([
 			{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' },
 			{ key: 'alt+c', command: '-a' },

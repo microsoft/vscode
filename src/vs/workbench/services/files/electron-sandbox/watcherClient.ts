@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
-import { ISharedProcessWorkerWorkbenchService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessWorkerWorkbenchService';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { getDelayedChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IFileChange } from '../../../../platform/files/common/files.js';
+import { AbstractUniversalWatcherClient, ILogMessage, IRecursiveWatcher } from '../../../../platform/files/common/watcher.js';
+import { IUtilityProcessWorkerWorkbenchService } from '../../utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
 
 export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean,
-		private readonly sharedProcessWorkerWorkbenchService: ISharedProcessWorkerWorkbenchService
+		private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
 	) {
 		super(onFileChanges, onLogMessage, verboseLogging);
 
@@ -24,37 +25,33 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 	protected override createWatcher(disposables: DisposableStore): IRecursiveWatcher {
 		const watcher = ProxyChannel.toService<IRecursiveWatcher>(getDelayedChannel((async () => {
 
-			// Acquire universal watcher via shared process worker
+			// Acquire universal watcher via utility process worker
 			//
 			// We explicitly do not add the worker as a disposable
 			// because we need to call `stop` on disposal to prevent
 			// a crash on shutdown (see below).
 			//
-			// The shared process worker services ensures to terminate
+			// The utility process worker services ensures to terminate
 			// the process automatically when the window closes or reloads.
-			const { client, onDidTerminate } = await this.sharedProcessWorkerWorkbenchService.createWorker({
+			const { client, onDidTerminate } = disposables.add(await this.utilityProcessWorkerWorkbenchService.createWorker({
 				moduleId: 'vs/platform/files/node/watcher/watcherMain',
 				type: 'fileWatcher'
-			});
+			}));
 
 			// React on unexpected termination of the watcher process
-			// We never expect the watcher to terminate by its own,
-			// so if that happens we want to restart the watcher.
+			// by listening to the `onDidTerminate` event. We do not
+			// consider an exit code of `0` as abnormal termination.
+
 			onDidTerminate.then(({ reason }) => {
-				if (reason) {
-					this.onError(`terminated by itself with code ${reason.code}, signal: ${reason.signal}`);
+				if (reason?.code === 0) {
+					this.trace(`terminated by itself with code ${reason.code}, signal: ${reason.signal}`);
+				} else {
+					this.onError(`terminated by itself unexpectedly with code ${reason?.code}, signal: ${reason?.signal} (ETERM)`);
 				}
 			});
 
 			return client.getChannel('watcher');
 		})()));
-
-		// Looks like universal watcher needs an explicit stop
-		// to prevent access on data structures after process
-		// exit. This only seem to be happening when used from
-		// Electron, not pure node.js.
-		// https://github.com/microsoft/vscode/issues/136264
-		disposables.add(toDisposable(() => watcher.stop()));
 
 		return watcher;
 	}

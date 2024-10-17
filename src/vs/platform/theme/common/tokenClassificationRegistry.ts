@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import * as nls from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Color } from '../../../base/common/color.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
+import * as nls from '../../../nls.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import * as platform from '../../registry/common/platform.js';
+import { IColorTheme } from './themeService.js';
 
-export const TOKEN_TYPE_WILDCARD = '*';
-export const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
-export const CLASSIFIER_MODIFIER_SEPARATOR = '.';
+const TOKEN_TYPE_WILDCARD = '*';
+const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
+const CLASSIFIER_MODIFIER_SEPARATOR = '.';
 
 // qualified string [type|*](.modifier)*(/language)!
-export type TokenClassificationString = string;
+type TokenClassificationString = string;
 
-export const idPattern = '\\w+[-_\\w+]*';
+const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
-export const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
+const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[], language: string): number;
@@ -186,7 +186,7 @@ export namespace SemanticTokenRule {
 export type TokenStyleValue = TokenStyle | TokenClassificationString;
 
 // TokenStyle registry
-export const Extensions = {
+const Extensions = {
 	TokenClassificationContribution: 'base.contributions.tokenClassification'
 };
 
@@ -579,7 +579,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
 	registry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	registry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
-	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
+	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are read-only."), undefined);
 
 
 	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);

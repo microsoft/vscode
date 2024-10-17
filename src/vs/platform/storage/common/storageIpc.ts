@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { UriDto } from 'vs/base/common/uri';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { UriDto } from '../../../base/common/uri.js';
+import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from '../../../base/parts/storage/common/storage.js';
+import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, IEmptyWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export type Key = string;
 export type Value = string;
@@ -29,6 +29,11 @@ export interface IBaseSerializableStorageRequest {
 	 * denote application or profile scope depending on profile.
 	 */
 	readonly workspace: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
+
+	/**
+	 * Additional payload for the request to perform.
+	 */
+	readonly payload?: unknown;
 }
 
 export interface ISerializableUpdateRequest extends IBaseSerializableStorageRequest {
@@ -48,7 +53,7 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 	constructor(
 		protected channel: IChannel,
 		protected profile: UriDto<IUserDataProfile> | undefined,
-		protected workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined
+		protected workspace: IAnyWorkspaceIdentifier | undefined
 	) {
 		super();
 	}
@@ -72,6 +77,12 @@ abstract class BaseStorageDatabaseClient extends Disposable implements IStorageD
 		}
 
 		return this.channel.call('updateItems', serializableRequest);
+	}
+
+	optimize(): Promise<void> {
+		const serializableRequest: IBaseSerializableStorageRequest = { profile: this.profile, workspace: this.workspace };
+
+		return this.channel.call('optimize', serializableRequest);
 	}
 
 	abstract close(): Promise<void>;
@@ -139,7 +150,7 @@ export class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient im
 
 	readonly onDidChangeItemsExternal = Event.None; // unsupported for workspace storage because we only ever write from one window
 
-	constructor(channel: IChannel, workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier) {
+	constructor(channel: IChannel, workspace: IAnyWorkspaceIdentifier) {
 		super(channel, undefined, workspace);
 	}
 
@@ -150,5 +161,16 @@ export class WorkspaceStorageDatabaseClient extends BaseStorageDatabaseClient im
 		// can take care of that.
 
 		this.dispose();
+	}
+}
+
+export class StorageClient {
+
+	constructor(private readonly channel: IChannel) { }
+
+	isUsed(path: string): Promise<boolean> {
+		const serializableRequest: ISerializableUpdateRequest = { payload: path, profile: undefined, workspace: undefined };
+
+		return this.channel.call('isUsed', serializableRequest);
 	}
 }

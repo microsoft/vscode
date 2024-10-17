@@ -5,13 +5,14 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider } from './git';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
-import { combinedDisposable, mapEvent } from '../util';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
+import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
 import { GitBaseApi } from '../git-base';
 import { PickRemoteSourceOptions } from './git-base';
+import { Operation, OperationResult } from '../operation';
 
 class ApiInputBox implements InputBox {
 	set value(value: string) { this._inputBox.value = value; }
@@ -32,7 +33,10 @@ export class ApiChange implements Change {
 export class ApiRepositoryState implements RepositoryState {
 
 	get HEAD(): Branch | undefined { return this._repository.HEAD; }
-	get refs(): Ref[] { return [...this._repository.refs]; }
+	/**
+	 * @deprecated Use ApiRepository.getRefs() instead.
+	 */
+	get refs(): Ref[] { console.warn('Deprecated. Use ApiRepository.getRefs() instead.'); return []; }
 	get remotes(): Remote[] { return [...this._repository.remotes]; }
 	get submodules(): Submodule[] { return [...this._repository.submodules]; }
 	get rebaseCommit(): Commit | undefined { return this._repository.rebaseCommit; }
@@ -40,6 +44,7 @@ export class ApiRepositoryState implements RepositoryState {
 	get mergeChanges(): Change[] { return this._repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
 	get indexChanges(): Change[] { return this._repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
 	get workingTreeChanges(): Change[] { return this._repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this._repository.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
 
 	readonly onDidChange: Event<void> = this._repository.onDidRunGitStatus;
 
@@ -61,6 +66,8 @@ export class ApiRepository implements Repository {
 	readonly inputBox: InputBox = new ApiInputBox(this.repository.inputBox);
 	readonly state: RepositoryState = new ApiRepositoryState(this.repository);
 	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this.repository.sourceControl);
+
+	readonly onDidCommit: Event<void> = mapEvent<OperationResult, void>(filterEvent(this.repository.onDidRunOperation, e => e.operation === Operation.Commit), () => null);
 
 	constructor(readonly repository: BaseRepository) { }
 
@@ -170,20 +177,32 @@ export class ApiRepository implements Repository {
 		return this.repository.getBranch(name);
 	}
 
-	getBranches(query: BranchQuery): Promise<Ref[]> {
-		return this.repository.getBranches(query);
+	getBranches(query: BranchQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return this.repository.getBranches(query, cancellationToken);
+	}
+
+	getBranchBase(name: string): Promise<Branch | undefined> {
+		return this.repository.getBranchBase(name);
 	}
 
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this.repository.setBranchUpstream(name, upstream);
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return this.repository.getRefs(query, cancellationToken);
+	}
+
+	checkIgnore(paths: string[]): Promise<Set<string>> {
+		return this.repository.checkIgnore(paths);
+	}
+
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.repository.getMergeBase(ref1, ref2);
 	}
 
-	tag(name: string, upstream: string): Promise<void> {
-		return this.repository.tag(name, upstream);
+	tag(name: string, message: string, ref?: string | undefined): Promise<void> {
+		return this.repository.tag({ name, message, ref });
 	}
 
 	deleteTag(name: string): Promise<void> {
@@ -239,7 +258,15 @@ export class ApiRepository implements Repository {
 	}
 
 	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this.repository.commit(message, opts);
+		return this.repository.commit(message, { ...opts, postCommitCommand: null });
+	}
+
+	merge(ref: string): Promise<void> {
+		return this.repository.merge(ref);
+	}
+
+	mergeAbort(): Promise<void> {
+		return this.repository.mergeAbort();
 	}
 }
 
@@ -287,14 +314,18 @@ export class ApiImpl implements API {
 		return result ? new ApiRepository(result) : null;
 	}
 
-	async init(root: Uri): Promise<Repository | null> {
+	async init(root: Uri, options?: InitOptions): Promise<Repository | null> {
 		const path = root.fsPath;
-		await this._model.git.init(path);
+		await this._model.git.init(path, options);
 		await this._model.openRepository(path);
 		return this.getRepository(root) || null;
 	}
 
 	async openRepository(root: Uri): Promise<Repository | null> {
+		if (root.scheme !== 'file') {
+			return null;
+		}
+
 		await this._model.openRepository(root.fsPath);
 		return this.getRepository(root) || null;
 	}
@@ -326,6 +357,10 @@ export class ApiImpl implements API {
 		return this._model.registerPushErrorHandler(handler);
 	}
 
+	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
+		return this._model.registerBranchProtectionProvider(root, provider);
+	}
+
 	constructor(private _model: Model) { }
 }
 
@@ -351,6 +386,8 @@ function getStatus(status: Status): string {
 		case Status.UNTRACKED: return 'UNTRACKED';
 		case Status.IGNORED: return 'IGNORED';
 		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
+		case Status.INTENT_TO_RENAME: return 'INTENT_TO_RENAME';
+		case Status.TYPE_CHANGED: return 'TYPE_CHANGED';
 		case Status.ADDED_BY_US: return 'ADDED_BY_US';
 		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
 		case Status.DELETED_BY_US: return 'DELETED_BY_US';

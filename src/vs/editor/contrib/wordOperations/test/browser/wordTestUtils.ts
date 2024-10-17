@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position } from 'vs/editor/common/core/position';
-import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { Position } from '../../../../common/core/position.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 export function deserializePipePositions(text: string): [string, Position[]] {
 	let resultText = '';
@@ -58,9 +58,9 @@ export function serializePipePositions(text: string, positions: Position[]): str
 	return resultText;
 }
 
-export function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: ITestCodeEditor) => void, record: (editor: ITestCodeEditor) => Position, stopCondition: (editor: ITestCodeEditor) => boolean): Position[] {
+export function testRepeatedActionAndExtractPositions(text: string, initialPosition: Position, action: (editor: ITestCodeEditor) => void, record: (editor: ITestCodeEditor) => Position, stopCondition: (editor: ITestCodeEditor) => boolean, options: TestCodeEditorInstantiationOptions = {}): Position[] {
 	const actualStops: Position[] = [];
-	withTestCodeEditor(text, {}, (editor) => {
+	withTestCodeEditor(text, options, (editor) => {
 		editor.setPosition(initialPosition);
 		while (true) {
 			action(editor);

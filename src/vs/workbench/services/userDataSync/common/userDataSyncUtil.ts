@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { FormattingOptions } from '../../../../base/common/jsonFormatter.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextResourcePropertiesService, ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
@@ -23,8 +23,8 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
-		return getDefaultIgnoredSettings();
+	async resolveDefaultCoreIgnoredSettings(): Promise<string[]> {
+		return getDefaultIgnoredSettings(true);
 	}
 
 	async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
@@ -53,4 +53,4 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
 }
 
-registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);
+registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService, InstantiationType.Delayed);

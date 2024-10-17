@@ -3,19 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
-import { AcceptAllInput1, AcceptAllInput2, CompareInput1WithBaseCommand, CompareInput2WithBaseCommand, GoToNextConflict, GoToPreviousConflict, OpenBaseFile, OpenMergeEditor, OpenResultResource, SetColumnLayout, SetMixedLayout, ToggleActiveConflictInput1, ToggleActiveConflictInput2 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
-import { MergeEditorCopyContentsToJSON, MergeEditorOpenContents } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
-import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
-import { MergeEditor, MergeEditorResolverContribution, MergeEditorOpenHandlerContribution } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { MergeEditorSerializer } from './mergeEditorSerializer';
+import { localize } from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import {
+	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
+	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
+	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
+	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice
+} from './commands/commands.js';
+import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from './commands/devCommands.js';
+import { MergeEditorInput } from './mergeEditorInput.js';
+import { MergeEditor, MergeEditorOpenHandlerContribution, MergeEditorResolverContribution } from './view/mergeEditor.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { MergeEditorSerializer } from './mergeEditorSerializer.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -33,17 +39,37 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	MergeEditorSerializer
 );
 
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	properties: {
+		'mergeEditor.diffAlgorithm': {
+			type: 'string',
+			enum: ['legacy', 'advanced'],
+			default: 'advanced',
+			markdownEnumDescriptions: [
+				localize('diffAlgorithm.legacy', "Uses the legacy diffing algorithm."),
+				localize('diffAlgorithm.advanced', "Uses the advanced diffing algorithm."),
+			]
+		},
+		'mergeEditor.showDeletionMarkers': {
+			type: 'boolean',
+			default: true,
+			description: 'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.',
+		},
+	}
+});
+
 registerAction2(OpenResultResource);
 registerAction2(SetMixedLayout);
 registerAction2(SetColumnLayout);
 registerAction2(OpenMergeEditor);
 registerAction2(OpenBaseFile);
+registerAction2(ShowNonConflictingChanges);
+registerAction2(ShowHideBase);
+registerAction2(ShowHideTopBase);
+registerAction2(ShowHideCenterBase);
 
-registerAction2(MergeEditorCopyContentsToJSON);
-registerAction2(MergeEditorOpenContents);
-
-registerAction2(GoToNextConflict);
-registerAction2(GoToPreviousConflict);
+registerAction2(GoToNextUnhandledConflict);
+registerAction2(GoToPreviousUnhandledConflict);
 
 registerAction2(ToggleActiveConflictInput1);
 registerAction2(ToggleActiveConflictInput2);
@@ -54,11 +80,18 @@ registerAction2(CompareInput2WithBaseCommand);
 registerAction2(AcceptAllInput1);
 registerAction2(AcceptAllInput2);
 
+registerAction2(ResetToBaseAndAutoMergeCommand);
+
+registerAction2(AcceptMerge);
+registerAction2(ResetCloseWithConflictsChoice);
+
+// Dev Commands
+registerAction2(MergeEditorCopyContentsToJSON);
+registerAction2(MergeEditorSaveContentsToFolder);
+registerAction2(MergeEditorLoadContentsFromFolder);
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(MergeEditorOpenHandlerContribution, LifecyclePhase.Restored);
 
-Registry
-	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(MergeEditorResolverContribution, LifecyclePhase.Starting);
+registerWorkbenchContribution2(MergeEditorResolverContribution.ID, MergeEditorResolverContribution, WorkbenchPhase.BlockStartup /* only registers an editor resolver */);

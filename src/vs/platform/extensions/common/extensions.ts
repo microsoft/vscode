@@ -3,35 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Severity from 'vs/base/common/severity';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import Severity from '../../../base/common/severity.js';
+import * as strings from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILocalizedString } from '../../action/common/action.js';
+import { ExtensionKind } from '../../environment/common/environment.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { getRemoteName } from '../../remote/common/remoteHosts.js';
 
-export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
-export const USER_MANIFEST_CACHE_FILE = 'user';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
+export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
 	command: string;
-	title: string;
-	category?: string;
-}
-
-export interface IConfigurationProperty {
-	description: string;
-	type: string | string[];
-	default?: any;
-}
-
-export interface IConfiguration {
-	id?: string;
-	order?: number;
-	title?: string;
-	properties: { [key: string]: IConfigurationProperty };
+	title: string | ILocalizedString;
+	category?: string | ILocalizedString;
 }
 
 export interface IDebugger {
@@ -41,7 +28,7 @@ export interface IDebugger {
 }
 
 export interface IGrammar {
-	language: string;
+	language?: string;
 }
 
 export interface IJSONValidation {
@@ -95,7 +82,7 @@ export interface IColor {
 	defaults: { light: string; dark: string; highContrast: string };
 }
 
-export interface IWebviewEditor {
+interface IWebviewEditor {
 	readonly viewType: string;
 	readonly priority: string;
 	readonly selector: readonly {
@@ -136,6 +123,7 @@ export interface IWalkthroughStep {
 export interface IWalkthrough {
 	readonly id: string;
 	readonly title: string;
+	readonly icon?: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
 	readonly featuredFor: string[] | undefined;
@@ -161,6 +149,11 @@ export interface INotebookRendererContribution {
 	readonly mimeTypes: string[];
 }
 
+export interface IDebugVisualizationContribution {
+	readonly id: string;
+	readonly when: string;
+}
+
 export interface ITranslation {
 	id: string;
 	path: string;
@@ -176,7 +169,7 @@ export interface ILocalizationContribution {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
+	configuration?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -198,6 +191,8 @@ export interface IExtensionContributions {
 	startEntries?: IStartEntry[];
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
+	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
 }
 
 export interface IExtensionCapabilities {
@@ -225,20 +220,15 @@ export function getWorkspaceSupportTypeMessage(supportType: ExtensionUntrustedWo
 }
 
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
-}
-
 export interface IExtensionIdentifier {
 	id: string;
 	uuid?: string;
 }
 
 export const EXTENSION_CATEGORIES = [
+	'AI',
 	'Azure',
+	'Chat',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
@@ -267,6 +257,10 @@ export interface IRelaxedExtensionManifest {
 	description?: string;
 	main?: string;
 	browser?: string;
+	preview?: boolean;
+	// For now this only supports pointing to l10n bundle files
+	// but it will be used for package.l10n.json files in the future
+	l10n?: string;
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
@@ -277,6 +271,7 @@ export interface IRelaxedExtensionManifest {
 	contributes?: IExtensionContributions;
 	repository?: { url: string };
 	bugs?: { url: string };
+	originalEnabledApiProposals?: readonly string[];
 	enabledApiProposals?: readonly string[];
 	api?: string;
 	scripts?: { [key: string]: string };
@@ -292,7 +287,6 @@ export const enum ExtensionType {
 
 export const enum TargetPlatform {
 	WIN32_X64 = 'win32-x64',
-	WIN32_IA32 = 'win32-ia32',
 	WIN32_ARM64 = 'win32-arm64',
 
 	LINUX_X64 = 'linux-x64',
@@ -319,6 +313,7 @@ export interface IExtension {
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
 	readonly targetPlatform: TargetPlatform;
+	readonly publisherDisplayName?: string;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
@@ -343,7 +338,12 @@ export interface IExtension {
  */
 export class ExtensionIdentifier {
 	public readonly value: string;
-	private readonly _lower: string;
+
+	/**
+	 * Do not use directly. This is public to avoid mangling and thus
+	 * allow compatibility between running from source and a built version.
+	 */
+	readonly _lower: string;
 
 	constructor(value: string) {
 		this.value = value;
@@ -380,10 +380,77 @@ export class ExtensionIdentifier {
 	}
 }
 
+export class ExtensionIdentifierSet {
+
+	private readonly _set = new Set<string>();
+
+	public get size(): number {
+		return this._set.size;
+	}
+
+	constructor(iterable?: Iterable<ExtensionIdentifier | string>) {
+		if (iterable) {
+			for (const value of iterable) {
+				this.add(value);
+			}
+		}
+	}
+
+	public add(id: ExtensionIdentifier | string): void {
+		this._set.add(ExtensionIdentifier.toKey(id));
+	}
+
+	public delete(extensionId: ExtensionIdentifier): boolean {
+		return this._set.delete(ExtensionIdentifier.toKey(extensionId));
+	}
+
+	public has(id: ExtensionIdentifier | string): boolean {
+		return this._set.has(ExtensionIdentifier.toKey(id));
+	}
+}
+
+export class ExtensionIdentifierMap<T> {
+
+	private readonly _map = new Map<string, T>();
+
+	public clear(): void {
+		this._map.clear();
+	}
+
+	public delete(id: ExtensionIdentifier | string): void {
+		this._map.delete(ExtensionIdentifier.toKey(id));
+	}
+
+	public get(id: ExtensionIdentifier | string): T | undefined {
+		return this._map.get(ExtensionIdentifier.toKey(id));
+	}
+
+	public has(id: ExtensionIdentifier | string): boolean {
+		return this._map.has(ExtensionIdentifier.toKey(id));
+	}
+
+	public set(id: ExtensionIdentifier | string, value: T): void {
+		this._map.set(ExtensionIdentifier.toKey(id), value);
+	}
+
+	public values(): IterableIterator<T> {
+		return this._map.values();
+	}
+
+	forEach(callbackfn: (value: T, key: string, map: Map<string, T>) => void): void {
+		this._map.forEach(callbackfn);
+	}
+
+	[Symbol.iterator](): IterableIterator<[string, T]> {
+		return this._map[Symbol.iterator]();
+	}
+}
+
 export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
+	publisherDisplayName?: string;
 	targetPlatform: TargetPlatform;
 	isBuiltin: boolean;
 	isUserBuiltin: boolean;
@@ -408,9 +475,20 @@ export function isAuthenticationProviderExtension(manifest: IExtensionManifest):
 export function isResolverExtension(manifest: IExtensionManifest, remoteAuthority: string | undefined): boolean {
 	if (remoteAuthority) {
 		const activationEvent = `onResolveRemoteAuthority:${getRemoteName(remoteAuthority)}`;
-		return manifest.activationEvents?.indexOf(activationEvent) !== -1;
+		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
+}
+
+export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
+	return enabledApiProposals.map(proposal => {
+		const [proposalName, version] = proposal.split('@');
+		return { proposalName, version: version ? parseInt(version) : undefined };
+	});
+}
+
+export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
+	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { basename } from 'vs/base/common/resources';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService } from 'vs/platform/files/common/files';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { isMacintosh } from 'vs/base/common/platform';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { localize } from '../../../../nls.js';
+import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { URI } from '../../../../base/common/uri.js';
+import { hasWorkspaceFileExtension, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IJSONEditingService } from '../../configuration/common/jsonEditing.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
+import { WorkspaceService } from '../../configuration/browser/configurationService.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IWorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackup.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { basename } from '../../../../base/common/resources.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { INativeWorkbenchEnvironmentService } from '../../environment/electron-sandbox/environmentService.js';
+import { ILifecycleService, ShutdownReason } from '../../lifecycle/common/lifecycle.js';
+import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILabelService, Verbosity } from '../../../../platform/label/common/label.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { IHostService } from '../../host/browser/host.js';
+import { AbstractWorkspaceEditingService } from '../browser/abstractWorkspaceEditingService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -67,10 +67,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onBeforeShutdown(e => {
+		this._register(this.lifecycleService.onBeforeShutdown(e => {
 			const saveOperation = this.saveUntitledBeforeShutdown(e.reason);
 			e.veto(saveOperation, 'veto.untitledWorkspace');
-		});
+		}));
 	}
 
 	private async saveUntitledBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
@@ -88,73 +88,83 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
-		enum ConfirmResult {
-			SAVE,
-			DONT_SAVE,
-			CANCEL
+		const confirmSaveUntitledWorkspace = this.configurationService.getValue<boolean>('window.confirmSaveUntitledWorkspace') !== false;
+		if (!confirmSaveUntitledWorkspace) {
+			await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
+			return false; // no confirmation configured
 		}
 
-		const buttons = [
-			{ label: mnemonicButtonLabel(localize('save', "Save")), result: ConfirmResult.SAVE },
-			{ label: mnemonicButtonLabel(localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE },
-			{ label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
-		];
-		const message = localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
-		const detail = localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId: 2 });
+		let canceled = false;
+		const { result, checkboxChecked } = await this.dialogService.prompt<boolean>({
+			type: Severity.Warning,
+			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
+			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
+			buttons: [
+				{
+					label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+					run: async () => {
+						const newWorkspacePath = await this.pickNewWorkspacePath();
+						if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
+							return true; // keep veto if no target was provided
+						}
 
-		switch (buttons[choice].result) {
+						try {
+							await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				return true;
+							// Make sure to add the new workspace to the history to find it again
+							const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+							await this.workspacesService.addRecentlyOpened([{
+								label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
+								workspace: newWorkspaceIdentifier,
+								remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
+							}]);
 
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				return false;
+							// Delete the untitled one
+							await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+						} catch (error) {
+							// ignore
+						}
 
-			// Save: save workspace, but do not veto unload if path provided
-			case ConfirmResult.SAVE: {
-				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
-					return true; // keep veto if no target was provided
+						return false;
+					}
+				},
+				{
+					label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+					run: async () => {
+						await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
+						return false;
+					}
 				}
+			],
+			cancelButton: {
+				run: () => {
+					canceled = true;
 
-				try {
-					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
-
-					// Make sure to add the new workspace to the history to find it again
-					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
-					await this.workspacesService.addRecentlyOpened([{
-						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
-						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
-					}]);
-
-					// Delete the untitled one
-					await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				} catch (error) {
-					// ignore
+					return true; // veto
 				}
-
-				return false;
+			},
+			checkbox: {
+				label: localize('doNotAskAgain', "Always discard untitled workspaces without asking")
 			}
+		});
+
+		if (!canceled && checkboxChecked) {
+			await this.configurationService.updateValue('window.confirmSaveUntitledWorkspace', false, ConfigurationTarget.USER);
 		}
+
+		return result;
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {
-		const windows = await this.nativeHostService.getWindows();
+		const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {
-			await this.dialogService.show(
-				Severity.Info,
+			await this.dialogService.info(
 				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspaceUri)),
-				undefined,
-				{
-					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-				}
+				localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
 			);
 
 			return false;
@@ -164,6 +174,11 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
+		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace."));
+		if (!stopped) {
+			return;
+		}
+
 		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
 
@@ -185,9 +200,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		// Restart the extension host: entering a workspace means a new location for
 		// storage and potentially a change in the workspace.rootPath property.
 		else {
-			this.extensionService.restartExtensionHost();
+			this.extensionService.startExtensionHosts();
 		}
 	}
 }
 
-registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, true);
+registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, InstantiationType.Delayed);

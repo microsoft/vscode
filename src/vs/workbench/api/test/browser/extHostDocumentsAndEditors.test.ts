@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { NullLogService } from 'vs/platform/log/common/log';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostDocumentsAndEditors', () => {
 
@@ -16,6 +17,8 @@ suite('ExtHostDocumentsAndEditors', () => {
 	setup(function () {
 		editors = new ExtHostDocumentsAndEditors(new TestRPCProtocol(), new NullLogService());
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('The value of TextDocument.isClosed is incorrect when a text document is closed, #27949', () => {
 
@@ -35,7 +38,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 
 		return new Promise((resolve, reject) => {
 
-			editors.onDidRemoveDocuments(e => {
+			const d = editors.onDidRemoveDocuments(e => {
 				try {
 
 					for (const data of e) {
@@ -44,6 +47,8 @@ suite('ExtHostDocumentsAndEditors', () => {
 					resolve(undefined);
 				} catch (e) {
 					reject(e);
+				} finally {
+					d.dispose();
 				}
 			});
 

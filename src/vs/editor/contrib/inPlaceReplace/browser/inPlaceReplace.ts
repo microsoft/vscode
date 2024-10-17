@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { editorBracketMatchBorder } from 'vs/editor/common/core/editorColorRegistry';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
+import { CancelablePromise, createCancelablePromise, timeout } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { CodeEditorStateFlag, EditorState } from '../../editorState/browser/editorState.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { IInplaceReplaceSupportResult } from '../../../common/languages.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import * as nls from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { InPlaceReplaceCommand } from './inPlaceReplaceCommand.js';
+import './inPlaceReplace.css';
 
 class InPlaceReplaceController implements IEditorContribution {
 
@@ -75,7 +74,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			return Promise.resolve(undefined);
 		}
 
-		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection!, up));
+		this.currentRequest = createCancelablePromise(token => this.editorWorkerService.navigateValueSet(modelURI, selection, up));
 
 		return this.currentRequest.then(result => {
 
@@ -92,7 +91,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			// Selection
 			const editRange = Range.lift(result.range);
 			let highlightRange = result.range;
-			const diff = result.value.length - (selection!.endColumn - selection!.startColumn);
+			const diff = result.value.length - (selection.endColumn - selection.startColumn);
 
 			// highlight
 			highlightRange = {
@@ -102,11 +101,11 @@ class InPlaceReplaceController implements IEditorContribution {
 				endColumn: highlightRange.startColumn + result.value.length
 			};
 			if (diff > 1) {
-				selection = new Selection(selection!.startLineNumber, selection!.startColumn, selection!.endLineNumber, selection!.endColumn + diff - 1);
+				selection = new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn + diff - 1);
 			}
 
 			// Insert new text
-			const command = new InPlaceReplaceCommand(editRange, selection!, result.value);
+			const command = new InPlaceReplaceCommand(editRange, selection, result.value);
 
 			this.editor.pushUndoStop();
 			this.editor.executeCommand(source, command);
@@ -148,7 +147,7 @@ class InPlaceReplaceUp extends EditorAction {
 		if (!controller) {
 			return Promise.resolve(undefined);
 		}
-		return controller.run(this.id, true);
+		return controller.run(this.id, false);
 	}
 }
 
@@ -173,17 +172,10 @@ class InPlaceReplaceDown extends EditorAction {
 		if (!controller) {
 			return Promise.resolve(undefined);
 		}
-		return controller.run(this.id, false);
+		return controller.run(this.id, true);
 	}
 }
 
-registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController);
+registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorBracketMatchBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
-	}
-});

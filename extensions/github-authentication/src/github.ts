@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { v4 as uuid } from 'uuid';
-import { Keychain } from './common/keychain';
-import { GitHubEnterpriseServer, GitHubServer, IGitHubServer } from './githubServer';
-import { arrayEquals } from './common/utils';
-import { ExperimentationTelemetry } from './experimentationService';
 import TelemetryReporter from '@vscode/extension-telemetry';
+import { Keychain } from './common/keychain';
+import { GitHubServer, IGitHubServer } from './githubServer';
+import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
+import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
+import { crypto } from './node/crypto';
+import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 
 interface SessionData {
 	id: string;
 	account?: {
 		label?: string;
 		displayName?: string;
-		id: string;
+		// Unfortunately, for some time the id was a number, so we need to support both.
+		// This can be removed once we are confident that all users have migrated to the new id.
+		id: string | number;
 	};
 	scopes: string[];
 	accessToken: string;
@@ -28,30 +31,103 @@ export enum AuthProviderType {
 	githubEnterprise = 'github-enterprise'
 }
 
-export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
-	private _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	private _logger = new Log(this.type);
-	private _githubServer: IGitHubServer;
-	private _telemetryReporter: ExperimentationTelemetry;
+export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
+	private readonly _pendingNonces = new Map<string, string[]>();
+	private readonly _codeExchangePromises = new Map<string, { promise: Promise<string>; cancel: vscode.EventEmitter<void> }>();
 
-	private _keychain: Keychain = new Keychain(this.context, `${this.type}.auth`, this._logger);
-	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
-	private _accountsSeen = new Set<string>();
-	private _disposable: vscode.Disposable;
+	public handleUri(uri: vscode.Uri) {
+		this.fire(uri);
+	}
 
-	constructor(private readonly context: vscode.ExtensionContext, private readonly type: AuthProviderType) {
-		const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(name, version, aiKey));
+	public async waitForCode(logger: Log, scopes: string, nonce: string, token: vscode.CancellationToken) {
+		const existingNonces = this._pendingNonces.get(scopes) || [];
+		this._pendingNonces.set(scopes, [...existingNonces, nonce]);
 
-		if (this.type === AuthProviderType.github) {
-			this._githubServer = new GitHubServer(
-				// We only can use the Device Code flow when we have a full node environment because of CORS.
-				context.extension.extensionKind === vscode.ExtensionKind.Workspace || vscode.env.uiKind === vscode.UIKind.Desktop,
-				this._logger,
-				this._telemetryReporter);
-		} else {
-			this._githubServer = new GitHubEnterpriseServer(this._logger, this._telemetryReporter);
+		let codeExchangePromise = this._codeExchangePromises.get(scopes);
+		if (!codeExchangePromise) {
+			codeExchangePromise = promiseFromEvent(this.event, this.handleEvent(logger, scopes));
+			this._codeExchangePromises.set(scopes, codeExchangePromise);
 		}
+
+		try {
+			return await Promise.race([
+				codeExchangePromise.promise,
+				new Promise<string>((_, reject) => setTimeout(() => reject(TIMED_OUT_ERROR), 300_000)), // 5min timeout
+				promiseFromEvent<void, string>(token.onCancellationRequested, (_, __, reject) => { reject(USER_CANCELLATION_ERROR); }).promise
+			]);
+		} finally {
+			this._pendingNonces.delete(scopes);
+			codeExchangePromise?.cancel.fire();
+			this._codeExchangePromises.delete(scopes);
+		}
+	}
+
+	private handleEvent: (logger: Log, scopes: string) => PromiseAdapter<vscode.Uri, string> =
+		(logger: Log, scopes) => (uri, resolve, reject) => {
+			const query = new URLSearchParams(uri.query);
+			const code = query.get('code');
+			const nonce = query.get('nonce');
+			if (!code) {
+				reject(new Error('No code'));
+				return;
+			}
+			if (!nonce) {
+				reject(new Error('No nonce'));
+				return;
+			}
+
+			const acceptedNonces = this._pendingNonces.get(scopes) || [];
+			if (!acceptedNonces.includes(nonce)) {
+				// A common scenario of this happening is if you:
+				// 1. Trigger a sign in with one set of scopes
+				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
+				// In this scenario we should just return and wait for the next UriHandler event
+				// to run as we are probably still waiting on the user to hit 'Continue'
+				logger.info('Nonce not found in accepted nonces. Skipping this execution...');
+				return;
+			}
+
+			resolve(code);
+		};
+}
+
+export class GitHubAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
+	private readonly _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+	private readonly _logger: Log;
+	private readonly _githubServer: IGitHubServer;
+	private readonly _telemetryReporter: ExperimentationTelemetry;
+	private readonly _keychain: Keychain;
+	private readonly _accountsSeen = new Set<string>();
+	private readonly _disposable: vscode.Disposable | undefined;
+	private _supportsMultipleAccounts = false;
+
+	private _sessionsPromise: Promise<vscode.AuthenticationSession[]>;
+
+	constructor(
+		private readonly context: vscode.ExtensionContext,
+		uriHandler: UriEventHandler,
+		ghesUri?: vscode.Uri
+	) {
+		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
+		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
+
+		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+
+		this._logger = new Log(type);
+
+		this._keychain = new Keychain(
+			this.context,
+			type === AuthProviderType.github
+				? `${type}.auth`
+				: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`,
+			this._logger);
+
+		this._githubServer = new GitHubServer(
+			this._logger,
+			this._telemetryReporter,
+			uriHandler,
+			context.extension.extensionKind,
+			ghesUri);
 
 		// Contains the current state of the sessions we have available.
 		this._sessionsPromise = this.readSessions().then((sessions) => {
@@ -60,30 +136,46 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
+		this._supportsMultipleAccounts = this._shouldSupportMultipleAccounts();
+
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			this._githubServer,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
-			this.context.secrets.onDidChange(() => this.checkForUpdates())
+			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: this._supportsMultipleAccounts }),
+			this.context.secrets.onDidChange(() => this.checkForUpdates()),
+			vscode.workspace.onDidChangeConfiguration(async e => {
+				if (e.affectsConfiguration('github.experimental.multipleAccounts')) {
+					const newValue = this._shouldSupportMultipleAccounts();
+					if (newValue === this._supportsMultipleAccounts) {
+						return;
+					}
+					const result = await vscode.window.showInformationMessage(vscode.l10n.t('Please reload the window to apply the new setting.'), { modal: true }, vscode.l10n.t('Reload Window'));
+					if (result) {
+						vscode.commands.executeCommand('workbench.action.reloadWindow');
+					}
+				}
+			})
 		);
 	}
 
 	dispose() {
-		this._disposable.dispose();
+		this._disposable?.dispose();
 	}
 
 	get onDidChangeSessions() {
 		return this._sessionChangeEmitter.event;
 	}
 
-	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
 		this._logger.info(`Getting sessions for ${sortedScopes.length ? sortedScopes.join(',') : 'all scopes'}...`);
 		const sessions = await this._sessionsPromise;
-		const finalSessions = sortedScopes.length
-			? sessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
+		const accountFilteredSessions = options?.account
+			? sessions.filter(session => session.account.label === options.account?.label)
 			: sessions;
+		const finalSessions = sortedScopes.length
+			? accountFilteredSessions.filter(session => arrayEquals([...session.scopes].sort(), sortedScopes))
+			: accountFilteredSessions;
 
 		this._logger.info(`Got ${finalSessions.length} sessions for ${sortedScopes?.join(',') ?? 'all scopes'}...`);
 		return finalSessions;
@@ -93,7 +185,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		// We only want to fire a telemetry if we haven't seen this account yet in this session.
 		if (!this._accountsSeen.has(session.account.id)) {
 			this._accountsSeen.add(session.account.id);
-			this._githubServer.sendAdditionalTelemetryInfo(session.accessToken);
+			this._githubServer.sendAdditionalTelemetryInfo(session);
 		}
 	}
 
@@ -149,12 +241,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return [];
 		}
 
+		// Unfortunately, we were using a number secretly for the account id for some time... this is due to a bad `any`.
+		// AuthenticationSession's account id is a string, so we need to detect when there is a number accountId and re-store
+		// the sessions to migrate away from the bad number usage.
+		// TODO@TylerLeonhardt: Remove this after we are confident that all users have migrated to the new id.
+		let seenNumberAccountId: boolean = false;
 		// TODO: eventually remove this Set because we should only have one session per set of scopes.
 		const scopesSeen = new Set<string>();
-		const sessionPromises = sessionData.map(async (session: SessionData) => {
+		const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession | undefined> => {
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
-			if (scopesSeen.has(scopesStr)) {
+			if (!this._supportsMultipleAccounts && scopesSeen.has(scopesStr)) {
 				return undefined;
 			}
 			let userInfo: { id: string; accountName: string } | undefined;
@@ -172,13 +269,23 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			this._logger.trace(`Read the following session from the keychain with the following scopes: ${scopesStr}`);
 			scopesSeen.add(scopesStr);
+
+			let accountId: string;
+			if (session.account?.id) {
+				if (typeof session.account.id === 'number') {
+					seenNumberAccountId = true;
+				}
+				accountId = `${session.account.id}`;
+			} else {
+				accountId = userInfo?.id ?? '<unknown>';
+			}
 			return {
 				id: session.id,
 				account: {
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
 						: userInfo?.accountName ?? '<unknown>',
-					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
+					id: accountId
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -193,7 +300,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			.filter(<T>(p?: T): p is T => Boolean(p));
 
 		this._logger.info(`Got ${verifiedSessions.length} verified sessions.`);
-		if (verifiedSessions.length !== sessionData.length) {
+		if (seenNumberAccountId || verifiedSessions.length !== sessionData.length) {
 			await this.storeSessions(verifiedSessions);
 		}
 
@@ -207,7 +314,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
-	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+	public async createSession(scopes: string[], options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		try {
 			// For GitHub scope list, order doesn't matter so we use a sorted scope to determine
 			// if we've got a session already.
@@ -224,22 +331,28 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
-
+			const sessions = await this._sessionsPromise;
+			const loginWith = options?.account?.label;
+			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString);
+			const token = await this._githubServer.login(scopeString, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessions = await this._sessionsPromise;
-			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const sessionIndex = sessions.findIndex(
+				this._supportsMultipleAccounts
+					? s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes)
+					: s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes)
+			);
+			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
-				sessions.splice(sessionIndex, 1, session);
+				removed.push(...sessions.splice(sessionIndex, 1, session));
 			} else {
 				sessions.push(session);
 			}
 			await this.storeSessions(sessions);
 
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');
 
@@ -259,7 +372,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
 
-			vscode.window.showErrorMessage(`Sign in failed: ${e}`);
+			vscode.window.showErrorMessage(vscode.l10n.t('Sign in failed: {0}', `${e}`));
 			this._logger.error(e);
 			throw e;
 		}
@@ -268,7 +381,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
-			id: uuid(),
+			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
 			account: { label: userInfo.accountName, id: userInfo.id },
 			scopes
@@ -291,6 +404,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				sessions.splice(sessionIndex, 1);
 
 				await this.storeSessions(sessions);
+				await this._githubServer.logout(session);
 
 				this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
 			} else {
@@ -302,9 +416,31 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
 
-			vscode.window.showErrorMessage(`Sign out failed: ${e}`);
+			vscode.window.showErrorMessage(vscode.l10n.t('Sign out failed: {0}', `${e}`));
 			this._logger.error(e);
 			throw e;
 		}
+	}
+
+	private _shouldSupportMultipleAccounts(): boolean {
+		// First check if there is a setting value to allow user to override the default
+		const inspect = vscode.workspace.getConfiguration('github.experimental').inspect<boolean>('multipleAccounts');
+		if (inspect?.workspaceFolderValue !== undefined) {
+			this._logger.trace(`Acquired multi-account enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
+			return inspect.workspaceFolderValue;
+		}
+		if (inspect?.workspaceValue !== undefined) {
+			this._logger.trace(`Acquired multi-account enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
+			return inspect.workspaceValue;
+		}
+		if (inspect?.globalValue !== undefined) {
+			this._logger.trace(`Acquired multi-account enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
+			return inspect.globalValue;
+		}
+
+		const value = vscode.env.uriScheme !== 'vscode';
+		this._logger.trace(`Acquired multi-account enablement value from default. Value: ${value} because of uriScheme: ${vscode.env.uriScheme}`);
+		// If no setting or experiment value is found, default to false on stable and true on insiders
+		return value;
 	}
 }

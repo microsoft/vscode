@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Throttler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtUri } from 'vs/base/common/resources';
-import { isString } from 'vs/base/common/types';
-import { URI, UriDto } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { DBClosedError, IndexedDB } from 'vs/base/browser/indexedDB';
-import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
+import { Throttler } from '../../../base/common/async.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { ExtUri } from '../../../base/common/resources.js';
+import { isString } from '../../../base/common/types.js';
+import { URI, UriDto } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
+import { DBClosedError, IndexedDB } from '../../../base/browser/indexedDB.js';
+import { BroadcastDataChannel } from '../../../base/browser/broadcast.js';
 
 export type IndexedDBFileSystemProviderErrorDataClassification = {
 	owner: 'sandy081';
@@ -34,6 +34,7 @@ const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists
 const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
 const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+const ERR_FILE_EXCEEDS_STORAGE_QUOTA = createFileSystemProviderError(localize('fileExceedsStorageQuota', "File exceeds available storage quota"), FileSystemProviderErrorCode.FileExceedsStorageQuota);
 
 // Arbitrary Internal Errors
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
@@ -304,13 +305,13 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		const toEntry = fileTree.read(to.path);
 		if (toEntry) {
 			if (!opts.overwrite) {
-				throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+				throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 			}
 			if (toEntry.type !== fromEntry.type) {
-				throw new FileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
+				throw createFileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
 			}
 			// delete the target file if exists
-			await this.delete(to, { recursive: true, useTrash: false });
+			await this.delete(to, { recursive: true, useTrash: false, atomic: false });
 		}
 
 		const toTargetResource = (path: string): URI => this.extUri.joinPath(to, this.extUri.relativePath(from, from.with({ path })) || '');
@@ -338,7 +339,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			await this.bulkWrite(targetFiles);
 		}
 
-		await this.delete(from, { recursive: true, useTrash: false });
+		await this.delete(from, { recursive: true, useTrash: false, atomic: false });
 	}
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
@@ -427,7 +428,17 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private async writeMany() {
 		if (this.fileWriteBatch.length) {
 			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);
-			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => objectStore.put(entry.content, entry.resource.path)));
+			try {
+				await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => {
+					return objectStore.put(entry.content, entry.resource.path);
+				}));
+			} catch (ex) {
+				if (ex instanceof DOMException && ex.name === 'QuotaExceededError') {
+					throw ERR_FILE_EXCEEDS_STORAGE_QUOTA;
+				}
+
+				throw ex;
+			}
 		}
 	}
 

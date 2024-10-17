@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
-import { isString } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import * as platform from 'vs/platform/registry/common/platform';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { RunOnceScheduler } from '../../../base/common/async.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { getCodiconFontCharacters } from '../../../base/common/codiconsUtil.js';
+import { ThemeIcon, IconIdentifier } from '../../../base/common/themables.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../base/common/jsonSchema.js';
+import { isString } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
+import * as platform from '../../registry/common/platform.js';
 
 //  ------ API types
 
-export type IconIdentifier = string;
 
 // icon registry
 export const Extensions = {
@@ -166,7 +166,7 @@ class IconRegistry implements IIconRegistry {
 		type: 'object',
 		properties: {}
 	};
-	private iconReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', pattern: `^${CSSIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
+	private iconReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', pattern: `^${ThemeIcon.iconNameExpression}$`, enum: [], enumDescriptions: [] };
 
 	private iconFontsById: { [key: string]: IconFontDefinition };
 
@@ -298,8 +298,10 @@ export function getIconRegistry(): IIconRegistry {
 }
 
 function initialize() {
-	for (const icon of Codicon.getAll()) {
-		iconRegistry.registerIcon(icon.id, icon.definition, icon.description);
+	const codiconFontCharacters = getCodiconFontCharacters();
+	for (const icon in codiconFontCharacters) {
+		const fontCharacter = '\\' + codiconFontCharacters[icon].toString(16);
+		iconRegistry.registerIcon(icon, { fontCharacter });
 	}
 }
 initialize();

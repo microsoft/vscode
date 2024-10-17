@@ -1,6 +1,6 @@
 Name:     @@NAME@@
 Version:  @@VERSION@@
-Release:  @@RELEASE@@.el7
+Release:  @@RELEASE@@.el8
 Summary:  Code editing. Redefined.
 Group:    Development/Tools
 Vendor:   Microsoft Corporation
@@ -19,12 +19,14 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 # Don't generate build_id links to prevent conflicts when installing multiple
 # versions of VS Code alongside each other (e.g. `code` and `code-insiders`)
 %define _build_id_links none
+%define __strip @@STRIP@@
 
 %install
 # Destination directories
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/%{name}
 mkdir -p %{buildroot}%{_datadir}/applications
+mkdir -p %{buildroot}%{_datadir}/appdata
 mkdir -p %{buildroot}%{_datadir}/mime/packages
 mkdir -p %{buildroot}%{_datadir}/pixmaps
 mkdir -p %{buildroot}%{_datadir}/bash-completion/completions
@@ -35,6 +37,7 @@ ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}
 # Support files
 cp -r usr/share/applications/%{name}.desktop %{buildroot}%{_datadir}/applications
 cp -r usr/share/applications/%{name}-url-handler.desktop %{buildroot}%{_datadir}/applications
+cp -r usr/share/appdata/%{name}.appdata.xml %{buildroot}%{_datadir}/appdata
 cp -r usr/share/mime/packages/%{name}-workspace.xml %{buildroot}%{_datadir}/mime/packages/%{name}-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}%{_datadir}/pixmaps
 # Shell completions
@@ -57,10 +60,16 @@ fi
 #	fi
 #fi
 
+# Install the desktop entry
+update-desktop-database &> /dev/null || :
+
 # Update mimetype database to pickup workspace mimetype
 update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %postun
+# Uninstall the desktop entry
+update-desktop-database &> /dev/null || :
+
 # Update mimetype database for removed workspace mimetype
 update-mime-database %{_datadir}/mime &> /dev/null || :
 
@@ -72,6 +81,7 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 %{_datadir}/%{name}/
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/applications/%{name}-url-handler.desktop
+%{_datadir}/appdata/%{name}.appdata.xml
 %{_datadir}/mime/packages/%{name}-workspace.xml
 %{_datadir}/pixmaps/@@ICON@@.png
 %{_datadir}/bash-completion/completions/%{name}

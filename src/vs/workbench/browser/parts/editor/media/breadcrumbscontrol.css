@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control.hidden {
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control.hidden {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .monaco-icon-label,
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .monaco-icon-label {
 	text-decoration-line: underline;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .hint-more,
-.monaco-workbench .part.editor>.content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .hint-more {
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.selected .hint-more,
+.monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control .monaco-breadcrumb-item.focused .hint-more {
 	text-decoration-line: underline;
 }
 
@@ -41,22 +41,22 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.input {
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree > .input {
 	padding: 5px 9px;
 	position: relative;
 	box-sizing: border-box;
 	height: 36px;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree>.tree {
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree > .tree {
 	height: calc(100% - 36px);
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.input {
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive > .input {
 	display: none;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive>.tree {
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree.inactive > .tree {
 	height: 100%;
 }
 

@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Mimes } from '../../../../../base/common/mime.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
+import { NotebookTextModel } from '../../common/model/notebookTextModel.js';
+import { CellEditType, CellKind, ICellEditOperation, MOVE_CURSOR_1_LINE_COMMAND, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from '../../common/notebookCommon.js';
+import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from './testNotebookEditor.js';
 
 suite('NotebookTextModel', () => {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let languageService: ILanguageService;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -35,11 +39,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -58,11 +62,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -102,11 +106,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 				assert.strictEqual(textModel.cells.length, 4);
 
@@ -124,11 +128,11 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -147,10 +151,10 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => undefined, undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -310,6 +314,257 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
+	const stdOutMime = 'application/vnd.code.notebook.stdout';
+	const stdErrMime = 'application/vnd.code.notebook.stderr';
+
+	test('appending streaming outputs', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [{ mime: stdOutMime, data: valueBytesFromString('append 1') }]
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				const [output] = textModel.cells[0].outputs;
+				assert.strictEqual(output.versionId, 0, 'initial output version should be 0');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [
+							{ mime: stdOutMime, data: valueBytesFromString('append 2') },
+							{ mime: stdOutMime, data: valueBytesFromString('append 3') }
+						]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 1, 'version should bump per append');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [
+							{ mime: stdOutMime, data: valueBytesFromString('append 4') },
+							{ mime: stdOutMime, data: valueBytesFromString('append 5') }
+						]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 2, 'version should bump per append');
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1, 'has 1 output');
+				assert.strictEqual(output.outputId, 'append1');
+				assert.strictEqual(output.outputs.length, 1, 'outputs are compressed');
+				assert.strictEqual(output.outputs[0].data.toString(), 'append 1append 2append 3append 4append 5');
+				assert.strictEqual(output.appendedSinceVersion(0, stdOutMime)?.toString(), 'append 2append 3append 4append 5');
+				assert.strictEqual(output.appendedSinceVersion(1, stdOutMime)?.toString(), 'append 4append 5');
+				assert.strictEqual(output.appendedSinceVersion(2, stdOutMime), undefined);
+				assert.strictEqual(output.appendedSinceVersion(2, stdErrMime), undefined);
+			}
+		);
+	});
+
+	test('replacing streaming outputs', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [{ mime: stdOutMime, data: valueBytesFromString('append 1') }]
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				const [output] = textModel.cells[0].outputs;
+				assert.strictEqual(output.versionId, 0, 'initial output version should be 0');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: stdOutMime, data: valueBytesFromString('append 2')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 1, 'version should bump per append');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: false,
+						outputId: 'append1',
+						items: [{
+							mime: stdOutMime, data: valueBytesFromString('replace 3')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 2, 'version should bump per replace');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: stdOutMime, data: valueBytesFromString('append 4')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 3, 'version should bump per append');
+
+				assert.strictEqual(output.outputs[0].data.toString(), 'replace 3append 4');
+				assert.strictEqual(output.appendedSinceVersion(0, stdOutMime), undefined,
+					'replacing output should clear out previous versioned output buffers');
+				assert.strictEqual(output.appendedSinceVersion(1, stdOutMime), undefined,
+					'replacing output should clear out previous versioned output buffers');
+				assert.strictEqual(output.appendedSinceVersion(2, stdOutMime)?.toString(), 'append 4');
+			}
+		);
+	});
+
+	test('appending streaming outputs with move cursor compression', async function () {
+
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [
+								{ mime: stdOutMime, data: valueBytesFromString('append 1') },
+								{ mime: stdOutMime, data: valueBytesFromString('\nappend 1') }]
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				const [output] = textModel.cells[0].outputs;
+				assert.strictEqual(output.versionId, 0, 'initial output version should be 0');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: stdOutMime, data: valueBytesFromString(MOVE_CURSOR_1_LINE_COMMAND + '\nappend 2')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 1, 'version should bump per append');
+
+				assert.strictEqual(output.outputs[0].data.toString(), 'append 1\nappend 2');
+				assert.strictEqual(output.appendedSinceVersion(0, stdOutMime), undefined,
+					'compressing outputs should clear out previous versioned output buffers');
+			}
+		);
+	});
+
+	test('appending streaming outputs with carraige return compression', async function () {
+
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [
+								{ mime: stdOutMime, data: valueBytesFromString('append 1') },
+								{ mime: stdOutMime, data: valueBytesFromString('\nappend 1') }]
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				const [output] = textModel.cells[0].outputs;
+				assert.strictEqual(output.versionId, 0, 'initial output version should be 0');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [{
+							mime: stdOutMime, data: valueBytesFromString('\rappend 2')
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 1, 'version should bump per append');
+
+				assert.strictEqual(output.outputs[0].data.toString(), 'append 1\nappend 2');
+				assert.strictEqual(output.appendedSinceVersion(0, stdOutMime), undefined,
+					'compressing outputs should clear out previous versioned output buffers');
+			}
+		);
+	});
+
+	test('appending multiple different mime streaming outputs', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			],
+			(editor) => {
+				const textModel = editor.textModel;
+
+				textModel.applyEdits([
+					{
+						index: 0,
+						editType: CellEditType.Output,
+						append: true,
+						outputs: [{
+							outputId: 'append1',
+							outputs: [
+								{ mime: stdOutMime, data: valueBytesFromString('stdout 1') },
+								{ mime: stdErrMime, data: valueBytesFromString('stderr 1') }
+							]
+						}]
+					}], true, undefined, () => undefined, undefined, true);
+				const [output] = textModel.cells[0].outputs;
+				assert.strictEqual(output.versionId, 0, 'initial output version should be 0');
+
+				textModel.applyEdits([
+					{
+						editType: CellEditType.OutputItems,
+						append: true,
+						outputId: 'append1',
+						items: [
+							{ mime: stdOutMime, data: valueBytesFromString('stdout 2') },
+							{ mime: stdErrMime, data: valueBytesFromString('stderr 2') }
+						]
+					}], true, undefined, () => undefined, undefined, true);
+				assert.strictEqual(output.versionId, 1, 'version should bump per replace');
+
+				assert.strictEqual(output.appendedSinceVersion(0, stdErrMime)?.toString(), 'stderr 2');
+				assert.strictEqual(output.appendedSinceVersion(0, stdOutMime)?.toString(), 'stdout 2');
+			}
+		);
+	});
+
 	test('metadata', async function () {
 		await withTestNotebook(
 			[
@@ -388,7 +643,7 @@ suite('NotebookTextModel', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor) => {
+			(editor, _viewModel, ds) => {
 				const textModel = editor.textModel;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
@@ -402,7 +657,7 @@ suite('NotebookTextModel', () => {
 
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [ds.add(new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], languageService))] },
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined, true);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -502,12 +757,12 @@ suite('NotebookTextModel', () => {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], (editor) => {
+		], (editor, _, ds) => {
 			const model = editor.textModel;
 
 			let event: NotebookTextModelChangedEvent | undefined;
 
-			model.onDidChangeContent(e => { event = e; });
+			ds.add(model.onDidChangeContent(e => { event = e; }));
 
 			{
 				// 1: add ouput -> event
@@ -759,5 +1014,501 @@ suite('NotebookTextModel', () => {
 			assert.strictEqual(model.cells[0].outputs[2].outputId, 'out3');
 			assert.strictEqual(model.cells[0].outputs[3].outputId, 'out6');
 		});
+	});
+
+	test('computeEdits no insert', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits = NotebookTextModel.computeEdits(model, [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			]);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} }
+			]);
+		});
+	});
+
+	test('computeEdits cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells },
+			]);
+		});
+	});
+
+	test('computeEdits last cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) },
+			]);
+		});
+	});
+	test('computeEdits first cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits middle cell content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}],
+			['var c = 1;', 'javascript', CellKind.Code, [], {}],
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var c = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1, 2) },
+				{ editType: CellEditType.Metadata, index: 2, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell metadata changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { name: 'foo' } },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: { name: 'foo' } },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell language changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'typescript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell kind changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Markup, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) },
+			]);
+		});
+	});
+
+	test('computeEdits cell metadata & content changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { name: 'foo' } },
+				{ source: 'var b = 2;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { name: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: { name: 'foo' } },
+				{ editType: CellEditType.Replace, index: 1, count: 1, cells: cells.slice(1) }
+			]);
+		});
+	});
+
+	test('computeEdits cell internal metadata changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined, internalMetadata: { executionOrder: 1 } },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Replace, index: 0, count: 1, cells: cells.slice(0, 1) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: {} },
+			]);
+		});
+	});
+
+	test('computeEdits cell insertion', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{ source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined, },
+				{ source: 'var c = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: undefined, },
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.Replace, index: 1, count: 0, cells: cells.slice(1, 2) },
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 3);
+			assert.equal(model.cells[1].getValue(), 'var c = 1;');
+			assert.equal(model.cells[2].getValue(), 'var b = 1;');
+			assert.deepStrictEqual(model.cells[2].metadata, { foo: 'bar' });
+		});
+	});
+
+	test('computeEdits output changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{
+					source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], metadata: undefined,
+				},
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{
+					editType: CellEditType.Output, index: 0, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], append: false
+				},
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 2);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputId, 'someId');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
+		});
+	});
+
+	test('computeEdits output items changed', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: 'someId',
+				outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_Hello_') }]
+			}], {}],
+			['var b = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const cells = [
+				{
+					source: 'var a = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [{
+						outputId: 'someId',
+						outputs: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }]
+					}], metadata: undefined,
+				},
+				{ source: 'var b = 1;', language: 'javascript', cellKind: CellKind.Code, mime: undefined, outputs: [], metadata: { foo: 'bar' } }
+			];
+			const edits = NotebookTextModel.computeEdits(model, cells);
+
+			assert.deepStrictEqual(edits, [
+				{ editType: CellEditType.Metadata, index: 0, metadata: {} },
+				{ editType: CellEditType.OutputItems, outputId: 'someId', items: [{ mime: Mimes.markdown, data: valueBytesFromString('_World_') }], append: false },
+				{ editType: CellEditType.Metadata, index: 1, metadata: { foo: 'bar' } },
+			]);
+
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 2);
+			assert.strictEqual(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputId, 'someId');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), '_World_');
+		});
+	});
+	test('Append multiple text/plain output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'text/plain', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'text/plain', data: VSBuffer.fromString('bar') }, { mime: 'text/plain', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 3);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foo');
+			assert.equal(model.cells[0].outputs[0].outputs[1].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[1].data.toString(), 'bar');
+			assert.equal(model.cells[0].outputs[0].outputs[2].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[2].data.toString(), 'baz');
+		});
+	});
+	test('Append multiple stdout stream output items to an output with another mime', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'text/plain', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 3);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'text/plain');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foo');
+			assert.equal(model.cells[0].outputs[0].outputs[1].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[1].data.toString(), 'bar');
+			assert.equal(model.cells[0].outputs[0].outputs[2].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[2].data.toString(), 'baz');
+		});
+	});
+	test('Compress multiple stdout stream output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stdout', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'application/vnd.code.notebook.stdout');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
+		});
+
+	});
+	test('Compress multiple stderr stream output items', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [{
+				outputId: '1',
+				outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('foo') }]
+			}], {}]
+		], (editor) => {
+			const model = editor.textModel;
+			const edits: ICellEditOperation[] = [
+				{
+					editType: CellEditType.OutputItems,
+					outputId: '1',
+					append: true,
+					items: [{ mime: 'application/vnd.code.notebook.stderr', data: VSBuffer.fromString('bar') }, { mime: 'application/vnd.code.notebook.stderr', data: VSBuffer.fromString('baz') }]
+				}
+			];
+			model.applyEdits(edits, true, undefined, () => undefined, undefined, true);
+			assert.equal(model.cells.length, 1);
+			assert.equal(model.cells[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs.length, 1);
+			assert.equal(model.cells[0].outputs[0].outputs[0].mime, 'application/vnd.code.notebook.stderr');
+			assert.equal(model.cells[0].outputs[0].outputs[0].data.toString(), 'foobarbaz');
+		});
+
+	});
+
+	test('findNextMatch', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				const notebookModel = viewModel.notebookDocument;
+
+				// Test case 1: Find 'var' starting from the first cell
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+
+				// Test case 2: Find 'b' starting from the second cell
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 3: Find 'c' starting from the third cell
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 4: Find 'd' starting from the fourth cell
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 5: No match found
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.strictEqual(findMatch, null);
+			}
+		);
+	});
+
+	test('findNextMatch 2', async function () {
+		await withTestNotebook(
+			[
+				['var a = 1; var a = 2;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}],
+				['var d = 4;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				const notebookModel = viewModel.notebookDocument;
+
+				// Test case 1: Find 'var' starting from the first cell
+				let findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+
+				// Test case 2: Find 'b' starting from the second cell
+				findMatch = notebookModel.findNextMatch('b', { cellIndex: 1, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 3: Find 'c' starting from the third cell
+				findMatch = notebookModel.findNextMatch('c', { cellIndex: 2, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 4: Find 'd' starting from the fourth cell
+				findMatch = notebookModel.findNextMatch('d', { cellIndex: 3, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 5);
+
+				// Test case 5: No match found
+				findMatch = notebookModel.findNextMatch('e', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.strictEqual(findMatch, null);
+
+				// Test case 6: Same keywords in the same cell
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 1 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 5 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 12);
+
+				// Test case 7: Search from the middle of a cell with keyword before and after
+				findMatch = notebookModel.findNextMatch('a', { cellIndex: 0, position: { lineNumber: 1, column: 10 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 13);
+
+				// Test case 8: Search from a cell and next match is in another cell below
+				findMatch = notebookModel.findNextMatch('var', { cellIndex: 0, position: { lineNumber: 1, column: 20 } }, false, false, null);
+				assert.ok(findMatch);
+				assert.strictEqual(findMatch!.match.range.startLineNumber, 1);
+				assert.strictEqual(findMatch!.match.range.startColumn, 1);
+				// assert.strictEqual(match!.cellIndex, 1);
+			}
+		);
 	});
 });

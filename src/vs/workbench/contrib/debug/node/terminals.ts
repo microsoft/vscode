@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { getDriveLetter } from 'vs/base/common/extpath';
-import * as platform from 'vs/base/common/platform';
-// import { IProcessTreeNode } from 'windows-process-tree';
+import { getDriveLetter } from '../../../../base/common/extpath.js';
+import * as platform from '../../../../base/common/platform.js';
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -31,7 +30,7 @@ export async function hasChildProcesses(processId: number | undefined): Promise<
 
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			const windowsProcessTree = await import('windows-process-tree');
+			const windowsProcessTree = await import('@vscode/windows-process-tree');
 			return new Promise<boolean>(resolve => {
 				windowsProcessTree.getProcessTree(processId, processTree => {
 					resolve(!!processTree && processTree.children.length > 0);
@@ -162,7 +161,7 @@ export function prepareCommand(shell: string, args: string[], argsCanBeInterpret
 		case ShellType.bash: {
 
 			quote = (s: string) => {
-				s = s.replace(/(["'\\\$!><#()\[\]*&^| ;{}`])/g, '\\$1');
+				s = s.replace(/(["'\\\$!><#()\[\]*&^| ;{}?`])/g, '\\$1');
 				return s.length === 0 ? `""` : s;
 			};
 

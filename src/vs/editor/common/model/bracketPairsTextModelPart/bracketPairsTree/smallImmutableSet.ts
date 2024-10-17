@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const emptyArr = new Array<number>();
+const emptyArr: number[] = [];
 
 /**
  * Represents an immutable set that works best for a small number of elements (less than 32).
@@ -86,7 +86,7 @@ export class SmallImmutableSet<T> {
 		}
 
 		// This can be optimized, but it's not a common case
-		const newItems = new Array<number>();
+		const newItems: number[] = [];
 		for (let i = 0; i < Math.max(this.additionalItems.length, other.additionalItems.length); i++) {
 			const item1 = this.additionalItems[i] || 0;
 			const item2 = other.additionalItems[i] || 0;

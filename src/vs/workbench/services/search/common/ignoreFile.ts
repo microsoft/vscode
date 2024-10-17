@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as glob from 'vs/base/common/glob';
+import * as glob from '../../../../base/common/glob.js';
 
 
 export class IgnoreFile {
@@ -133,7 +133,13 @@ export class IgnoreFile {
 			line = '**/' + line;
 		} else {
 			if (firstSep === 0) {
-				line = line.slice(1);
+				if (dirPath.slice(-1) === '/') {
+					line = line.slice(1);
+				}
+			} else {
+				if (dirPath.slice(-1) !== '/') {
+					line = '/' + line;
+				}
 			}
 			line = dirPath + line;
 		}

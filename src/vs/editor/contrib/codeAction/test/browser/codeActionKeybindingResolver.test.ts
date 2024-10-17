@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import assert from 'assert';
+import { KeyCodeChord } from '../../../../../base/common/keybindings.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { organizeImportsCommandId, refactorCommandId } from '../../browser/codeAction.js';
+import { CodeActionKeybindingResolver } from '../../browser/codeActionKeybindingResolver.js';
+import { CodeActionKind } from '../../common/types.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 
 suite('CodeActionKeybindingResolver', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const refactorKeybinding = createCodeActionKeybinding(
 		KeyCode.KeyA,
 		refactorCommandId,
@@ -30,11 +35,9 @@ suite('CodeActionKeybindingResolver', () => {
 		undefined);
 
 	test('Should match refactor keybindings', async function () {
-		const resolver = new CodeActionKeybindingResolver({
-			getKeybindings: (): readonly ResolvedKeybindingItem[] => {
-				return [refactorKeybinding];
-			},
-		}).getResolver();
+		const resolver = new CodeActionKeybindingResolver(
+			createMockKeyBindingService([refactorKeybinding])
+		).getResolver();
 
 		assert.strictEqual(
 			resolver({ title: '' }),
@@ -54,11 +57,9 @@ suite('CodeActionKeybindingResolver', () => {
 	});
 
 	test('Should prefer most specific keybinding', async function () {
-		const resolver = new CodeActionKeybindingResolver({
-			getKeybindings: (): readonly ResolvedKeybindingItem[] => {
-				return [refactorKeybinding, refactorExtractKeybinding, organizeImportsKeybinding];
-			},
-		}).getResolver();
+		const resolver = new CodeActionKeybindingResolver(
+			createMockKeyBindingService([refactorKeybinding, refactorExtractKeybinding, organizeImportsKeybinding])
+		).getResolver();
 
 		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.Refactor.value }),
@@ -70,11 +71,9 @@ suite('CodeActionKeybindingResolver', () => {
 	});
 
 	test('Organize imports should still return a keybinding even though it does not have args', async function () {
-		const resolver = new CodeActionKeybindingResolver({
-			getKeybindings: (): readonly ResolvedKeybindingItem[] => {
-				return [refactorKeybinding, refactorExtractKeybinding, organizeImportsKeybinding];
-			},
-		}).getResolver();
+		const resolver = new CodeActionKeybindingResolver(
+			createMockKeyBindingService([refactorKeybinding, refactorExtractKeybinding, organizeImportsKeybinding])
+		).getResolver();
 
 		assert.strictEqual(
 			resolver({ title: '', kind: CodeActionKind.SourceOrganizeImports.value }),
@@ -82,10 +81,18 @@ suite('CodeActionKeybindingResolver', () => {
 	});
 });
 
+function createMockKeyBindingService(items: ResolvedKeybindingItem[]): IKeybindingService {
+	return <IKeybindingService>{
+		getKeybindings: (): readonly ResolvedKeybindingItem[] => {
+			return items;
+		},
+	};
+}
+
 function createCodeActionKeybinding(keycode: KeyCode, command: string, commandArgs: any) {
 	return new ResolvedKeybindingItem(
 		new USLayoutResolvedKeybinding(
-			new ChordKeybinding([new SimpleKeybinding(false, true, false, false, keycode)]),
+			[new KeyCodeChord(false, true, false, false, keycode)],
 			OperatingSystem.Linux),
 		command,
 		commandArgs,
@@ -94,4 +101,3 @@ function createCodeActionKeybinding(keycode: KeyCode, command: string, commandAr
 		null,
 		false);
 }
-

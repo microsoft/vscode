@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
-import { ITestItem, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from 'vs/workbench/contrib/testing/common/testItemCollection';
+import { URI } from '../../../../../base/common/uri.js';
+import { MainThreadTestCollection } from '../../common/mainThreadTestCollection.js';
+import { ITestItem, TestsDiff } from '../../common/testTypes.js';
+import { TestId } from '../../common/testId.js';
+import { createTestItemChildren, ITestItemApi, ITestItemLike, TestItemCollection, TestItemEventOp } from '../../common/testItemCollection.js';
 
 export class TestTestItem implements ITestItemLike {
 	private readonly props: ITestItem;
@@ -35,18 +35,21 @@ export class TestTestItem implements ITestItemLike {
 		return this.api.parent;
 	}
 
-	public api: ITestItemApi<TestTestItem> = { controllerId: this.controllerId };
+	public get id() {
+		return this._extId.localId;
+	}
+
+	public api: ITestItemApi<TestTestItem> = { controllerId: this._extId.controllerId };
 
 	public children = createTestItemChildren(this.api, i => i.api, TestTestItem);
 
 	constructor(
-		public readonly controllerId: string,
-		public readonly id: string,
+		private readonly _extId: TestId,
 		label: string,
 		uri?: URI,
 	) {
 		this.props = {
-			extId: '',
+			extId: _extId.toString(),
 			busy: false,
 			description: null,
 			error: null,
@@ -69,19 +72,23 @@ export class TestTestItem implements ITestItemLike {
 
 	public toTestItem(): ITestItem {
 		const props = { ...this.props };
-		props.extId = TestId.fromExtHostTestItem(this, this.controllerId).toString();
+		props.extId = this._extId.toString();
 		return props;
 	}
 }
 
 export class TestTestCollection extends TestItemCollection<TestTestItem> {
 	constructor(controllerId = 'ctrlId') {
+		const root = new TestTestItem(new TestId([controllerId]), 'root');
+		(root as any)._isRoot = true;
+
 		super({
 			controllerId,
 			getApiFor: t => t.api,
 			toITestItem: t => t.toTestItem(),
 			getChildren: t => t.children,
-			root: new TestTestItem(controllerId, controllerId, 'root'),
+			getDocumentVersion: () => undefined,
+			root,
 		});
 	}
 
@@ -99,10 +106,31 @@ export class TestTestCollection extends TestItemCollection<TestTestItem> {
  * roots/stubs.
  */
 export const getInitializedMainTestCollection = async (singleUse = testStubs.nested()) => {
-	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
+	const c = new MainThreadTestCollection({ asCanonicalUri: u => u }, async (t, l) => singleUse.expand(t, l));
 	await singleUse.expand(singleUse.root.id, Infinity);
 	c.apply(singleUse.collectDiff());
+	singleUse.dispose();
 	return c;
+};
+
+type StubTreeIds = Readonly<{ [id: string]: StubTreeIds | undefined }>;
+
+export const makeSimpleStubTree = (ids: StubTreeIds): TestTestCollection => {
+	const collection = new TestTestCollection();
+
+	const add = (parent: TestTestItem, children: StubTreeIds, path: readonly string[]) => {
+		for (const id of Object.keys(children)) {
+			const item = new TestTestItem(new TestId([...path, id]), id);
+			parent.children.add(item);
+			if (children[id]) {
+				add(item, children[id]!, [...path, id]);
+			}
+		}
+	};
+
+	add(collection.root, ids, ['ctrlId']);
+
+	return collection;
 };
 
 export const testStubs = {
@@ -110,14 +138,14 @@ export const testStubs = {
 		const collection = new TestTestCollection();
 		collection.resolveHandler = item => {
 			if (item === undefined) {
-				const a = new TestTestItem('ctrlId', idPrefix + 'a', 'a', URI.file('/'));
+				const a = new TestTestItem(new TestId(['ctrlId', 'id-a']), 'a', URI.file('/'));
 				a.canResolveChildren = true;
-				const b = new TestTestItem('ctrlId', idPrefix + 'b', 'b', URI.file('/'));
+				const b = new TestTestItem(new TestId(['ctrlId', 'id-b']), 'b', URI.file('/'));
 				collection.root.children.add(a);
 				collection.root.children.add(b);
 			} else if (item.id === idPrefix + 'a') {
-				item.children.add(new TestTestItem('ctrlId', idPrefix + 'aa', 'aa', URI.file('/')));
-				item.children.add(new TestTestItem('ctrlId', idPrefix + 'ab', 'ab', URI.file('/')));
+				item.children.add(new TestTestItem(new TestId(['ctrlId', 'id-a', 'id-aa']), 'aa', URI.file('/')));
+				item.children.add(new TestTestItem(new TestId(['ctrlId', 'id-a', 'id-ab']), 'ab', URI.file('/')));
 			}
 		};
 

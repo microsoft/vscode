@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('CodeEditorWidget', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('onDidChangeModelDecorations', () => {
 		withTestCodeEditor('', {}, (editor, viewModel) => {
@@ -41,7 +44,7 @@ suite('CodeEditorWidget', () => {
 				invoked = true;
 			}));
 
-			viewModel.model.setMode('testMode');
+			viewModel.model.setLanguage('testMode');
 
 			assert.deepStrictEqual(invoked, true);
 
@@ -55,7 +58,7 @@ suite('CodeEditorWidget', () => {
 			const languageService = instantiationService.get(ILanguageService);
 			const disposables = new DisposableStore();
 			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
-			viewModel.model.setMode('testMode');
+			viewModel.model.setLanguage('testMode');
 
 			let invoked = false;
 			disposables.add(editor.onDidChangeModelLanguageConfiguration((e) => {

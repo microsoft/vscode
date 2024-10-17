@@ -3,19 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as perf from 'vs/base/common/performance';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IUpdateService } from 'vs/platform/update/common/update';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Barrier } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
+import * as perf from '../../../../base/common/performance.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IUpdateService } from '../../../../platform/update/common/update.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Barrier, timeout } from '../../../../base/common/async.js';
+import { IWorkbenchLayoutService } from '../../layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { createBlobWorker } from '../../../../base/browser/defaultWorkerFactory.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { ITerminalBackendRegistry, TerminalExtensions } from '../../../../platform/terminal/common/terminal.js';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -44,6 +49,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedAppReady" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedNlsGeneration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedLoadMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedRunMainBundle" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedCrashReporter" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedMainServer" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWindowCreate" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
@@ -61,6 +67,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkbenchContributions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -75,7 +82,8 @@ export interface IMemoryInfo {
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"isARM64Emulated" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
 */
 export interface IStartupMetrics {
@@ -180,6 +188,14 @@ export interface IStartupMetrics {
 		 * * Measured with the `willLoadMainBundle` and `didLoadMainBundle` performance marks.
 		 */
 		readonly ellapsedLoadMainBundle?: number;
+
+		/**
+		 * The time it took to run the main bundle.
+		 *
+		 * * Happens in the main-process
+		 * * Measured with the `didStartMain` and `didRunMainBundle` performance marks.
+		 */
+		readonly ellapsedRunMainBundle?: number;
 
 		/**
 		 * The time it took to start the crash reporter.
@@ -359,6 +375,16 @@ export interface IStartupMetrics {
 		readonly ellapsedEditorRestore: number;
 
 		/**
+		 * The time it took to create all workbench contributions on the starting and ready
+		 * lifecycle phase, thus blocking `ellapsedWorkbench`.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willCreateWorkbenchContributions/1` and `didCreateWorkbenchContributions/2` performance marks.
+		 *
+		 */
+		readonly ellapsedWorkbenchContributions: number;
+
+		/**
 		 * The time it took to create the workbench.
 		 *
 		 * * Happens in the renderer-process
@@ -385,6 +411,7 @@ export interface IStartupMetrics {
 	readonly meminfo?: IMemoryInfo;
 	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
+	readonly isARM64Emulated?: boolean;
 }
 
 export interface ITimerService {
@@ -396,6 +423,14 @@ export interface ITimerService {
 	 * hosts being started.
 	 */
 	whenReady(): Promise<boolean>;
+
+	/**
+	 * A baseline performance indicator for this machine. The value will only available
+	 * late after startup because computing it takes away CPU resources
+	 *
+	 * NOTE that this returns -1 if the machine is hopelessly slow...
+	 */
+	perfBaseline: Promise<number>;
 
 	/**
 	 * Startup metrics. Can ONLY be accessed after `whenReady` has resolved.
@@ -413,6 +448,19 @@ export interface ITimerService {
 	 * returned tuples but the marks of a tuple are guaranteed to be sorted by start times.
 	 */
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][];
+
+	/**
+	 * Return the duration between two marks.
+	 * @param from from mark name
+	 * @param to to mark name
+	 */
+	getDuration(from: string, to: string): number;
+
+	/**
+	 * Return the timestamp of a mark.
+	 * @param mark mark name
+	 */
+	getStartTime(mark: string): number;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -438,6 +486,11 @@ class PerfMarks {
 		return toEntry.startTime - fromEntry.startTime;
 	}
 
+	getStartTime(mark: string): number {
+		const entry = this._findEntry(mark);
+		return entry ? entry.startTime : -1;
+	}
+
 	private _findEntry(name: string): perf.PerformanceMark | void {
 		for (const [, marks] of this._entries) {
 			for (let i = marks.length - 1; i >= 0; i--) {
@@ -461,7 +514,11 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	private readonly _barrier = new Barrier();
 	private readonly _marks = new PerfMarks();
+	private readonly _rndValueShouldSendTelemetry = Math.random() < .05; // 5% of users
+
 	private _startupMetrics?: IStartupMetrics;
+
+	readonly perfBaseline: Promise<number>;
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -477,7 +534,8 @@ export abstract class AbstractTimerService implements ITimerService {
 		Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
 			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
-			layoutService.whenRestored									// layout restored (including visible editors resolved)
+			layoutService.whenRestored,									// layout restored (including visible editors resolved)
+			Promise.all(Array.from(Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values()).map(e => e.whenReady))
 		]).then(() => {
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());
@@ -487,6 +545,52 @@ export abstract class AbstractTimerService implements ITimerService {
 			this._reportStartupTimes(metrics);
 			this._barrier.open();
 		});
+
+
+		this.perfBaseline = this._barrier.wait()
+			.then(() => this._lifecycleService.when(LifecyclePhase.Eventually))
+			.then(() => timeout(this._startupMetrics!.timers.ellapsedRequire))
+			.then(() => {
+
+				// we use fibonacci numbers to have a performance baseline that indicates
+				// how slow/fast THIS machine actually is.
+
+				const jsSrc = (function (this: WindowOrWorkerGlobalScope) {
+					// the following operation took ~16ms (one frame at 64FPS) to complete on my machine. We derive performance observations
+					// from that. We also bail if that took too long (>1s)
+					let tooSlow = false;
+					function fib(n: number): number {
+						if (tooSlow) {
+							return 0;
+						}
+						if (performance.now() - t1 >= 1000) {
+							tooSlow = true;
+						}
+						if (n <= 2) {
+							return n;
+						}
+						return fib(n - 1) + fib(n - 2);
+					}
+
+					const t1 = performance.now();
+					fib(24);
+					const value = Math.round(performance.now() - t1);
+					self.postMessage({ value: tooSlow ? -1 : value });
+
+				}).toString();
+
+				const blob = new Blob([`(${jsSrc})();`], { type: 'application/javascript' });
+				const blobUrl = URL.createObjectURL(blob);
+
+				const worker = createBlobWorker(blobUrl, { name: 'perfBaseline' });
+				return new Promise<number>(resolve => {
+					worker.onmessage = e => resolve(e.data.value);
+
+				}).finally(() => {
+					worker.terminate();
+					URL.revokeObjectURL(blobUrl);
+				});
+			});
 	}
 
 	whenReady(): Promise<boolean> {
@@ -503,11 +607,21 @@ export abstract class AbstractTimerService implements ITimerService {
 	setPerformanceMarks(source: string, marks: perf.PerformanceMark[]): void {
 		// Perf marks are a shared resource because anyone can generate them
 		// and because of that we only accept marks that start with 'code/'
-		this._marks.setMarks(source, marks.filter(mark => mark.name.startsWith('code/')));
+		const codeMarks = marks.filter(mark => mark.name.startsWith('code/'));
+		this._marks.setMarks(source, codeMarks);
+		this._reportPerformanceMarks(source, codeMarks);
 	}
 
 	getPerformanceMarks(): [source: string, marks: readonly perf.PerformanceMark[]][] {
 		return this._marks.getEntries();
+	}
+
+	getDuration(from: string, to: string): number {
+		return this._marks.getDuration(from, to);
+	}
+
+	getStartTime(mark: string): number {
+		return this._marks.getStartTime(mark);
 	}
 
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
@@ -521,39 +635,51 @@ export abstract class AbstractTimerService implements ITimerService {
 			}
 		*/
 		this._telemetryService.publicLog('startupTimeVaried', metrics);
+	}
 
+	protected _shouldReportPerfMarks(): boolean {
+		return this._rndValueShouldSendTelemetry;
+	}
+
+	private _reportPerformanceMarks(source: string, marks: perf.PerformanceMark[]) {
+
+		if (!this._shouldReportPerfMarks()) {
+			// the `startup.timer.mark` event is send very often. In order to save resources
+			// we let some of our instances/sessions send this event
+			return;
+		}
 
 		// report raw timers as telemetry. each mark is send a separate telemetry
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
-		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
-			type MarkClassification = {
-				owner: 'jrieken';
-				comment: 'Information about a performance marker';
-				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
-				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
-				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The duration between the previous and this marker' };
-				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
-			};
 
-			let lastMark: perf.PerformanceMark = marks[0];
-			for (const mark of marks) {
-				const delta = mark.startTime - lastMark.startTime;
-				this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
-					source,
-					name: mark.name,
-					relativeStartTime: delta,
-					startTime: mark.startTime
-				});
-				lastMark = mark;
-			}
+		type Mark = { source: string; name: TelemetryTrustedValue<string>; startTime: number };
+		type MarkClassification = {
+			owner: 'jrieken';
+			comment: 'Information about a performance marker';
+			source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
+			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The absolute timestamp (unix time)' };
+		};
+
+		for (const mark of marks) {
+			this._telemetryService.publicLog2<Mark, MarkClassification>('startup.timer.mark', {
+				source,
+				name: new TelemetryTrustedValue(mark.name),
+				startTime: mark.startTime
+			});
 		}
+
 	}
 
 	private async _computeStartupMetrics(): Promise<IStartupMetrics> {
 		const initialStartup = this._isInitialStartup();
-		const startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		let startMark: string;
+		if (isWeb) {
+			startMark = 'code/timeOrigin';
+		} else {
+			startMark = initialStartup ? 'code/didStartMain' : 'code/willOpenNewWindow';
+		}
 
 		const activeViewlet = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 		const activePanel = this._paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
@@ -575,6 +701,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedAppReady: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/mainAppReady') : undefined,
 				ellapsedNlsGeneration: initialStartup ? this._marks.getDuration('code/willGenerateNls', 'code/didGenerateNls') : undefined,
 				ellapsedLoadMainBundle: initialStartup ? this._marks.getDuration('code/willLoadMainBundle', 'code/didLoadMainBundle') : undefined,
+				ellapsedRunMainBundle: initialStartup ? this._marks.getDuration('code/didStartMain', 'code/didRunMainBundle') : undefined,
 				ellapsedCrashReporter: initialStartup ? this._marks.getDuration('code/willStartCrashReporter', 'code/didStartCrashReporter') : undefined,
 				ellapsedMainServer: initialStartup ? this._marks.getDuration('code/willStartMainServer', 'code/didStartMainServer') : undefined,
 				ellapsedWindowCreate: initialStartup ? this._marks.getDuration('code/willCreateCodeWindow', 'code/didCreateCodeWindow') : undefined,
@@ -594,6 +721,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedEditorRestore: this._marks.getDuration('code/willRestoreEditors', 'code/didRestoreEditors'),
 				ellapsedViewletRestore: this._marks.getDuration('code/willRestoreViewlet', 'code/didRestoreViewlet'),
 				ellapsedPanelRestore: this._marks.getDuration('code/willRestorePanel', 'code/didRestorePanel'),
+				ellapsedWorkbenchContributions: this._marks.getDuration('code/willCreateWorkbenchContributions/1', 'code/didCreateWorkbenchContributions/2'),
 				ellapsedWorkbench: this._marks.getDuration('code/willStartWorkbench', 'code/didStartWorkbench'),
 				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'code/didLoadExtensions'),
 				ellapsedRenderer: this._marks.getDuration('code/didStartRenderer', 'code/didStartWorkbench')
@@ -641,6 +769,7 @@ export class TimerService extends AbstractTimerService {
 	}
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		info.isVMLikelyhood = 0;
+		info.isARM64Emulated = false;
 		info.platform = navigator.userAgent;
 		info.release = navigator.appVersion;
 	}

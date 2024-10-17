@@ -34,3 +34,4 @@ function isValidTag(t) {
     }
     return true;
 }
+//# sourceMappingURL=check-version.js.map

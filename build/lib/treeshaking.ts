@@ -53,7 +53,7 @@ export interface ITreeShakingOptions {
 	 */
 	shakeLevel: ShakeLevel;
 	/**
-	 * regex pattern to ignore certain imports e.g. `vs/css!` imports
+	 * regex pattern to ignore certain imports e.g. `.css` imports
 	 */
 	importIgnorePattern: RegExp;
 
@@ -155,38 +155,43 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 
 	while (queue.length > 0) {
 		const moduleId = queue.shift()!;
-		const dts_filename = path.join(options.sourcesRoot, moduleId + '.d.ts');
+		let redirectedModuleId: string = moduleId;
+		if (options.redirects[moduleId]) {
+			redirectedModuleId = options.redirects[moduleId];
+		}
+
+		const dts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.d.ts');
 		if (fs.existsSync(dts_filename)) {
 			const dts_filecontents = fs.readFileSync(dts_filename).toString();
 			FILES[`${moduleId}.d.ts`] = dts_filecontents;
 			continue;
 		}
 
-		const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+
+		const js_filename = path.join(options.sourcesRoot, redirectedModuleId + '.js');
 		if (fs.existsSync(js_filename)) {
 			// This is an import for a .js file, so ignore it...
 			continue;
 		}
 
-		let ts_filename: string;
-		if (options.redirects[moduleId]) {
-			ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
-		} else {
-			ts_filename = path.join(options.sourcesRoot, moduleId + '.ts');
-		}
+		const ts_filename = path.join(options.sourcesRoot, redirectedModuleId + '.ts');
+
 		const ts_filecontents = fs.readFileSync(ts_filename).toString();
 		const info = ts.preProcessFile(ts_filecontents);
 		for (let i = info.importedFiles.length - 1; i >= 0; i--) {
 			const importedFileName = info.importedFiles[i].fileName;
 
 			if (options.importIgnorePattern.test(importedFileName)) {
-				// Ignore vs/css! imports
+				// Ignore *.css imports
 				continue;
 			}
 
 			let importedModuleId = importedFileName;
 			if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
 				importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+				if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
+					importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
+				}
 			}
 			enqueue(importedModuleId);
 		}
@@ -565,6 +570,9 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		const nodeSourceFile = node.getSourceFile();
 		let fullPath: string;
 		if (/(^\.\/)|(^\.\.\/)/.test(importText)) {
+			if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
+				importText = importText.substr(0, importText.length - 3);
+			}
 			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
 		} else {
 			fullPath = importText + '.ts';
@@ -609,58 +617,60 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		const nodeSourceFile = node.getSourceFile();
 
 		const loop = (node: ts.Node) => {
-			const [symbol, symbolImportNode] = getRealNodeSymbol(ts, checker, node);
-			if (symbolImportNode) {
-				setColor(symbolImportNode, NodeColor.Black);
-				const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
-				if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
-					enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
-				}
-			}
-
-			if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
-				for (let i = 0, len = symbol.declarations.length; i < len; i++) {
-					const declaration = symbol.declarations[i];
-					if (ts.isSourceFile(declaration)) {
-						// Do not enqueue full source files
-						// (they can be the declaration of a module import)
-						continue;
+			const symbols = getRealNodeSymbol(ts, checker, node);
+			for (const { symbol, symbolImportNode } of symbols) {
+				if (symbolImportNode) {
+					setColor(symbolImportNode, NodeColor.Black);
+					const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
+					if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
+						enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
 					}
+				}
 
-					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
-						enqueue_black(declaration.name!);
-
-						for (let j = 0; j < declaration.members.length; j++) {
-							const member = declaration.members[j];
-							const memberName = member.name ? member.name.getText() : null;
-							if (
-								ts.isConstructorDeclaration(member)
-								|| ts.isConstructSignatureDeclaration(member)
-								|| ts.isIndexSignatureDeclaration(member)
-								|| ts.isCallSignatureDeclaration(member)
-								|| memberName === '[Symbol.iterator]'
-								|| memberName === '[Symbol.toStringTag]'
-								|| memberName === 'toJSON'
-								|| memberName === 'toString'
-								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
-								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
-							) {
-								enqueue_black(member);
-							}
-
-							if (isStaticMemberWithSideEffects(ts, member)) {
-								enqueue_black(member);
-							}
+				if (isSymbolWithDeclarations(symbol) && !nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol)) {
+					for (let i = 0, len = symbol.declarations.length; i < len; i++) {
+						const declaration = symbol.declarations[i];
+						if (ts.isSourceFile(declaration)) {
+							// Do not enqueue full source files
+							// (they can be the declaration of a module import)
+							continue;
 						}
 
-						// queue the heritage clauses
-						if (declaration.heritageClauses) {
-							for (const heritageClause of declaration.heritageClauses) {
-								enqueue_black(heritageClause);
+						if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
+							enqueue_black(declaration.name!);
+
+							for (let j = 0; j < declaration.members.length; j++) {
+								const member = declaration.members[j];
+								const memberName = member.name ? member.name.getText() : null;
+								if (
+									ts.isConstructorDeclaration(member)
+									|| ts.isConstructSignatureDeclaration(member)
+									|| ts.isIndexSignatureDeclaration(member)
+									|| ts.isCallSignatureDeclaration(member)
+									|| memberName === '[Symbol.iterator]'
+									|| memberName === '[Symbol.toStringTag]'
+									|| memberName === 'toJSON'
+									|| memberName === 'toString'
+									|| memberName === 'dispose'// TODO: keeping all `dispose` methods
+									|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
+								) {
+									enqueue_black(member);
+								}
+
+								if (isStaticMemberWithSideEffects(ts, member)) {
+									enqueue_black(member);
+								}
 							}
+
+							// queue the heritage clauses
+							if (declaration.heritageClauses) {
+								for (const heritageClause of declaration.heritageClauses) {
+									enqueue_black(heritageClause);
+								}
+							}
+						} else {
+							enqueue_black(declaration);
 						}
-					} else {
-						enqueue_black(declaration);
 					}
 				}
 			}
@@ -879,7 +889,8 @@ function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts
 		return findSymbolFromHeritageType(ts, checker, type.expression);
 	}
 	if (ts.isIdentifier(type)) {
-		return getRealNodeSymbol(ts, checker, type)[0];
+		const tmp = getRealNodeSymbol(ts, checker, type);
+		return (tmp.length > 0 ? tmp[0].symbol : null);
 	}
 	if (ts.isPropertyAccessExpression(type)) {
 		return findSymbolFromHeritageType(ts, checker, type.name);
@@ -887,10 +898,17 @@ function findSymbolFromHeritageType(ts: typeof import('typescript'), checker: ts
 	return null;
 }
 
+class SymbolImportTuple {
+	constructor(
+		public readonly symbol: ts.Symbol | null,
+		public readonly symbolImportNode: ts.Declaration | null
+	) { }
+}
+
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
-function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): [ts.Symbol | null, ts.Declaration | null] {
+function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChecker, node: ts.Node): SymbolImportTuple[] {
 
 	// Use some TypeScript internals to avoid code duplication
 	type ObjectLiteralElementWithName = ts.ObjectLiteralElement & { name: ts.PropertyName; parent: ts.ObjectLiteralExpression | ts.JsxAttributes };
@@ -923,7 +941,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 
 	if (!ts.isShorthandPropertyAssignment(node)) {
 		if (node.getChildCount() !== 0) {
-			return [null, null];
+			return [];
 		}
 	}
 
@@ -976,10 +994,7 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 			const type = checker.getTypeAtLocation(parent.parent);
 			if (name && type) {
 				if (type.isUnion()) {
-					const prop = type.types[0].getProperty(name);
-					if (prop) {
-						symbol = prop;
-					}
+					return generateMultipleSymbols(type, name, importNode);
 				} else {
 					const prop = type.getProperty(name);
 					if (prop) {
@@ -1011,10 +1026,21 @@ function getRealNodeSymbol(ts: typeof import('typescript'), checker: ts.TypeChec
 	}
 
 	if (symbol && symbol.declarations) {
-		return [symbol, importNode];
+		return [new SymbolImportTuple(symbol, importNode)];
 	}
 
-	return [null, null];
+	return [];
+
+	function generateMultipleSymbols(type: ts.UnionType, name: string, importNode: ts.Declaration | null): SymbolImportTuple[] {
+		const result: SymbolImportTuple[] = [];
+		for (const t of type.types) {
+			const prop = t.getProperty(name);
+			if (prop && prop.declarations) {
+				result.push(new SymbolImportTuple(prop, importNode));
+			}
+		}
+		return result;
+	}
 }
 
 /** Get the token whose text contains the position */

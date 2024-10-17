@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { mock } from 'vs/base/test/common/mock';
-import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import assert from 'assert';
+import { UriIdentityService } from '../../common/uriIdentityService.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IFileService, FileSystemProviderCapabilities } from '../../../files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event } from '../../../../base/common/event.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('URI Identity', function () {
 
@@ -34,9 +35,15 @@ suite('URI Identity', function () {
 	setup(function () {
 		_service = new UriIdentityService(new FakeFileService(new Map([
 			['bar', FileSystemProviderCapabilities.PathCaseSensitive],
-			['foo', 0]
+			['foo', FileSystemProviderCapabilities.None]
 		])));
 	});
+
+	teardown(function () {
+		_service.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertCanonical(input: URI, expected: URI, service: UriIdentityService = _service) {
 		const actual = service.asCanonicalUri(input);
@@ -95,4 +102,14 @@ suite('URI Identity', function () {
 		assertCanonical(URI.parse('foo://bar/BAZZ#DDD'), b.with({ fragment: 'DDD' })); // lower-case path, but fragment is kept
 	});
 
+	test.skip('[perf] CPU pegged after some builds #194853', function () {
+
+		const n = 100 + (2 ** 16);
+		for (let i = 0; i < n; i++) {
+			const uri = URI.parse(`foo://bar/${i}`);
+			const uri2 = _service.asCanonicalUri(uri);
+
+			assert.ok(uri2);
+		}
+	});
 });

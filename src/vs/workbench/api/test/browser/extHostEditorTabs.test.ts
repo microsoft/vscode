@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { TextMergeTabInput, TextTabInput } from 'vs/workbench/api/common/extHostTypes';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextInputDto } from '../../common/extHost.protocol.js';
+import { ExtHostEditorTabs } from '../../common/extHostEditorTabs.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { TextMergeTabInput, TextTabInput } from '../../common/extHostTypes.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostEditorTabs', function () {
 
@@ -27,6 +28,8 @@ suite('ExtHostEditorTabs', function () {
 	function createTabDto(dto?: Partial<IEditorTabDto>): IEditorTabDto {
 		return { ...defaultTabDto, ...dto };
 	}
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Ensure empty model throws when accessing active group', function () {
 		const extHostEditorTabs = new ExtHostEditorTabs(
@@ -109,7 +112,7 @@ suite('ExtHostEditorTabs', function () {
 		);
 
 		let count = 0;
-		extHostEditorTabs.tabGroups.onDidChangeTabGroups(() => count++);
+		store.add(extHostEditorTabs.tabGroups.onDidChangeTabGroups(() => count++));
 
 		assert.strictEqual(count, 0);
 
@@ -142,7 +145,7 @@ suite('ExtHostEditorTabs', function () {
 		const group2Data: IEditorTabGroupDto = { ...group1Data, groupId: 13 };
 
 		const events: vscode.TabGroupChangeEvent[] = [];
-		extHostEditorTabs.tabGroups.onDidChangeTabGroups(e => events.push(e));
+		store.add(extHostEditorTabs.tabGroups.onDidChangeTabGroups(e => events.push(e)));
 		// OPEN
 		extHostEditorTabs.$acceptEditorTabModel([group1Data]);
 		assert.deepStrictEqual(events, [{
@@ -446,7 +449,8 @@ suite('ExtHostEditorTabs', function () {
 
 		const tab = extHostEditorTabs.tabGroups.all[0].tabs[0];
 
-		const p = new Promise<vscode.TabChangeEvent>(resolve => extHostEditorTabs.tabGroups.onDidChangeTabs(resolve));
+
+		const p = new Promise<vscode.TabChangeEvent>(resolve => store.add(extHostEditorTabs.tabGroups.onDidChangeTabs(resolve)));
 
 		extHostEditorTabs.$acceptTabOperation({
 			groupId: 12,

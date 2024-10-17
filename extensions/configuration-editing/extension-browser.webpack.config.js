@@ -7,6 +7,7 @@
 
 'use strict';
 
+const path = require('path');
 const withBrowserDefaults = require('../shared.webpack.config').browser;
 
 module.exports = withBrowserDefaults({
@@ -16,6 +17,11 @@ module.exports = withBrowserDefaults({
 	},
 	output: {
 		filename: 'configurationEditingMain.js'
+	},
+	resolve: {
+		alias: {
+			'./node/net': path.resolve(__dirname, 'src', 'browser', 'net'),
+		}
 	}
 });
 

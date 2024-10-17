@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
+import { WebviewStyles } from './webview.js';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
 	readonly themeLabel: string;
+	readonly themeId: string;
 	readonly styles: Readonly<WebviewStyles>;
 }
 
@@ -27,24 +28,24 @@ export class WebviewThemeDataProvider extends Disposable {
 	public readonly onThemeDataChanged = this._onThemeDataChanged.event;
 
 	constructor(
-		@IThemeService private readonly _themeService: IThemeService,
+		@IWorkbenchThemeService private readonly _themeService: IWorkbenchThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
 		this._register(this._themeService.onDidColorThemeChange(() => {
-			this.reset();
+			this._reset();
 		}));
 
-		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize'];
+		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize', 'accessibility.underlineLinks'];
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (webviewConfigurationKeys.some(key => e.affectsConfiguration(key))) {
-				this.reset();
+				this._reset();
 			}
 		}));
 	}
 
-	public getTheme(): IColorTheme {
+	public getTheme(): IWorkbenchColorTheme {
 		return this._themeService.getColorTheme();
 	}
 
@@ -54,15 +55,16 @@ export class WebviewThemeDataProvider extends Disposable {
 			const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
+			const linkUnderlines = this._configurationService.getValue('accessibility.underlineLinks');
 
 			const theme = this._themeService.getColorTheme();
-			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
+			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce<Record<string, string>>((colors, entry) => {
 				const color = theme.getColor(entry.id);
 				if (color) {
 					colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
 				}
 				return colors;
-			}, {} as { [key: string]: string });
+			}, {});
 
 			const styles = {
 				'vscode-font-family': DEFAULT_FONT_FAMILY,
@@ -71,17 +73,18 @@ export class WebviewThemeDataProvider extends Disposable {
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',
+				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
 				...exportedColors
 			};
 
 			const activeTheme = ApiThemeClassName.fromTheme(theme);
-			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, };
+			this._cachedWebViewThemeData = { styles, activeTheme, themeLabel: theme.label, themeId: theme.settingsId };
 		}
 
 		return this._cachedWebViewThemeData;
 	}
 
-	private reset() {
+	private _reset() {
 		this._cachedWebViewThemeData = undefined;
 		this._onThemeDataChanged.fire();
 	}
@@ -95,7 +98,7 @@ enum ApiThemeClassName {
 }
 
 namespace ApiThemeClassName {
-	export function fromTheme(theme: IColorTheme): ApiThemeClassName {
+	export function fromTheme(theme: IWorkbenchColorTheme): ApiThemeClassName {
 		switch (theme.type) {
 			case ColorScheme.LIGHT: return ApiThemeClassName.light;
 			case ColorScheme.DARK: return ApiThemeClassName.dark;

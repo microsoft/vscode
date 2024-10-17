@@ -24,7 +24,6 @@ import { match } from 'minimatch';
 // Types we assume are present in all implementations of JS VMs (node.js, browsers)
 // Feel free to add more core types as you see needed if present in node.js and browsers
 const CORE_TYPES = [
-	'require', // from our AMD loader
 	'setTimeout',
 	'clearTimeout',
 	'setInterval',
@@ -57,7 +56,27 @@ const CORE_TYPES = [
 	'MessageChannel',
 	'MessagePort',
 	'URL',
-	'URLSearchParams'
+	'URLSearchParams',
+	'ReadonlyArray',
+	'Event',
+	'EventTarget',
+	'BroadcastChannel',
+	'performance',
+	'Blob',
+	'crypto',
+	'File',
+	'fetch',
+	'RequestInit',
+	'Headers',
+	'Response',
+	'__global',
+	'PerformanceMark',
+	'PerformanceObserver',
+	'ImportMeta',
+
+	// webcrypto has been available since Node.js 19, but still live in dom.d.ts
+	'Crypto',
+	'SubtleCrypto'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -67,7 +86,9 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService'
 ];
 
 const RULES: IRule[] = [
@@ -78,12 +99,6 @@ const RULES: IRule[] = [
 		skip: true // -> skip all test files
 	},
 
-	// TODO@bpasero remove me once electron utility process has landed
-	{
-		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-		skip: true
-	},
-
 	// Common: vs/base/common/platform.ts
 	{
 		target: '**/vs/base/common/platform.ts',
@@ -92,6 +107,41 @@ const RULES: IRule[] = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/common/async.ts
+	{
+		target: '**/vs/base/common/async.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/common/performance.ts
+	{
+		target: '**/vs/base/common/performance.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to Performance
+			'Performance',
+			'PerformanceEntry',
+			'PerformanceTiming'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -133,6 +183,17 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/platform/native/common/nativeHostService.ts
+	{
+		target: '**/vs/platform/native/common/nativeHostService.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/workbench/api/common/extHostExtensionService.ts
 	{
 		target: '**/vs/workbench/api/common/extHostExtensionService.ts',
@@ -145,6 +206,22 @@ const RULES: IRule[] = [
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/parts/sandbox/electron-sandbox/preload.ts
+	{
+		target: '**/vs/base/parts/sandbox/electron-sandbox/preload.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to a very small subset of node.js
+			'process',
+			'NodeJS'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
 	},
@@ -201,10 +278,22 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Electron (renderer): skip
+	// Electron (utility)
 	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
+		target: '**/vs/**/electron-utility/**',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// --> types from electron.d.ts that duplicate from lib.dom.d.ts
+			'Event',
+			'Request'
+		],
+		disallowedTypes: [
+			'ipcMain' // not allowed, use validatedIpcMain instead
+		],
+		disallowedDefinitions: [
+			'lib.dom.d.ts'	// no DOM
+		]
 	},
 
 	// Electron (main)
@@ -269,7 +358,7 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 
 		if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
 			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
-			console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+			console.log(`[build/lib/layersChecker.ts]: Reference to type '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}). Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
 
 			hasErrors = true;
 			return;
@@ -296,7 +385,7 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 									if (definitionFileName.indexOf(disallowedDefinition) >= 0) {
 										const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
 
-										console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+										console.log(`[build/lib/layersChecker.ts]: Reference to symbol '${text}' from '${disallowedDefinition}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1}) Learn more about our source code organization at https://github.com/microsoft/vscode/wiki/Source-Code-Organization.`);
 
 										hasErrors = true;
 										return;

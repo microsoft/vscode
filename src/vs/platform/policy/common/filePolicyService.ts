@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ThrottledDelayer } from 'vs/base/common/async';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { Event } from 'vs/base/common/event';
-import { Iterable } from 'vs/base/common/iterator';
-import { isObject } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyName, PolicyValue } from 'vs/platform/policy/common/policy';
+import { ThrottledDelayer } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { Iterable } from '../../../base/common/iterator.js';
+import { isObject } from '../../../base/common/types.js';
+import { URI } from '../../../base/common/uri.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../files/common/files.js';
+import { ILogService } from '../../log/common/log.js';
+import { AbstractPolicyService, IPolicyService, PolicyName, PolicyValue } from './policy.js';
 
 function keysDiff<T>(a: Map<string, T>, b: Map<string, T>): string[] {
 	const result: string[] = [];
 
-	for (const key of Iterable.concat(a.keys(), b.keys())) {
+	for (const key of new Set(Iterable.concat(a.keys(), b.keys()))) {
 		if (a.get(key) !== b.get(key)) {
 			result.push(key);
 		}
@@ -41,7 +40,7 @@ export class FilePolicyService extends AbstractPolicyService implements IPolicyS
 		this._register(onDidChangePolicyFile(() => this.throttledDelayer.trigger(() => this.refresh())));
 	}
 
-	protected async initializePolicies(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
+	protected async _updatePolicyDefinitions(): Promise<void> {
 		await this.refresh();
 	}
 

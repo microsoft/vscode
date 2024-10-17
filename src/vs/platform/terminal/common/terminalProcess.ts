@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from 'vs/base/common/uri';
-import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
-import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { UriComponents } from '../../../base/common/uri.js';
+import { ISerializableEnvironmentVariableCollection, ISerializableEnvironmentVariableCollections } from './environmentVariable.js';
+import { IFixedTerminalDimensions, IRawTerminalTabLayoutInfo, IReconnectionProperties, ITerminalEnvironment, ITerminalTabLayoutInfoById, TerminalIcon, TerminalType, TitleEventSource, WaitOnExitValue } from './terminal.js';
 
 export interface ISingleTerminalConfiguration<T> {
 	userValue: T | undefined;
@@ -14,15 +14,6 @@ export interface ISingleTerminalConfiguration<T> {
 }
 
 export interface ICompleteTerminalConfiguration {
-	'terminal.integrated.automationShell.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.automationShell.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.automationShell.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shell.linux': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.windows': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.osx': ISingleTerminalConfiguration<string | string[]>;
-	'terminal.integrated.shellArgs.linux': ISingleTerminalConfiguration<string | string[]>;
 	'terminal.integrated.env.windows': ISingleTerminalConfiguration<ITerminalEnvironment>;
 	'terminal.integrated.env.osx': ISingleTerminalConfiguration<ITerminalEnvironment>;
 	'terminal.integrated.env.linux': ISingleTerminalConfiguration<ITerminalEnvironment>;
@@ -65,6 +56,8 @@ export interface IProcessDetails {
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
+	hasChildProcesses: boolean;
+	shellIntegrationNonce: string;
 }
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
@@ -74,29 +67,41 @@ export interface ReplayEntry {
 	rows: number;
 	data: string;
 }
-export interface ISerializedCommand {
-	command: string;
-	cwd: string | undefined;
-	startLine: number | undefined;
-	startX: number | undefined;
-	endLine: number | undefined;
-	executedLine: number | undefined;
-	exitCode: number | undefined;
-	commandStartLineContent: string | undefined;
-	timestamp: number;
-	genericMarkProperties?: IGenericMarkProperties;
+
+const enum Constants {
+	/**
+	 * Writing large amounts of data can be corrupted for some reason, after looking into this is
+	 * appears to be a race condition around writing to the FD which may be based on how powerful
+	 * the hardware is. The workaround for this is to space out when large amounts of data is being
+	 * written to the terminal. See https://github.com/microsoft/vscode/issues/38137
+	 */
+	WriteMaxChunkSize = 50,
 }
 
-export interface IGenericMarkProperties {
-	hoverMessage?: string;
-	disableCommandStorage?: boolean;
-}
-
-export interface ISerializedCommandDetectionCapability {
-	isWindowsPty: boolean;
-	commands: ISerializedCommand[];
-}
-export interface IPtyHostProcessReplayEvent {
-	events: ReplayEntry[];
-	commands: ISerializedCommandDetectionCapability;
+/**
+ * Splits incoming pty data into chunks to try prevent data corruption that could occur when pasting
+ * large amounts of data.
+ */
+export function chunkInput(data: string): string[] {
+	const chunks: string[] = [];
+	let nextChunkStartIndex = 0;
+	for (let i = 0; i < data.length - 1; i++) {
+		if (
+			// If the max chunk size is reached
+			i - nextChunkStartIndex + 1 >= Constants.WriteMaxChunkSize ||
+			// If the next character is ESC, send the pending data to avoid splitting the escape
+			// sequence.
+			data[i + 1] === '\x1b'
+		) {
+			chunks.push(data.substring(nextChunkStartIndex, i + 1));
+			nextChunkStartIndex = i + 1;
+			// Skip the next character as the chunk would be a single character
+			i++;
+		}
+	}
+	// Push final chunk
+	if (nextChunkStartIndex !== data.length) {
+		chunks.push(data.substring(nextChunkStartIndex));
+	}
+	return chunks;
 }

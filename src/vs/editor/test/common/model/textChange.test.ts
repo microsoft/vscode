@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/core/textChange';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { compressConsecutiveTextChanges, TextChange } from '../../../common/core/textChange.js';
 
 const GENERATE_TESTS = false;
 
@@ -15,6 +16,8 @@ interface IGeneratedEdit {
 }
 
 suite('TextChangeCompressor', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getResultingContent(initialContent: string, edits: IGeneratedEdit[]): string {
 		let content = initialContent;
@@ -282,6 +285,8 @@ suite('TextChangeCompressor', () => {
 });
 
 suite('TextChange', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #118041: unicode character undo bug', () => {
 		const textChange = new TextChange(428, '﻿', 428, '');

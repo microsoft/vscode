@@ -1,0 +1,97 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 5
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 2,
+        endColumn: 1
+      },
+      text: "    \n",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 5,
+        endExclusive: 11
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 2,
+        endColumn: 7
+      },
+      agent: {
+        id: "agent",
+        name: "agent",
+        extensionId: {
+          value: "nullExtensionDescription",
+          _lower: "nullextensiondescription"
+        },
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
+        locations: [ "panel" ],
+        metadata: {  },
+        slashCommands: [
+          {
+            name: "subCommand",
+            description: ""
+          }
+        ],
+        disambiguation: [  ]
+      },
+      kind: "agent"
+    },
+    {
+      range: {
+        start: 11,
+        endExclusive: 12
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 7,
+        endLineNumber: 3,
+        endColumn: 1
+      },
+      text: "\n",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 12,
+        endExclusive: 23
+      },
+      editorRange: {
+        startLineNumber: 3,
+        startColumn: 1,
+        endLineNumber: 3,
+        endColumn: 12
+      },
+      command: {
+        name: "subCommand",
+        description: ""
+      },
+      kind: "subcommand"
+    },
+    {
+      range: {
+        start: 23,
+        endExclusive: 30
+      },
+      editorRange: {
+        startLineNumber: 3,
+        startColumn: 12,
+        endLineNumber: 3,
+        endColumn: 19
+      },
+      text: " Thanks",
+      kind: "text"
+    }
+  ],
+  text: "    \n@agent\n/subCommand Thanks"
+}

@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { Action } from 'vs/base/common/actions';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { listFocusForeground, listFocusBackground, foreground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import * as dom from '../../../../base/browser/dom.js';
+import { localize } from '../../../../nls.js';
+import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Action } from '../../../../base/common/actions.js';
+import { IExtensionsWorkbenchService, IExtension } from '../common/extensions.js';
+import { Event } from '../../../../base/common/event.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IListService, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
+import { IAsyncDataSource, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { Delegate, Renderer } from './extensionsList.js';
+import { listFocusForeground, listFocusBackground, foreground, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IStyleOverride } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getAriaLabelForExtension } from './extensionsViews.js';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -72,7 +73,7 @@ export class ExtensionsGridView extends Disposable {
 			e.preventDefault();
 		};
 
-		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.CLICK, (e: MouseEvent) => handleEvent(new StandardMouseEvent(e))));
+		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.CLICK, (e: MouseEvent) => handleEvent(new StandardMouseEvent(dom.getWindow(template.name), e))));
 		this.disposableStore.add(dom.addDisposableListener(template.name, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
 		this.disposableStore.add(dom.addDisposableListener(extensionContainer, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => handleEvent(new StandardKeyboardEvent(e))));
 
@@ -80,7 +81,7 @@ export class ExtensionsGridView extends Disposable {
 	}
 }
 
-export interface IExtensionTemplateData {
+interface IExtensionTemplateData {
 	icon: HTMLImageElement;
 	name: HTMLElement;
 	identifier: HTMLElement;
@@ -89,18 +90,18 @@ export interface IExtensionTemplateData {
 	extensionData: IExtensionData;
 }
 
-export interface IUnknownExtensionTemplateData {
+interface IUnknownExtensionTemplateData {
 	identifier: HTMLElement;
 }
 
-export interface IExtensionData {
+interface IExtensionData {
 	extension: IExtension;
 	hasChildren: boolean;
 	getChildren: () => Promise<IExtensionData[] | null>;
 	parent: IExtensionData | null;
 }
 
-export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
+class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 	public hasChildren({ hasChildren }: IExtensionData): boolean {
 		return hasChildren;
@@ -112,7 +113,7 @@ export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 }
 
-export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 
 	public getHeight(element: IExtensionData): number {
 		return 62;
@@ -122,7 +123,7 @@ export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 	}
 }
 
-export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
+class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IExtensionTemplateData> {
 
 	static readonly TEMPLATE_ID = 'extension-template';
 
@@ -186,7 +187,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 	}
 }
 
-export class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
+class UnknownExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData>, IUnknownExtensionTemplateData> {
 
 	static readonly TEMPLATE_ID = 'unknown-extension-template';
 
@@ -236,10 +237,9 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 	constructor(
 		input: IExtensionData,
 		container: HTMLElement,
-		overrideStyles: IColorMapping,
+		overrideStyles: IStyleOverride<IListStyles>,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService extensionsWorkdbenchService: IExtensionsWorkbenchService
@@ -264,23 +264,22 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				identityProvider,
 				multipleSelectionSupport: false,
 				overrideStyles,
-				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
+				accessibilityProvider: {
 					getAriaLabel(extensionData: IExtensionData): string {
-						const extension = extensionData.extension;
-						return localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description);
+						return getAriaLabelForExtension(extensionData.extension);
 					},
 					getWidgetAriaLabel(): string {
 						return localize('extensions', "Extensions");
 					}
 				}
 			},
-			instantiationService, contextKeyService, listService, themeService, configurationService
+			instantiationService, contextKeyService, listService, configurationService
 		);
 
 		this.setInput(input);
 
 		this.disposables.add(this.onDidChangeSelection(event => {
-			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
+			if (dom.isKeyboardEvent(event.browserEvent)) {
 				extensionsWorkdbenchService.open(event.elements[0].extension, { sideByside: false });
 			}
 		}));

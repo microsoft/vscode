@@ -3,39 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import * as platform from 'vs/base/common/platform';
-import * as dom from 'vs/base/browser/dom';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation, ExtensionHostExtensions } from 'vs/workbench/services/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { joinPath } from 'vs/base/common/resources';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { localize } from 'vs/nls';
-import { generateUuid } from 'vs/base/common/uuid';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { Barrier } from 'vs/base/common/async';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { FileAccess } from 'vs/base/common/network';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { parentOriginHash } from 'vs/workbench/browser/webview';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import * as dom from '../../../../base/browser/dom.js';
+import { parentOriginHash } from '../../../../base/browser/iframe.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Barrier } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { canceled, onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { AppResourcePath, COI, FileAccess } from '../../../../base/common/network.js';
+import * as platform from '../../../../base/common/platform.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IMessagePassingProtocol } from '../../../../base/parts/ipc/common/ipc.js';
+import { getNLSLanguage, getNLSMessages } from '../../../../nls.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { ILogService, ILoggerService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
+import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
+import { LocalWebWorkerRunningLocation } from '../common/extensionRunningLocation.js';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from '../common/extensions.js';
 
 export interface IWebWorkerExtensionHostInitData {
-	readonly autoStart: boolean;
-	readonly allExtensions: IExtensionDescription[];
-	readonly myExtensions: ExtensionIdentifier[];
+	readonly extensions: ExtensionHostExtensions;
 }
 
 export interface IWebWorkerExtensionHostDataProvider {
@@ -44,9 +42,9 @@ export interface IWebWorkerExtensionHostDataProvider {
 
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
+	public readonly pid = null;
 	public readonly remoteAuthority = null;
-	public readonly lazyStart: boolean;
-	public readonly extensions = new ExtensionHostExtensions();
+	public extensions: ExtensionHostExtensions | null = null;
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -56,16 +54,16 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private _protocol: IMessagePassingProtocol | null;
 
 	private readonly _extensionHostLogsLocation: URI;
-	private readonly _extensionHostLogFile: URI;
 
 	constructor(
 		public readonly runningLocation: LocalWebWorkerRunningLocation,
-		lazyStart: boolean,
+		public readonly startup: ExtensionHostStartup,
 		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService,
 		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IProductService private readonly _productService: IProductService,
@@ -73,12 +71,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-		this.lazyStart = lazyStart;
 		this._isTerminating = false;
 		this._protocolPromise = null;
 		this._protocol = null;
 		this._extensionHostLogsLocation = joinPath(this._environmentService.extHostLogsPath, 'webWorker');
-		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
 	private async _getWebWorkerExtensionHostIframeSrc(): Promise<string> {
@@ -86,12 +82,11 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (this._environmentService.debugExtensionHost && this._environmentService.debugRenderer) {
 			suffixSearchParams.set('debugged', '1');
 		}
-		if (globalThis.crossOriginIsolated) {
-			suffixSearchParams.set('vscode-coi', '3' /*COOP+COEP*/);
-		}
+		COI.addSearchParam(suffixSearchParams, true, true);
+
 		const suffix = `?${suffixSearchParams.toString()}`;
 
-		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
+		const iframeModulePath: AppResourcePath = `vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
@@ -104,7 +99,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					stableOriginUUID = generateUuid();
 					this._storageService.store(key, stableOriginUUID, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
-				const hash = await parentOriginHash(window.origin, stableOriginUUID);
+				const hash = await parentOriginHash(mainWindow.origin, stableOriginUUID);
 				const baseUrl = (
 					webEndpointUrlTemplate
 						.replace('{{uuid}}', `v--${hash}`) // using `v--` as a marker to require `parentOrigin`/`salt` verification
@@ -113,7 +108,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				);
 
 				const res = new URL(`${baseUrl}/out/${iframeModulePath}${suffix}`);
-				res.searchParams.set('parentOrigin', window.origin);
+				res.searchParams.set('parentOrigin', mainWindow.origin);
 				res.searchParams.set('salt', stableOriginUUID);
 				return res.toString();
 			}
@@ -121,7 +116,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath, require);
+		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
 		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
 	}
 
@@ -172,7 +167,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The Web Worker Extension Host did not start in 60s, that might be a problem.`);
 		}, 60000);
 
-		this._register(dom.addDisposableListener(window, 'message', (event) => {
+		this._register(dom.addDisposableListener(mainWindow, 'message', (event) => {
 			if (event.source !== iframe.contentWindow) {
 				return;
 			}
@@ -187,6 +182,20 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				err.stack = stack;
 				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
 			}
+			if (event.data.type === 'vscode.bootstrap.nls') {
+				iframe.contentWindow!.postMessage({
+					type: event.data.type,
+					data: {
+						workerUrl: FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js').toString(true),
+						fileRoot: globalThis._VSCODE_FILE_ROOT,
+						nls: {
+							messages: getNLSMessages(),
+							language: getNLSLanguage()
+						}
+					}
+				}, '*');
+				return;
+			}
 			const { data } = event.data;
 			if (barrier.isOpen() || !(data instanceof MessagePort)) {
 				console.warn('UNEXPECTED message', event);
@@ -196,7 +205,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			resolveBarrier(data);
 		}));
 
-		this._layoutService.container.appendChild(iframe);
+		this._layoutService.mainContainer.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
 		// await MessagePort and use it to directly communicate
@@ -251,9 +260,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			throw canceled();
 		}
 
-		// Register log channel for web worker exthost log
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'webWorkerExtHostLog', label: localize('name', "Worker Extension Host"), file: this._extensionHostLogFile, log: true });
-
 		return protocol;
 	}
 
@@ -266,7 +272,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		super.dispose();
 	}
 
-	getInspectPort(): number | undefined {
+	getInspectPort(): undefined {
 		return undefined;
 	}
 
@@ -275,12 +281,19 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
-		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
+		const initData = await this._initDataProvider.getInitData();
+		this.extensions = initData.extensions;
 		const workspace = this._contextService.getWorkspace();
-		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
+		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
+		let nlsUrlWithDetails: URI | undefined = undefined;
+		// Only use the nlsBaseUrl if we are using a language other than the default, English.
+		if (nlsBaseUrl && this._productService.commit && !platform.Language.isDefaultVariant()) {
+			nlsUrlWithDetails = URI.joinPath(URI.parse(nlsBaseUrl), this._productService.commit, this._productService.version, platform.Language.value());
+		}
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
+			quality: this._productService.quality,
 			parentPid: 0,
 			environment: {
 				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
@@ -288,10 +301,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				appHost: this._productService.embedderIdentifier ?? (platform.isWeb ? 'web' : 'desktop'),
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
+				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
+				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
+				extensionLogLevel: this._environmentService.extensionLogLevel
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,
@@ -303,13 +319,20 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				includeStack: false,
 				logNative: this._environmentService.debugRenderer
 			},
-			allExtensions: deltaExtensions.toAdd,
-			myExtensions: deltaExtensions.myToAdd,
-			telemetryInfo,
+			extensions: this.extensions.toSnapshot(),
+			nlsBaseUrl: nlsUrlWithDetails,
+			telemetryInfo: {
+				sessionId: this._telemetryService.sessionId,
+				machineId: this._telemetryService.machineId,
+				sqmId: this._telemetryService.sqmId,
+				devDeviceId: this._telemetryService.devDeviceId,
+				firstSessionDate: this._telemetryService.firstSessionDate,
+				msftInternal: this._telemetryService.msftInternal
+			},
 			logLevel: this._logService.getLevel(),
+			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
-			logFile: this._extensionHostLogFile,
-			autoStart: initData.autoStart,
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

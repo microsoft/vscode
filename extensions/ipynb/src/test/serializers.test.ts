@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as sinon from 'sinon';
 import type * as nbformat from '@jupyterlab/nbformat';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';
+import { createMarkdownCellFromNotebookCell, getCellMetadata } from '../serializers';
 
 function deepStripProperties(obj: any, props: string[]) {
 	for (const prop in obj) {
@@ -17,8 +19,17 @@ function deepStripProperties(obj: any, props: string[]) {
 		}
 	}
 }
+suite(`ipynb serializer`, () => {
+	let disposables: vscode.Disposable[] = [];
+	setup(() => {
+		disposables = [];
+	});
+	teardown(async () => {
+		disposables.forEach(d => d.dispose());
+		disposables = [];
+		sinon.restore();
+	});
 
-suite('ipynb serializer', () => {
 	const base64EncodedImage =
 		'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mOUlZL6DwAB/wFSU1jVmgAAAABJRU5ErkJggg==';
 	test('Deserialize', async () => {
@@ -41,17 +52,78 @@ suite('ipynb serializer', () => {
 
 		const expectedCodeCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(1)', 'python');
 		expectedCodeCell.outputs = [];
-		expectedCodeCell.metadata = { custom: { metadata: {} } };
+		expectedCodeCell.metadata = { execution_count: 10, metadata: {} };
 		expectedCodeCell.executionSummary = { executionOrder: 10 };
 
 		const expectedMarkdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# HEAD', 'markdown');
 		expectedMarkdownCell.outputs = [];
 		expectedMarkdownCell.metadata = {
-			custom: { metadata: {} }
+			metadata: {}
 		};
 
 		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
 	});
+
+
+	test('Serialize', async () => {
+		const markdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		markdownCell.metadata = {
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			},
+			id: '123',
+			metadata: {
+				foo: 'bar'
+			}
+		};
+
+		const cellMetadata = getCellMetadata({ cell: markdownCell });
+		assert.deepStrictEqual(cellMetadata, {
+			id: '123',
+			metadata: {
+				foo: 'bar',
+			},
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			}
+		});
+
+		const markdownCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# header1', 'markdown');
+		markdownCell2.metadata = {
+			id: '123',
+			metadata: {
+				foo: 'bar'
+			},
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			}
+		};
+
+		const nbMarkdownCell = createMarkdownCellFromNotebookCell(markdownCell);
+		const nbMarkdownCell2 = createMarkdownCellFromNotebookCell(markdownCell2);
+		assert.deepStrictEqual(nbMarkdownCell, nbMarkdownCell2);
+
+		assert.deepStrictEqual(nbMarkdownCell, {
+			cell_type: 'markdown',
+			source: ['# header1'],
+			metadata: {
+				foo: 'bar',
+			},
+			attachments: {
+				'image.png': {
+					'image/png': 'abc'
+				}
+			},
+			id: '123'
+		});
+	});
+
 	suite('Outputs', () => {
 		function validateCellOutputTranslation(
 			outputs: nbformat.IOutput[],

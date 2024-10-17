@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
+import { ISaveOptions, IRevertOptions } from '../../../common/editor.js';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from './workingCopy.js';
 
 /**
  * A resource based `IWorkingCopy` is backed by a `URI` from a
@@ -91,7 +91,7 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the working copy as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
-				await timeout(100);
+				await timeout(100, CancellationToken.None);
 
 				if (this.isDisposed()) {
 					newInOrphanModeValidated = true;
@@ -123,16 +123,13 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed = false;
-
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
 
 		// State
-		this.disposed = true;
 		this.orphaned = false;
 
 		// Event
@@ -143,6 +140,13 @@ export abstract class ResourceWorkingCopy extends Disposable implements IResourc
 
 	//#endregion
 
+	//#region Modified Tracking
+
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
+	//#endregion
 
 	//#region Abstract
 

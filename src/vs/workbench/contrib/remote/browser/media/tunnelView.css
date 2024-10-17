@@ -44,6 +44,11 @@
 	margin-top: -40px;
 }
 
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-localaddress {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
+}
+
 .ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-localaddress:hover {
 	text-decoration: underline;
 }
@@ -100,4 +105,8 @@
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
 	padding: 2px;
+}
+
+.monaco-workbench .codicon.codicon-ports-forwarded-with-process-icon {
+	color: var(--vscode-ports-iconRunningProcessForeground);
 }

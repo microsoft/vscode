@@ -6,26 +6,64 @@
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
 	display: flex;
 	border-color: #007ACC;
-}
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container {
-	display: flex;
-	justify-content: center;
-	flex-direction: column;
-	padding: 0 10px;
-	flex-shrink: 0;
-}
+	.breakpoint-select-container {
+		display: flex;
+		justify-content: center;
+		flex-direction: column;
+		padding: 0 10px;
+		flex-shrink: 0;
+	}
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .monaco-select-box {
-	min-width: 100px;
-	min-height: 18px;
-	padding: 2px 20px 2px 8px;
-}
+	.monaco-select-box {
+		min-width: 100px;
+		min-height: 18px;
+		padding: 2px 20px 2px 8px;
+	}
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container:after {
-	right: 14px;
-}
+	.breakpoint-select-container:after {
+		right: 14px;
+	}
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputContainer {
-	flex: 1;
+	.inputContainer {
+		flex: 1;
+	}
+
+	.select-breakpoint-container {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-grow: 1;
+		width: 0;
+	}
+
+	.select-breakpoint-container .monaco-button {
+		padding-left: 8px;
+		padding-right: 8px;
+		line-height: 14px;
+		flex-grow: 0;
+		width: initial;
+	}
+
+	.select-breakpoint-container .select-box-container,
+	.select-mode-container {
+		display: flex;
+		justify-content: center;
+		flex-direction: column;
+		width: 300px;
+	}
+
+	.select-breakpoint-container .select-box-container  {
+		width: 300px;
+	}
+
+	.select-mode-container .select-box-container  {
+		width: 100px;
+		margin-right: 10px;
+	}
+
+	.select-breakpoint-container:after {
+		right: 14px;
+	}
+
 }

@@ -2,19 +2,21 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import * as languages from 'vs/editor/common/languages';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { CodeActionItem, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/browser/types';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { Progress } from 'vs/platform/progress/common/progress';
+import assert from 'assert';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Range } from '../../../../common/core/range.js';
+import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../../common/languages.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { getCodeActions } from '../../browser/codeAction.js';
+import { CodeActionItem, CodeActionKind, CodeActionTriggerSource } from '../../common/types.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { IMarkerData, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { Progress } from '../../../../../platform/progress/common/progress.js';
 
 function staticCodeActionProvider(...actions: languages.CodeAction[]): languages.CodeActionProvider {
 	return new class implements languages.CodeActionProvider {
@@ -80,13 +82,13 @@ suite('CodeAction', () => {
 		},
 		tsLint: {
 			abc: {
-				$ident: 57,
+				$ident: 'funny' + 57,
 				arguments: <IMarkerData[]>[],
 				id: '_internal_command_delegation',
 				title: 'abc'
 			},
 			bcd: {
-				$ident: 47,
+				$ident: 'funny' + 47,
 				arguments: <IMarkerData[]>[],
 				id: '_internal_command_delegation',
 				title: 'bcd'
@@ -105,6 +107,8 @@ suite('CodeAction', () => {
 		disposables.clear();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('CodeActions are sorted by type, #38623', async () => {
 
 		const provider = staticCodeActionProvider(
@@ -119,9 +123,9 @@ suite('CodeAction', () => {
 		disposables.add(registry.register('fooLang', provider));
 
 		const expected = [
-			// CodeActions with a diagnostics array are shown first ordered by diagnostics.message
-			new CodeActionItem(testData.diagnostics.abc, provider),
+			// CodeActions with a diagnostics array are shown first without further sorting
 			new CodeActionItem(testData.diagnostics.bcd, provider),
+			new CodeActionItem(testData.diagnostics.abc, provider),
 
 			// CodeActions without diagnostics are shown in the given order without any further sorting
 			new CodeActionItem(testData.command.abc, provider),
@@ -130,7 +134,7 @@ suite('CodeAction', () => {
 			new CodeActionItem(testData.tsLint.abc, provider)
 		];
 
-		const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Invoke, triggerAction: CodeActionTriggerSource.Default }, Progress.None, CancellationToken.None));
 		assert.strictEqual(actions.length, 6);
 		assert.deepStrictEqual(actions, expected);
 	});
@@ -145,20 +149,20 @@ suite('CodeAction', () => {
 		disposables.add(registry.register('fooLang', provider));
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a') } }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a') } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 2);
 			assert.strictEqual(actions[0].action.title, 'a');
 			assert.strictEqual(actions[1].action.title, 'a.b');
 		}
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a.b') } }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a.b') } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 1);
 			assert.strictEqual(actions[0].action.title, 'a.b');
 		}
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a.b.c') } }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a.b.c') } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 0);
 		}
 	});
@@ -177,7 +181,7 @@ suite('CodeAction', () => {
 
 		disposables.add(registry.register('fooLang', provider));
 
-		const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new CodeActionKind('a') } }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: new HierarchicalKind('a') } }, Progress.None, CancellationToken.None));
 		assert.strictEqual(actions.length, 1);
 		assert.strictEqual(actions[0].action.title, 'a');
 	});
@@ -191,13 +195,13 @@ suite('CodeAction', () => {
 		disposables.add(registry.register('fooLang', provider));
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.SourceAction }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.SourceAction }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 1);
 			assert.strictEqual(actions[0].action.title, 'b');
 		}
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: CodeActionKind.Source, includeSourceActions: true } }, Progress.None, CancellationToken.None);
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), { type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default, filter: { include: CodeActionKind.Source, includeSourceActions: true } }, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 1);
 			assert.strictEqual(actions[0].action.title, 'a');
 		}
@@ -213,13 +217,13 @@ suite('CodeAction', () => {
 		disposables.add(registry.register('fooLang', provider));
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), {
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), {
 				type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.SourceAction, filter: {
 					include: CodeActionKind.Source.append('test'),
 					excludes: [CodeActionKind.Source],
 					includeSourceActions: true,
 				}
-			}, Progress.None, CancellationToken.None);
+			}, Progress.None, CancellationToken.None));
 			assert.strictEqual(actions.length, 1);
 			assert.strictEqual(actions[0].action.title, 'b');
 		}
@@ -250,12 +254,12 @@ suite('CodeAction', () => {
 		}));
 
 		{
-			const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), {
+			const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), {
 				type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Refactor, filter: {
 					include: baseType,
 					excludes: [subType],
 				}
-			}, Progress.None, CancellationToken.None);
+			}, Progress.None, CancellationToken.None));
 			assert.strictEqual(didInvoke, false);
 			assert.strictEqual(actions.length, 1);
 			assert.strictEqual(actions[0].action.title, 'a');
@@ -275,12 +279,12 @@ suite('CodeAction', () => {
 
 		disposables.add(registry.register('fooLang', provider));
 
-		const { validActions: actions } = await getCodeActions(registry, model, new Range(1, 1, 2, 1), {
+		const { validActions: actions } = disposables.add(await getCodeActions(registry, model, new Range(1, 1, 2, 1), {
 			type: languages.CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Refactor,
 			filter: {
 				include: CodeActionKind.QuickFix
 			}
-		}, Progress.None, CancellationToken.None);
+		}, Progress.None, CancellationToken.None));
 		assert.strictEqual(actions.length, 0);
 		assert.strictEqual(wasInvoked, false);
 	});

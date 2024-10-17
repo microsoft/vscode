@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { distinct } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { isString } from 'vs/base/common/types';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from './extensionManagementUtil.js';
+import { IProductService } from '../../product/common/productService.js';
+import { distinct } from '../../../base/common/arrays.js';
+import { ILogService } from '../../log/common/log.js';
+import { IExtension } from '../../extensions/common/extensions.js';
+import { isString } from '../../../base/common/types.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { IExtensionManagementService, IGalleryExtension } from './extensionManagement.js';
 
 export interface IExtensionIdWithVersion {
 	id: string;
@@ -27,6 +27,7 @@ export interface IExtensionStorageService {
 	readonly _serviceBrand: undefined;
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined;
+	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined;
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void;
 
 	readonly onDidChangeExtensionStorageToSync: Event<void>;
@@ -42,6 +43,8 @@ const EXTENSION_KEYS_ID_VERSION_REGEX = /^extensionKeys\/([^.]+\..+)@(\d+\.\d+\.
 export class ExtensionStorageService extends Disposable implements IExtensionStorageService {
 
 	readonly _serviceBrand: undefined;
+
+	private static LARGE_STATE_WARNING_THRESHOLD = 512 * 1024;
 
 	private static toKey(extension: IExtensionIdWithVersion): string {
 		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;
@@ -100,13 +103,10 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 	) {
 		super();
 		this.extensionsWithKeysForSync = ExtensionStorageService.readAllExtensionsWithKeysForSync(storageService);
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorageValue(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(e => this.onDidChangeStorageValue(e)));
 	}
 
-	private onDidChangeStorageValue(e: IStorageValueChangeEvent): void {
-		if (e.scope !== StorageScope.PROFILE) {
-			return;
-		}
+	private onDidChangeStorageValue(e: IProfileStorageValueChangeEvent): void {
 
 		// State of extension with keys for sync has changed
 		if (this.extensionsWithKeysForSync.has(e.key.toLowerCase())) {
@@ -142,7 +142,7 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 
 	getExtensionState(extension: IExtension | IGalleryExtension | string, global: boolean): IStringDictionary<any> | undefined {
 		const extensionId = this.getExtensionId(extension);
-		const jsonValue = this.storageService.get(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
+		const jsonValue = this.getExtensionStateRaw(extension, global);
 		if (jsonValue) {
 			try {
 				return JSON.parse(jsonValue);
@@ -154,6 +154,17 @@ export class ExtensionStorageService extends Disposable implements IExtensionSto
 		}
 
 		return undefined;
+	}
+
+	getExtensionStateRaw(extension: IExtension | IGalleryExtension | string, global: boolean): string | undefined {
+		const extensionId = this.getExtensionId(extension);
+		const rawState = this.storageService.get(extensionId, global ? StorageScope.PROFILE : StorageScope.WORKSPACE);
+
+		if (rawState && rawState?.length > ExtensionStorageService.LARGE_STATE_WARNING_THRESHOLD) {
+			this.logService.warn(`[mainThreadStorage] large extension state detected (extensionId: ${extensionId}, global: ${global}): ${rawState.length / 1024}kb. Consider to use 'storageUri' or 'globalStorageUri' to store this data on disk instead.`);
+		}
+
+		return rawState;
 	}
 
 	setExtensionState(extension: IExtension | IGalleryExtension | string, state: IStringDictionary<any> | undefined, global: boolean): void {

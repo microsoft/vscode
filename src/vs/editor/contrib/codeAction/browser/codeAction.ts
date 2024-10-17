@@ -3,60 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
-import * as languages from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { CodeActionFilter, CodeActionKind, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from './types';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { coalesce, equals, isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { illegalArgument, isCancellationError, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import * as languages from '../../../common/languages.js';
+import { ITextModel } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { IModelService } from '../../../common/services/model.js';
+import { TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
+import * as nls from '../../../../nls.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IProgress, Progress } from '../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { raceTimeout } from '../../../../base/common/async.js';
+
+
 
 export const codeActionCommandId = 'editor.action.codeAction';
+export const quickFixCommandId = 'editor.action.quickFix';
+export const autoFixCommandId = 'editor.action.autoFix';
 export const refactorCommandId = 'editor.action.refactor';
 export const refactorPreviewCommandId = 'editor.action.refactor.preview';
 export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
-
-export class CodeActionItem {
-
-	constructor(
-		readonly action: languages.CodeAction,
-		readonly provider: languages.CodeActionProvider | undefined,
-	) { }
-
-	async resolve(token: CancellationToken): Promise<this> {
-		if (this.provider?.resolveCodeAction && !this.action.edit) {
-			let action: languages.CodeAction | undefined | null;
-			try {
-				action = await this.provider.resolveCodeAction(this.action, token);
-			} catch (err) {
-				onUnexpectedExternalError(err);
-			}
-			if (action) {
-				this.action.edit = action.edit;
-			}
-		}
-		return this;
-	}
-}
-
-export interface CodeActionSet extends IDisposable {
-	readonly validActions: readonly CodeActionItem[];
-	readonly allActions: readonly CodeActionItem[];
-	readonly hasAutoFix: boolean;
-
-	readonly documentation: readonly languages.Command[];
-}
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
@@ -71,8 +52,13 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	}
 
 	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
-		if (isNonEmptyArray(a.diagnostics)) {
+		if (a.isAI && !b.isAI) {
+			return 1;
+		} else if (!a.isAI && b.isAI) {
 			return -1;
+		}
+		if (isNonEmptyArray(a.diagnostics)) {
+			return isNonEmptyArray(b.diagnostics) ? ManagedCodeActionSet.codeActionsPreferredComparator(a, b) : -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
 			return 1;
 		} else {
@@ -89,20 +75,29 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 		disposables: DisposableStore,
 	) {
 		super();
+
 		this._register(disposables);
+
 		this.allActions = [...actions].sort(ManagedCodeActionSet.codeActionsComparator);
 		this.validActions = this.allActions.filter(({ action }) => !action.disabled);
 	}
 
 	public get hasAutoFix() {
-		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new HierarchicalKind(fix.kind)) && !!fix.isPreferred);
+	}
+
+	public get hasAIFix() {
+		return this.validActions.some(({ action: fix }) => !!fix.isAI);
+	}
+
+	public get allAIFixes() {
+		return this.validActions.every(({ action: fix }) => !!fix.isAI);
 	}
 }
 
-
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
-export function getCodeActions(
+export async function getCodeActions(
 	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
 	model: ITextModel,
 	rangeOrSelection: Range | Selection,
@@ -111,6 +106,10 @@ export function getCodeActions(
 	token: CancellationToken,
 ): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
+	const notebookFilter: CodeActionFilter = {
+		...filter,
+		excludes: [...(filter.excludes || []), CodeActionKind.Notebook],
+	};
 
 	const codeActionContext: languages.CodeActionContext = {
 		only: filter.include?.value,
@@ -118,13 +117,17 @@ export function getCodeActions(
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
-	const providers = getCodeActionProviders(registry, model, filter);
+	// if the trigger is auto (autosave, lightbulb, etc), we should exclude notebook codeActions
+	const excludeNotebookCodeActions = (trigger.type === languages.CodeActionTriggerType.Auto);
+	const providers = getCodeActionProviders(registry, model, (excludeNotebookCodeActions) ? notebookFilter : filter);
 
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
 		try {
-			progress.report(provider);
-			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
+			const codeActionsPromise = Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token));
+
+			const providedCodeActions = await raceTimeout(codeActionsPromise, 1250, () => progress.report(provider));
+
 			if (providedCodeActions) {
 				disposables.add(providedCodeActions);
 			}
@@ -134,7 +137,7 @@ export function getCodeActions(
 			}
 
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
-			const documentation = getDocumentation(provider, filteredActions, filter.include);
+			const documentation = getDocumentationFromProvider(provider, filteredActions, filter.include);
 			return {
 				actions: filteredActions.map(action => new CodeActionItem(action, provider)),
 				documentation
@@ -155,15 +158,18 @@ export function getCodeActions(
 		}
 	});
 
-	return Promise.all(promises).then(actions => {
+	try {
+		const actions = await Promise.all(promises);
 		const allActions = actions.map(x => x.actions).flat();
-		const allDocumentation = coalesce(actions.map(x => x.documentation));
+		const allDocumentation = [
+			...coalesce(actions.map(x => x.documentation)),
+			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
+		];
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
-	})
-		.finally(() => {
-			listener.dispose();
-			cts.dispose();
-		});
+	} finally {
+		listener.dispose();
+		cts.dispose();
+	}
 }
 
 function getCodeActionProviders(
@@ -178,23 +184,38 @@ function getCodeActionProviders(
 				// We don't know what type of actions this provider will return.
 				return true;
 			}
-			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new CodeActionKind(kind)));
+			return provider.providedCodeActionKinds.some(kind => mayIncludeActionsOfKind(filter, new HierarchicalKind(kind)));
 		});
 }
 
-function getDocumentation(
+function* getAdditionalDocumentationForShowingActions(
+	registry: LanguageFeatureRegistry<languages.CodeActionProvider>,
+	model: ITextModel,
+	trigger: CodeActionTrigger,
+	actionsToShow: readonly CodeActionItem[],
+): Iterable<languages.Command> {
+	if (model && actionsToShow.length) {
+		for (const provider of registry.all(model)) {
+			if (provider._getAdditionalMenuItems) {
+				yield* provider._getAdditionalMenuItems?.({ trigger: trigger.type, only: trigger.filter?.include?.value }, actionsToShow.map(item => item.action));
+			}
+		}
+	}
+}
+
+function getDocumentationFromProvider(
 	provider: languages.CodeActionProvider,
 	providedCodeActions: readonly languages.CodeAction[],
-	only?: CodeActionKind
+	only?: HierarchicalKind
 ): languages.Command | undefined {
 	if (!provider.documentation) {
 		return undefined;
 	}
 
-	const documentation = provider.documentation.map(entry => ({ kind: new CodeActionKind(entry.kind), command: entry.command }));
+	const documentation = provider.documentation.map(entry => ({ kind: new HierarchicalKind(entry.kind), command: entry.command }));
 
 	if (only) {
-		let currentBest: { readonly kind: CodeActionKind; readonly command: languages.Command } | undefined;
+		let currentBest: { readonly kind: HierarchicalKind; readonly command: languages.Command } | undefined;
 		for (const entry of documentation) {
 			if (entry.kind.contains(only)) {
 				if (!currentBest) {
@@ -219,12 +240,97 @@ function getDocumentation(
 		}
 
 		for (const entry of documentation) {
-			if (entry.kind.contains(new CodeActionKind(action.kind))) {
+			if (entry.kind.contains(new HierarchicalKind(action.kind))) {
 				return entry.command;
 			}
 		}
 	}
 	return undefined;
+}
+
+export enum ApplyCodeActionReason {
+	OnSave = 'onSave',
+	FromProblemsView = 'fromProblemsView',
+	FromCodeActions = 'fromCodeActions',
+	FromAILightbulb = 'fromAILightbulb', // direct invocation when clicking on the AI lightbulb
+	FromProblemsHover = 'fromProblemsHover'
+}
+
+export async function applyCodeAction(
+	accessor: ServicesAccessor,
+	item: CodeActionItem,
+	codeActionReason: ApplyCodeActionReason,
+	options?: { readonly preview?: boolean; readonly editor?: ICodeEditor },
+	token: CancellationToken = CancellationToken.None,
+): Promise<void> {
+	const bulkEditService = accessor.get(IBulkEditService);
+	const commandService = accessor.get(ICommandService);
+	const telemetryService = accessor.get(ITelemetryService);
+	const notificationService = accessor.get(INotificationService);
+
+	type ApplyCodeActionEvent = {
+		codeActionTitle: string;
+		codeActionKind: string | undefined;
+		codeActionIsPreferred: boolean;
+		reason: ApplyCodeActionReason;
+	};
+	type ApplyCodeEventClassification = {
+		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The display label of the applied code action' };
+		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind (refactor, quickfix) of the applied code action' };
+		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Was the code action marked as being a preferred action?' };
+		reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of action used to trigger apply code action.' };
+		owner: 'justschen';
+		comment: 'Event used to gain insights into which code actions are being triggered';
+	};
+
+	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
+		codeActionTitle: item.action.title,
+		codeActionKind: item.action.kind,
+		codeActionIsPreferred: !!item.action.isPreferred,
+		reason: codeActionReason,
+	});
+
+	await item.resolve(token);
+	if (token.isCancellationRequested) {
+		return;
+	}
+
+	if (item.action.edit?.edits.length) {
+		const result = await bulkEditService.apply(item.action.edit, {
+			editor: options?.editor,
+			label: item.action.title,
+			quotableLabel: item.action.title,
+			code: 'undoredo.codeAction',
+			respectAutoSaveConfig: codeActionReason !== ApplyCodeActionReason.OnSave,
+			showPreview: options?.preview,
+		});
+
+		if (!result.isApplied) {
+			return;
+		}
+	}
+
+	if (item.action.command) {
+		try {
+			await commandService.executeCommand(item.action.command.id, ...(item.action.command.arguments || []));
+		} catch (err) {
+			const message = asMessage(err);
+			notificationService.error(
+				typeof message === 'string'
+					? message
+					: nls.localize('applyCodeActionFailed', "An unknown error occurred while applying the code action"));
+		}
+	}
+}
+
+function asMessage(err: any): string | undefined {
+	if (typeof err === 'string') {
+		return err;
+	} else if (err instanceof Error && typeof err.message === 'string') {
+		return err.message;
+	} else {
+		return undefined;
+	}
 }
 
 CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (accessor, resource: URI, rangeOrSelection: Range | Selection, kind?: string, itemResolveCount?: number): Promise<ReadonlyArray<languages.CodeAction>> {
@@ -248,7 +354,7 @@ CommandsRegistry.registerCommand('_executeCodeActionProvider', async function (a
 		throw illegalArgument();
 	}
 
-	const include = typeof kind === 'string' ? new CodeActionKind(kind) : undefined;
+	const include = typeof kind === 'string' ? new HierarchicalKind(kind) : undefined;
 	const codeActionSet = await getCodeActions(
 		codeActionProvider,
 		model,

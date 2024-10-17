@@ -3,31 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize } from '../../../../nls.js';
 
-import * as Objects from 'vs/base/common/objects';
-import * as Strings from 'vs/base/common/strings';
-import * as Assert from 'vs/base/common/assert';
-import { join, normalize } from 'vs/base/common/path';
-import * as Types from 'vs/base/common/types';
-import * as UUID from 'vs/base/common/uuid';
-import * as Platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ValidationStatus, ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
-import { IStringDictionary } from 'vs/base/common/collections';
+import * as Objects from '../../../../base/common/objects.js';
+import * as Strings from '../../../../base/common/strings.js';
+import * as Assert from '../../../../base/common/assert.js';
+import { join, normalize } from '../../../../base/common/path.js';
+import * as Types from '../../../../base/common/types.js';
+import * as UUID from '../../../../base/common/uuid.js';
+import * as Platform from '../../../../base/common/platform.js';
+import Severity from '../../../../base/common/severity.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { ValidationStatus, ValidationState, IProblemReporter, Parser } from '../../../../base/common/parsers.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { asArray } from '../../../../base/common/arrays.js';
+import { Schemas as NetworkSchemas } from '../../../../base/common/network.js';
 
-import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
+import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { ExtensionsRegistry, ExtensionMessageCollector } from '../../../services/extensions/common/extensionsRegistry.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { FileType, IFileService, IFileStatWithPartialMetadata, IFileSystemProvider } from '../../../../platform/files/common/files.js';
 
 export enum FileLocationKind {
 	Default,
 	Relative,
 	Absolute,
-	AutoDetect
+	AutoDetect,
+	Search
 }
 
 export module FileLocationKind {
@@ -39,6 +42,8 @@ export module FileLocationKind {
 			return FileLocationKind.Relative;
 		} else if (value === 'autodetect') {
 			return FileLocationKind.AutoDetect;
+		} else if (value === 'search') {
+			return FileLocationKind.Search;
 		} else {
 			return undefined;
 		}
@@ -132,7 +137,7 @@ export interface ProblemMatcher {
 	source?: string;
 	applyTo: ApplyToKind;
 	fileLocation: FileLocationKind;
-	filePrefix?: string;
+	filePrefix?: string | Config.SearchFileLocationArgs;
 	pattern: IProblemPattern | IProblemPattern[];
 	severity?: Severity;
 	watching?: IWatchingMatcher;
@@ -192,7 +197,7 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	let fullPath: string | undefined;
 	if (kind === FileLocationKind.Absolute) {
 		fullPath = filename;
-	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix) {
+	} else if ((kind === FileLocationKind.Relative) && matcher.filePrefix && Types.isString(matcher.filePrefix)) {
 		fullPath = join(matcher.filePrefix, filename);
 	} else if (kind === FileLocationKind.AutoDetect) {
 		const matcherClone = Objects.deepClone(matcher);
@@ -212,6 +217,18 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 
 		matcherClone.fileLocation = FileLocationKind.Absolute;
 		return getResource(filename, matcherClone);
+	} else if (kind === FileLocationKind.Search && fileService) {
+		const fsProvider = fileService.getProvider(NetworkSchemas.file);
+		if (fsProvider) {
+			const uri = await searchForFileLocation(filename, fsProvider, matcher.filePrefix as Config.SearchFileLocationArgs);
+			fullPath = uri?.path;
+		}
+
+		if (!fullPath) {
+			const absoluteMatcher = Objects.deepClone(matcher);
+			absoluteMatcher.fileLocation = FileLocationKind.Absolute;
+			return getResource(filename, absoluteMatcher);
+		}
 	}
 	if (fullPath === undefined) {
 		throw new Error('FileLocationKind is not actionable. Does the matcher have a filePrefix? This should never happen.');
@@ -226,6 +243,56 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 	} else {
 		return URI.file(fullPath);
 	}
+}
+
+async function searchForFileLocation(filename: string, fsProvider: IFileSystemProvider, args: Config.SearchFileLocationArgs): Promise<URI | undefined> {
+	const exclusions = new Set(asArray(args.exclude || []).map(x => URI.file(x).path));
+	async function search(dir: URI): Promise<URI | undefined> {
+		if (exclusions.has(dir.path)) {
+			return undefined;
+		}
+
+		const entries = await fsProvider.readdir(dir);
+		const subdirs: URI[] = [];
+
+		for (const [name, fileType] of entries) {
+			if (fileType === FileType.Directory) {
+				subdirs.push(URI.joinPath(dir, name));
+				continue;
+			}
+
+			if (fileType === FileType.File) {
+				/**
+				 * Note that sometimes the given `filename` could be a relative
+				 * path (not just the "name.ext" part). For example, the
+				 * `filename` can be "/subdir/name.ext". So, just comparing
+				 * `name` as `filename` is not sufficient. The workaround here
+				 * is to form the URI with `dir` and `name` and check if it ends
+				 * with the given `filename`.
+				 */
+				const fullUri = URI.joinPath(dir, name);
+				if (fullUri.path.endsWith(filename)) {
+					return fullUri;
+				}
+			}
+		}
+
+		for (const subdir of subdirs) {
+			const result = await search(subdir);
+			if (result) {
+				return result;
+			}
+		}
+		return undefined;
+	}
+
+	for (const dir of asArray(args.include || [])) {
+		const hit = await search(URI.file(dir));
+		if (hit) {
+			return hit;
+		}
+	}
+	return undefined;
 }
 
 export interface ILineMatcher {
@@ -796,8 +863,14 @@ export namespace Config {
 		*  - ["autodetect", "path value"]: the filename is treated
 		*    relative to the given path value, and if it does not
 		*    exist, it is treated as absolute.
+		*  - ["search", { include?: "" | []; exclude?: "" | [] }]: The filename
+		*    needs to be searched under the directories named by the "include"
+		*    property and their nested subdirectories. With "exclude" property
+		*    present, the directories should be removed from the search. When
+		*    `include` is not unprovided, the current workspace directory should
+		*    be used as the default.
 		*/
-		fileLocation?: string | string[];
+		fileLocation?: string | string[] | ['search', SearchFileLocationArgs];
 
 		/**
 		* The name of a predefined problem pattern, the inline definition
@@ -823,6 +896,11 @@ export namespace Config {
 		watching?: IBackgroundMonitor;
 		background?: IBackgroundMonitor;
 	}
+
+	export type SearchFileLocationArgs = {
+		include?: string | string[];
+		exclude?: string | string[];
+	};
 
 	export type ProblemMatcherType = string | ProblemMatcher | Array<string | ProblemMatcher>;
 
@@ -1117,6 +1195,212 @@ export namespace Schemas {
 			}
 		}
 	};
+
+	export const WatchingPattern: IJSONSchema = {
+		type: 'object',
+		additionalProperties: false,
+		properties: {
+			regexp: {
+				type: 'string',
+				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a background task.')
+			},
+			file: {
+				type: 'integer',
+				description: localize('WatchingPatternSchema.file', 'The match group index of the filename. Can be omitted.')
+			},
+		}
+	};
+
+	export const PatternType: IJSONSchema = {
+		anyOf: [
+			{
+				type: 'string',
+				description: localize('PatternTypeSchema.name', 'The name of a contributed or predefined pattern')
+			},
+			Schemas.ProblemPattern,
+			Schemas.MultiLineProblemPattern
+		],
+		description: localize('PatternTypeSchema.description', 'A problem pattern or the name of a contributed or predefined problem pattern. Can be omitted if base is specified.')
+	};
+
+	export const ProblemMatcher: IJSONSchema = {
+		type: 'object',
+		additionalProperties: false,
+		properties: {
+			base: {
+				type: 'string',
+				description: localize('ProblemMatcherSchema.base', 'The name of a base problem matcher to use.')
+			},
+			owner: {
+				type: 'string',
+				description: localize('ProblemMatcherSchema.owner', 'The owner of the problem inside Code. Can be omitted if base is specified. Defaults to \'external\' if omitted and base is not specified.')
+			},
+			source: {
+				type: 'string',
+				description: localize('ProblemMatcherSchema.source', 'A human-readable string describing the source of this diagnostic, e.g. \'typescript\' or \'super lint\'.')
+			},
+			severity: {
+				type: 'string',
+				enum: ['error', 'warning', 'info'],
+				description: localize('ProblemMatcherSchema.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
+			},
+			applyTo: {
+				type: 'string',
+				enum: ['allDocuments', 'openDocuments', 'closedDocuments'],
+				description: localize('ProblemMatcherSchema.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
+			},
+			pattern: PatternType,
+			fileLocation: {
+				oneOf: [
+					{
+						type: 'string',
+						enum: ['absolute', 'relative', 'autoDetect', 'search']
+					},
+					{
+						type: 'array',
+						prefixItems: [
+							{
+								type: 'string',
+								enum: ['absolute', 'relative', 'autoDetect', 'search']
+							},
+						],
+						minItems: 1,
+						maxItems: 1,
+						additionalItems: false
+					},
+					{
+						type: 'array',
+						prefixItems: [
+							{ type: 'string', enum: ['relative', 'autoDetect'] },
+							{ type: 'string' },
+						],
+						minItems: 2,
+						maxItems: 2,
+						additionalItems: false,
+						examples: [
+							['relative', '${workspaceFolder}'],
+							['autoDetect', '${workspaceFolder}'],
+						]
+					},
+					{
+						type: 'array',
+						prefixItems: [
+							{ type: 'string', enum: ['search'] },
+							{
+								type: 'object',
+								properties: {
+									'include': {
+										oneOf: [
+											{ type: 'string' },
+											{ type: 'array', items: { type: 'string' } }
+										]
+									},
+									'exclude': {
+										oneOf: [
+											{ type: 'string' },
+											{ type: 'array', items: { type: 'string' } }
+										]
+									},
+								},
+								required: ['include']
+							}
+						],
+						minItems: 2,
+						maxItems: 2,
+						additionalItems: false,
+						examples: [
+							['search', { 'include': ['${workspaceFolder}'] }],
+							['search', { 'include': ['${workspaceFolder}'], 'exclude': [] }]
+						],
+					}
+				],
+				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path of the relative file location. The search fileLocation mode, performs a deep (and, possibly, heavy) file system search within the directories specified by the include/exclude properties of the second element (or the current workspace directory if not specified).')
+			},
+			background: {
+				type: 'object',
+				additionalProperties: false,
+				description: localize('ProblemMatcherSchema.background', 'Patterns to track the begin and end of a matcher active on a background task.'),
+				properties: {
+					activeOnStart: {
+						type: 'boolean',
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
+					},
+					beginsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output the start of a background task is signaled.')
+					},
+					endsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output the end of a background task is signaled.')
+					}
+				}
+			},
+			watching: {
+				type: 'object',
+				additionalProperties: false,
+				deprecationMessage: localize('ProblemMatcherSchema.watching.deprecated', 'The watching property is deprecated. Use background instead.'),
+				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching matcher.'),
+				properties: {
+					activeOnStart: {
+						type: 'boolean',
+						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+					},
+					beginsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.watching.beginsPattern', 'If matched in the output the start of a watching task is signaled.')
+					},
+					endsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
+					}
+				}
+			}
+		}
+	};
+
+	export const LegacyProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
+	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties) || {};
+	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
+		type: 'string',
+		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
+		description: localize('LegacyProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
+	};
+	LegacyProblemMatcher.properties['watchedTaskEndsRegExp'] = {
+		type: 'string',
+		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedEnd.deprecated', 'This property is deprecated. Use the watching property instead.'),
+		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
+	};
+
+	export const NamedProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
+	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties) || {};
+	NamedProblemMatcher.properties.name = {
+		type: 'string',
+		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
+	};
+	NamedProblemMatcher.properties.label = {
+		type: 'string',
+		description: localize('NamedProblemMatcherSchema.label', 'A human readable label of the problem matcher.')
+	};
 }
 
 const problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.NamedProblemPatterns>({
@@ -1206,7 +1490,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	private fillDefaults(): void {
 		this.add('msCompile', {
-			regexp: /^(?:\s+\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+(error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
+			regexp: /^(?:\s*\d+>)?(\S.*)\((\d+|\d+,\d+|\d+,\d+,\d+,\d+)\)\s*:\s+((?:fatal +)?error|warning|info)\s+(\w+\d+)\s*:\s*(.*)$/,
 			kind: ProblemLocationKind.Location,
 			file: 1,
 			location: 2,
@@ -1367,7 +1651,7 @@ export class ProblemMatcherParser extends Parser {
 			applyTo = ApplyToKind.allDocuments;
 		}
 		let fileLocation: FileLocationKind | undefined = undefined;
-		let filePrefix: string | undefined = undefined;
+		let filePrefix: string | Config.SearchFileLocationArgs | undefined = undefined;
 
 		let kind: FileLocationKind | undefined;
 		if (Types.isUndefined(description.fileLocation)) {
@@ -1379,6 +1663,8 @@ export class ProblemMatcherParser extends Parser {
 				fileLocation = kind;
 				if ((kind === FileLocationKind.Relative) || (kind === FileLocationKind.AutoDetect)) {
 					filePrefix = '${workspaceFolder}';
+				} else if (kind === FileLocationKind.Search) {
+					filePrefix = { include: ['${workspaceFolder}'] };
 				}
 			}
 		} else if (Types.isStringArray(description.fileLocation)) {
@@ -1391,6 +1677,12 @@ export class ProblemMatcherParser extends Parser {
 					fileLocation = kind;
 					filePrefix = values[1];
 				}
+			}
+		} else if (Array.isArray(description.fileLocation)) {
+			const kind = FileLocationKind.fromString(description.fileLocation[0]);
+			if (kind === FileLocationKind.Search) {
+				fileLocation = FileLocationKind.Search;
+				filePrefix = description.fileLocation[1] ?? { include: ['${workspaceFolder}'] };
 			}
 		}
 
@@ -1544,165 +1836,6 @@ export class ProblemMatcherParser extends Parser {
 	}
 }
 
-export namespace Schemas {
-
-	export const WatchingPattern: IJSONSchema = {
-		type: 'object',
-		additionalProperties: false,
-		properties: {
-			regexp: {
-				type: 'string',
-				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a background task.')
-			},
-			file: {
-				type: 'integer',
-				description: localize('WatchingPatternSchema.file', 'The match group index of the filename. Can be omitted.')
-			},
-		}
-	};
-
-
-	export const PatternType: IJSONSchema = {
-		anyOf: [
-			{
-				type: 'string',
-				description: localize('PatternTypeSchema.name', 'The name of a contributed or predefined pattern')
-			},
-			Schemas.ProblemPattern,
-			Schemas.MultiLineProblemPattern
-		],
-		description: localize('PatternTypeSchema.description', 'A problem pattern or the name of a contributed or predefined problem pattern. Can be omitted if base is specified.')
-	};
-
-	export const ProblemMatcher: IJSONSchema = {
-		type: 'object',
-		additionalProperties: false,
-		properties: {
-			base: {
-				type: 'string',
-				description: localize('ProblemMatcherSchema.base', 'The name of a base problem matcher to use.')
-			},
-			owner: {
-				type: 'string',
-				description: localize('ProblemMatcherSchema.owner', 'The owner of the problem inside Code. Can be omitted if base is specified. Defaults to \'external\' if omitted and base is not specified.')
-			},
-			source: {
-				type: 'string',
-				description: localize('ProblemMatcherSchema.source', 'A human-readable string describing the source of this diagnostic, e.g. \'typescript\' or \'super lint\'.')
-			},
-			severity: {
-				type: 'string',
-				enum: ['error', 'warning', 'info'],
-				description: localize('ProblemMatcherSchema.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
-			},
-			applyTo: {
-				type: 'string',
-				enum: ['allDocuments', 'openDocuments', 'closedDocuments'],
-				description: localize('ProblemMatcherSchema.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
-			},
-			pattern: PatternType,
-			fileLocation: {
-				oneOf: [
-					{
-						type: 'string',
-						enum: ['absolute', 'relative', 'autoDetect']
-					},
-					{
-						type: 'array',
-						items: {
-							type: 'string'
-						}
-					}
-				],
-				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted. A relative fileLocation may be an array, where the second element of the array is the path the relative file location.')
-			},
-			background: {
-				type: 'object',
-				additionalProperties: false,
-				description: localize('ProblemMatcherSchema.background', 'Patterns to track the begin and end of a matcher active on a background task.'),
-				properties: {
-					activeOnStart: {
-						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginsPattern')
-					},
-					beginsPattern: {
-						oneOf: [
-							{
-								type: 'string'
-							},
-							Schemas.WatchingPattern
-						],
-						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output the start of a background task is signaled.')
-					},
-					endsPattern: {
-						oneOf: [
-							{
-								type: 'string'
-							},
-							Schemas.WatchingPattern
-						],
-						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output the end of a background task is signaled.')
-					}
-				}
-			},
-			watching: {
-				type: 'object',
-				additionalProperties: false,
-				deprecationMessage: localize('ProblemMatcherSchema.watching.deprecated', 'The watching property is deprecated. Use background instead.'),
-				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching matcher.'),
-				properties: {
-					activeOnStart: {
-						type: 'boolean',
-						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
-					},
-					beginsPattern: {
-						oneOf: [
-							{
-								type: 'string'
-							},
-							Schemas.WatchingPattern
-						],
-						description: localize('ProblemMatcherSchema.watching.beginsPattern', 'If matched in the output the start of a watching task is signaled.')
-					},
-					endsPattern: {
-						oneOf: [
-							{
-								type: 'string'
-							},
-							Schemas.WatchingPattern
-						],
-						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
-					}
-				}
-			}
-		}
-	};
-
-	export const LegacyProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
-	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties) || {};
-	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
-		type: 'string',
-		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
-		description: localize('LegacyProblemMatcherSchema.watchedBegin', 'A regular expression signaling that a watched tasks begins executing triggered through file watching.')
-	};
-	LegacyProblemMatcher.properties['watchedTaskEndsRegExp'] = {
-		type: 'string',
-		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedEnd.deprecated', 'This property is deprecated. Use the watching property instead.'),
-		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
-	};
-
-	export const NamedProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
-	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties) || {};
-	NamedProblemMatcher.properties.name = {
-		type: 'string',
-		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
-	};
-	NamedProblemMatcher.properties.label = {
-		type: 'string',
-		description: localize('NamedProblemMatcherSchema.label', 'A human readable label of the problem matcher.')
-	};
-}
-
 const problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.INamedProblemMatcher[]>({
 	extensionPoint: 'problemMatchers',
 	deps: [problemPatternExtPoint],
@@ -1788,6 +1921,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			name: 'msCompile',
 			label: localize('msCompile', 'Microsoft compiler problems'),
 			owner: 'msCompile',
+			source: 'cpp',
 			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('msCompile')

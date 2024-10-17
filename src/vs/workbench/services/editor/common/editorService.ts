@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, IFindEditorOptions } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Event } from 'vs/base/common/event';
-import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { URI } from 'vs/base/common/uri';
-import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier, ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, IFindEditorOptions, IEditorWillOpenEvent } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { Event } from '../../../../base/common/event.js';
+import { IEditor, IDiffEditor } from '../../../../editor/common/editorCommon.js';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupsContainer, isEditorGroup } from './editorGroupsService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IGroupModelChangeEvent } from '../../../common/editor/editorGroupModel.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -27,7 +28,13 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
-export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+/**
+ * Open an editor in a new auxiliary window.
+ */
+export const AUX_WINDOW_GROUP = -3;
+export type AUX_WINDOW_GROUP_TYPE = typeof AUX_WINDOW_GROUP;
+
+export type PreferredGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 
 export function isPreferredGroup(obj: unknown): obj is PreferredGroup {
 	const candidate = obj as PreferredGroup | undefined;
@@ -41,6 +48,19 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	 * If true, will ask for a location of the editor to save to.
 	 */
 	readonly saveAs?: boolean;
+}
+
+export interface ISaveEditorsResult {
+
+	/**
+	 * Whether the save operation was successful.
+	 */
+	readonly success: boolean;
+
+	/**
+	 * Resulting editors after the save operation.
+	 */
+	readonly editors: Array<EditorInput | IUntypedEditorInput>;
 }
 
 export interface IUntypedEditorReplacement {
@@ -67,7 +87,15 @@ export interface IBaseSaveRevertAllEditorOptions {
 	/**
 	 * Whether to include untitled editors as well.
 	 */
-	readonly includeUntitled?: boolean;
+	readonly includeUntitled?: {
+
+		/**
+		 * Whether to include scratchpad editors.
+		 * Scratchpads are not included if not specified.
+		 */
+		readonly includeScratchpad: boolean;
+
+	} | boolean;
 
 	/**
 	 * Whether to exclude sticky editors.
@@ -124,6 +152,11 @@ export interface IEditorService {
 	readonly onDidEditorsChange: Event<IEditorsChangeEvent>;
 
 	/**
+	 * Emitted when an editor is about to open.
+	 */
+	readonly onWillOpenEditor: Event<IEditorWillOpenEvent>;
+
+	/**
 	 * Emitted when an editor is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
@@ -174,6 +207,9 @@ export interface IEditorService {
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
+	 *
+	 * This property supports side-by-side editors as well, by returning both sides if they are
+	 * text editor widgets.
 	 */
 	readonly visibleTextEditorControls: readonly (IEditor | IDiffEditor)[];
 
@@ -205,16 +241,16 @@ export interface IEditorService {
 	 * @param editor the editor to open
 	 * @param options the options to use for the editor
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
-	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
+	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
 	 * @deprecated using this method is a sign that your editor has not adopted the editor
@@ -226,22 +262,22 @@ export interface IEditorService {
 	 * ```
 	 *
 	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
-	 * instead, via `IEditorGroupService`.
+	 * instead, via `IEditorGroupsService`.
 	 */
-	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.
 	 *
 	 * @param editors the editors to open with associated options
 	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
+	 * active group. Use `SIDE_GROUP` to open the editor in a new editor group to the side
 	 * of the currently active group.
 	 *
 	 * @returns the editors that opened. The array can be empty or have less elements for editors
 	 * that failed to open or were instructed to open as inactive.
 	 */
-	openEditors(editors: IUntypedEditorInput[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
+	openEditors(editors: IUntypedEditorInput[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE, options?: IOpenEditorsOptions): Promise<readonly IEditorPane[]>;
 
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
@@ -293,17 +329,13 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Save all editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Reverts the provided list of editors.
@@ -318,4 +350,11 @@ export interface IEditorService {
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Create a scoped editor service that only operates on the provided
+	 * editor group container. Use `main` to create a scoped editor service
+	 * to the main editor group container of the main window.
+	 */
+	createScoped(editorGroupsContainer: IEditorGroupsContainer | 'main', disposables: DisposableStore): IEditorService;
 }

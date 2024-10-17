@@ -1,8 +1,8 @@
 parameters:
-  - name: VSCODE_PUBLISH
-    type: boolean
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_CIBUILD
+    type: boolean
   - name: VSCODE_RUN_UNIT_TESTS
     type: boolean
   - name: VSCODE_RUN_INTEGRATION_TESTS
@@ -18,115 +18,94 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - task: AzureKeyVault@1
+    - template: ../distro/download-distro.yml@self
+
+    - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get Secrets"
       inputs:
         azureSubscription: "vscode-builds-subscription"
-        KeyVaultName: vscode
+        KeyVaultName: vscode-build-secrets
         SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: Compilation
         path: $(Build.ArtifactStagingDirectory)
       displayName: Download compilation output
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+    - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
       displayName: Extract compilation output
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        cat << EOF > ~/.netrc
-        machine github.com
-        login vscode
-        password $(github-distro-mixin-password)
-        EOF
+  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
 
-        git config user.email "vscode@microsoft.com"
-        git config user.name "VSCode"
-      displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-        echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-        git checkout FETCH_HEAD
-      condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-      displayName: Checkout override commit
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-      displayName: Merge distro
-
-  - script: |
-      mkdir -p .build
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH $ENABLE_TERRAPIN > .build/yarnlockhash
-    displayName: Prepare yarn cache flags
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js darwin $VSCODE_ARCH > .build/packagelockhash
+    displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+      key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
-  - task: Cache@2
-    inputs:
-      key: '"$(Agent.OS)" | product.json'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
-
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
+  - script: tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
   - script: |
       set -e
-      npx https://aka.ms/enablesecurefeed standAlone
-    timeoutInMinutes: 5
-    retryCountOnTaskFailure: 3
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
-    displayName: Switch to Terrapin packages
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      npm config set registry "$NPM_REGISTRY"
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
 
   - script: |
       set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
+      c++ --version
+      xcode-select -print-path
+      python3 -m pip install setuptools
 
-      for i in {1..3}; do # try 3 times, for Terrapin
-        yarn --frozen-lockfile --check-files && break
-        if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+      for i in {1..5}; do # try 5 times
+        npm ci && break
+        if [ $i -eq 5 ]; then
+          echo "Npm install failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Npm install failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(VSCODE_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
+      # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
+      # flipped the default to support legacy linux distros which shouldn't happen
+      # on macOS.
+      GYP_DEFINES: "kerberos_use_rtld=false"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-      node build/lib/builtInExtensions.js
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download missing built-in extensions
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: node build/azure-pipelines/distro/mixin-npm
+      condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+      displayName: Mixin distro node modules
 
   - script: |
       set -e
@@ -137,50 +116,86 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
-    - script: |
-        set -e
-        node build/azure-pipelines/mixin
-      displayName: Mix in quality
+    - script: node build/azure-pipelines/distro/mixin-quality
+      displayName: Mixin distro quality
+
+  - template: ../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+        npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+        echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        node build/azure-pipelines/mixin --server
-      displayName: Mix in server quality
+        npm run gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+        mv ../vscode-reh-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH) # TODO@joaomoreno
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH))
+        echo "##vso[task.setvariable variable=SERVER_PATH]$ARCHIVE_PATH"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Build server
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
-      displayName: Build Server
+        npm run gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+        mv ../vscode-reh-web-darwin-$(VSCODE_ARCH) ../vscode-server-darwin-$(VSCODE_ARCH)-web # TODO@joaomoreno
+        ARCHIVE_PATH=".build/darwin/server/vscode-server-darwin-$(VSCODE_ARCH)-web.zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd .. && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH vscode-server-darwin-$(VSCODE_ARCH)-web)
+        echo "##vso[task.setvariable variable=WEB_PATH]$ARCHIVE_PATH"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Build server (web)
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-          yarn gulp "transpile-client" "transpile-extensions"
-      displayName: Transpile
+  - ${{ else }}:
+      - script: npm run gulp transpile-client-esbuild transpile-extensions
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Transpile
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - template: product-build-darwin-test.yml
+    - template: product-build-darwin-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
-  - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
+  - ${{ elseif and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+        patterns: "**"
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        unzip $(Build.ArtifactStagingDirectory)/cli/*.zip -d $(Build.ArtifactStagingDirectory)/cli
+        CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
+        APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
+        mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+        chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+      displayName: Make CLI executable
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+        APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
+      displayName: Verify arch of Mach-O objects
+
     # Setting hardened entitlements is a requirement for:
     # * Apple notarization
     # * Running tests on Big Sur (because Big Sur has additional security precautions)
@@ -191,87 +206,49 @@ steps:
         security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
         echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
         security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+        export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-        VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
+        DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
       displayName: Set Hardened Entitlements
 
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
     - script: |
         set -e
-        pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
-      displayName: Archive build
+        ARCHIVE_PATH=".build/darwin/client/VSCode-darwin-$(VSCODE_ARCH).zip"
+        mkdir -p $(dirname $ARCHIVE_PATH)
+        (cd ../VSCode-darwin-$(VSCODE_ARCH) && zip -Xry $(Build.SourcesDirectory)/$ARCHIVE_PATH *)
+        echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
+      condition: and(succeededOrFailed(), eq(variables['BUILT_CLIENT'], 'true'))
+      displayName: Package client
 
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - script: |
-        set -e
+    - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
+      displayName: Generate artifact prefix
 
-        # package Remote Extension Host
-        pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH) && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin-$(VSCODE_ARCH) && popd
-
-        # package Remote Extension Host (Web)
-        pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
-      displayName: Prepare to publish servers
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (client)
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
-        BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (client)
-      artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-      displayName: Generate SBOM (server)
-      inputs:
-        BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
-        PackageName: Visual Studio Code Server
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
-      displayName: Publish SBOM (server)
-      artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
-      artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        targetPath: $(CLIENT_PATH)
+        artifactName: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
+        sbomPackageVersion: $(Build.SourceVersion)
       displayName: Publish client archive
 
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
-      artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(SERVER_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
+        sbomPackageVersion: $(Build.SourceVersion)
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
       displayName: Publish server archive
 
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
-      artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
-      displayName: Publish web server archive
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - task: AzureCLI@2
+    - task: 1ES.PublishPipelineArtifact@1
       inputs:
-        azureSubscription: "vscode-builds-subscription"
-        scriptType: pscore
-        scriptLocation: inlineScript
-        addSpnToEnvironment: true
-        inlineScript: |
-          Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
-          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-          Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
-
-  - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-    - script: |
-        set -e
-        AZURE_STORAGE_ACCOUNT="ticino" \
-        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-        AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-        VSCODE_ARCH="$(VSCODE_ARCH)" \
-          node build/azure-pipelines/upload-configuration
-      displayName: Upload configuration (for Bing settings search)
-      condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-      continueOnError: true
+        targetPath: $(WEB_PATH)
+        artifactName: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+        sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
+        sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
+        sbomPackageVersion: $(Build.SourceVersion)
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+      displayName: Publish web server archive

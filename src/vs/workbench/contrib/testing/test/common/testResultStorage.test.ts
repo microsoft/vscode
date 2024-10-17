@@ -3,28 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { range } from 'vs/base/common/arrays';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
-import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { range } from '../../../../../base/common/arrays.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITestResult, LiveTestResult } from '../../common/testResult.js';
+import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from '../../common/testResultStorage.js';
+import { TestRunProfileBitset } from '../../common/testTypes.js';
+import { testStubs } from './testStubs.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('Workbench - Test Result Storage', () => {
 	let storage: InMemoryResultStorage;
+	let ds: DisposableStore;
 
 	const makeResult = (taskName = 't') => {
-		const t = new LiveTestResult(
+		const t = ds.add(new LiveTestResult(
 			'',
-			emptyOutputController(),
 			true,
-			{ targets: [] }
-		);
+			{ targets: [], group: TestRunProfileBitset.Run },
+			NullTelemetryService,
+		));
 
-		t.addTask({ id: taskName, name: undefined, running: true });
-		const tests = testStubs.nested();
+		t.addTask({ id: taskName, name: 'n', running: true, ctrlId: 'ctrlId' });
+		const tests = ds.add(testStubs.nested());
 		tests.expand(tests.root.id, Infinity);
 		t.addTestChainToRun('ctrlId', [
 			tests.root.toTestItem(),
@@ -40,8 +45,17 @@ suite('Workbench - Test Result Storage', () => {
 		assert.deepStrictEqual((await storage.read()).map(r => r.id), stored.map(s => s.id));
 
 	setup(async () => {
-		storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+		ds = new DisposableStore();
+		storage = ds.add(new InMemoryResultStorage({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
 	});
+
+	teardown(() => ds.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stores a single result', async () => {
 		const r = range(5).map(() => makeResult());

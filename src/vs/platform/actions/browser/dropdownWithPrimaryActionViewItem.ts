@@ -3,28 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import * as DOM from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
+import { ActionViewItem, BaseActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
+import { DropdownMenuActionViewItem } from '../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
+import { IAction, IActionRunner } from '../../../base/common/actions.js';
+import { Event } from '../../../base/common/event.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { MenuEntryActionViewItem } from './menuEntryActionViewItem.js';
+import { MenuItemAction } from '../common/actions.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { INotificationService } from '../../notification/common/notification.js';
+import { IThemeService } from '../../theme/common/themeService.js';
+import { IContextMenuService } from '../../contextview/browser/contextView.js';
+import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
+import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js';
 
 export interface IDropdownWithPrimaryActionViewItemOptions {
+	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+	hoverDelegate?: IHoverDelegate;
+	menuAsChild?: boolean;
+	skipTelemetry?: boolean;
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
-	private _primaryAction: ActionViewItem;
+	protected readonly _primaryAction: ActionViewItem;
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
@@ -36,22 +42,37 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	constructor(
 		primaryAction: MenuItemAction,
 		dropdownAction: IAction,
-		dropdownMenuActions: IAction[],
+		dropdownMenuActions: readonly IAction[],
 		className: string,
-		private readonly _contextMenuProvider: IContextMenuService,
 		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
+		@IContextMenuService private readonly _contextMenuProvider: IContextMenuService,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@INotificationService _notificationService: INotificationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@IThemeService _themeService: IThemeService
+		@IThemeService _themeService: IThemeService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
-		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider);
+		super(null, primaryAction, { hoverDelegate: _options?.hoverDelegate });
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, { hoverDelegate: _options?.hoverDelegate }, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
+		if (_options?.actionRunner) {
+			this._primaryAction.actionRunner = _options.actionRunner;
+		}
+
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down'],
-			keybindingProvider: this._options?.getKeyBinding
+			menuAsChild: _options?.menuAsChild ?? true,
+			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
+			actionRunner: this._options?.actionRunner,
+			keybindingProvider: this._options?.getKeyBinding ?? (action => _keybindingService.lookupKeybinding(action.id)),
+			hoverDelegate: _options?.hoverDelegate,
+			skipTelemetry: _options?.skipTelemetry,
 		});
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+
+		this._primaryAction.actionRunner = actionRunner;
+		this._dropdown.actionRunner = actionRunner;
 	}
 
 	override setActionContext(newContext: unknown): void {
@@ -65,6 +86,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		super.render(this._container);
 		this._container.classList.add('monaco-dropdown-with-primary');
 		const primaryContainer = DOM.$('.action-container');
+		primaryContainer.role = 'button';
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
@@ -85,6 +107,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
+
+		this.updateEnabled();
 	}
 
 	override focus(fromRight?: boolean): void {
@@ -111,11 +135,19 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	protected override updateEnabled(): void {
+		const disabled = !this.action.enabled;
+		this.element?.classList.toggle('disabled', disabled);
+	}
+
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
 		this._dropdown.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
-			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
+			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
+			actionRunner: this._options?.actionRunner,
+			hoverDelegate: this._options?.hoverDelegate,
+			keybindingProvider: this._options?.getKeyBinding
 		});
 		if (this._dropdownContainer) {
 			this._dropdown.render(this._dropdownContainer);

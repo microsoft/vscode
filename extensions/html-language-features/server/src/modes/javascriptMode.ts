@@ -22,7 +22,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
-	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs').then(libs => {
+	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs.js').then(libs => {
 		const host: ts.LanguageServiceHost = {
 			getCompilationSettings: () => compilerOptions,
 			getScriptFileNames: () => [currentTextDocument.uri, 'jquery'],
@@ -103,12 +103,20 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 	const host = getLanguageServiceHost(languageId === 'javascript' ? ts.ScriptKind.JS : ts.ScriptKind.TS);
 	const globalSettings: Settings = {};
+
+	function updateHostSettings(settings: Settings) {
+		const hostSettings = host.getCompilationSettings();
+		hostSettings.experimentalDecorators = settings?.['js/ts']?.implicitProjectConfig?.experimentalDecorators;
+		hostSettings.strictNullChecks = settings?.['js/ts']?.implicitProjectConfig.strictNullChecks;
+	}
+
 	return {
 		getId() {
 			return languageId;
 		},
 		async doValidation(document: TextDocument, settings = workspace.settings): Promise<Diagnostic[]> {
-			host.getCompilationSettings()['experimentalDecorators'] = settings && settings.javascript && settings.javascript.implicitProjectConfig.experimentalDecorators;
+			updateHostSettings(settings);
+
 			const jsDocument = jsDocuments.get(document);
 			const languageService = await host.getLanguageService(jsDocument);
 			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);

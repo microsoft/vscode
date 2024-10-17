@@ -3,26 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectTokens';
-import { $, append, reset } from 'vs/base/browser/dom';
-import { CharCode } from 'vs/base/common/charCode';
-import { Color } from 'vs/base/common/color';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { IState, ITokenizationSupport, TokenizationRegistry, ILanguageIdCodec, Token } from 'vs/editor/common/languages';
-import { FontStyle, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
-import { NullState, nullTokenize, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
-import { editorHoverBackground, editorHoverBorder, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { InspectTokensNLS } from 'vs/editor/common/standaloneStrings';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
+import './inspectTokens.css';
+import { $, append, reset } from '../../../../base/browser/dom.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { Color } from '../../../../base/common/color.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from '../../../browser/editorExtensions.js';
+import { Position } from '../../../common/core/position.js';
+import { IEditorContribution } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { IState, ITokenizationSupport, TokenizationRegistry, ILanguageIdCodec, Token } from '../../../common/languages.js';
+import { FontStyle, StandardTokenType, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import { NullState, nullTokenize, nullTokenizeEncoded } from '../../../common/languages/nullTokenize.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { IStandaloneThemeService } from '../../common/standaloneTheme.js';
+import { InspectTokensNLS } from '../../../common/standaloneStrings.js';
 
 
 class InspectTokensController extends Disposable implements IEditorContribution {
@@ -329,22 +326,5 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectTokensController.ID, InspectTokensController);
+registerEditorContribution(InspectTokensController.ID, InspectTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectTokens);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		const borderWidth = isHighContrast(theme.type) ? 2 : 1;
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .tokens-inspect-widget .tokens-inspect-separator { background-color: ${border}; }`);
-	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { background-color: ${background}; }`);
-	}
-	const foreground = theme.getColor(editorHoverForeground);
-	if (foreground) {
-		collector.addRule(`.monaco-editor .tokens-inspect-widget { color: ${foreground}; }`);
-	}
-});

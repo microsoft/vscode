@@ -3,22 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { IAction } from 'vs/base/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository, ISCMService, ISCMMenus, ISCMRepositoryMenus } from 'vs/workbench/contrib/scm/common/scm';
-import { equals } from 'vs/base/common/arrays';
-import { ISplice } from 'vs/base/common/sequence';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IAction } from '../../../../base/common/actions.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DisposableStore, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import './media/scm.css';
+import { localize } from '../../../../nls.js';
+import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenu, IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from '../common/scm.js';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
 }
+
+const repositoryMenuDisposables = new DisposableStore();
+
+MenuRegistry.onDidChangeMenu(e => {
+	if (e.has(MenuId.SCMTitle)) {
+		repositoryMenuDisposables.clear();
+
+		for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
+			repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
+		}
+	}
+});
 
 export class SCMTitleMenu implements IDisposable {
 
@@ -32,8 +44,7 @@ export class SCMTitleMenu implements IDisposable {
 	readonly onDidChangeTitle = this._onDidChangeTitle.event;
 
 	readonly menu: IMenu;
-	private listener: IDisposable = Disposable.None;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@IMenuService menuService: IMenuService,
@@ -49,15 +60,12 @@ export class SCMTitleMenu implements IDisposable {
 	private updateTitleActions(): void {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
-		const disposable = createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, { primary, secondary });
+		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, { primary, secondary });
 
 		if (equals(primary, this._actions, actionEquals) && equals(secondary, this._secondaryActions, actionEquals)) {
-			disposable.dispose();
 			return;
 		}
 
-		this.listener.dispose();
-		this.listener = disposable;
 		this._actions = primary;
 		this._secondaryActions = secondary;
 
@@ -65,8 +73,7 @@ export class SCMTitleMenu implements IDisposable {
 	}
 
 	dispose(): void {
-		this.menu.dispose();
-		this.listener.dispose();
+		this.disposables.dispose();
 	}
 }
 
@@ -152,23 +159,24 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private contextKeyService: IContextKeyService;
 
 	readonly titleMenu: SCMTitleMenu;
-	private readonly resourceGroups: ISCMResourceGroup[] = [];
+	readonly repositoryMenu: IMenu;
+
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
-	private _repositoryMenu: IMenu | undefined;
-	get repositoryMenu(): IMenu {
-		if (!this._repositoryMenu) {
-			this._repositoryMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
-			this.disposables.add(this._repositoryMenu);
+	private _repositoryContextMenu: IMenu | undefined;
+	get repositoryContextMenu(): IMenu {
+		if (!this._repositoryContextMenu) {
+			this._repositoryContextMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
+			this.disposables.add(this._repositoryContextMenu);
 		}
 
-		return this._repositoryMenu;
+		return this._repositoryContextMenu;
 	}
 
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		provider: ISCMProvider,
+		private readonly provider: ISCMProvider,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService
@@ -180,11 +188,15 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		]);
 
 		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		instantiationService = instantiationService.createChild(serviceCollection);
+		instantiationService = instantiationService.createChild(serviceCollection, this.disposables);
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
+		this.disposables.add(this.titleMenu);
 
-		provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
-		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: provider.groups.elements });
+		this.repositoryMenu = menuService.createMenu(MenuId.SCMSourceControlInline, this.contextKeyService);
+		this.disposables.add(this.repositoryMenu);
+
+		provider.onDidChangeResourceGroups(this.onDidChangeResourceGroups, this, this.disposables);
+		this.onDidChangeResourceGroups();
 	}
 
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
@@ -205,6 +217,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		if (!result) {
 			const contextKeyService = this.contextKeyService.createOverlay([
 				['scmResourceGroup', group.id],
+				['multiDiffEditorEnableViewChanges', group.multiDiffEditorEnableViewChanges],
 			]);
 
 			result = new SCMMenusItem(contextKeyService, this.menuService);
@@ -214,13 +227,12 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		return result;
 	}
 
-	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
-		const deleted = this.resourceGroups.splice(start, deleteCount, ...toInsert);
-
-		for (const group of deleted) {
-			const item = this.resourceGroupMenusItems.get(group);
-			item?.dispose();
-			this.resourceGroupMenusItems.delete(group);
+	private onDidChangeResourceGroups(): void {
+		for (const resourceGroup of this.resourceGroupMenusItems.keys()) {
+			if (!this.provider.groups.includes(resourceGroup)) {
+				this.resourceGroupMenusItems.get(resourceGroup)?.dispose();
+				this.resourceGroupMenusItems.delete(resourceGroup);
+			}
 		}
 	}
 
@@ -271,3 +283,10 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 		this.disposables.dispose();
 	}
 }
+
+MenuRegistry.appendMenuItem(MenuId.SCMResourceContext, {
+	title: localize('miShare', "Share"),
+	submenu: MenuId.SCMResourceContextShare,
+	group: '45_share',
+	order: 3,
+});

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
-import { createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { isRemoteConsoleLog, log } from 'vs/base/common/console';
-import * as errors from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
-import { createQueuedSender } from 'vs/base/node/processes';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
-import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
+import { createCancelablePromise, Delayer } from '../../../common/async.js';
+import { VSBuffer } from '../../../common/buffer.js';
+import { CancellationToken } from '../../../common/cancellation.js';
+import { isRemoteConsoleLog, log } from '../../../common/console.js';
+import * as errors from '../../../common/errors.js';
+import { Emitter, Event } from '../../../common/event.js';
+import { dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { deepClone } from '../../../common/objects.js';
+import { createQueuedSender } from '../../../node/processes.js';
+import { removeDangerousEnvVariables } from '../../../common/processes.js';
+import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from '../common/ipc.js';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -102,6 +102,7 @@ export class Client implements IChannelClient, IDisposable {
 	getChannel<T extends IChannel>(channelName: string): T {
 		const that = this;
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {
 			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				return that.requestPromise<T>(channelName, command, arg, cancellationToken);
@@ -151,14 +152,14 @@ export class Client implements IChannelClient, IDisposable {
 
 		let listener: IDisposable;
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				const channel = this.getCachedChannel(channelName);
 				const event: Event<T> = channel.listen(name, arg);
 
 				listener = event(emitter.fire, emitter);
 				this.activeRequests.add(listener);
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this.activeRequests.delete(listener);
 				listener.dispose();
 
@@ -195,9 +196,9 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			if (forkOpts.execArgv === undefined) {
-				// if not set, the forked process inherits the execArgv of the parent process
-				// --inspect and --inspect-brk can not be inherited as the port would conflict
-				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
+				forkOpts.execArgv = process.execArgv			// if not set, the forked process inherits the execArgv of the parent process
+					.filter(a => !/^--inspect(-brk)?=/.test(a)) // --inspect and --inspect-brk can not be inherited as the port would conflict
+					.filter(a => !a.startsWith('--vscode-')); 	// --vscode-* arguments are unsupported by node.js and thus need to remove
 			}
 
 			removeDangerousEnvVariables(forkOpts.env);
@@ -207,7 +208,7 @@ export class Client implements IChannelClient, IDisposable {
 			const onMessageEmitter = new Emitter<VSBuffer>();
 			const onRawMessage = Event.fromNodeEventEmitter(this.child, 'message', msg => msg);
 
-			onRawMessage(msg => {
+			const rawMessageDisposable = onRawMessage(msg => {
 
 				// Handle remote console logs specially
 				if (isRemoteConsoleLog(msg)) {
@@ -233,6 +234,7 @@ export class Client implements IChannelClient, IDisposable {
 
 			this.child.on('exit', (code: any, signal: any) => {
 				process.removeListener('exit' as 'loaded', onExit); // https://github.com/electron/electron/issues/21475
+				rawMessageDisposable.dispose();
 
 				this.activeRequests.forEach(r => dispose(r));
 				this.activeRequests.clear();
@@ -274,10 +276,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	dispose() {
 		this._onDidProcessExit.dispose();
-		if (this.disposeDelayer) {
-			this.disposeDelayer.cancel();
-			this.disposeDelayer = undefined;
-		}
+		this.disposeDelayer?.cancel();
+		this.disposeDelayer = undefined;
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

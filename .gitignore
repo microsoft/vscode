@@ -4,6 +4,7 @@ npm-debug.log
 Thumbs.db
 node_modules/
 .build/
+.vscode/extensions/**/out/
 extensions/**/dist/
 /out*/
 /extensions/**/out/
@@ -11,7 +12,12 @@ build/node_modules
 coverage/
 test_data/
 test-results/
-yarn-error.log
+test-results.xml
 vscode.lsif
 vscode.db
 /.profile-oss
+/cli/target
+/cli/openssl
+product.overrides.json
+*.snap.actual
+.vscode-test

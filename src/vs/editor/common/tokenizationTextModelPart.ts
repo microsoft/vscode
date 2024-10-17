@@ -3,22 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { OffsetEdit } from './core/offsetEdit.js';
+import { OffsetRange } from './core/offsetRange.js';
+import { Range } from './core/range.js';
+import { StandardTokenType } from './encodedTokenAttributes.js';
+import { LineTokens } from './tokens/lineTokens.js';
+import { SparseMultilineTokens } from './tokens/sparseMultilineTokens.js';
 
 /**
  * Provides tokenization related functionality of the text model.
 */
 export interface ITokenizationTextModelPart {
-	/**
-	 * @internal
-	 */
-	setTokens(tokens: ContiguousMultilineTokens[]): void;
+	readonly hasTokens: boolean;
 
 	/**
 	 * Replaces all semantic tokens with the provided `tokens`.
@@ -62,6 +58,12 @@ export interface ITokenizationTextModelPart {
 	tokenizeIfCheap(lineNumber: number): void;
 
 	/**
+	 * Check if tokenization information is accurate for `lineNumber`.
+	 * @internal
+	 */
+	hasAccurateTokensForLine(lineNumber: number): boolean;
+
+	/**
 	 * Check if calling `forceTokenization` for this `lineNumber` will be cheap (time-wise).
 	 * This is based on a heuristic.
 	 * @internal
@@ -85,24 +87,43 @@ export interface ITokenizationTextModelPart {
 	/**
 	 * @internal
 	*/
-	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
-
-	/**
-	 * @internal
-	 */
-	tokenizeViewport(startLineNumber: number, endLineNumber: number): void;
+	tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult;
 
 	getLanguageId(): string;
 	getLanguageIdAtPosition(lineNumber: number, column: number): string;
 
-	setLanguageId(languageId: string): void;
+	setLanguageId(languageId: string, source?: string): void;
 
 	readonly backgroundTokenizationState: BackgroundTokenizationState;
-	readonly onBackgroundTokenizationStateChanged: Event<void>;
+}
+
+export class LineEditWithAdditionalLines {
+	public static replace(range: OffsetRange, text: string): LineEditWithAdditionalLines {
+		return new LineEditWithAdditionalLines(
+			OffsetEdit.replace(range, text),
+			null,
+		);
+	}
+
+	constructor(
+		/**
+		 * The edit for the main line.
+		*/
+		readonly lineEdit: OffsetEdit,
+
+		/**
+		 * Full lines appended after the main line.
+		*/
+		readonly additionalLines: string[] | null,
+	) { }
+}
+
+export interface ITokenizeLineWithEditResult {
+	readonly mainLineTokens: LineTokens | null;
+	readonly additionalLines: LineTokens[] | null;
 }
 
 export const enum BackgroundTokenizationState {
-	Uninitialized = 0,
 	InProgress = 1,
 	Completed = 2,
 }

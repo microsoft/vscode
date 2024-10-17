@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { VSBuffer } from '../../../common/buffer.js';
+import { Event } from '../../../common/event.js';
+import { IDisposable } from '../../../common/lifecycle.js';
+import { IMessagePassingProtocol, IPCClient } from './ipc.js';
 
 /**
  * Declare minimal `MessageEvent` and `MessagePort` interfaces here
@@ -41,7 +41,12 @@ export interface MessagePort {
  */
 export class Protocol implements IMessagePassingProtocol {
 
-	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
+	readonly onMessage = Event.fromDOMEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
+		if (e.data) {
+			return VSBuffer.wrap(e.data);
+		}
+		return VSBuffer.alloc(0);
+	});
 
 	constructor(private port: MessagePort) {
 
@@ -74,5 +79,7 @@ export class Client extends IPCClient implements IDisposable {
 
 	override dispose(): void {
 		this.protocol.disconnect();
+
+		super.dispose();
 	}
 }

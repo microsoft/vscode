@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "x",
+		"fileName": "./2.txt"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,1 -> 1,1 EOL]",
+					"modifiedRange": "[1,1 -> 1,2 EOL]"
+				}
+			]
+		}
+	]
+}

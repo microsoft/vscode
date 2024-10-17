@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SuggestModel } from 'vs/editor/contrib/suggest/browser/suggestModel';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { SuggestModel } from './suggestModel.js';
 
 export class OvertypingCapturer implements IDisposable {
 
@@ -13,15 +13,12 @@ export class OvertypingCapturer implements IDisposable {
 	private readonly _disposables = new DisposableStore();
 
 	private _lastOvertyped: { value: string; multiline: boolean }[] = [];
-	private _empty: boolean = true;
+	private _locked: boolean = false;
 
 	constructor(editor: ICodeEditor, suggestModel: SuggestModel) {
 
 		this._disposables.add(editor.onWillType(() => {
-			if (!this._empty) {
-				return;
-			}
-			if (!editor.hasModel()) {
+			if (this._locked || !editor.hasModel()) {
 				return;
 			}
 
@@ -37,6 +34,9 @@ export class OvertypingCapturer implements IDisposable {
 				}
 			}
 			if (!willOvertype) {
+				if (this._lastOvertyped.length !== 0) {
+					this._lastOvertyped.length = 0;
+				}
 				return;
 			}
 
@@ -50,18 +50,19 @@ export class OvertypingCapturer implements IDisposable {
 				}
 				this._lastOvertyped[i] = { value: model.getValueInRange(selection), multiline: selection.startLineNumber !== selection.endLineNumber };
 			}
-			this._empty = false;
+		}));
+
+		this._disposables.add(suggestModel.onDidTrigger(e => {
+			this._locked = true;
 		}));
 
 		this._disposables.add(suggestModel.onDidCancel(e => {
-			if (!this._empty && !e.retrigger) {
-				this._empty = true;
-			}
+			this._locked = false;
 		}));
 	}
 
 	getLastOvertypedInfo(idx: number): { value: string; multiline: boolean } | undefined {
-		if (!this._empty && idx >= 0 && idx < this._lastOvertyped.length) {
+		if (idx >= 0 && idx < this._lastOvertyped.length) {
 			return this._lastOvertyped[idx];
 		}
 		return undefined;

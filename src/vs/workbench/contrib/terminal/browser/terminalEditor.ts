@@ -3,37 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
-import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { BrowserFeatures } from 'vs/base/browser/canIUse';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-
-const findWidgetSelector = '.simple-find-part-wrapper';
+import * as dom from '../../../../base/browser/dom.js';
+import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext } from '../../../common/editor.js';
+import { ITerminalConfigurationService, ITerminalEditorService, ITerminalService, terminalEditorId } from './terminal.js';
+import { TerminalEditorInput } from './terminalEditorInput.js';
+import { getTerminalActionBarArgs } from './terminalMenus.js';
+import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from '../common/terminal.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { openContextMenu } from './terminalContextMenu.js';
+import { ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class TerminalEditor extends EditorPane {
 
@@ -46,38 +40,31 @@ export class TerminalEditor extends EditorPane {
 
 	private readonly _dropdownMenu: IMenu;
 
-	private _findWidget: TerminalFindWidget;
-	private _findState: FindReplaceState;
-
 	private readonly _instanceMenu: IMenu;
 
 	private _cancelContextMenu: boolean = false;
 
-	get findState(): FindReplaceState { return this._findState; }
+	private readonly _disposableStore = this._register(new DisposableStore());
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService
 	) {
-		super(terminalEditorId, telemetryService, themeService, storageService);
-		this._findState = new FindReplaceState();
-		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
-		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, _contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, _contextKeyService));
-		this._register(this._terminalService.onDidRequestHideFindWidget(() => this.hideFindWidget()));
+		super(terminalEditorId, group, telemetryService, themeService, storageService);
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -88,20 +75,21 @@ export class TerminalEditor extends EditorPane {
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
-		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART));
+		this._editorInput.terminalInstance?.setVisible(this.isVisible() && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, this.window));
 		if (this._editorInput.terminalInstance) {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
 			this._register(this._editorInput.terminalInstance.onDidFocus(() => this._setActiveInstance()));
-			this._register(this._editorInput.terminalInstance.onDidChangeFindResults(() => this._findWidget.updateResultCount()));
 			this._editorInput.setCopyLaunchConfig(this._editorInput.terminalInstance.shellLaunchConfig);
 		}
 	}
 
 	override clearInput(): void {
 		super.clearInput();
-		this._editorInput?.terminalInstance?.detachFromElement();
+		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement.parentElement === this._overflowGuardElement) {
+			this._editorInput.terminalInstance?.detachFromElement();
+		}
 		this._editorInput = undefined;
 	}
 
@@ -113,13 +101,15 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override focus() {
-		this._editorInput?.terminalInstance?.focus();
+		super.focus();
+
+		this._editorInput?.terminalInstance?.focus(true);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
 		this._editorInstanceElement = parent;
-		this._overflowGuardElement = dom.$('.terminal-overflow-guard');
+		this._overflowGuardElement = dom.$('.terminal-overflow-guard.terminal-editor');
 		this._editorInstanceElement.appendChild(this._overflowGuardElement);
 		this._registerListeners();
 	}
@@ -129,60 +119,16 @@ export class TerminalEditor extends EditorPane {
 			return;
 		}
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'mousedown', async (event: MouseEvent) => {
-			if (this._terminalEditorService.instances.length === 0) {
-				return;
-			}
-
-			if (event.which === 2 && isLinux) {
-				// Drop selection and focus terminal on Linux to enable middle button paste when click
-				// occurs on the selection itself.
-				const terminal = this._terminalEditorService.activeInstance;
-				terminal?.focus();
-			} else if (event.which === 3) {
-				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'nothing') {
-					if (!event.shiftKey) {
-						this._cancelContextMenu = true;
-					}
-					return;
-				}
-				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
-					const terminal = this._terminalEditorService.activeInstance;
-					if (!terminal) {
-						return;
-					}
-
-					// copyPaste: Shift+right click should open context menu
-					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
-						return;
-					}
-
-					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
-						await terminal.copySelection();
-						terminal.clearSelection();
-					} else {
-						if (BrowserFeatures.clipboard.readText) {
-							terminal.paste();
-						} else {
-							this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
-						}
-					}
-					// Clear selection after all click event bubbling is finished on Mac to prevent
-					// right-click selecting a word which is seemed cannot be disabled. There is a
-					// flicker when pasting but this appears to give the best experience if the
-					// setting is enabled.
-					if (isMacintosh) {
-						setTimeout(() => {
-							terminal.clearSelection();
-						}, 0);
-					}
+			const terminal = this._terminalEditorService.activeInstance;
+			if (this._terminalEditorService.instances.length > 0 && terminal) {
+				const result = await terminal.handleMouseEvent(event, this._instanceMenu);
+				if (typeof result === 'object' && result.cancelContextMenu) {
 					this._cancelContextMenu = true;
 				}
 			}
 		}));
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
-			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			const rightClickBehavior = this._terminalConfigurationService.config.rightClickBehavior;
 			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
@@ -192,7 +138,7 @@ export class TerminalEditor extends EditorPane {
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 					if (!this._cancelContextMenu) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(this.window, event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();
@@ -202,25 +148,43 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	layout(dimension: dom.Dimension): void {
-		this._editorInput?.terminalInstance?.layout(dimension);
+		const instance = this._editorInput?.terminalInstance;
+		if (instance) {
+			instance.attachToElement(this._overflowGuardElement!);
+			instance.layout(dimension);
+		}
 		this._lastDimension = dimension;
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.setVisible(visible, group);
-		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART));
+	override setVisible(visible: boolean): void {
+		super.setVisible(visible);
+		this._editorInput?.terminalInstance?.setVisible(visible && this._workbenchLayoutService.isVisible(Parts.EDITOR_PART, this.window));
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
-			case TerminalCommandId.CreateWithProfileButton: {
-				const location = { viewColumn: ACTIVE_GROUP };
-				const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._instantiationService, this._terminalService, this._contextKeyService, this._commandService, this._dropdownMenu);
-				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {});
-				return button;
+			case TerminalCommandId.CreateTerminalEditor: {
+				if (action instanceof MenuItemAction) {
+					const location = { viewColumn: ACTIVE_GROUP };
+					const actions = getTerminalActionBarArgs(location, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
+					const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate });
+					return button;
+				}
 			}
 		}
-		return super.getActionViewItem(action);
+		return super.getActionViewItem(action, options);
+	}
+
+	/**
+	 * Actions might be of type Action (disposable) or Separator or SubmenuAction, which don't extend Disposable
+	 */
+	private _registerDisposableActions(dropdownAction: IAction, dropdownMenuActions: IAction[]): void {
+		this._disposableStore.clear();
+		if (dropdownAction instanceof Action) {
+			this._disposableStore.add(dropdownAction);
+		}
+		dropdownMenuActions.filter(a => a instanceof Action).forEach(a => this._disposableStore.add(a));
 	}
 
 	private _getDefaultProfileName(): string {
@@ -231,35 +195,5 @@ export class TerminalEditor extends EditorPane {
 			defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
 		}
 		return defaultProfileName!;
-	}
-
-	focusFindWidget() {
-		if (this._overflowGuardElement && !this._overflowGuardElement?.querySelector(findWidgetSelector)) {
-			this._overflowGuardElement.appendChild(this._findWidget.getDomNode());
-		}
-		const activeInstance = this._terminalEditorService.activeInstance;
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget.reveal(activeInstance.selection);
-		} else {
-			this._findWidget.reveal();
-		}
-	}
-
-	hideFindWidget() {
-		this.focus();
-		this._findWidget.hide();
-	}
-
-	showFindWidget() {
-		const activeInstance = this._terminalEditorService.activeInstance;
-		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget.show(activeInstance.selection);
-		} else {
-			this._findWidget.show();
-		}
-	}
-
-	getFindWidget(): TerminalFindWidget {
-		return this._findWidget;
 	}
 }

@@ -3,78 +3,96 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { IRequestContext, IRequestOptions, OfflineError } from 'vs/base/parts/request/common/request';
+import { bufferToStream, VSBuffer } from '../../../common/buffer.js';
+import { CancellationToken } from '../../../common/cancellation.js';
+import { canceled } from '../../../common/errors.js';
+import { IHeaders, IRequestContext, IRequestOptions, OfflineError } from '../common/request.js';
 
-export function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-	if (!navigator.onLine) {
-		throw new OfflineError();
+export async function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+	if (token.isCancellationRequested) {
+		throw canceled();
 	}
 
-	if (options.proxyAuthorization) {
-		options.headers = {
-			...(options.headers || {}),
-			'Proxy-Authorization': options.proxyAuthorization
-		};
-	}
+	const cancellation = new AbortController();
+	const disposable = token.onCancellationRequested(() => cancellation.abort());
+	const signal = options.timeout ? AbortSignal.any([
+		cancellation.signal,
+		AbortSignal.timeout(options.timeout),
+	]) : cancellation.signal;
 
-	const xhr = new XMLHttpRequest();
-	return new Promise<IRequestContext>((resolve, reject) => {
-
-		xhr.open(options.type || 'GET', options.url || '', true, options.user, options.password);
-		setRequestHeaders(xhr, options);
-
-		xhr.responseType = 'arraybuffer';
-		xhr.onerror = e => reject(new Error(xhr.statusText && ('XHR failed: ' + xhr.statusText) || 'XHR failed'));
-		xhr.onload = (e) => {
-			resolve({
-				res: {
-					statusCode: xhr.status,
-					headers: getResponseHeaders(xhr)
-				},
-				stream: bufferToStream(VSBuffer.wrap(new Uint8Array(xhr.response)))
-			});
-		};
-		xhr.ontimeout = e => reject(new Error(`XHR timeout: ${options.timeout}ms`));
-
-		if (options.timeout) {
-			xhr.timeout = options.timeout;
-		}
-
-		xhr.send(options.data);
-
-		// cancel
-		token.onCancellationRequested(() => {
-			xhr.abort();
-			reject(canceled());
+	try {
+		const res = await fetch(options.url || '', {
+			method: options.type || 'GET',
+			headers: getRequestHeaders(options),
+			body: options.data,
+			signal,
 		});
-	});
+		return {
+			res: {
+				statusCode: res.status,
+				headers: getResponseHeaders(res),
+			},
+			stream: bufferToStream(VSBuffer.wrap(new Uint8Array(await res.arrayBuffer()))),
+		};
+	} catch (err) {
+		if (!navigator.onLine) {
+			throw new OfflineError();
+		}
+		if (err?.name === 'AbortError') {
+			throw canceled();
+		}
+		if (err?.name === 'TimeoutError') {
+			throw new Error(`Fetch timeout: ${options.timeout}ms`);
+		}
+		throw err;
+	} finally {
+		disposable.dispose();
+	}
 }
 
-function setRequestHeaders(xhr: XMLHttpRequest, options: IRequestOptions): void {
-	if (options.headers) {
+function getRequestHeaders(options: IRequestOptions) {
+	if (options.headers || options.user || options.password || options.proxyAuthorization) {
+		const headers: HeadersInit = new Headers();
 		outer: for (const k in options.headers) {
-			switch (k) {
-				case 'User-Agent':
-				case 'Accept-Encoding':
-				case 'Content-Length':
+			switch (k.toLowerCase()) {
+				case 'user-agent':
+				case 'accept-encoding':
+				case 'content-length':
 					// unsafe headers
 					continue outer;
 			}
-			xhr.setRequestHeader(k, options.headers[k]);
+			const header = options.headers[k];
+			if (typeof header === 'string') {
+				headers.set(k, header);
+			} else if (Array.isArray(header)) {
+				for (const h of header) {
+					headers.append(k, h);
+				}
+			}
 		}
+		if (options.user || options.password) {
+			headers.set('Authorization', 'Basic ' + btoa(`${options.user || ''}:${options.password || ''}`));
+		}
+		if (options.proxyAuthorization) {
+			headers.set('Proxy-Authorization', options.proxyAuthorization);
+		}
+		return headers;
 	}
+	return undefined;
 }
 
-function getResponseHeaders(xhr: XMLHttpRequest): { [name: string]: string } {
-	const headers: { [name: string]: string } = Object.create(null);
-	for (const line of xhr.getAllResponseHeaders().split(/\r\n|\n|\r/g)) {
-		if (line) {
-			const idx = line.indexOf(':');
-			headers[line.substr(0, idx).trim().toLowerCase()] = line.substr(idx + 1).trim();
+function getResponseHeaders(res: Response): IHeaders {
+	const headers: IHeaders = Object.create(null);
+	res.headers.forEach((value, key) => {
+		if (headers[key]) {
+			if (Array.isArray(headers[key])) {
+				headers[key].push(value);
+			} else {
+				headers[key] = [headers[key], value];
+			}
+		} else {
+			headers[key] = value;
 		}
-	}
+	});
 	return headers;
 }

@@ -6,8 +6,6 @@
 import * as vscode from 'vscode';
 import { SymbolItemDragAndDrop, SymbolItemEditorHighlights, SymbolItemNavigation, SymbolTreeInput, SymbolTreeModel } from '../references-view';
 import { asResourceUrl, del, getPreviewChunks, tail } from '../utils';
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 export class ReferencesTreeInput implements SymbolTreeInput<FileItem | ReferenceItem> {
 
@@ -22,7 +20,7 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		this.contextValue = _command;
 	}
 
-	async resolve() {
+	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
 
 		let model: ReferencesModel;
 		if (this._result) {
@@ -37,8 +35,7 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		}
 
 		const provider = new ReferencesTreeDataProvider(model);
-
-		return <SymbolTreeModel<FileItem | ReferenceItem>>{
+		return {
 			provider,
 			get message() { return model.message; },
 			navigation: model,
@@ -112,23 +109,25 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 
 	get message() {
 		if (this.items.length === 0) {
-			return localize('noresult', 'No results.');
+			return vscode.l10n.t('No results.');
 		}
 		const total = this.items.reduce((prev, cur) => prev + cur.references.length, 0);
 		const files = this.items.length;
 		if (total === 1 && files === 1) {
-			return localize('result.1', '{0} result in {1} file', total, files);
+			return vscode.l10n.t('{0} result in {1} file', total, files);
 		} else if (total === 1) {
-			return localize('result.1n', '{0} result in {1} files', total, files);
+			return vscode.l10n.t('{0} result in {1} files', total, files);
 		} else if (files === 1) {
-			return localize('result.n1', '{0} results in {1} file', total, files);
+			return vscode.l10n.t('{0} results in {1} file', total, files);
 		} else {
-			return localize('result.nm', '{0} results in {1} files', total, files);
+			return vscode.l10n.t('{0} results in {1} files', total, files);
 		}
 	}
 
 	location(item: FileItem | ReferenceItem) {
-		return item instanceof ReferenceItem ? item.location : undefined;
+		return item instanceof ReferenceItem
+			? item.location
+			: new vscode.Location(item.uri, item.references[0]?.location.range ?? new vscode.Position(0, 0));
 	}
 
 	nearest(uri: vscode.Uri, position: vscode.Position): FileItem | ReferenceItem | undefined {
@@ -257,7 +256,7 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 }
 
-class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | ReferenceItem>{
+class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | ReferenceItem> {
 
 	private readonly _listener: vscode.Disposable;
 	private readonly _onDidChange = new vscode.EventEmitter<FileItem | ReferenceItem | undefined>();
@@ -299,10 +298,10 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 			result.contextValue = 'reference-item';
 			result.command = {
 				command: 'vscode.open',
-				title: localize('open', 'Open Reference'),
+				title: vscode.l10n.t('Open Reference'),
 				arguments: [
 					element.location.uri,
-					<vscode.TextDocumentShowOptions>{ selection: range.with({ end: range.start }) }
+					{ selection: range.with({ end: range.start }) } satisfies vscode.TextDocumentShowOptions
 				]
 			};
 			return result;

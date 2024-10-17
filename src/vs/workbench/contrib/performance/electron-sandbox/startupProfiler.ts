@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { localize } from 'vs/nls';
-import { dirname, basename, joinPath } from 'vs/base/common/resources';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { URI } from 'vs/base/common/uri';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { localize } from '../../../../nls.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-sandbox/environmentService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { PerfviewContrib } from '../browser/perfviewEditor.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
@@ -73,33 +73,34 @@ export class StartupProfiler implements IWorkbenchContribution {
 
 		markerFile.then(() => {
 			return this._fileService.resolve(dir).then(stat => {
-				return (stat.children ? stat.children.filter(value => value.resource.path.includes(prefix)) : []).map(stat => stat.resource.path);
+				return (stat.children ? stat.children.filter(value => value.resource.path.includes(prefix)) : []).map(stat => stat.resource);
 			});
 		}).then(files => {
-			const profileFiles = files.reduce((prev, cur) => `${prev}${this._labelService.getUriLabel(joinPath(dir, cur))}\n`, '\n');
+			const profileFiles = files.reduce((prev, cur) => `${prev}${this._labelService.getUriLabel(cur)}\n`, '\n');
 
 			return this._dialogService.confirm({
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-				primaryButton: localize('prof.restartAndFileIssue', "&&Create Issue and Restart"),
-				secondaryButton: localize('prof.restart', "&&Restart")
+				primaryButton: localize({ key: 'prof.restartAndFileIssue', comment: ['&& denotes a mnemonic'] }, "&&Create Issue and Restart"),
+				cancelButton: localize('prof.restart', "Restart")
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._nativeHostService.showItemInFolder(URI.joinPath(dir, files[0]).fsPath),
-						this._createPerfIssue(files)
+						this._nativeHostService.showItemInFolder(files[0].fsPath),
+						this._createPerfIssue(files.map(file => basename(file)))
 					]).then(() => {
 						// keep window stable until restart is selected
 						return this._dialogService.confirm({
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
 							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
-							primaryButton: localize('prof.restart.button', "&&Restart"),
-							secondaryButton: undefined
-						}).then(() => {
+							primaryButton: localize({ key: 'prof.restart.button', comment: ['&& denotes a mnemonic'] }, "&&Restart")
+						}).then(res => {
 							// now we are ready to restart
-							this._nativeHostService.relaunch({ removeArgs });
+							if (res.confirmed) {
+								this._nativeHostService.relaunch({ removeArgs });
+							}
 						});
 					});
 
@@ -117,7 +118,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 			return;
 		}
 
-		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
+		const contrib = PerfviewContrib.get();
+		const ref = await this._textModelResolverService.createModelReference(contrib.getInputUri());
 		try {
 			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
 		} finally {

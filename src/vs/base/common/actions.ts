@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { Emitter, Event } from './event.js';
+import { Disposable, IDisposable } from './lifecycle.js';
+import * as nls from '../../nls.js';
 
 export interface ITelemetryData {
 	readonly from?: string;
@@ -14,30 +14,32 @@ export interface ITelemetryData {
 }
 
 export type WorkbenchActionExecutedClassification = {
-	owner: 'bpasero';
-	comment: 'TODO @bpasero';
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the action that was run.' };
 	from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the component the action was run from.' };
+	detail?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Optional details about how the action was run, e.g which keybinding was used.' };
+	owner: 'bpasero';
+	comment: 'Provides insight into actions that are executed within the workbench.';
 };
 
 export type WorkbenchActionExecutedEvent = {
 	id: string;
 	from: string;
+	detail?: string;
 };
 
-export interface IAction extends IDisposable {
+export interface IAction {
 	readonly id: string;
 	label: string;
 	tooltip: string;
 	class: string | undefined;
 	enabled: boolean;
 	checked?: boolean;
-	run(event?: unknown): unknown;
+	run(...args: unknown[]): unknown;
 }
 
 export interface IActionRunner extends IDisposable {
 	readonly onDidRun: Event<IRunEvent>;
-	readonly onBeforeRun: Event<IRunEvent>;
+	readonly onWillRun: Event<IRunEvent>;
 
 	run(action: IAction, context?: unknown): unknown;
 }
@@ -165,10 +167,10 @@ export interface IRunEvent {
 
 export class ActionRunner extends Disposable implements IActionRunner {
 
-	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun = this._onBeforeRun.event;
+	private readonly _onWillRun = this._register(new Emitter<IRunEvent>());
+	readonly onWillRun = this._onWillRun.event;
 
-	private _onDidRun = this._register(new Emitter<IRunEvent>());
+	private readonly _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
 
 	async run(action: IAction, context?: unknown): Promise<void> {
@@ -176,7 +178,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 			return;
 		}
 
-		this._onBeforeRun.fire({ action });
+		this._onWillRun.fire({ action });
 
 		let error: Error | undefined = undefined;
 		try {
@@ -193,7 +195,7 @@ export class ActionRunner extends Disposable implements IActionRunner {
 	}
 }
 
-export class Separator extends Action {
+export class Separator implements IAction {
 
 	/**
 	 * Joins all non-empty lists of actions with separators.
@@ -215,12 +217,14 @@ export class Separator extends Action {
 
 	static readonly ID = 'vs.actions.separator';
 
-	constructor(label?: string) {
-		super(Separator.ID, label, label ? 'separator text' : 'separator');
+	readonly id: string = Separator.ID;
 
-		this.checked = false;
-		this.enabled = false;
-	}
+	readonly label: string = '';
+	readonly tooltip: string = '';
+	readonly class: string = 'separator';
+	readonly enabled: boolean = false;
+	readonly checked: boolean = false;
+	async run() { }
 }
 
 export class SubmenuAction implements IAction {
@@ -242,12 +246,6 @@ export class SubmenuAction implements IAction {
 		this._actions = actions;
 	}
 
-	dispose(): void {
-		// there is NOTHING to dispose and the SubmenuAction should
-		// never have anything to dispose as it is a convenience type
-		// to bridge into the rendering world.
-	}
-
 	async run(): Promise<void> { }
 }
 
@@ -260,15 +258,14 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; run: Function }): IAction {
+export function toAction(props: { id: string; label: string; tooltip?: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,
-		class: undefined,
+		tooltip: props.tooltip ?? props.label,
+		class: props.class,
 		enabled: props.enabled ?? true,
-		checked: props.checked ?? false,
-		run: async () => props.run(),
-		tooltip: props.label,
-		dispose: () => { }
+		checked: props.checked,
+		run: async (...args: unknown[]) => props.run(...args),
 	};
 }

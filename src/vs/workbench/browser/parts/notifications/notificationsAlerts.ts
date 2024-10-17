@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { localize } from 'vs/nls';
-import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Severity } from 'vs/platform/notification/common/notification';
-import { Event } from 'vs/base/common/event';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { localize } from '../../../../nls.js';
+import { INotificationViewItem, INotificationsModel, NotificationChangeType, INotificationChangeEvent, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { Event } from '../../../../base/common/event.js';
 
 export class NotificationsAlerts extends Disposable {
 
@@ -46,7 +46,7 @@ export class NotificationsAlerts extends Disposable {
 	}
 
 	private triggerAriaAlert(notification: INotificationViewItem): void {
-		if (notification.silent) {
+		if (notification.priority === NotificationPriority.SILENT) {
 			return;
 		}
 

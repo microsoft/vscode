@@ -3,68 +3,83 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
-import TelemetryReporter from '@vscode/extension-telemetry';
+import { commands, env, ExtensionContext, l10n, window, workspace } from 'vscode';
+import * as extensionV1 from './extensionV1';
+import * as extensionV2 from './extensionV2';
+import { createExperimentationService } from './common/experimentation';
+import { MicrosoftAuthenticationTelemetryReporter } from './common/telemetryReporter';
+import { IExperimentationService } from 'vscode-tas-client';
+import Logger from './logger';
 
-export async function activate(context: vscode.ExtensionContext) {
-	const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
-	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
+function shouldUseMsal(expService: IExperimentationService): boolean {
+	// First check if there is a setting value to allow user to override the default
+	const inspect = workspace.getConfiguration('microsoft').inspect<boolean>('useMsal');
+	if (inspect?.workspaceFolderValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'workspaceFolderValue'. Value: ${inspect.workspaceFolderValue}`);
+		return inspect.workspaceFolderValue;
+	}
+	if (inspect?.workspaceValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'workspaceValue'. Value: ${inspect.workspaceValue}`);
+		return inspect.workspaceValue;
+	}
+	if (inspect?.globalValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'globalValue'. Value: ${inspect.globalValue}`);
+		return inspect.globalValue;
+	}
 
-	const loginService = new AzureActiveDirectoryService(context);
-	await loginService.initialize();
+	// Then check if the experiment value
+	const expValue = expService.getTreatmentVariable<boolean>('vscode', 'microsoft.useMsal');
+	if (expValue !== undefined) {
+		Logger.debug(`Acquired MSAL enablement value from 'exp'. Value: ${expValue}`);
+		return expValue;
+	}
 
-	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
-		onDidChangeSessions: onDidChangeSessions.event,
-		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
-		createSession: async (scopes: string[]) => {
-			try {
-				/* __GDPR__
-					"login" : {
-						"owner": "TylerLeonhardt",
-						"comment": "Used to determine the usage of the Microsoft Auth Provider.",
-						"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." }
-					}
-				*/
-				telemetryReporter.sendTelemetryEvent('login', {
-					// Get rid of guids from telemetry.
-					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
-				});
+	Logger.debug('Acquired MSAL enablement value from default. Value: false');
+	// If no setting or experiment value is found, default to false
+	return false;
+}
+let useMsal: boolean | undefined;
 
-				const session = await loginService.createSession(scopes.sort());
-				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
-				return session;
-			} catch (e) {
-				/* __GDPR__
-					"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }
-				*/
-				telemetryReporter.sendTelemetryEvent('loginFailed');
+export async function activate(context: ExtensionContext) {
+	const mainTelemetryReporter = new MicrosoftAuthenticationTelemetryReporter(context.extension.packageJSON.aiKey);
+	const expService = await createExperimentationService(
+		context,
+		mainTelemetryReporter,
+		env.uriScheme !== 'vscode', // isPreRelease
+	);
+	useMsal = shouldUseMsal(expService);
 
-				throw e;
-			}
-		},
-		removeSession: async (id: string) => {
-			try {
-				/* __GDPR__
-					"logout" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users log out." }
-				*/
-				telemetryReporter.sendTelemetryEvent('logout');
-
-				const session = await loginService.removeSessionById(id);
-				if (session) {
-					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
-				}
-			} catch (e) {
-				/* __GDPR__
-					"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often fail to log out." }
-				*/
-				telemetryReporter.sendTelemetryEvent('logoutFailed');
-			}
+	context.subscriptions.push(workspace.onDidChangeConfiguration(async e => {
+		if (!e.affectsConfiguration('microsoft.useMsal') || useMsal === shouldUseMsal(expService)) {
+			return;
 		}
-	}, { supportsMultipleAccounts: true }));
 
-	return;
+		const reload = l10n.t('Reload');
+		const result = await window.showInformationMessage(
+			'Reload required',
+			{
+				modal: true,
+				detail: l10n.t('Microsoft Account configuration has been changed.'),
+			},
+			reload
+		);
+
+		if (result === reload) {
+			commands.executeCommand('workbench.action.reloadWindow');
+		}
+	}));
+	// Only activate the new extension if we are not running in a browser environment
+	if (useMsal && typeof navigator === 'undefined') {
+		await extensionV2.activate(context, mainTelemetryReporter);
+	} else {
+		await extensionV1.activate(context, mainTelemetryReporter.telemetryReporter);
+	}
 }
 
-// this method is called when your extension is deactivated
-export function deactivate() { }
+export function deactivate() {
+	if (useMsal) {
+		extensionV2.deactivate();
+	} else {
+		extensionV1.deactivate();
+	}
+}

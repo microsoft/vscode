@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extUri } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
-import { isNonEmptyArray, flatten } from 'vs/base/common/arrays';
-import { ResourceMap } from 'vs/base/common/map';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Hasher } from 'vs/base/common/hash';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { splitLines } from 'vs/base/common/strings';
-import { IMatch } from 'vs/base/common/filters';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { IMatch } from '../../../../base/common/filters.js';
+import { hash } from '../../../../base/common/hash.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { basename, extUri } from '../../../../base/common/resources.js';
+import { splitLines } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { IMarker, IMarkerData, IRelatedInformation, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { unsupportedSchemas } from '../../../../platform/markers/common/markerService.js';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -52,7 +52,7 @@ export class ResourceMarkers {
 
 	get markers(): readonly Marker[] {
 		if (!this._cachedMarkers) {
-			this._cachedMarkers = flatten([...this._markersMap.values()]).sort(ResourceMarkers._compareMarkers);
+			this._cachedMarkers = [...this._markersMap.values()].flat().sort(ResourceMarkers._compareMarkers);
 		}
 		return this._cachedMarkers;
 	}
@@ -182,12 +182,16 @@ export class MarkersModel {
 	}
 
 	getResourceMarkers(resource: URI): ResourceMarkers | null {
-		return withUndefinedAsNull(this.resourcesByUri.get(extUri.getComparisonKey(resource, true)));
+		return this.resourcesByUri.get(extUri.getComparisonKey(resource, true)) ?? null;
 	}
 
 	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
 		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
 		for (const [resource, rawMarkers] of resourcesMarkers) {
+
+			if (unsupportedSchemas.has(resource.scheme)) {
+				continue;
+			}
 
 			const key = extUri.getComparisonKey(resource, true);
 			let resourceMarkers = this.resourcesByUri.get(key);
@@ -243,11 +247,7 @@ export class MarkersModel {
 	}
 
 	private id(...values: (string | number)[]): string {
-		const hasher = new Hasher();
-		for (const value of values) {
-			hasher.hash(value);
-		}
-		return `${hasher.value}`;
+		return `${hash(values)}`;
 	}
 
 	dispose(): void {

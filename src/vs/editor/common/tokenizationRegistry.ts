@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent, ITokenizationSupportFactory } from 'vs/editor/common/languages';
-import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
+import { Color } from '../../base/common/color.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { ITokenizationRegistry, ITokenizationSupportChangedEvent, ILazyTokenizationSupport } from './languages.js';
+import { ColorId } from './encodedTokenAttributes.js';
 
-export class TokenizationRegistry implements ITokenizationRegistry {
+export class TokenizationRegistry<TSupport> implements ITokenizationRegistry<TSupport> {
 
-	private readonly _map = new Map<string, ITokenizationSupport>();
-	private readonly _factories = new Map<string, TokenizationSupportFactoryData>();
+	private readonly _tokenizationSupports = new Map<string, TSupport>();
+	private readonly _factories = new Map<string, TokenizationSupportFactoryData<TSupport>>();
 
 	private readonly _onDidChange = new Emitter<ITokenizationSupportChangedEvent>();
 	public readonly onDidChange: Event<ITokenizationSupportChangedEvent> = this._onDidChange.event;
@@ -23,26 +23,30 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		this._colorMap = null;
 	}
 
-	public fire(languages: string[]): void {
+	public handleChange(languageIds: string[]): void {
 		this._onDidChange.fire({
-			changedLanguages: languages,
+			changedLanguages: languageIds,
 			changedColorMap: false
 		});
 	}
 
-	public register(language: string, support: ITokenizationSupport) {
-		this._map.set(language, support);
-		this.fire([language]);
+	public register(languageId: string, support: TSupport): IDisposable {
+		this._tokenizationSupports.set(languageId, support);
+		this.handleChange([languageId]);
 		return toDisposable(() => {
-			if (this._map.get(language) !== support) {
+			if (this._tokenizationSupports.get(languageId) !== support) {
 				return;
 			}
-			this._map.delete(language);
-			this.fire([language]);
+			this._tokenizationSupports.delete(languageId);
+			this.handleChange([languageId]);
 		});
 	}
 
-	public registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable {
+	public get(languageId: string): TSupport | null {
+		return this._tokenizationSupports.get(languageId) || null;
+	}
+
+	public registerFactory(languageId: string, factory: ILazyTokenizationSupport<TSupport>): IDisposable {
 		this._factories.get(languageId)?.dispose();
 		const myData = new TokenizationSupportFactoryData(this, languageId, factory);
 		this._factories.set(languageId, myData);
@@ -56,7 +60,7 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		});
 	}
 
-	public async getOrCreate(languageId: string): Promise<ITokenizationSupport | null> {
+	public async getOrCreate(languageId: string): Promise<TSupport | null> {
 		// check first if the support is already set
 		const tokenizationSupport = this.get(languageId);
 		if (tokenizationSupport) {
@@ -72,10 +76,6 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		await factory.resolve();
 
 		return this.get(languageId);
-	}
-
-	public get(language: string): ITokenizationSupport | null {
-		return (this._map.get(language) || null);
 	}
 
 	public isResolved(languageId: string): boolean {
@@ -95,7 +95,7 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 	public setColorMap(colorMap: Color[]): void {
 		this._colorMap = colorMap;
 		this._onDidChange.fire({
-			changedLanguages: Array.from(this._map.keys()),
+			changedLanguages: Array.from(this._tokenizationSupports.keys()),
 			changedColorMap: true
 		});
 	}
@@ -112,7 +112,7 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 	}
 }
 
-class TokenizationSupportFactoryData extends Disposable {
+class TokenizationSupportFactoryData<TSupport> extends Disposable {
 
 	private _isDisposed: boolean = false;
 	private _resolvePromise: Promise<void> | null = null;
@@ -123,9 +123,9 @@ class TokenizationSupportFactoryData extends Disposable {
 	}
 
 	constructor(
-		private readonly _registry: TokenizationRegistry,
+		private readonly _registry: TokenizationRegistry<TSupport>,
 		private readonly _languageId: string,
-		private readonly _factory: ITokenizationSupportFactory,
+		private readonly _factory: ILazyTokenizationSupport<TSupport>,
 	) {
 		super();
 	}
@@ -143,7 +143,7 @@ class TokenizationSupportFactoryData extends Disposable {
 	}
 
 	private async _create(): Promise<void> {
-		const value = await Promise.resolve(this._factory.createTokenizationSupport());
+		const value = await this._factory.tokenizationSupport;
 		this._isResolved = true;
 		if (value && !this._isDisposed) {
 			this._register(this._registry.register(this._languageId, value));

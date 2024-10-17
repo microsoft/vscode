@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { TimeoutTimer } from 'vs/base/common/async';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./messageController';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { PositionAffinity } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { renderMarkdown } from '../../../../base/browser/markdownRenderer.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { Event } from '../../../../base/common/event.js';
+import { IMarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import './messageController.css';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
+import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { IPosition } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
+import { PositionAffinity } from '../../../common/model.js';
+import { openLinkFromMarkdown } from '../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import * as nls from '../../../../nls.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import * as dom from '../../../../base/browser/dom.js';
 
 export class MessageController implements IEditorContribution {
 
@@ -32,10 +37,13 @@ export class MessageController implements IEditorContribution {
 	private readonly _visible: IContextKey<boolean>;
 	private readonly _messageWidget = new MutableDisposable<MessageWidget>();
 	private readonly _messageListeners = new DisposableStore();
+	private _message: { element: HTMLElement; dispose: () => void } | undefined;
+	private _mouseOverMessage: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService private readonly _openerService: IOpenerService
 	) {
 
 		this._editor = editor;
@@ -43,6 +51,7 @@ export class MessageController implements IEditorContribution {
 	}
 
 	dispose(): void {
+		this._message?.dispose();
 		this._messageListeners.dispose();
 		this._messageWidget.dispose();
 		this._visible.reset();
@@ -52,23 +61,42 @@ export class MessageController implements IEditorContribution {
 		return this._visible.get();
 	}
 
-	showMessage(message: string, position: IPosition): void {
+	showMessage(message: IMarkdownString | string, position: IPosition): void {
 
-		alert(message);
+		alert(isMarkdownString(message) ? message.value : message);
 
 		this._visible.set(true);
 		this._messageWidget.clear();
 		this._messageListeners.clear();
-		this._messageWidget.value = new MessageWidget(this._editor, position, message);
+		this._message = isMarkdownString(message) ? renderMarkdown(message, {
+			actionHandler: {
+				callback: (url) => {
+					this.closeMessage();
+					openLinkFromMarkdown(this._openerService, url, isMarkdownString(message) ? message.isTrusted : undefined);
+				},
+				disposables: this._messageListeners
+			},
+		}) : undefined;
+		this._messageWidget.value = new MessageWidget(this._editor, position, typeof message === 'string' ? message : this._message!.element);
 
-		// close on blur, cursor, model change, dispose
-		this._messageListeners.add(this._editor.onDidBlurEditorText(() => this.closeMessage()));
+		// close on blur (debounced to allow to tab into the message), cursor, model change, dispose
+		this._messageListeners.add(Event.debounce(this._editor.onDidBlurEditorText, (last, event) => event, 0)(() => {
+			if (this._mouseOverMessage) {
+				return; // override when mouse over message
+			}
+
+			if (this._messageWidget.value && dom.isAncestor(dom.getActiveElement(), this._messageWidget.value.getDomNode())) {
+				return; // override when focus is inside the message
+			}
+
+			this.closeMessage();
+		}
+		));
 		this._messageListeners.add(this._editor.onDidChangeCursorPosition(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
-
-		// 3sec
-		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
+		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_ENTER, () => this._mouseOverMessage = true, true));
+		this._messageListeners.add(dom.addDisposableListener(this._messageWidget.value.getDomNode(), dom.EventType.MOUSE_LEAVE, () => this._mouseOverMessage = false, true));
 
 		// close on mouse move
 		let bounds: Range;
@@ -132,7 +160,7 @@ class MessageWidget implements IContentWidget {
 		return { dispose };
 	}
 
-	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
+	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: HTMLElement | string) {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
@@ -147,8 +175,13 @@ class MessageWidget implements IContentWidget {
 		this._domNode.appendChild(anchorTop);
 
 		const message = document.createElement('div');
-		message.classList.add('message');
-		message.textContent = text;
+		if (typeof text === 'string') {
+			message.classList.add('message');
+			message.textContent = text;
+		} else {
+			text.classList.add('message');
+			message.appendChild(text);
+		}
 		this._domNode.appendChild(message);
 
 		const anchorBottom = document.createElement('div');
@@ -188,4 +221,4 @@ class MessageWidget implements IContentWidget {
 
 }
 
-registerEditorContribution(MessageController.ID, MessageController);
+registerEditorContribution(MessageController.ID, MessageController, EditorContributionInstantiation.Lazy);

@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
-import { Emitter } from 'vs/base/common/event';
-import { mockObject, MockObject } from 'vs/base/test/common/mock';
-import { MemoryRangeType } from 'vs/workbench/contrib/debug/common/debug';
-import { MemoryRegion } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockSession } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
+import assert from 'assert';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { mockObject, MockObject } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MemoryRangeType } from '../../common/debug.js';
+import { MemoryRegion } from '../../common/debugModel.js';
+import { MockSession } from '../common/mockDebug.js';
 
 suite('Debug - Memory', () => {
 	const dapResponseCommon = {
@@ -19,6 +20,8 @@ suite('Debug - Memory', () => {
 		request_seq: 1,
 		success: true,
 	};
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('MemoryRegion', () => {
 		let memory: VSBuffer;

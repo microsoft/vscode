@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ExtHostTreeViewsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { mock } from 'vs/base/test/common/mock';
-import { ITreeItem, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, ITreeViewDescriptor, ITreeView, ViewContainer, IViewDescriptorService, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadTreeViews } from 'vs/workbench/api/browser/mainThreadTreeViews';
-import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
-import { CustomTreeView } from 'vs/workbench/browser/parts/views/treeView';
-import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import * as nls from '../../../../nls.js';
+import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { MainThreadTreeViews } from '../../browser/mainThreadTreeViews.js';
+import { ExtHostTreeViewsShape } from '../../common/extHost.protocol.js';
+import { CustomTreeView } from '../../../browser/parts/views/treeView.js';
+import { Extensions, ITreeItem, ITreeView, ITreeViewDescriptor, IViewContainersRegistry, IViewDescriptorService, IViewsRegistry, TreeItemCollapsibleState, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
+import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
+import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
+import { ViewDescriptorService } from '../../../services/views/browser/viewDescriptorService.js';
+import { TestViewsService, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
+import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 
 suite('MainThreadHostTreeView', function () {
 	const testTreeViewId = 'testTreeView';
@@ -45,25 +46,29 @@ suite('MainThreadHostTreeView', function () {
 	let container: ViewContainer;
 	let mainThreadTreeViews: MainThreadTreeViews;
 	let extHostTreeViewsShape: MockExtHostTreeViewsShape;
-	let disposables: DisposableStore;
+
+	teardown(() => {
+		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
+	});
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
-		disposables = new DisposableStore();
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
-		const viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
+		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
-		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
-			name: 'Test View 1',
-			treeView: instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title', 'extension.id'),
+			name: nls.localize2('Test View 1', 'Test View 1'),
+			treeView: disposables.add(instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title', 'extension.id')),
 		};
 		ViewsRegistry.registerViews([viewDescriptor], container);
 
 		const testExtensionService = new TestExtensionService();
 		extHostTreeViewsShape = new MockExtHostTreeViewsShape();
-		mainThreadTreeViews = new MainThreadTreeViews(
+		mainThreadTreeViews = disposables.add(new MainThreadTreeViews(
 			new class implements IExtHostContext {
 				remoteAuthority = '';
 				extensionHostKind = ExtensionHostKind.LocalProcess;
@@ -74,14 +79,9 @@ suite('MainThreadHostTreeView', function () {
 					return extHostTreeViewsShape;
 				}
 				drain(): any { return null; }
-			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService());
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false });
+			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService()));
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, manuallyManageCheckboxes: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
-	});
-
-	teardown(() => {
-		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
-		disposables.dispose();
 	});
 
 	test('getChildren keeps custom properties', async () => {

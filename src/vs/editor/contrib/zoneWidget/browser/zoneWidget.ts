@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IdGenerator } from 'vs/base/common/idGenerator';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
-import 'vs/css!./zoneWidget';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import * as dom from '../../../../base/browser/dom.js';
+import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { IdGenerator } from '../../../../base/common/idGenerator.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import * as objects from '../../../../base/common/objects.js';
+import './zoneWidget.css';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from '../../../browser/editorBrowser.js';
+import { EditorLayoutInfo, EditorOption } from '../../../common/config/editorOptions.js';
+import { IPosition, Position } from '../../../common/core/position.js';
+import { IRange, Range } from '../../../common/core/range.js';
+import { IEditorDecorationsCollection, ScrollType } from '../../../common/editorCommon.js';
+import { TrackedRangeStickiness } from '../../../common/model.js';
+import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -25,13 +25,16 @@ export interface IOptions {
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
-	frameColor?: Color;
+	frameColor?: Color | string;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
+	allowUnlimitedHeight?: boolean;
+	ordinal?: number;
+	showInHiddenAreas?: boolean;
 }
 
 export interface IStyles {
-	frameColor?: Color | null;
+	frameColor?: Color | string | null;
 	arrowColor?: Color | null;
 }
 
@@ -48,25 +51,31 @@ const defaultOptions: IOptions = {
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
-export class ViewZoneDelegate implements IViewZone {
+class ViewZoneDelegate implements IViewZone {
 
 	domNode: HTMLElement;
 	id: string = ''; // A valid zone id should be greater than 0
 	afterLineNumber: number;
 	afterColumn: number;
 	heightInLines: number;
+	readonly showInHiddenAreas: boolean | undefined;
+	readonly ordinal: number | undefined;
 
 	private readonly _onDomNodeTop: (top: number) => void;
 	private readonly _onComputedHeight: (height: number) => void;
 
 	constructor(domNode: HTMLElement, afterLineNumber: number, afterColumn: number, heightInLines: number,
 		onDomNodeTop: (top: number) => void,
-		onComputedHeight: (height: number) => void
+		onComputedHeight: (height: number) => void,
+		showInHiddenAreas: boolean | undefined,
+		ordinal: number | undefined
 	) {
 		this.domNode = domNode;
 		this.afterLineNumber = afterLineNumber;
 		this.afterColumn = afterColumn;
 		this.heightInLines = heightInLines;
+		this.showInHiddenAreas = showInHiddenAreas;
+		this.ordinal = ordinal;
 		this._onDomNodeTop = onDomNodeTop;
 		this._onComputedHeight = onComputedHeight;
 	}
@@ -139,7 +148,7 @@ class Arrow {
 		dom.removeCSSRulesContainingSelector(this._ruleName);
 		dom.createCSSRule(
 			`.monaco-editor ${this._ruleName}`,
-			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px; margin-left: -${this._height}px; `
+			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px !important; margin-left: -${this._height}px; `
 		);
 	}
 
@@ -261,7 +270,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	private _getWidth(info: EditorLayoutInfo): number {
+	protected _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
 	}
 
@@ -298,6 +307,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return range.getStartPosition();
 	}
 
+	hasFocus() {
+		return this.domNode.contains(dom.getActiveElement());
+	}
+
 	protected _isShowing: boolean = false;
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
@@ -306,6 +319,24 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
 		this._positionMarkerId.set([{ range, options: ModelDecorationOptions.EMPTY }]);
+	}
+
+	updatePositionAndHeight(rangeOrPos: IRange | IPosition, heightInLines?: number): void {
+		if (this._viewZone) {
+			rangeOrPos = Range.isIRange(rangeOrPos) ? Range.getStartPosition(rangeOrPos) : rangeOrPos;
+			this._viewZone.afterLineNumber = rangeOrPos.lineNumber;
+			this._viewZone.afterColumn = rangeOrPos.column;
+			this._viewZone.heightInLines = heightInLines ?? this._viewZone.heightInLines;
+
+			this.editor.changeViewZones(accessor => {
+				accessor.layoutZone(this._viewZone!.id);
+			});
+			this._positionMarkerId.set([{
+				range: Range.isIRange(rangeOrPos) ? rangeOrPos : Range.fromPositions(rangeOrPos),
+				options: ModelDecorationOptions.EMPTY
+			}]);
+
+		}
 	}
 
 	hide(): void {
@@ -322,9 +353,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._overlayWidget = null;
 		}
 		this._arrow?.hide();
+		this._positionMarkerId.clear();
 	}
 
-	private _decoratingElementsHeight(): number {
+	protected _decoratingElementsHeight(): number {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		let result = 0;
 
@@ -354,8 +386,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
-		const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
-		heightInLines = Math.min(heightInLines, maxHeightInLines);
+		if (!this.options.allowUnlimitedHeight) {
+			const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
+			heightInLines = Math.min(heightInLines, maxHeightInLines);
+		}
 
 		let arrowHeight = 0;
 		let frameThickness = 0;
@@ -388,7 +422,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				position.column,
 				heightInLines,
 				(top: number) => this._onViewZoneTop(top),
-				(height: number) => this._onViewZoneHeight(height)
+				(height: number) => this._onViewZoneHeight(height),
+				this.options.showInHiddenAreas,
+				this.options.ordinal
 			);
 			this._viewZone.id = accessor.addZone(this._viewZone);
 			this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this._viewZone.id, this.domNode);
@@ -417,22 +453,16 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		const model = this.editor.getModel();
 		if (model) {
-			const revealLine = where.endLineNumber + 1;
-			if (revealLine <= model.getLineCount()) {
-				// reveal line below the zone widget
-				this.revealLine(revealLine, false);
-			} else {
-				// reveal last line atop
-				this.revealLine(model.getLineCount(), true);
-			}
+			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
+			this.revealRange(range, range.startLineNumber === model.getLineCount());
 		}
 	}
 
-	protected revealLine(lineNumber: number, isLastLine: boolean) {
+	protected revealRange(range: Range, isLastLine: boolean) {
 		if (isLastLine) {
-			this.editor.revealLineInCenter(lineNumber, ScrollType.Smooth);
+			this.editor.revealLineNearTop(range.endLineNumber, ScrollType.Smooth);
 		} else {
-			this.editor.revealLine(lineNumber, ScrollType.Smooth);
+			this.editor.revealRange(range, ScrollType.Smooth);
 		}
 	}
 

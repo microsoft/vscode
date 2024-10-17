@@ -3,28 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import * as strings from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorOpenHandler, ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import * as dom from '../../../base/browser/dom.js';
+import * as cssJs from '../../../base/browser/cssValue.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IDisposable, DisposableStore, Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../base/common/linkedList.js';
+import * as strings from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { ICodeEditor, IDiffEditor } from '../editorBrowser.js';
+import { ICodeEditorOpenHandler, ICodeEditorService } from './codeEditorService.js';
+import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from '../../common/editorCommon.js';
+import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from '../../common/model.js';
+import { IResourceEditorInput } from '../../../platform/editor/common/editor.js';
+import { IColorTheme, IThemeService } from '../../../platform/theme/common/themeService.js';
+import { ThemeColor } from '../../../base/common/themables.js';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onWillCreateCodeEditor = this._register(new Emitter<void>());
+	public readonly onWillCreateCodeEditor = this._onWillCreateCodeEditor.event;
 
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
 
 	private readonly _onCodeEditorRemove: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorRemove: Event<ICodeEditor> = this._onCodeEditorRemove.event;
+
+	private readonly _onWillCreateDiffEditor = this._register(new Emitter<void>());
+	public readonly onWillCreateDiffEditor = this._onWillCreateDiffEditor.event;
 
 	private readonly _onDiffEditorAdd: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
 	public readonly onDiffEditorAdd: Event<IDiffEditor> = this._onDiffEditorAdd.event;
@@ -54,6 +62,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		this._globalStyleSheet = null;
 	}
 
+	willCreateCodeEditor(): void {
+		this._onWillCreateCodeEditor.fire();
+	}
+
 	addCodeEditor(editor: ICodeEditor): void {
 		this._codeEditors[editor.getId()] = editor;
 		this._onCodeEditorAdd.fire(editor);
@@ -67,6 +79,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	listCodeEditors(): ICodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
+	}
+
+	willCreateDiffEditor(): void {
+		this._onWillCreateDiffEditor.fire();
 	}
 
 	addDiffEditor(editor: IDiffEditor): void {
@@ -135,7 +151,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		this._editorStyleSheets.delete(editorId);
 	}
 
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
+	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
@@ -154,6 +170,15 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			this._onDecorationTypeRegistered.fire(key);
 		}
 		provider.refCount++;
+		return {
+			dispose: () => {
+				this.removeDecorationType(key);
+			}
+		};
+	}
+
+	public listDecorationTypes(): string[] {
+		return Array.from(this._decorationOptionProviders.keys());
 	}
 
 	public removeDecorationType(key: string): void {
@@ -220,8 +245,11 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			this._transientWatchers[uri] = w;
 		}
 
-		w.set(key, value);
-		this._onDidChangeTransientModelProperty.fire(model);
+		const previousValue = w.get(key);
+		if (previousValue !== value) {
+			w.set(key, value);
+			this._onDidChangeTransientModelProperty.fire(model);
+		}
 	}
 
 	public getTransientModelProperty(model: ITextModel, key: string): any {
@@ -289,7 +317,7 @@ export class ModelTransientSettingWatcher {
 	}
 }
 
-export class RefCountedStyleSheet {
+class RefCountedStyleSheet {
 
 	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;
@@ -314,14 +342,13 @@ export class RefCountedStyleSheet {
 	public unref(): void {
 		this._refCount--;
 		if (this._refCount === 0) {
-			this._styleSheet.parentNode?.removeChild(this._styleSheet);
+			this._styleSheet.remove();
 			this._parent._removeEditorStyleSheets(this._editorId);
 		}
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	public insertRule(selector: string, rule: string): void {
+		dom.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
@@ -346,9 +373,8 @@ export class GlobalStyleSheet {
 	public unref(): void {
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	public insertRule(selector: string, rule: string): void {
+		dom.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
@@ -362,7 +388,7 @@ interface IModelDecorationOptionsProvider extends IDisposable {
 	resolveDecorationCSSRules(): CSSRuleList;
 }
 
-export class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
+class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
@@ -417,7 +443,7 @@ interface ProviderArguments {
 }
 
 
-export class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
@@ -687,15 +713,15 @@ class DecorationCSSRules {
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
-			sheet.insertRule(`${this._unThemedSelector} {${unthemedCSS}}`, 0);
+			sheet.insertRule(this._unThemedSelector, unthemedCSS);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector} {${lightCSS}}`, 0);
+			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector} {${darkCSS}}`, 0);
+			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
@@ -746,7 +772,7 @@ class DecorationCSSRules {
 		if (typeof opts !== 'undefined') {
 			this.collectBorderSettingsCSSText(opts, cssTextArr);
 			if (typeof opts.contentIconPath !== 'undefined') {
-				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, dom.asCSSUrl(URI.revive(opts.contentIconPath))));
+				cssTextArr.push(strings.format(_CSS_MAP.contentIconPath, cssJs.asCSSUrl(URI.revive(opts.contentIconPath))));
 			}
 			if (typeof opts.contentText === 'string') {
 				const truncated = opts.contentText.match(/^.*$/m)![0]; // only take first line
@@ -764,7 +790,7 @@ class DecorationCSSRules {
 	}
 
 	/**
-	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
+	 * Build the CSS for decorations styled via `glyphMarginClassName`.
 	 */
 	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {
@@ -773,7 +799,7 @@ class DecorationCSSRules {
 		const cssTextArr: string[] = [];
 
 		if (typeof opts.gutterIconPath !== 'undefined') {
-			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, dom.asCSSUrl(URI.revive(opts.gutterIconPath))));
+			cssTextArr.push(strings.format(_CSS_MAP.gutterIconPath, cssJs.asCSSUrl(URI.revive(opts.gutterIconPath))));
 			if (typeof opts.gutterIconSize !== 'undefined') {
 				cssTextArr.push(strings.format(_CSS_MAP.gutterIconSize, opts.gutterIconSize));
 			}

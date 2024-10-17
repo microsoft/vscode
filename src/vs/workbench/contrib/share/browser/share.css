@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+div.share-dialog-input-text,
+div.share-dialog-input-link {
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 2px;
+	color: var(--vscode-input-foreground);
+	background-color: var(--vscode-input-background);
+	padding: 2px;
+	user-select: all;
+	line-height: 24px;
+}
+
+div.share-dialog-input-link {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

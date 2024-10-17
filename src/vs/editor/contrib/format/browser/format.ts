@@ -3,62 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
-import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from 'vs/editor/common/languages';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
-import * as nls from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-
-export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
-
-	edits = edits.filter(edit => edit.range);
-	if (!edits.length) {
-		return;
-	}
-
-	let { range } = edits[0];
-	for (let i = 1; i < edits.length; i++) {
-		range = Range.plusRange(range, edits[i].range);
-	}
-	const { startLineNumber, endLineNumber } = range;
-	if (startLineNumber === endLineNumber) {
-		if (edits.length === 1) {
-			alert(nls.localize('hint11', "Made 1 formatting edit on line {0}", startLineNumber));
-		} else {
-			alert(nls.localize('hintn1', "Made {0} formatting edits on line {1}", edits.length, startLineNumber));
-		}
-	} else {
-		if (edits.length === 1) {
-			alert(nls.localize('hint1n', "Made 1 formatting edit between lines {0} and {1}", startLineNumber, endLineNumber));
-		} else {
-			alert(nls.localize('hintnn', "Made {0} formatting edits between lines {1} and {2}", edits.length, startLineNumber, endLineNumber));
-		}
-	}
-}
+import { asArray, isNonEmptyArray } from '../../../../base/common/arrays.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { CodeEditorStateFlag, EditorStateCancellationTokenSource, TextModelCancellationTokenSource } from '../../editorState/browser/editorState.js';
+import { IActiveCodeEditor, isCodeEditor } from '../../../browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ScrollType } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from '../../../common/languages.js';
+import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { ITextModelService } from '../../../common/services/resolverService.js';
+import { FormattingEdit } from './formattingEdit.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 export function getRealAndSyntheticDocumentFormattersOrdered(
 	documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>,
@@ -66,14 +38,14 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	model: ITextModel
 ): DocumentFormattingEditProvider[] {
 	const result: DocumentFormattingEditProvider[] = [];
-	const seen = new Set<string>();
+	const seen = new ExtensionIdentifierSet();
 
 	// (1) add all document formatter
 	const docFormatter = documentFormattingEditProvider.ordered(model);
 	for (const formatter of docFormatter) {
 		result.push(formatter);
 		if (formatter.extensionId) {
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(formatter.extensionId);
 		}
 	}
 
@@ -81,10 +53,10 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	const rangeFormatter = documentRangeFormattingEditProvider.ordered(model);
 	for (const formatter of rangeFormatter) {
 		if (formatter.extensionId) {
-			if (seen.has(ExtensionIdentifier.toKey(formatter.extensionId))) {
+			if (seen.has(formatter.extensionId)) {
 				continue;
 			}
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(formatter.extensionId);
 		}
 		result.push({
 			displayName: formatter.displayName,
@@ -97,13 +69,18 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	return result;
 }
 
+export const enum FormattingKind {
+	File = 1,
+	Selection = 2
+}
+
 export const enum FormattingMode {
 	Explicit = 1,
 	Silent = 2
 }
 
 export interface IFormattingEditProviderSelector {
-	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
+	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode, kind: FormattingKind): Promise<T | undefined>;
 }
 
 export abstract class FormattingConflicts {
@@ -115,13 +92,13 @@ export abstract class FormattingConflicts {
 		return { dispose: remove };
 	}
 
-	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode, kind: FormattingKind): Promise<T | undefined> {
 		if (formatter.length === 0) {
 			return undefined;
 		}
 		const selector = Iterable.first(FormattingConflicts._selectors);
 		if (selector) {
-			return await selector(formatter, document, mode);
+			return await selector(formatter, document, mode, kind);
 		}
 		return undefined;
 	}
@@ -133,17 +110,18 @@ export async function formatDocumentRangesWithSelectedProvider(
 	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
 	progress: IProgress<DocumentRangeFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
 	const { documentRangeFormattingEditProvider: documentRangeFormattingEditProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
 	const provider = documentRangeFormattingEditProviderRegistry.ordered(model);
-	const selected = await FormattingConflicts.select(provider, model, mode);
+	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.Selection);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
+		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token, userGesture);
 	}
 }
 
@@ -152,9 +130,12 @@ export async function formatDocumentRangesWithProvider(
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	rangeOrRanges: Range | Range[],
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
+	const logService = accessor.get(ILogService);
+	const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -178,12 +159,18 @@ export async function formatDocumentRangesWithProvider(
 	}
 
 	const computeEdits = async (range: Range) => {
-		return (await provider.provideDocumentRangeFormattingEdits(
+		logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, range);
+
+		const result = (await provider.provideDocumentRangeFormattingEdits(
 			model,
 			range,
 			model.getFormattingOptions(),
 			cts.token
 		)) || [];
+
+		logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+
+		return result;
 	};
 
 	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
@@ -209,31 +196,44 @@ export async function formatDocumentRangesWithProvider(
 	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
-		for (const range of ranges) {
-			if (cts.token.isCancellationRequested) {
-				return true;
-			}
-			rawEditsList.push(await computeEdits(range));
-		}
+		if (typeof provider.provideDocumentRangesFormattingEdits === 'function') {
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, ranges);
+			const result = (await provider.provideDocumentRangesFormattingEdits(
+				model,
+				ranges,
+				model.getFormattingOptions(),
+				cts.token
+			)) || [];
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+			rawEditsList.push(result);
+		} else {
 
-		for (let i = 0; i < ranges.length; ++i) {
-			for (let j = i + 1; j < ranges.length; ++j) {
+			for (const range of ranges) {
 				if (cts.token.isCancellationRequested) {
 					return true;
 				}
-				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
-					// Merge ranges i and j into a single range, recompute the associated edits
-					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
-					const edits = await computeEdits(mergedRange);
-					ranges.splice(j, 1);
-					ranges.splice(i, 1);
-					ranges.push(mergedRange);
-					rawEditsList.splice(j, 1);
-					rawEditsList.splice(i, 1);
-					rawEditsList.push(edits);
-					// Restart scanning
-					i = 0;
-					j = 0;
+				rawEditsList.push(await computeEdits(range));
+			}
+
+			for (let i = 0; i < ranges.length; ++i) {
+				for (let j = i + 1; j < ranges.length; ++j) {
+					if (cts.token.isCancellationRequested) {
+						return true;
+					}
+					if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
+						// Merge ranges i and j into a single range, recompute the associated edits
+						const mergedRange = Range.plusRange(ranges[i], ranges[j]);
+						const edits = await computeEdits(mergedRange);
+						ranges.splice(j, 1);
+						ranges.splice(i, 1);
+						ranges.push(mergedRange);
+						rawEditsList.splice(j, 1);
+						rawEditsList.splice(i, 1);
+						rawEditsList.push(edits);
+						// Restart scanning
+						i = 0;
+						j = 0;
+					}
 				}
 			}
 		}
@@ -258,7 +258,6 @@ export async function formatDocumentRangesWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, allEdits, true);
-		alertFormattingEdits(allEdits);
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
@@ -280,7 +279,7 @@ export async function formatDocumentRangesWithProvider(
 			return null;
 		});
 	}
-
+	accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture });
 	return true;
 }
 
@@ -289,17 +288,18 @@ export async function formatDocumentWithSelectedProvider(
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
 	progress: IProgress<DocumentFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture?: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
-	const selected = await FormattingConflicts.select(provider, model, mode);
+	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.File);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token, userGesture);
 	}
 }
 
@@ -308,9 +308,11 @@ export async function formatDocumentWithProvider(
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture?: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
+	const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -349,7 +351,6 @@ export async function formatDocumentWithProvider(
 		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
 
 		if (mode !== FormattingMode.Silent) {
-			alertFormattingEdits(edits);
 			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 		}
 
@@ -372,7 +373,7 @@ export async function formatDocumentWithProvider(
 			return null;
 		});
 	}
-
+	accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture });
 	return true;
 }
 
@@ -409,6 +410,23 @@ export async function getDocumentFormattingEditsUntilResult(
 		if (isNonEmptyArray(rawEdits)) {
 			return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 		}
+	}
+	return undefined;
+}
+
+export async function getDocumentFormattingEditsWithSelectedProvider(
+	workerService: IEditorWorkerService,
+	languageFeaturesService: ILanguageFeaturesService,
+	editorOrModel: ITextModel | IActiveCodeEditor,
+	mode: FormattingMode,
+	token: CancellationToken,
+): Promise<TextEdit[] | undefined> {
+	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
+	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
+	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.File);
+	if (selected) {
+		const rawEdits = await Promise.resolve(selected.provideDocumentFormattingEdits(model, model.getOptions(), token)).catch(onUnexpectedExternalError);
+		return await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
 	}
 	return undefined;
 }

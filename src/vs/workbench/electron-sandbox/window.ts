@@ -3,83 +3,90 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { coalesce } from 'vs/base/common/arrays';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { assertIsDefined } from 'vs/base/common/types';
-import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
-import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { posix } from 'vs/base/common/path';
-import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
-import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { Event } from 'vs/base/common/event';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { whenEditorClosed } from 'vs/workbench/browser/editor';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname } from 'vs/base/common/resources';
+import './media/window.css';
+import { localize } from '../../nls.js';
+import { URI } from '../../base/common/uri.js';
+import { onUnexpectedError } from '../../base/common/errors.js';
+import { equals } from '../../base/common/objects.js';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindows } from '../../base/browser/dom.js';
+import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../base/common/actions.js';
+import { IFileService } from '../../platform/files/common/files.js';
+import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from '../common/editor.js';
+import { IEditorService } from '../services/editor/common/editorService.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { WindowMinimumSize, IOpenFileRequest, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, hasNativeTitlebar } from '../../platform/window/common/window.js';
+import { ITitleService } from '../services/title/browser/titleService.js';
+import { IWorkbenchThemeService } from '../services/themes/common/workbenchThemeService.js';
+import { ApplyZoomTarget, applyZoom } from '../../platform/window/electron-sandbox/window.js';
+import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from '../../base/browser/browser.js';
+import { ICommandService, CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { IResourceEditorInput } from '../../platform/editor/common/editor.js';
+import { ipcRenderer, process } from '../../base/parts/sandbox/electron-sandbox/globals.js';
+import { IWorkspaceEditingService } from '../services/workspaces/common/workspaceEditing.js';
+import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from '../../platform/actions/common/actions.js';
+import { ICommandAction } from '../../platform/action/common/action.js';
+import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
+import { RunOnceScheduler } from '../../base/common/async.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from '../services/lifecycle/common/lifecycle.js';
+import { IWorkspaceFolderCreationData } from '../../platform/workspaces/common/workspaces.js';
+import { IIntegrityService } from '../services/integrity/common/integrity.js';
+import { isWindows, isMacintosh } from '../../base/common/platform.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../platform/notification/common/notification.js';
+import { IKeybindingService } from '../../platform/keybinding/common/keybinding.js';
+import { INativeWorkbenchEnvironmentService } from '../services/environment/electron-sandbox/environmentService.js';
+import { IAccessibilityService, AccessibilitySupport } from '../../platform/accessibility/common/accessibility.js';
+import { WorkbenchState, IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { coalesce } from '../../base/common/arrays.js';
+import { ConfigurationTarget, IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
+import { assertIsDefined } from '../../base/common/types.js';
+import { IOpenerService, IResolvedExternalUri, OpenOptions } from '../../platform/opener/common/opener.js';
+import { Schemas } from '../../base/common/network.js';
+import { INativeHostService } from '../../platform/native/common/native.js';
+import { posix } from '../../base/common/path.js';
+import { ITunnelService, RemoteTunnel, extractLocalHostUriMetaDataForPortMapping, extractQueryLocalHostUriMetaDataForPortMapping } from '../../platform/tunnel/common/tunnel.js';
+import { IWorkbenchLayoutService, Parts, positionFromString, Position } from '../services/layout/browser/layoutService.js';
+import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
+import { WorkingCopyCapabilities } from '../services/workingCopy/common/workingCopy.js';
+import { IFilesConfigurationService } from '../services/filesConfiguration/common/filesConfigurationService.js';
+import { Event } from '../../base/common/event.js';
+import { IRemoteAuthorityResolverService } from '../../platform/remote/common/remoteAuthorityResolver.js';
+import { IAddressProvider, IAddress } from '../../platform/remote/common/remoteAgentConnection.js';
+import { IEditorGroupsService, IEditorPart } from '../services/editor/common/editorGroupsService.js';
+import { IDialogService } from '../../platform/dialogs/common/dialogs.js';
+import { AuthInfo } from '../../base/parts/sandbox/electron-sandbox/electronTypes.js';
+import { ILogService } from '../../platform/log/common/log.js';
+import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { whenEditorClosed } from '../browser/editor.js';
+import { ISharedProcessService } from '../../platform/ipc/electron-sandbox/services.js';
+import { IProgressService, ProgressLocation } from '../../platform/progress/common/progress.js';
+import { toErrorMessage } from '../../base/common/errorMessage.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { dirname } from '../../base/common/resources.js';
+import { IBannerService } from '../services/banner/browser/bannerService.js';
+import { Codicon } from '../../base/common/codicons.js';
+import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
+import { IPreferencesService } from '../services/preferences/common/preferences.js';
+import { IUtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService.js';
+import { registerWindowDriver } from '../services/driver/electron-sandbox/driver.js';
+import { mainWindow } from '../../base/browser/window.js';
+import { BaseWindow } from '../browser/window.js';
+import { IHostService } from '../services/host/browser/host.js';
+import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from '../services/statusbar/browser/statusbar.js';
+import { ActionBar } from '../../base/browser/ui/actionbar/actionbar.js';
+import { ThemeIcon } from '../../base/common/themables.js';
+import { getWorkbenchContribution } from '../common/contributions.js';
+import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
+import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
 
-export class NativeWindow extends Disposable {
-
-	private touchBarMenu: IMenu | undefined;
-	private readonly touchBarDisposables = this._register(new DisposableStore());
-	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
+export class NativeWindow extends BaseWindow {
 
 	private readonly customTitleContextMenuDisposable = this._register(new DisposableStore());
 
-	private previousConfiguredZoomLevel: number | undefined;
-
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
-
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
 
 	private isDocumentedEdited = false;
 
@@ -98,7 +105,7 @@ export class NativeWindow extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly nativeEnvironmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -115,30 +122,35 @@ export class NativeWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
 		@IProgressService private readonly progressService: IProgressService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IBannerService private readonly bannerService: IBannerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
+		@IHostService hostService: IHostService
 	) {
-		super();
+		super(mainWindow, undefined, hostService, nativeEnvironmentService);
 
 		this.registerListeners();
 		this.create();
 	}
 
-	private registerListeners(): void {
+	protected registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
-		// prevent opening a real URL inside the window
+		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
+			this._register(addDisposableListener(mainWindow.document.body, event, (e: DragEvent) => {
 				EventHelper.stop(e);
-			});
+			}));
 		}
 
-		// Support runAction event
+		// Support `runAction` event
 		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
@@ -167,8 +179,9 @@ export class NativeWindow extends Disposable {
 
 		// Support runKeybinding event
 		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: INativeRunKeybindingInWindowRequest) => {
-			if (document.activeElement) {
-				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+			const activeElement = getActiveElement();
+			if (activeElement) {
+				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
 			}
 		});
 
@@ -179,63 +192,121 @@ export class NativeWindow extends Disposable {
 			}
 		});
 
+		// Shared Process crash reported from main
+		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, error: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
+				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
 		// Support openFiles event for existing and new files
-		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
 		// Support addFolders event if we have a workspace opened
-		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => { this.onAddFoldersRequest(request); });
 
 		// Message support
-		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => { this.notificationService.info(message); });
 
 		// Shell Environment Issue Notifications
-		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => this.notificationService.prompt(
-			Severity.Error,
-			message,
-			[{
-				label: localize('learnMore', "Learn More"),
-				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
-			}]
-		));
+		ipcRenderer.on('vscode:showResolveShellEnvError', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				message,
+				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				},
+				{
+					label: localize('configure', "Configure"),
+					run: () => this.preferencesService.openUserSettings({ query: 'application.shellEnvironmentResolutionTimeout' })
+				},
+				{
+					label: localize('learnMore', "Learn More"),
+					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
+				}]
+			);
+		});
 
-		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => this.notificationService.prompt(
-			Severity.Error,
-			localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
-			[{
-				label: localize('troubleshooting', "Troubleshooting Guide"),
-				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
-			}]
-		));
+		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
+				[{
+					label: localize('troubleshooting', "Troubleshooting Guide"),
+					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
+				}]
+			);
+		});
+
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', () => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
+				[{
+					label: localize('downloadArmBuild', "Download"),
+					run: () => {
+						const quality = this.productService.quality;
+						const stableURL = 'https://code.visualstudio.com/docs/?dv=osx';
+						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
+						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
+					}
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
+		ipcRenderer.on('vscode:showArgvParseWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("showArgvParseWarning", "The runtime arguments file 'argv.json' contains errors. Please correct them and restart."),
+				[{
+					label: localize('showArgvParseWarningAction', "Open File"),
+					run: () => this.editorService.openEditor({ resource: this.nativeEnvironmentService.argvResource })
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
-		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
+		ipcRenderer.on('vscode:enterFullScreen', () => setFullscreen(true, mainWindow));
+		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
-			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
-				[
-					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
-				],
-				[
-					{ placeholder: localize('username', "Username"), value: payload.username },
-					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
-				],
-				{
-					cancelId: 1,
-					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
-					checkbox: {
-						label: localize('rememberCredentials', "Remember my credentials"),
-						checked: rememberCredentials
-					}
-				});
+			const result = await this.dialogService.input({
+				type: 'warning',
+				message: localize('proxyAuthRequired', "Proxy Authentication Required"),
+				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+				inputs:
+					[
+						{ placeholder: localize('username', "Username"), value: payload.username },
+						{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
+					],
+				detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+				checkbox: {
+					label: localize('rememberCredentials', "Remember my credentials"),
+					checked: rememberCredentials
+				}
+			});
 
 			// Reply back to the channel without result to indicate
 			// that the login dialog was cancelled
-			if (result.choice !== 0 || !result.values) {
+			if (!result.confirmed || !result.values) {
 				ipcRenderer.send(payload.replyChannel);
 			}
 
@@ -260,68 +331,105 @@ export class NativeWindow extends Disposable {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
-		// Zoom level changes
-		this.updateWindowZoomLevel();
+		// Allow to update security settings around allowed UNC Host
+		ipcRenderer.on('vscode:configureAllowedUNCHost', async (event: unknown, host: string) => {
+			if (!isWindows) {
+				return; // only supported on Windows
+			}
+
+			const allowedUncHosts = new Set<string>();
+
+			const configuredAllowedUncHosts = this.configurationService.getValue<string[] | undefined>('security.allowedUNCHosts',) ?? [];
+			if (Array.isArray(configuredAllowedUncHosts)) {
+				for (const configuredAllowedUncHost of configuredAllowedUncHosts) {
+					if (typeof configuredAllowedUncHost === 'string') {
+						allowedUncHosts.add(configuredAllowedUncHost);
+					}
+				}
+			}
+
+			if (!allowedUncHosts.has(host)) {
+				allowedUncHosts.add(host);
+
+				await getWorkbenchContribution<DynamicWorkbenchSecurityConfiguration>(DynamicWorkbenchSecurityConfiguration.ID).ready; // ensure this setting is registered
+				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
+			}
+		});
+
+		// Allow to update security settings around protocol handlers
+		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
+			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
+			this.configurationService.updateValue(setting, false);
+		});
+
+		// Window Zoom
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.zoomLevel')) {
-				this.updateWindowZoomLevel();
+			if (e.affectsConfiguration('window.zoomLevel') || (e.affectsConfiguration('window.zoomPerWindow') && this.configurationService.getValue('window.zoomPerWindow') === false)) {
+				this.onDidChangeConfiguredWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
 			}
 		}));
 
-		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
+		this._register(onDidChangeZoomLevel(targetWindowId => this.handleOnDidChangeZoomLevel(targetWindowId)));
+
+		for (const part of this.editorGroupService.parts) {
+			this.createWindowZoomStatusEntry(part);
+		}
+
+		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.createWindowZoomStatusEntry(part)));
+
+		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
+		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.filesToWait;
+		const filesToWait = this.nativeEnvironmentService.filesToWait;
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
 
-		// macOS OS integration
+		// macOS OS integration: represented file name
 		if (isMacintosh) {
-			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+			for (const part of this.editorGroupService.parts) {
+				this.handleRepresentedFilename(part);
+			}
 
-				// Represented Filename
-				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '');
-
-				// Custom title menu
-				this.provideCustomTitleContextMenu(file?.fsPath);
-			}));
+			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(part => this.handleRepresentedFilename(part)));
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
-		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
-			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
+		if (isMacintosh && !hasNativeTitlebar(this.configurationService)) {
+			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+				const targetWindow = getWindow(container);
+				const targetWindowId = targetWindow.vscodeWindowId;
+				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
 
-			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-				EventHelper.stop(e);
+				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
+					EventHelper.stop(e);
 
-				this.nativeHostService.handleTitleDoubleClick();
-			}));
+					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
+				}));
+			}, { container: this.layoutService.mainContainer, disposables: this._store }));
 		}
 
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
-			this.updateDocumentEdited(gotDirty);
+			this.updateDocumentEdited(gotDirty ? true : undefined);
 		}));
 
-		this.updateDocumentEdited();
+		this.updateDocumentEdited(undefined);
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
-			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
-		)(e => this.onDidChangeWindowMaximized(e)));
-
-		this.onDidChangeWindowMaximized(this.environmentService.window.maximized ?? false);
+			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, windowId => !!hasWindow(windowId)), windowId => ({ maximized: true, windowId })),
+			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, windowId => !!hasWindow(windowId)), windowId => ({ maximized: false, windowId }))
+		)(e => this.layoutService.updateWindowMaximizedState(getWindowById(e.windowId)!.window, e.maximized)));
+		this.layoutService.updateWindowMaximizedState(mainWindow, this.nativeEnvironmentService.window.maximized ?? false);
 
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
@@ -332,6 +440,28 @@ export class NativeWindow extends Disposable {
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
 		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
 	}
+
+	private handleRepresentedFilename(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedEditorService = this.editorGroupService.getScopedInstantiationService(part).invokeFunction(accessor => accessor.get(IEditorService));
+		disposables.add(scopedEditorService.onDidActiveEditorChange(() => this.updateRepresentedFilename(scopedEditorService, part.windowId)));
+	}
+
+	private updateRepresentedFilename(editorService: IEditorService, targetWindowId: number): void {
+		const file = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+
+		// Represented Filename
+		this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '', { targetWindowId });
+
+		// Custom title menu (main window only currently)
+		if (targetWindowId === mainWindow.vscodeWindowId) {
+			this.provideCustomTitleContextMenu(file?.fsPath);
+		}
+	}
+
+	//#region Window Lifecycle
 
 	private onBeforeShutdown({ veto, reason }: BeforeShutdownEvent): void {
 		if (reason === ShutdownReason.CLOSE) {
@@ -386,38 +516,8 @@ export class NativeWindow extends Disposable {
 		});
 	}
 
-	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
-		const dialogService = accessor.get(IDialogService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		const message = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
-			localize('closeWindowMessage', "Are you sure you want to close the window?");
-		const primaryButton = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
-			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
-
-		const res = await dialogService.confirm({
-			type: 'question',
-			message,
-			primaryButton,
-			checkbox: {
-				label: localize('doNotAskAgain', "Do not ask me again")
-			}
-		});
-
-		// Update setting if checkbox checked
-		if (res.checkboxChecked) {
-			await configurationService.updateValue('window.confirmBeforeClose', 'never');
-		}
-
-		return res.confirmed;
-	}
-
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
-		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
-			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
-		});
+		this.dialogService.error(this.toShutdownLabel(reason, true), localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error)));
 	}
 
 	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
@@ -484,34 +584,21 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onWindowResize(e: UIEvent, retry: boolean): void {
-		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
-				}
-				return;
-			}
+	//#endregion
 
-			this.layoutService.layout();
+	private updateDocumentEdited(documentEdited: true | undefined): void {
+		let setDocumentEdited: boolean;
+		if (typeof documentEdited === 'boolean') {
+			setDocumentEdited = documentEdited;
+		} else {
+			setDocumentEdited = this.workingCopyService.hasDirty;
 		}
-	}
 
-	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
-		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
-			this.isDocumentedEdited = isDirty;
+		if ((!this.isDocumentedEdited && setDocumentEdited) || (this.isDocumentedEdited && !setDocumentEdited)) {
+			this.isDocumentedEdited = setDocumentEdited;
 
-			this.nativeHostService.setDocumentEdited(isDirty);
+			this.nativeHostService.setDocumentEdited(setDocumentEdited);
 		}
-	}
-
-	private onDidChangeWindowMaximized(maximized: boolean): void {
-		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
 	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
@@ -531,44 +618,31 @@ export class NativeWindow extends Disposable {
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidChangeVisibleEditors(): void {
-
-		// Close when empty: check if we should close the window based on the setting
-		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled. Also enabled when running with --wait from the command line.
-		const visibleEditorPanes = this.editorService.visibleEditorPanes;
-		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
-			if (closeWhenEmpty || this.environmentService.args.wait) {
-				this.closeEmptyWindowScheduler.schedule();
-			}
+	private maybeCloseWindow(): void {
+		const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.nativeEnvironmentService.args.wait;
+		if (!closeWhenEmpty) {
+			return; // return early if configured to not close when empty
 		}
-	}
 
-	private onDidAllEditorsClose(): void {
-		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
-		if (visibleEditorPanes === 0) {
-			this.nativeHostService.closeWindow();
-		}
-	}
-
-	private updateWindowZoomLevel(): void {
-		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-
-		let configuredZoomLevel = 0;
-		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
-			configuredZoomLevel = windowConfig.window.zoomLevel;
-
-			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
-			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
-				return;
+		// Close empty editor groups based on setting and environment
+		for (const editorPart of this.editorGroupService.parts) {
+			if (editorPart.groups.some(group => !group.isEmpty)) {
+				continue; // not empty
 			}
 
-			this.previousConfiguredZoomLevel = configuredZoomLevel;
-		}
+			if (editorPart === this.editorGroupService.mainPart && (
+				this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ||	// only for empty windows
+				this.environmentService.isExtensionDevelopment ||					// not when developing an extension
+				this.editorService.visibleEditors.length > 0						// not when there are still editors open in other windows
+			)) {
+				continue;
+			}
 
-		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+			if (editorPart === this.editorGroupService.mainPart) {
+				this.nativeHostService.closeWindow();
+			} else {
+				editorPart.removeGroup(editorPart.activeGroup);
+			}
 		}
 	}
 
@@ -577,8 +651,8 @@ export class NativeWindow extends Disposable {
 		// Clear old menu
 		this.customTitleContextMenuDisposable.clear();
 
-		// Provide new menu if a file is opened and we are on a custom title
-		if (!filePath || getTitleBarStyle(this.configurationService) !== 'custom') {
+		// Only provide a menu when we have a file path and custom titlebar
+		if (!filePath || hasNativeTitlebar(this.configurationService)) {
 			return;
 		}
 
@@ -603,48 +677,27 @@ export class NativeWindow extends Disposable {
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
 			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path.fsPath)));
-			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarTitleContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
+			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarTitleContext, { command: { id: commandId, title: label || posix.sep }, order: -i, group: '1_file' }));
 		}
 	}
 
-	private create(): void {
+	protected create(): void {
 
 		// Handle open calls
 		this.setupOpenHandlers();
 
 		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
-
-		// Integrity warning
-		this.integrityService.isPure().then(({ isPure }) => this.titleService.updateProperties({ isPure }));
-
-		// Root warning
-		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.nativeHostService.isAdmin();
-
-			// Update title
-			this.titleService.updateProperties({ isAdmin });
-
-			// Show warning message (unix only)
-			if (isAdmin && !isWindows) {
-				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
-			}
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.sharedProcessService.notifyRestored();
+			this.utilityProcessWorkerWorkbenchService.notifyRestored();
 		});
+
+		// Check for situations that are worth warning the user about
+		this.handleWarnings();
 
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
-
-		// Check for cyclic dependencies
-		if (require.hasDependencyCycle()) {
-			if (isCI) {
-				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
-				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
-			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
-				this.nativeHostService.openDevTools();
-			}
-		}
 
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
@@ -652,26 +705,185 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
+	private async handleWarnings(): Promise<void> {
+
+		// After restored phase is fine for the following ones
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// Integrity / Root warning
+		(async () => {
+			const isAdmin = await this.nativeHostService.isAdmin();
+			const { isPure } = await this.integrityService.isPure();
+
+			// Update to title
+			this.titleService.updateProperties({ isPure, isAdmin });
+
+			// Show warning message (unix only)
+			if (isAdmin && !isWindows) {
+				this.notificationService.warn(localize('runningAsRoot', "It is not recommended to run {0} as root user.", this.productService.nameShort));
+			}
+		})();
+
+		// Installation Dir Warning
+		if (this.environmentService.isBuilt) {
+			let installLocationUri: URI;
+			if (isMacintosh) {
+				// appRoot = /Applications/Visual Studio Code - Insiders.app/Contents/Resources/app
+				installLocationUri = dirname(dirname(dirname(URI.file(this.nativeEnvironmentService.appRoot))));
+			} else {
+				// appRoot = C:\Users\<name>\AppData\Local\Programs\Microsoft VS Code Insiders\resources\app
+				// appRoot = /usr/share/code-insiders/resources/app
+				installLocationUri = dirname(dirname(URI.file(this.nativeEnvironmentService.appRoot)));
+			}
+
+			for (const folder of this.contextService.getWorkspace().folders) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(folder.uri, installLocationUri)) {
+					this.bannerService.show({
+						id: 'appRootWarning.banner',
+						message: localize('appRootWarning.banner', "Files you store within the installation folder ('{0}') may be OVERWRITTEN or DELETED IRREVERSIBLY without warning at update time.", this.labelService.getUriLabel(installLocationUri)),
+						icon: Codicon.warning
+					});
+
+					break;
+				}
+			}
+		}
+
+		// macOS 10.13 and 10.14 warning
+		if (isMacintosh) {
+			const majorVersion = this.nativeEnvironmentService.os.release.split('.')[0];
+			const eolReleases = new Map<string, string>([
+				['17', 'macOS High Sierra'],
+				['18', 'macOS Mojave'],
+			]);
+
+			if (eolReleases.has(majorVersion)) {
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+					}],
+					{
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
+			}
+		}
+
+		// Slow shell environment progress indicator
+		const shellEnv = process.shellEnv();
+		this.progressService.withProgress({
+			title: localize('resolveShellEnvironment', "Resolving shell environment..."),
+			location: ProgressLocation.Window,
+			delay: 1600,
+			buttons: [localize('learnMore', "Learn More")]
+		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
+	}
+
 	private setupDriver(): void {
 		const that = this;
-		registerWindowDriver({
+		let pendingQuit = false;
+
+		registerWindowDriver(this.instantiationService, {
 			async exitApplication(): Promise<void> {
+				if (pendingQuit) {
+					that.logService.info('[driver] not handling exitApplication() due to pending quit() call');
+					return;
+				}
+
+				that.logService.info('[driver] handling exitApplication()');
+
+				pendingQuit = true;
 				return that.nativeHostService.quit();
 			}
 		});
 	}
 
-	private setupOpenHandlers(): void {
+	private async openTunnel(address: string, port: number): Promise<RemoteTunnel | string | undefined> {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
+			getAddress: async (): Promise<IAddress> => {
+				return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
+			}
+		} : undefined;
+		const tunnel = await this.tunnelService.getExistingTunnel(address, port);
+		if (!tunnel || (typeof tunnel === 'string')) {
+			return this.tunnelService.openTunnel(addressProvider, address, port);
+		}
+		return tunnel;
+	}
 
-		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
-		};
+	async resolveExternalUri(uri: URI, options?: OpenOptions): Promise<IResolvedExternalUri | undefined> {
+		let queryTunnel: RemoteTunnel | string | undefined;
+		if (options?.allowTunneling) {
+			const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
+			const queryPortMapping = extractQueryLocalHostUriMetaDataForPortMapping(uri);
+			if (queryPortMapping) {
+				queryTunnel = await this.openTunnel(queryPortMapping.address, queryPortMapping.port);
+				if (queryTunnel && (typeof queryTunnel !== 'string')) {
+					// If the tunnel was mapped to a different port, dispose it, because some services
+					// validate the port number in the query string.
+					if (queryTunnel.tunnelRemotePort !== queryPortMapping.port) {
+						queryTunnel.dispose();
+						queryTunnel = undefined;
+					} else {
+						if (!portMappingRequest) {
+							const tunnel = queryTunnel;
+							return {
+								resolved: uri,
+								dispose: () => tunnel.dispose()
+							};
+						}
+					}
+				}
+			}
+			if (portMappingRequest) {
+				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
+				if (tunnel && (typeof tunnel !== 'string')) {
+					const addressAsUri = URI.parse(tunnel.localAddress).with({ path: uri.path });
+					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
+					return {
+						resolved,
+						dispose() {
+							tunnel.dispose();
+							if (queryTunnel && (typeof queryTunnel !== 'string')) {
+								queryTunnel.dispose();
+							}
+						}
+					};
+				}
+			}
+		}
+
+		if (!options?.openExternal) {
+			const canHandleResource = await this.fileService.canHandleResource(uri);
+			if (canHandleResource) {
+				return {
+					resolved: URI.from({
+						scheme: this.productService.urlProtocol,
+						path: 'workspace',
+						query: uri.toString()
+					}),
+					dispose() { }
+				};
+			}
+		}
+
+		return undefined;
+	}
+
+	private setupOpenHandlers(): void {
 
 		// Handle external open() calls
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
-				const success = await this.nativeHostService.openExternal(href);
+				const success = await this.nativeHostService.openExternal(href, this.configurationService.getValue<string>('workbench.externalBrowser'));
 				if (!success) {
 					const fileCandidate = URI.parse(href);
 					if (fileCandidate.scheme === Schemas.file) {
@@ -687,45 +899,16 @@ export class NativeWindow extends Disposable {
 		// Register external URI resolver
 		this.openerService.registerExternalUriResolver({
 			resolveExternalUri: async (uri: URI, options?: OpenOptions) => {
-				if (options?.allowTunneling) {
-					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
-					if (portMappingRequest) {
-						const remoteAuthority = this.environmentService.remoteAuthority;
-						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
-							getAddress: async (): Promise<IAddress> => {
-								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
-							}
-						} : undefined;
-						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
-						if (tunnel) {
-							const addressAsUri = URI.parse(tunnel.localAddress);
-							const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
-							return {
-								resolved,
-								dispose: () => tunnel.dispose(),
-							};
-						}
-					}
-				}
-
-				if (!options?.openExternal) {
-					const canHandleResource = await this.fileService.canHandleResource(uri);
-					if (canHandleResource) {
-						return {
-							resolved: URI.from({
-								scheme: this.productService.urlProtocol,
-								path: 'workspace',
-								query: uri.toString()
-							}),
-							dispose() { }
-						};
-					}
-				}
-
-				return undefined;
+				return this.resolveExternalUri(uri, options);
 			}
 		});
 	}
+
+	//#region Touchbar
+
+	private touchBarMenu: IMenu | undefined;
+	private readonly touchBarDisposables = this._register(new DisposableStore());
+	private lastInstalledTouchedBar: ICommandAction[][] | undefined;
 
 	private updateTouchbarMenu(): void {
 		if (!isMacintosh) {
@@ -756,7 +939,7 @@ export class NativeWindow extends Disposable {
 		const ignoredItems = Array.isArray(touchbarIgnored) ? touchbarIgnored : [];
 
 		// Fill actions into groups respecting order
-		this.touchBarDisposables.add(createAndFillInActionBarActions(this.touchBarMenu, undefined, actions));
+		createAndFillInActionBarActions(this.touchBarMenu, undefined, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
@@ -795,6 +978,8 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
+	//#endregion
+
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
 
 		// Buffer all pending requests
@@ -822,7 +1007,7 @@ export class NativeWindow extends Disposable {
 		const diffMode = !!(request.filesToDiff && (request.filesToDiff.length === 2));
 		const mergeMode = !!(request.filesToMerge && (request.filesToMerge.length === 4));
 
-		const inputs = await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService);
+		const inputs = coalesce(await pathsToEditors(mergeMode ? request.filesToMerge : diffMode ? request.filesToDiff : request.filesToOpenOrCreate, this.fileService, this.logService));
 		if (inputs.length) {
 			const openedEditorPanes = await this.openResources(inputs, diffMode, mergeMode);
 
@@ -877,5 +1062,177 @@ export class NativeWindow extends Disposable {
 		}
 
 		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
+	}
+
+	//#region Window Zoom
+
+	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
+
+	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+
+	private resolveConfiguredWindowZoomLevel(): number {
+		const windowZoomLevel = this.configurationService.getValue('window.zoomLevel');
+
+		return typeof windowZoomLevel === 'number' ? windowZoomLevel : 0;
+	}
+
+	private handleOnDidChangeZoomLevel(targetWindowId: number): void {
+
+		// Zoom status entry
+		this.updateWindowZoomStatusEntry(targetWindowId);
+
+		// Notify main process about a custom zoom level
+		if (targetWindowId === mainWindow.vscodeWindowId) {
+			const currentWindowZoomLevel = getZoomLevel(mainWindow);
+
+			let notifyZoomLevel: number | undefined = undefined;
+			if (this.configuredWindowZoomLevel !== currentWindowZoomLevel) {
+				notifyZoomLevel = currentWindowZoomLevel;
+			}
+
+			ipcRenderer.invoke('vscode:notifyZoomLevel', notifyZoomLevel);
+		}
+	}
+
+	private createWindowZoomStatusEntry(part: IEditorPart): void {
+		const disposables = new DisposableStore();
+		Event.once(part.onWillDispose)(() => disposables.dispose());
+
+		const scopedInstantiationService = this.editorGroupService.getScopedInstantiationService(part);
+		this.mapWindowIdToZoomStatusEntry.set(part.windowId, disposables.add(scopedInstantiationService.createInstance(ZoomStatusEntry)));
+		disposables.add(toDisposable(() => this.mapWindowIdToZoomStatusEntry.delete(part.windowId)));
+
+		this.updateWindowZoomStatusEntry(part.windowId);
+	}
+
+	private updateWindowZoomStatusEntry(targetWindowId: number): void {
+		const targetWindow = getWindowById(targetWindowId);
+		const entry = this.mapWindowIdToZoomStatusEntry.get(targetWindowId);
+		if (entry && targetWindow) {
+			const currentZoomLevel = getZoomLevel(targetWindow.window);
+
+			let text: string | undefined = undefined;
+			if (currentZoomLevel < this.configuredWindowZoomLevel) {
+				text = '$(zoom-out)';
+			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
+				text = '$(zoom-in)';
+			}
+
+			entry.updateZoomEntry(text ?? false, targetWindowId);
+		}
+	}
+
+	private onDidChangeConfiguredWindowZoomLevel(): void {
+		this.configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
+
+		let applyZoomLevel = false;
+		for (const { window } of getWindows()) {
+			if (getZoomLevel(window) !== this.configuredWindowZoomLevel) {
+				applyZoomLevel = true;
+				break;
+			}
+		}
+
+		if (applyZoomLevel) {
+			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
+		}
+
+		for (const [windowId] of this.mapWindowIdToZoomStatusEntry) {
+			this.updateWindowZoomStatusEntry(windowId);
+		}
+	}
+
+	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		for (const [, entry] of this.mapWindowIdToZoomStatusEntry) {
+			entry.dispose();
+		}
+	}
+}
+
+class ZoomStatusEntry extends Disposable {
+
+	private readonly disposable = this._register(new MutableDisposable<DisposableStore>());
+
+	private zoomLevelLabel: Action | undefined = undefined;
+
+	constructor(
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
+	) {
+		super();
+	}
+
+	updateZoomEntry(visibleOrText: false | string, targetWindowId: number): void {
+		if (typeof visibleOrText === 'string') {
+			if (!this.disposable.value) {
+				this.createZoomEntry(visibleOrText);
+			}
+
+			this.updateZoomLevelLabel(targetWindowId);
+		} else {
+			this.disposable.clear();
+		}
+	}
+
+	private createZoomEntry(visibleOrText: string): void {
+		const disposables = new DisposableStore();
+		this.disposable.value = disposables;
+
+		const container = document.createElement('div');
+		container.classList.add('zoom-status');
+
+		const left = document.createElement('div');
+		left.classList.add('zoom-status-left');
+		container.appendChild(left);
+
+		const zoomOutAction: Action = disposables.add(new Action('workbench.action.zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand(zoomOutAction.id)));
+		const zoomInAction: Action = disposables.add(new Action('workbench.action.zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand(zoomInAction.id)));
+		const zoomResetAction: Action = disposables.add(new Action('workbench.action.zoomReset', localize('zoomReset', "Reset"), undefined, true, () => this.commandService.executeCommand(zoomResetAction.id)));
+		zoomResetAction.tooltip = localize('zoomResetLabel', "{0} ({1})", zoomResetAction.label, this.keybindingService.lookupKeybinding(zoomResetAction.id)?.getLabel());
+		const zoomSettingsAction: Action = disposables.add(new Action('workbench.action.openSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand(zoomSettingsAction.id, 'window.zoom')));
+		const zoomLevelLabel = disposables.add(new Action('zoomLabel', undefined, undefined, false));
+
+		this.zoomLevelLabel = zoomLevelLabel;
+		disposables.add(toDisposable(() => this.zoomLevelLabel = undefined));
+
+		const actionBarLeft = disposables.add(new ActionBar(left, { hoverDelegate: nativeHoverDelegate }));
+		actionBarLeft.push(zoomOutAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomOutAction.id)?.getLabel() });
+		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
+		actionBarLeft.push(zoomInAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomInAction.id)?.getLabel() });
+
+		const right = document.createElement('div');
+		right.classList.add('zoom-status-right');
+		container.appendChild(right);
+
+		const actionBarRight = disposables.add(new ActionBar(right, { hoverDelegate: nativeHoverDelegate }));
+
+		actionBarRight.push(zoomResetAction, { icon: false, label: true });
+		actionBarRight.push(zoomSettingsAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(zoomSettingsAction.id)?.getLabel() });
+
+		const name = localize('status.windowZoom', "Window Zoom");
+		disposables.add(this.statusbarService.addEntry({
+			name,
+			text: visibleOrText,
+			tooltip: container,
+			ariaLabel: name,
+			command: ShowTooltipCommand,
+			kind: 'prominent'
+		}, 'status.windowZoom', StatusbarAlignment.RIGHT, 102));
+	}
+
+	private updateZoomLevelLabel(targetWindowId: number): void {
+		if (this.zoomLevelLabel) {
+			const targetWindow = getWindowById(targetWindowId, true).window;
+			const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
+			const zoomLevel = getZoomLevel(targetWindow);
+
+			this.zoomLevelLabel.label = `${zoomLevel}`;
+			this.zoomLevelLabel.tooltip = localize('zoomNumber', "Zoom Level: {0} ({1}%)", zoomLevel, zoomFactor);
+		}
 	}
 }

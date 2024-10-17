@@ -50,7 +50,7 @@ function removeNodeTypes(grammar) {
 
 function patchJsdoctype(grammar) {
 	grammar.repository['jsdoctype'].patterns = grammar.repository['jsdoctype'].patterns.filter(pattern => {
-		if (pattern.name && pattern.name.indexOf('illegal') >= -1) {
+		if (pattern.name && pattern.name.includes('illegal')) {
 			return false;
 		}
 		return true;

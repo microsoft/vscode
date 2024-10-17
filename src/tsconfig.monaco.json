@@ -3,22 +3,24 @@
 	"compilerOptions": {
 		"noEmit": true,
 		"types": [
+			"@webgpu/types",
 			"trusted-types",
 			"wicg-file-system-access"
 		],
 		"paths": {},
 		"module": "amd",
-		"moduleResolution": "classic",
+		"moduleResolution": "node",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es6",
+		"target": "ES2022",
 		"sourceMap": false,
 		"declaration": true
 	},
 	"include": [
-		"typings/require.d.ts",
 		"typings/thenable.d.ts",
-		"vs/loader.d.ts",
+		"typings/vscode-globals-product.d.ts",
+		"typings/vscode-globals-nls.d.ts",
+		"typings/editContext.d.ts",
 		"vs/monaco.d.ts",
 		"vs/editor/*",
 		"vs/base/common/*",
@@ -31,6 +33,8 @@
 		"vs/platform/files/browser/htmlFileSystemProvider.ts",
 		"vs/platform/files/browser/webFileSystemAccess.ts",
 		"vs/platform/telemetry/*",
-		"vs/platform/assignment/*"
+		"vs/platform/assignment/*",
+		"vs/platform/terminal/*",
+		"vs/platform/externalTerminal/*"
 	]
 }

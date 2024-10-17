@@ -8,21 +8,27 @@ import MarkdownIt from 'markdown-it';
 import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
-const allowedHtmlTags = Object.freeze([
-	'a',
+const allowedHtmlTags = Object.freeze(['a',
+	'abbr',
 	'b',
+	'bdo',
 	'blockquote',
 	'br',
-	'button',
 	'caption',
-	'center',
+	'cite',
 	'code',
 	'col',
 	'colgroup',
+	'dd',
+	'del',
 	'details',
+	'dfn',
 	'div',
+	'dl',
+	'dt',
 	'em',
-	'font',
+	'figcaption',
+	'figure',
 	'h1',
 	'h2',
 	'h3',
@@ -32,16 +38,24 @@ const allowedHtmlTags = Object.freeze([
 	'hr',
 	'i',
 	'img',
-	'input',
+	'ins',
 	'kbd',
 	'label',
 	'li',
+	'mark',
 	'ol',
 	'p',
 	'pre',
-	'select',
+	'q',
+	'rp',
+	'rt',
+	'ruby',
+	'samp',
 	'small',
+	'small',
+	'source',
 	'span',
+	'strike',
 	'strong',
 	'sub',
 	'summary',
@@ -49,15 +63,17 @@ const allowedHtmlTags = Object.freeze([
 	'table',
 	'tbody',
 	'td',
-	'textarea',
 	'tfoot',
 	'th',
 	'thead',
+	'time',
 	'tr',
 	'tt',
 	'u',
 	'ul',
+	'var',
 	'video',
+	'wbr',
 ]);
 
 const allowedSvgTags = Object.freeze([
@@ -119,9 +135,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		linkify: true,
 		highlight: (str: string, lang?: string) => {
 			if (lang) {
-				return `<code class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</code>`;
+				return `<div class="vscode-code-block" data-vscode-code-block-lang="${markdownIt.utils.escapeHtml(lang)}">${markdownIt.utils.escapeHtml(str)}</div>`;
 			}
-			return `<code>${markdownIt.utils.escapeHtml(str)}</code>`;
+			return markdownIt.utils.escapeHtml(str);
 		}
 	});
 	markdownIt.linkify.set({ fuzzyLink: false });
@@ -259,13 +275,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 		code {
 			font-size: 1em;
+			font-family: var(--vscode-editor-font-family);
 		}
 
 		pre code {
-			font-family: var(--vscode-editor-font-family);
-
 			line-height: 1.357em;
 			white-space: pre-wrap;
+			padding: 0;
+		}
+
+		li p {
+			margin-bottom: 0.7em;
+		}
+
+		ul,
+		ol {
+			margin-bottom: 0.7em;
 		}
 	`;
 	const template = document.createElement('template');
@@ -317,7 +342,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
-			f(markdownIt);
+			try {
+				f(markdownIt);
+			} catch (err) {
+				console.error('Error extending markdown-it', err);
+			}
 		}
 	};
 };
@@ -378,7 +407,7 @@ function slugify(text: string): string {
 			.toLowerCase()
 			.replace(/\s+/g, '-') // Replace whitespace with -
 			// allow-any-unicode-next-line
-			.replace(/[\]\[\!\'\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
+			.replace(/[\]\[\!\/\'\"\#\$\%\&\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\{\|\}\~\`。，、；：？！…—·ˉ¨‘’“”々～‖∶＂＇｀｜〃〔〕〈〉《》「」『』．〖〗【】（）［］｛｝]/g, '') // Remove known punctuators
 			.replace(/^\-+/, '') // Remove leading -
 			.replace(/\-+$/, '') // Remove trailing -
 	);
