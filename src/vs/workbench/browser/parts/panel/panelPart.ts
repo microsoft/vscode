@@ -91,6 +91,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			'panel',
 			'panel',
 			undefined,
+			PANEL_TITLE_BORDER,
 			notificationService,
 			storageService,
 			contextMenuService,

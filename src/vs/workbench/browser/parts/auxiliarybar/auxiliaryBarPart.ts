@@ -101,6 +101,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			'auxiliarybar',
 			'auxiliarybar',
 			undefined,
+			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
