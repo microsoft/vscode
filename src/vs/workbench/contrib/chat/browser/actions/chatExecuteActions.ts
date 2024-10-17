@@ -5,17 +5,21 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_HAS_FILE_ATTACHMENTS, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { EDITS_VIEW_ID, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -122,6 +126,79 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 	}
 }
 
+class SendToChatEditingAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.sendToChatEditing',
+			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_HAS_FILE_ATTACHMENTS),
+			category: CHAT_CATEGORY,
+			f1: false,
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				group: 'group_1',
+				order: 3,
+				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+			},
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		if (!accessor.get(IChatAgentService).getDefaultAgent(ChatAgentLocation.EditingSession)) {
+			return;
+		}
+
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget || widget.viewModel?.model.initialLocation === ChatAgentLocation.EditingSession) {
+			return;
+		}
+
+		const viewsService = accessor.get(IViewsService);
+		const dialogService = accessor.get(IDialogService);
+		const chatEditingService = accessor.get(IChatEditingService);
+
+		const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+		const currentEditCount = currentEditingSession?.entries.get().length;
+		if (currentEditCount) {
+			const result = await dialogService.confirm({
+				title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+				message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+				type: 'info',
+				primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
+			});
+
+			if (!result.confirmed) {
+				return;
+			}
+
+			await currentEditingSession?.stop();
+		}
+
+		const { widget: editingWidget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+		for (const attachment of widget.attachmentModel.attachments) {
+			if (attachment.isFile && URI.isUri(attachment.value)) {
+				await chatEditingService.addFileToWorkingSet(attachment.value);
+			} else {
+				editingWidget.attachmentModel.addContext(attachment);
+			}
+		}
+
+		editingWidget.setInput(widget.getInput());
+		widget.setInput('');
+		widget.attachmentModel.clear();
+		editingWidget.acceptInput();
+		editingWidget.focusInput();
+	}
+}
+
 class SendToNewChatAction extends Action2 {
 	constructor() {
 		super({
@@ -206,4 +283,5 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitSecondaryAgentAction);
+	registerAction2(SendToChatEditingAction);
 }

@@ -704,7 +704,7 @@ class TestingExplorerViewModel extends Disposable {
 	) {
 		super();
 
-		this.hasPendingReveal = !!filterState.reveal.value;
+		this.hasPendingReveal = !!filterState.reveal.get();
 		this.noTestForDocumentWidget = this._register(instantiationService.createInstance(NoTestsForDocumentWidget, listContainer));
 		this._viewMode.set(this.storageService.get('testing.viewMode', StorageScope.WORKSPACE, TestExplorerViewMode.Tree) as TestExplorerViewMode);
 		this._viewSorting.set(this.storageService.get('testing.viewSorting', StorageScope.WORKSPACE, TestExplorerViewSorting.ByLocation) as TestExplorerViewSorting);
@@ -795,7 +795,9 @@ class TestingExplorerViewModel extends Disposable {
 			}
 		}));
 
-		this._register(filterState.reveal.onDidChange(id => this.revealById(id, undefined, false)));
+		this._register(autorun(reader => {
+			this.revealById(filterState.reveal.read(reader), undefined, false);
+		}));
 
 		this._register(onDidChangeVisibility(visible => {
 			if (visible) {
@@ -809,9 +811,11 @@ class TestingExplorerViewModel extends Disposable {
 			}
 
 			const selected = evt.elements[0];
-			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
-				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
-				this.tryPeekError(selected);
+			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement) {
+				filterState.didSelectTestInExplorer(selected.test.item.extId);
+				if (selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
+					this.tryPeekError(selected);
+				}
 			}
 		}));
 
@@ -953,7 +957,7 @@ class TestingExplorerViewModel extends Disposable {
 				}
 			}
 
-			this.filterState.reveal.value = undefined;
+			this.filterState.reveal.set(undefined, undefined);
 			this.hasPendingReveal = false;
 			if (focus) {
 				this.tree.domFocus();
@@ -1074,7 +1078,7 @@ class TestingExplorerViewModel extends Disposable {
 		this.tree.refilter();
 
 		if (this.hasPendingReveal) {
-			this.revealById(this.filterState.reveal.value);
+			this.revealById(this.filterState.reveal.get());
 		}
 	}
 

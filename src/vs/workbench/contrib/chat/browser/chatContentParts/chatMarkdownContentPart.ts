@@ -6,7 +6,6 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
@@ -30,7 +29,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatMarkdownContent, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
@@ -56,7 +55,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
-		private readonly markdown: IMarkdownString,
+		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
@@ -72,12 +71,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		super();
 
 		const element = context.element;
-		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		let codeBlockIndex = codeBlockStartIndex;
-		const result = this._register(renderer.render(markdown, {
+		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
@@ -173,7 +171,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 
-		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
+		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
 		this.domNode = result.element;
@@ -208,8 +207,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.value
-			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
+		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
+			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {

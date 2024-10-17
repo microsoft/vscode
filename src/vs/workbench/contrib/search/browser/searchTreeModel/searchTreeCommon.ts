@@ -190,7 +190,7 @@ export interface ISearchTreeFolderMatch {
 	matches(): (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[];
 	allDownstreamFileMatches(): ISearchTreeFileMatch[];
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): void;
-	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string, isAiContributed: boolean): void;
+	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void;
 	isEmpty(): boolean;
 	clear(clearingAll?: boolean): void;
 	showHighlights: boolean;
@@ -202,12 +202,7 @@ export interface ISearchTreeFolderMatch {
 	getDownstreamFileMatch(uri: URI): ISearchTreeFileMatch | null;
 	replaceAll(): Promise<any>;
 	recursiveFileCount(): number;
-	disposeMatches(): void;
 	doRemoveFile(fileMatches: ISearchTreeFileMatch[], dispose?: boolean, trigger?: boolean, keepReadonly?: boolean): void;
-	doAddFile(fileMatch: ISearchTreeFileMatch): void;
-	onFileChange(fileMatch: ISearchTreeFileMatch, removed?: boolean): void;
-	createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: ISearchTreeFolderMatchWorkspaceRoot): ISearchTreeFolderMatchWithResource;
-	getFolderMatch(resource: URI): ISearchTreeFolderMatchWithResource | undefined;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
 	bindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): Promise<void>;
 	unbindNotebookEditorWidget(editor: NotebookEditorWidget, resource: URI): void;
@@ -216,8 +211,8 @@ export interface ISearchTreeFolderMatch {
 	folderMatchesIterator(): IterableIterator<ISearchTreeFolderMatchWithResource>;
 	recursiveFileCount(): number;
 	recursiveMatchCount(): number;
-	readonly closestRoot: ISearchTreeFolderMatchWorkspaceRoot | null;
 	dispose(): void;
+	isAIContributed(): boolean;
 }
 
 export interface ISearchTreeFolderMatchWithResource extends ISearchTreeFolderMatch {
@@ -275,7 +270,7 @@ export interface ISearchTreeMatch {
 	rangeInPreview(): ISearchRange;
 	fullPreviewLines(): string[];
 	getMatchString(): string;
-	isReadonly(): boolean;
+	isReadonly: boolean;
 }
 
 export function isSearchModel(obj: any): obj is ISearchModel {
@@ -338,4 +333,19 @@ export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 		obj !== null &&
 		typeof obj.id === 'function' &&
 		obj.id().startsWith(MATCH_PREFIX);
+}
+
+export function getFileMatches(matches: (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): ISearchTreeFileMatch[] {
+
+	const folderMatches: ISearchTreeFolderMatchWithResource[] = [];
+	const fileMatches: ISearchTreeFileMatch[] = [];
+	matches.forEach((e) => {
+		if (isSearchTreeFileMatch(e)) {
+			fileMatches.push(e);
+		} else {
+			folderMatches.push(e);
+		}
+	});
+
+	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }

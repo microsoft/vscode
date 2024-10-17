@@ -131,8 +131,8 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			type: 'string',
 			default: '',
-			tags: ['experimental'],
-			description: localize('workbench.panel.chat.view.showGettingStarted', "When enabled, shows a getting started experiments in the chat panel.")
+			tags: ['experimental', 'onExP'],
+			description: localize('workbench.panel.chat.view.showGettingStarted', "When enabled, shows a getting started experiment in the chat panel.")
 		}
 	}
 });
