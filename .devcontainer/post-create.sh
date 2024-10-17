@@ -1,4 +1,4 @@
-#!/bin/sh
+./dev/
 
 npm i
 npm run electron
