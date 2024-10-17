@@ -6,7 +6,7 @@
 import { Color } from '../../../../base/common/color.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IBracketPairColorizationOptions, IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IBracketPairColorizationOptions, IEditorOptions, IEditorStickyScrollOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewDescriptorService } from '../../../common/views.js';
@@ -39,6 +39,7 @@ export interface IChatResultEditorOptions {
 	readonly fontWeight: string;
 	readonly backgroundColor: Color | undefined;
 	readonly bracketPairColorization: IBracketPairColorizationOptions;
+	readonly stickyScroll: IEditorStickyScrollOptions;
 	readonly fontLigatures: boolean | string | undefined;
 	readonly wordWrap: 'off' | 'on';
 
@@ -118,6 +119,12 @@ export class ChatEditorOptions extends Disposable {
 				bracketPairColorization: {
 					enabled: this.configurationService.getValue<boolean>('editor.bracketPairColorization.enabled'),
 					independentColorPoolPerBracketType: this.configurationService.getValue<boolean>('editor.bracketPairColorization.independentColorPoolPerBracketType'),
+				},
+				stickyScroll: {
+					enabled: this.configurationService.getValue<boolean>('editor.stickyScroll.enabled'),
+					maxLineCount: this.configurationService.getValue<number>('editor.stickyScroll.maxLineCount'),
+					defaultModel: this.configurationService.getValue<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>('editor.stickyScroll.defaultModel'),
+					scrollWithEditor: this.configurationService.getValue<boolean>('editor.stickyScroll.scrollWithEditor'),
 				},
 				wordWrap: chatEditorConfig.wordWrap,
 				fontLigatures: editorConfig.fontLigatures,
