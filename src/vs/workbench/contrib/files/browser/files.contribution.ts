@@ -380,7 +380,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
-			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
+			'markdownDescription': nls.localize('formatOnSave', "Format a file on save. A formatter must be available and the editor must not be shutting down. When `#files.autoSave#` is set to `afterDelay`, the file will only be formatted when saved explicitly."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
 		},
 		'editor.formatOnSaveMode': {
