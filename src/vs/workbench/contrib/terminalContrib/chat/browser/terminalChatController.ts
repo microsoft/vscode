@@ -165,7 +165,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
 				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
-
+				const model = this._model.value;
+				if (model) {
+					this._terminalChatWidget?.value.inlineChatWidget.setChatModel(model);
+				}
 				if (!this._model.value) {
 					throw new Error('Failed to start chat session');
 				}
@@ -212,12 +215,11 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			await this.reveal();
 		}
 		assertType(this._model.value);
+		this._messages.fire(Message.AcceptInput);
 		const lastInput = this._terminalChatWidget.value.inlineChatWidget.value;
 		if (!lastInput) {
 			return;
 		}
-		const model = this._model.value;
-		this._terminalChatWidget.value.inlineChatWidget.setChatModel(model);
 		this._historyUpdate(lastInput);
 		this._activeRequestCts?.cancel();
 		this._activeRequestCts = new CancellationTokenSource();
@@ -250,7 +252,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				}));
 			}
 			await responsePromise.p;
-			this._lastResponseContent = response?.response.toMarkdown();
+			this._lastResponseContent = response?.response.getMarkdown();
 			return response;
 		} catch {
 			this._lastResponseContent = undefined;

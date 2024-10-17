@@ -31,7 +31,7 @@ declare module 'vscode' {
 		 * a cell execution or another NotebookExecution is created while another is still active.
 		 *
 		 * This should be used to indicate the {@link NotebookController notebook controller} is busy even though user may not have executed any cell though the UI.
-		 * @param {NotebookDocument} notebook
+		 * @param notebook
 		 * @returns A notebook execution.
 		 */
 		createNotebookExecution(notebook: NotebookDocument): NotebookExecution;

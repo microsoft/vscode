@@ -18,7 +18,7 @@ import { PrefixSumComputer } from '../../../../../editor/common/model/prefixSumC
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
+import { CursorAtBoundary, ICellViewModel, CellEditState, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary, INotebookViewZoneChangeAccessor } from '../notebookBrowser.js';
 import { CellViewModel, NotebookViewModel } from '../viewModel/notebookViewModelImpl.js';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from '../../common/notebookCommon.js';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from '../../common/notebookRange.js';
@@ -239,21 +239,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			// reset context
 			notebookEditorCursorAtBoundaryContext.set('none');
-		}));
-
-		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
-			const focus = this.getFocusedElements()[0];
-
-			if (focus && focus.cellKind === CellKind.Markup && !focus.isInputCollapsed && !this._viewModel?.options.isReadOnly) {
-				// scroll the cell into view if out of viewport
-				const focusedCellIndex = this._getViewIndexUpperBound(focus);
-
-				if (focusedCellIndex >= 0) {
-					this._revealInViewWithMinimalScrolling(focusedCellIndex);
-				}
-				focus.updateEditState(CellEditState.Editing, 'dbclick');
-				focus.focusMode = CellFocusMode.Editor;
-			}
 		}));
 
 		// update visibleRanges

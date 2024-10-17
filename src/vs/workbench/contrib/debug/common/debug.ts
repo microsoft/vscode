@@ -629,7 +629,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly pending: boolean;
 
 	/** Marks that a session did trigger the breakpoint. */
-	setSessionDidTrigger(sessionId: string): void;
+	setSessionDidTrigger(sessionId: string, didTrigger?: boolean): void;
 	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
 	getSessionDidTrigger(sessionId: string): boolean;
 
@@ -814,6 +814,7 @@ export interface IDebugConfiguration {
 	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
+	hideSlowPreLaunchWarning: boolean;
 }
 
 export interface IGlobalConfig {

@@ -121,11 +121,11 @@ export class AuxiliaryEditorPart {
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
-			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined, false);
+			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 
 			const handleTitleBarVisibilityEvent = () => {
 				const oldTitlebarPartVisible = titlebarVisible;
-				titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined, false);
+				titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined);
 				if (oldTitlebarPartVisible !== titlebarVisible) {
 					updateTitlebarVisibility(true);
 				}

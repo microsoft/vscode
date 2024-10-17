@@ -390,7 +390,7 @@ function getChatConversation(context: ICodeBlockActionContext): (ConversationReq
 	if (isResponseVM(context.element)) {
 		return [{
 			type: 'response',
-			message: context.element.response.toMarkdown(),
+			message: context.element.response.getMarkdown(),
 			references: getReferencesAsDocumentContext(context.element.contentReferences)
 		}];
 	} else if (isRequestVM(context.element)) {

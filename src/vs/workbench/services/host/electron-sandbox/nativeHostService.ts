@@ -17,7 +17,6 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { memoize } from '../../../../base/common/decorators.js';
 import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
-import { webUtils } from '../../../../base/parts/sandbox/electron-sandbox/globals.js';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -187,14 +186,13 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-	//#region File
+	//#region Screenshots
 
-	getPathForFile(file: File): string {
-		return webUtils.getPathForFile(file);
+	getScreenshot(): Promise<ArrayBufferLike | undefined> {
+		return this.nativeHostService.getScreenshot();
 	}
 
 	//#endregion
-
 }
 
 registerSingleton(IHostService, WorkbenchHostService, InstantiationType.Delayed);

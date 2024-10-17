@@ -7,7 +7,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { matchesSubString } from '../../../../../base/common/filters.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, derivedOpts, disposableObservableValue, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -52,6 +52,8 @@ export class InlineCompletionsSource extends Disposable {
 		this._logService.info('InlineCompletionsSource.fetch ' + JSON.stringify(entry));
 	}
 
+	public readonly loading = observableValue(this, false);
+
 	public fetch(position: Position, context: InlineCompletionContext, activeInlineCompletion: InlineCompletionWithUpdatedRange | undefined): Promise<boolean> {
 		const request = new UpdateRequest(position, context, this._textModel.getVersionId());
 
@@ -62,6 +64,8 @@ export class InlineCompletionsSource extends Disposable {
 		} else if (target.get()?.request.satisfies(request)) {
 			return Promise.resolve(true);
 		}
+
+		this.loading.set(true, undefined);
 
 		const updateOngoing = !!this._updateOperation.value;
 		this._updateOperation.clear();
@@ -115,6 +119,7 @@ export class InlineCompletionsSource extends Disposable {
 			}
 
 			if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
+				updatedCompletions.dispose();
 				return false;
 			}
 
@@ -133,6 +138,7 @@ export class InlineCompletionsSource extends Disposable {
 			transaction(tx => {
 				/** @description Update completions with provider result */
 				target.set(completions, tx);
+				this.loading.set(false, tx);
 			});
 
 			return true;
@@ -230,7 +236,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 		})));
 
 		this._inlineCompletions = inlineCompletionProviderResult.completions.map(
-			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId)
+			(i, index) => new InlineCompletionWithUpdatedRange(i, ids[index], this._textModel, this._versionId, this.request)
 		);
 	}
 
@@ -267,7 +273,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 				description: 'inline-completion-tracking-range'
 			},
 		}])[0];
-		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._textModel, this._versionId));
+		this._inlineCompletions.unshift(new InlineCompletionWithUpdatedRange(inlineCompletion, id, this._textModel, this._versionId, this.request));
 		this._prependedInlineCompletionItems.push(inlineCompletion);
 	}
 }
@@ -293,6 +299,7 @@ export class InlineCompletionWithUpdatedRange {
 		public readonly decorationId: string,
 		private readonly _textModel: ITextModel,
 		private readonly _modelVersion: IObservable<number | null>,
+		public readonly request: UpdateRequest,
 	) {
 	}
 

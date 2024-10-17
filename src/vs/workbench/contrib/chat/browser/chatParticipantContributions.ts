@@ -5,6 +5,7 @@
 
 import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
@@ -148,10 +149,6 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						}
 					}
 				},
-				supportsToolReferences: {
-					description: localize('chatParticipantSupportsToolReferences', "Whether this participant supports {0}.", 'ChatRequest#toolReferences'),
-					type: 'boolean'
-				}
 			}
 		}
 	},
@@ -204,7 +201,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations || providerDescriptor.supportsModelPicker) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
@@ -220,54 +217,54 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						examples: string[];
 					}[] = [];
 
-					if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
-						if (providerDescriptor.disambiguation?.length) {
-							participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
-								...d, category: d.category ?? d.categoryName
-							})));
-						}
-						if (providerDescriptor.commands) {
-							for (const command of providerDescriptor.commands) {
-								if (command.disambiguation?.length) {
-									participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
-										...d, category: d.category ?? d.categoryName
-									})));
-								}
+					if (providerDescriptor.disambiguation?.length) {
+						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
+							...d, category: d.category ?? d.categoryName
+						})));
+					}
+					if (providerDescriptor.commands) {
+						for (const command of providerDescriptor.commands) {
+							if (command.disambiguation?.length) {
+								participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
+									...d, category: d.category ?? d.categoryName
+								})));
 							}
 						}
 					}
 
-					const store = new DisposableStore();
-					store.add(this._chatAgentService.registerAgent(
-						providerDescriptor.id,
-						{
-							extensionId: extension.description.identifier,
-							publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
-							extensionPublisherId: extension.description.publisher,
-							extensionDisplayName: extension.description.displayName ?? extension.description.name,
-							id: providerDescriptor.id,
-							description: providerDescriptor.description,
-							supportsModelPicker: providerDescriptor.supportsModelPicker,
-							when: providerDescriptor.when,
-							metadata: {
-								isSticky: providerDescriptor.isSticky,
-								sampleRequest: providerDescriptor.sampleRequest,
-							},
-							name: providerDescriptor.name,
-							fullName: providerDescriptor.fullName,
-							isDefault: providerDescriptor.isDefault,
-							locations: isNonEmptyArray(providerDescriptor.locations) ?
-								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
-								[ChatAgentLocation.Panel],
-							slashCommands: providerDescriptor.commands ?? [],
-							disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
-							supportsToolReferences: providerDescriptor.supportsToolReferences,
-						} satisfies IChatAgentData));
+					try {
+						const store = new DisposableStore();
+						store.add(this._chatAgentService.registerAgent(
+							providerDescriptor.id,
+							{
+								extensionId: extension.description.identifier,
+								publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
+								extensionPublisherId: extension.description.publisher,
+								extensionDisplayName: extension.description.displayName ?? extension.description.name,
+								id: providerDescriptor.id,
+								description: providerDescriptor.description,
+								when: providerDescriptor.when,
+								metadata: {
+									isSticky: providerDescriptor.isSticky,
+									sampleRequest: providerDescriptor.sampleRequest,
+								},
+								name: providerDescriptor.name,
+								fullName: providerDescriptor.fullName,
+								isDefault: providerDescriptor.isDefault,
+								locations: isNonEmptyArray(providerDescriptor.locations) ?
+									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
+									[ChatAgentLocation.Panel],
+								slashCommands: providerDescriptor.commands ?? [],
+								disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
+							} satisfies IChatAgentData));
 
-					this._participantRegistrationDisposables.set(
-						getParticipantKey(extension.description.identifier, providerDescriptor.id),
-						store
-					);
+						this._participantRegistrationDisposables.set(
+							getParticipantKey(extension.description.identifier, providerDescriptor.id),
+							store
+						);
+					} catch (e) {
+						this.logService.error(`Failed to register participant ${providerDescriptor.id}: ${toErrorMessage(e, true)}`);
+					}
 				}
 			}
 

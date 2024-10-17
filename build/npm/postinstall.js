@@ -60,7 +60,7 @@ function npmInstall(dir, opts) {
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
-		run(npm, [command], opts);
+		run(npm, command.split(' '), opts);
 	}
 }
 
@@ -131,7 +131,27 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
+		const globalGypPath = path.join(os.homedir(), '.gyp');
+		const globalInclude = path.join(globalGypPath, 'include.gypi');
+		const tempGlobalInclude = path.join(globalGypPath, 'include.gypi.bak');
+		if (process.platform === 'linux' &&
+			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
+			// Following include file rename should be removed
+			// when `Override gnu target for arm64 and arm` step
+			// is removed from the product build pipeline.
+			if (fs.existsSync(globalInclude)) {
+				fs.renameSync(globalInclude, tempGlobalInclude);
+			}
+		}
 		setNpmrcConfig('remote', opts.env);
+		npmInstall(dir, opts);
+		if (process.platform === 'linux' &&
+			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
+			if (fs.existsSync(tempGlobalInclude)) {
+				fs.renameSync(tempGlobalInclude, globalInclude);
+			}
+		}
+		continue;
 	}
 
 	npmInstall(dir, opts);

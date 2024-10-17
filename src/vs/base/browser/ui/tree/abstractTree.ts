@@ -577,6 +577,18 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 }
 
+export function contiguousFuzzyScore(patternLower: string, wordLower: string): FuzzyScore | undefined {
+	const index = wordLower.toLowerCase().indexOf(patternLower);
+	let score: FuzzyScore | undefined;
+	if (index > -1) {
+		score = [Number.MAX_SAFE_INTEGER, 0];
+		for (let i = patternLower.length; i > 0; i--) {
+			score.push(index + i - 1);
+		}
+	}
+	return score;
+}
+
 export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
 export interface IFindFilter<T> extends ITreeFilter<T, FuzzyScore | LabelFuzzyScore> {
@@ -644,13 +656,7 @@ class FindFilter<T> implements IFindFilter<T>, IDisposable {
 
 			let score: FuzzyScore | undefined;
 			if (this.tree.findMatchType === TreeFindMatchType.Contiguous) {
-				const index = labelStr.toLowerCase().indexOf(this._lowercasePattern);
-				if (index > -1) {
-					score = [Number.MAX_SAFE_INTEGER, 0];
-					for (let i = this._lowercasePattern.length; i > 0; i--) {
-						score.push(index + i - 1);
-					}
-				}
+				score = contiguousFuzzyScore(this._lowercasePattern, labelStr.toLowerCase());
 			} else {
 				score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 			}
@@ -1422,8 +1428,20 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 				return;
 			}
 
-			const renderedNodes = e.elements.filter(node => state.contains(node));
-			if (renderedNodes) {
+			// If a sticky node is removed, recompute the state
+			const hasRemovedStickyNode = e.deleteCount > 0 && state.stickyNodes.some(stickyNode => !this.model.has(this.model.getNodeLocation(stickyNode.node)));
+			if (hasRemovedStickyNode) {
+				this.update();
+				return;
+			}
+
+			// If a sticky node is updated, rerender the widget
+			const shouldRerenderStickyNodes = state.stickyNodes.some(stickyNode => {
+				const listIndex = this.model.getListIndex(this.model.getNodeLocation(stickyNode.node));
+				return listIndex >= e.start && listIndex < e.start + e.deleteCount && state.contains(stickyNode.node);
+			});
+
+			if (shouldRerenderStickyNodes) {
 				this._widget.rerender();
 			}
 		}));
