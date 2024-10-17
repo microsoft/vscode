@@ -1369,7 +1369,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<IToolResult>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
-	$prepareToolInvocation(toolId: string, participantName: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	$prepareToolInvocation(toolId: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -2578,6 +2578,7 @@ export interface ExtHostProgressShape {
 export interface ExtHostCommentsShape {
 	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined, editorId?: string): Promise<void>;
 	$updateCommentThreadTemplate(commentControllerHandle: number, threadHandle: number, range: IRange): Promise<void>;
+	$updateCommentThread(commentControllerHandle: number, threadHandle: number, changes: CommentThreadChanges): Promise<void>;
 	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined>;
 	$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: languages.Comment, reaction: languages.CommentReaction): Promise<void>;

@@ -4,31 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatMarkdownContent, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
-import { InlineAnchorWidget } from '../chatInlineAnchorWidget.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 
 const $ = dom.$;
 
@@ -36,7 +47,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private static idPool = 0;
 	public readonly id = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
-	private readonly allRefs: IDisposableReference<CodeBlockPart | { object?: InlineAnchorWidget; element: HTMLElement }>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -44,7 +55,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
-		private readonly markdown: IMarkdownString,
+		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
@@ -52,24 +63,22 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		renderer: MarkdownRenderer,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
-		rendererOptions: IChatListItemRendererOptions,
+		private readonly rendererOptions: IChatListItemRendererOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
 		const element = context.element;
-		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		let codeBlockIndex = codeBlockStartIndex;
-		const result = this._register(renderer.render(markdown, {
+		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
-			codeBlockRendererSync: (languageId, text) => {
+			codeBlockRendererSync: (languageId, text, raw) => {
+				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
@@ -94,7 +103,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				if (!rendererOptions.collapseCodeBlocks) {
+				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
@@ -107,6 +116,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = index;
 						readonly element = element;
+						readonly isStreaming = !rendererOptions.renderCodeBlockPills;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
 							// here we must do a getter because the ref.object is rendered
@@ -124,7 +134,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					orderedDisposablesList.push(ref);
 					return ref.object.element;
 				} else {
-					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, undefined);
+					const requestId = isRequestVM(element) ? element.id : element.requestId;
+					const isStreaming = isResponseVM(element) ? !element.isComplete : !isCodeBlockComplete;
+					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isStreaming);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
@@ -139,6 +151,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = index;
 						readonly element = element;
+						readonly isStreaming = isStreaming;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
 							return undefined;
@@ -158,27 +171,22 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 
-		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
+		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(codemapperUri: URI | undefined, anchor: HTMLElement | undefined): IDisposableReference<{ object?: InlineAnchorWidget; element: HTMLElement }> {
-		const fileWidgetAnchor = anchor ?? $('.chat-codeblock');
+	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId);
 		if (codemapperUri) {
-			const inlineAnchor = this._register(this.instantiationService.createInstance(InlineAnchorWidget, fileWidgetAnchor, { uri: codemapperUri }, { handleClick: (uri) => this.editorService.openEditor({ resource: uri }) }));
-			this._register(this.chatMarkdownAnchorService.register(inlineAnchor));
-			return {
-				object: { object: inlineAnchor, element: fileWidgetAnchor },
-				isStale() { return false; },
-				dispose() { }
-			};
+			codeBlock.render(codemapperUri, !isCodeBlockComplete);
 		}
 		return {
-			object: { object: undefined, element: fileWidgetAnchor },
-			isStale() { return false; },
-			dispose() { }
+			object: codeBlock,
+			isStale: () => false,
+			dispose: () => codeBlock.dispose()
 		};
 	}
 
@@ -199,18 +207,18 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && other.content.value === this.markdown.value;
+		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
+			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {
 		this.allRefs.forEach((ref, index) => {
 			if (ref.object instanceof CodeBlockPart) {
 				ref.object.layout(width);
-			} else if (ref.object.element && !ref.object.object) {
+			} else if (ref.object instanceof CollapsedCodeBlock) {
 				const codeblockModel = this.codeblocks[index];
-				if (codeblockModel.codemapperUri) {
-					const pill = this.renderCodeBlockPill(codeblockModel.codemapperUri, ref.object.element);
-					this.allRefs[index] = pill;
+				if (codeblockModel.codemapperUri && ref.object.uri?.toString() !== codeblockModel.codemapperUri.toString()) {
+					ref.object.render(codeblockModel.codemapperUri, codeblockModel.isStreaming);
 				}
 			}
 		});
@@ -253,5 +261,77 @@ export class EditorPool extends Disposable {
 				this._pool.release(codeBlock);
 			}
 		};
+	}
+}
+
+class CollapsedCodeBlock extends Disposable {
+
+	public readonly element: HTMLElement;
+
+	private _uri: URI | undefined;
+	public get uri(): URI | undefined {
+		return this._uri;
+	}
+
+	private isStreaming: boolean | undefined;
+
+	constructor(
+		private readonly sessionId: string,
+		private readonly requestId: string,
+		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IModelService private readonly modelService: IModelService,
+		@IChatService private readonly chatService: IChatService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+	) {
+		super();
+		this.element = $('.chat-codeblock-pill-widget');
+		this.element.classList.add('show-file-icons');
+		this._register(dom.addDisposableListener(this.element, 'click', async () => {
+			if (this.uri) {
+				const chatModel = this.chatService.getSession(this.sessionId);
+				const requests = chatModel?.getRequests();
+				if (!requests) {
+					return;
+				}
+				const snapshotRequestId = requests?.find((v, i) => i > 0 && requests[i - 1]?.id === this.requestId)?.id;
+				if (snapshotRequestId) {
+					const snapshot = this.chatEditingService.getSnapshotUri(snapshotRequestId, this.uri);
+					if (snapshot) {
+						const editor = await this.editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Working Set History)', basename(this.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+						if (isCodeEditor(editor)) {
+							editor.updateOptions({ readOnly: true });
+						}
+					}
+				} else {
+					this.editorService.openEditor({ resource: this.uri });
+				}
+			}
+		}));
+	}
+
+	render(uri: URI, isStreaming?: boolean) {
+		if (this.uri?.toString() === uri.toString() && this.isStreaming === isStreaming) {
+			return;
+		}
+
+		this._uri = uri;
+		this.isStreaming = isStreaming;
+
+		const iconText = this.labelService.getUriBasenameLabel(uri);
+
+		let iconClasses: string[] = [];
+		if (isStreaming) {
+			const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
+			iconClasses = ThemeIcon.asClassNameArray(codicon);
+		} else {
+			const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			iconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+		}
+
+		const iconEl = dom.$('span.icon');
+		iconEl.classList.add(...iconClasses);
+		this.element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 	}
 }

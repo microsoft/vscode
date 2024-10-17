@@ -196,7 +196,7 @@ export function validateConstraint(arg: unknown, constraint: TypeConstraint | un
  * This can be used to make sure the argument correctly conforms to the subtype while still being able to pass it
  * to contexts that expects the supertype.
  */
-export function upcast<Base, Sub extends Base>(x: Sub): Base {
+export function upcast<Base, Sub extends Base = Base>(x: Sub): Base {
 	return x;
 }
 

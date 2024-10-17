@@ -30,6 +30,7 @@ import { IResourceWorkingCopy, ResourceWorkingCopy } from './resourceWorkingCopy
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory, SnapshotContext } from './fileWorkingCopy.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 /**
  * Stored file specific working copy model factory.
@@ -982,6 +983,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						this.ignoreSaveFromSaveParticipants = true;
 						try {
 							await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT, savedFrom: options.from }, progress, saveCancellation.token);
+						} catch (err) {
+							if (isCancellationError(err) && !saveCancellation.token.isCancellationRequested) {
+								// participant wants to cancel this operation
+								saveCancellation.cancel();
+							}
 						} finally {
 							this.ignoreSaveFromSaveParticipants = false;
 						}

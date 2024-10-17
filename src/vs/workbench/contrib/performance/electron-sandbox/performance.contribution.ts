@@ -40,8 +40,8 @@ Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfigurati
 		'application.experimental.rendererProfiling': {
 			type: 'boolean',
 			default: false,
-			tags: ['experimental'],
-			markdownDescription: localize('experimental.rendererProfiling', "When enabled slow renderers are automatically profiled")
+			tags: ['experimental', 'onExP'],
+			markdownDescription: localize('experimental.rendererProfiling', "When enabled, slow renderers are automatically profiled.")
 		}
 	}
 });

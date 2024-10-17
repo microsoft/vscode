@@ -11,6 +11,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
+import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentLocation, ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
@@ -19,8 +21,6 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
 import { MockLanguageModelToolsService } from './mockLanguageModelToolsService.js';
-import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('ChatRequestParser', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +37,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(ILanguageModelToolsService, new MockLanguageModelToolsService());
-		instantiationService.stub(IChatAgentService, instantiationService.createInstance(ChatAgentService));
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 
 		varService = mockObject<IChatVariablesService>()({});
 		varService.getDynamicVariables.returns([]);
@@ -120,7 +120,7 @@ suite('ChatRequestParser', () => {
 	});
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands, disambiguation: [], } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {

@@ -18,10 +18,6 @@
 	padding-right: 3px;
 }
 
-.chat-inline-anchor-widget .clickable {
-	cursor: pointer;
-}
-
 .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
 	color: inherit;
 }

@@ -61,6 +61,7 @@ import { AbstractEditContext } from './controller/editContext/editContext.js';
 import { IVisibleRangeProvider, TextAreaEditContext } from './controller/editContext/textArea/textAreaEditContext.js';
 import { NativeEditContext } from './controller/editContext/native/nativeEditContext.js';
 import { RulersGpu } from './viewParts/rulersGpu/rulersGpu.js';
+import { EditContext } from './controller/editContext/native/editContextFactory.js';
 
 
 export interface IContentWidgetData {
@@ -267,7 +268,10 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(experimentalEditContextEnabled: boolean): AbstractEditContext {
-		return this._instantiationService.createInstance(experimentalEditContextEnabled ? NativeEditContext : TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+		const domNode = dom.getWindow(this._overflowGuardContainer.domNode);
+		const isEditContextSupported = EditContext.supported(domNode);
+		const EditContextType = (experimentalEditContextEnabled && isEditContextSupported) ? NativeEditContext : TextAreaEditContext;
+		return this._instantiationService.createInstance(EditContextType, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 	}
 
 	private _updateEditContext(): void {

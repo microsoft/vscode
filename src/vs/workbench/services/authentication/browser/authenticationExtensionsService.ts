@@ -372,7 +372,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 
 		if (session) {
-			this._authenticationUsageService.addAccountUsage(provider.id, session.account.label, extensionId, extensionName);
+			this._authenticationUsageService.addAccountUsage(provider.id, session.account.label, session.scopes, extensionId, extensionName);
 		}
 	}
 

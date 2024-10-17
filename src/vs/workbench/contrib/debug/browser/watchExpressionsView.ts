@@ -112,6 +112,7 @@ export class WatchExpressionsView extends ViewPane {
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
+		this._register(this.tree);
 		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 

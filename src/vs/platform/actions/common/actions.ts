@@ -209,7 +209,6 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly InlineEditsActions = new MenuId('InlineEditsActions');
-	static readonly InlineEditActions = new MenuId('InlineEditActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
@@ -638,7 +637,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	disposables.push(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		metadata: command.metadata,
+		metadata: command.metadata ?? { description: action.desc.title }
 	}));
 
 	// menu

@@ -112,6 +112,7 @@ export interface IChatAgentDetection {
 
 export interface IChatMarkdownContent {
 	content: IMarkdownString;
+	inlineReferences?: Record<string, IChatContentInlineReference>;
 	kind: 'markdownContent';
 }
 
@@ -201,7 +202,8 @@ export interface IChatToolInvocation {
 	isConfirmed: boolean | undefined;
 	invocationMessage: string;
 
-	complete(): void;
+	isComplete: boolean;
+	isCompleteDeferred: DeferredPromise<void>;
 	kind: 'toolInvocation';
 }
 
@@ -211,6 +213,7 @@ export interface IChatToolInvocation {
 export interface IChatToolInvocationSerialized {
 	invocationMessage: string;
 	isConfirmed: boolean;
+	isComplete: boolean;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -324,7 +327,15 @@ export interface IChatInlineChatCodeAction {
 	action: 'accepted' | 'discarded';
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction;
+
+export interface IChatEditingSessionAction {
+	kind: 'chatEditingSessionAction';
+	uri: URI;
+	hasRemainingEdits: boolean;
+	outcome: 'accepted' | 'rejected';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

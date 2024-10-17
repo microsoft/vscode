@@ -73,6 +73,7 @@ steps:
 
   - script: |
       set -e
+
       for i in {1..5}; do # try 5 times
         npm ci && break
         if [ $i -eq 5 ]; then
