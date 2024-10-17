@@ -137,6 +137,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		nameForTelemetry: string,
 		compositeCSSClass: string,
 		titleForegroundColor: string | undefined,
+		titleBorderColor: string | undefined,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -177,6 +178,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			nameForTelemetry,
 			compositeCSSClass,
 			titleForegroundColor,
+			titleBorderColor,
 			partId,
 			partOptions
 		);
