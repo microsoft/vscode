@@ -493,8 +493,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px;
-	width: calc(100% - 6px);
-	padding: 0 3px;
+	width: 100%;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
