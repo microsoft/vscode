@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface FindFiles2OptionsNew {
+	export interface FindFiles2Options {
 		/**
 		 * An array of {@link GlobPattern GlobPattern} that defines files to exclude.
 		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
@@ -52,12 +52,12 @@ declare module 'vscode' {
 			 */
 			local?: boolean;
 			/**
-			 * Use ignore files at the parent directory. When set to `true`, {@link FindFiles2OptionsNew.useIgnoreFiles.local} must also be `true`.
+			 * Use ignore files at the parent directory. When set to `true`, {@link FindFiles2Options.useIgnoreFiles.local} must also be `true`.
 			 * May default to `search.useParentIgnoreFiles` setting if not set.
 			 */
 			parent?: boolean;
 			/**
-			 * Use global ignore files. When set to `true`, {@link FindFiles2OptionsNew.useIgnoreFiles.local} must also be `true`.
+			 * Use global ignore files. When set to `true`, {@link FindFiles2Options.useIgnoreFiles.local} must also be `true`.
 			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
 			 */
 			global?: boolean;
@@ -100,6 +100,6 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an array of resource identifiers. Will return no results if no
 		 * {@link workspace.workspaceFolders workspace folders} are opened.
 		 */
-		export function findFiles2New(filePattern: GlobPattern[], options?: FindFiles2OptionsNew, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles2(filePattern: GlobPattern[], options?: FindFiles2Options, token?: CancellationToken): Thenable<Uri[]>;
 	}
 }
