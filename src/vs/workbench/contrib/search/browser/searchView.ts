@@ -970,7 +970,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (isSearchTreeMatch(focus)) {
-				editable = !focus.isReadonly();
+				editable = !focus.isReadonly;
 			} else if (isSearchTreeFileMatch(focus)) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (isSearchTreeFolderMatch(focus)) {
@@ -2373,11 +2373,6 @@ class SearchViewDataSource implements IAsyncDataSource<ISearchResult, Renderable
 	}
 
 	private createFolderIterator(folderMatch: ISearchTreeFolderMatch): Iterable<ISearchTreeFolderMatch | ISearchTreeFileMatch> {
-		// if (folderMatch.parent().id() === AI_TEXT_SEARCH_RESULT_ID) {
-		// 	// return matches in the order they were added
-		// 	return folderMatch.allDownstreamFileMatchesAsAIResults();
-		// }
-
 		const matchArray = this.searchView.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, this.searchConfig.sortOrder));
 

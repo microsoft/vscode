@@ -135,21 +135,6 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.confirmEditRequestRetry', "Whether to show a confirmation before retrying a request and its associated edits."),
 			default: true,
 		},
-		'chat.experimental.variables.editor': {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
-			default: true
-		},
-		'chat.experimental.variables.notebook': {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.variables.notebook', "Enables variables for notebook chat."),
-			default: true
-		},
-		'chat.experimental.variables.terminal': {
-			type: 'boolean',
-			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
-			default: false
-		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),

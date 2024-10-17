@@ -32,6 +32,7 @@ import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot } from './searchTreeModel/searchTreeCommon.js';
+import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -312,7 +313,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.el.setAttribute('data-resource', fileMatch.resource.toString());
 
 		const decorationConfig = this.configurationService.getValue<ISearchConfigurationProperties>('search').decorations;
-		templateData.label.setFile(fileMatch.resource, { hidePath: this.searchView.isTreeLayoutViewVisible && !(isSearchTreeFolderMatchNoRoot(fileMatch.parent())), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
+		templateData.label.setFile(fileMatch.resource, { range: isSearchTreeAIFileMatch(fileMatch) ? fileMatch.getFullRange() : undefined, hidePath: this.searchView.isTreeLayoutViewVisible && !(isSearchTreeFolderMatchNoRoot(fileMatch.parent())), hideIcon: false, fileDecorations: { colors: decorationConfig.colors, badges: decorationConfig.badges } });
 		const count = fileMatch.count();
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
@@ -406,7 +407,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const preview = match.preview();
 		const replace = this.searchView.model.isReplaceActive() &&
 			!!this.searchView.model.replaceString &&
-			!match.isReadonly();
+			!match.isReadonly;
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
@@ -417,7 +418,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 		templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.parent, title));
 
-		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly());
+		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!match.isReadonly);
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';

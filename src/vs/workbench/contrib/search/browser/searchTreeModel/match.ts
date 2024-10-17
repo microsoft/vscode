@@ -27,7 +27,7 @@ export class MatchImpl implements ISearchTreeMatch {
 	// For replace
 	private _fullPreviewRange: ISearchRange;
 
-	constructor(protected _parent: ISearchTreeFileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, public readonly aiContributed: boolean) {
+	constructor(protected _parent: ISearchTreeFileMatch, private _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, private readonly _isReadonly: boolean = false) {
 		this._oneLinePreviewText = _fullPreviewLines[_fullPreviewRange.startLineNumber];
 		const adjustedEndCol = _fullPreviewRange.startLineNumber === _fullPreviewRange.endLineNumber ?
 			_fullPreviewRange.endColumn :
@@ -151,7 +151,7 @@ export class MatchImpl implements ISearchTreeMatch {
 		return this._oneLinePreviewText.substring(this._rangeInPreviewText.startColumn - 1, this._rangeInPreviewText.endColumn - 1);
 	}
 
-	public isReadonly() {
-		return this.aiContributed;
+	get isReadonly() {
+		return this._isReadonly;
 	}
 }

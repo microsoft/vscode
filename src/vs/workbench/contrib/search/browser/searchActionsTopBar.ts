@@ -11,14 +11,14 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { searchClearIcon, searchCollapseAllIcon, searchExpandAllIcon, searchRefreshIcon, searchShowAsList, searchShowAsTree, searchStopIcon } from './searchIcons.js';
 import * as Constants from '../common/constants.js';
 import { ISearchHistoryService } from '../common/searchHistoryService.js';
-import { FileMatch, VIEW_ID } from '../../../services/search/common/search.js';
+import { VIEW_ID } from '../../../services/search/common/search.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { SearchStateKey, SearchUIState } from '../common/search.js';
 import { category, getSearchView } from './searchActionsBase.js';
-import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
+import { isSearchTreeMatch, RenderableMatch, ISearchResult, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, isSearchTreeFileMatch } from './searchTreeModel/searchTreeCommon.js';
 
 //#region Actions
 registerAction2(class ClearSearchHistoryCommandAction extends Action2 {
@@ -328,7 +328,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 		if (canCollapseFileMatchLevel) {
 			node = navigator.first();
 			do {
-				if (node instanceof FileMatch) {
+				if (isSearchTreeFileMatch(node)) {
 					viewer.collapse(node);
 				}
 			} while (node = navigator.next());
@@ -375,7 +375,7 @@ function collapseDeepestExpandedLevel(accessor: ServicesAccessor) {
 
 		const firstFocusParent = viewer.getFocus()[0]?.parent();
 
-		if (firstFocusParent && (isSearchTreeFolderMatch(firstFocusParent) || firstFocusParent instanceof FileMatch) &&
+		if (firstFocusParent && (isSearchTreeFolderMatch(firstFocusParent) || isSearchTreeFileMatch(firstFocusParent)) &&
 			viewer.hasNode(firstFocusParent) && viewer.isCollapsed(firstFocusParent)) {
 			viewer.domFocus();
 			viewer.focusFirst();
