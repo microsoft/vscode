@@ -214,6 +214,11 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
+			if (this.model.get()?.inlineEditAvailable.get()) {
+				// dont hide inline edits on blur
+				return;
+			}
+
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
 				this.model.get()?.stop(tx);

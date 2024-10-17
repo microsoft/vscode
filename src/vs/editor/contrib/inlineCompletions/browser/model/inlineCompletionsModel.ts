@@ -347,6 +347,11 @@ export class InlineCompletionsModel extends Disposable {
 		return s;
 	});
 
+	public readonly inlineEditAvailable = derived(reader => {
+		const s = this.inlineEditState.read(reader);
+		return !!s;
+	});
+
 	private _computeAugmentation(suggestCompletion: SingleTextEdit, reader: IReader | undefined) {
 		const model = this.textModel;
 		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.read(reader);
