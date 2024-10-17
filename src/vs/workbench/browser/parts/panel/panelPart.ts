@@ -101,7 +101,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			instantiationService,
 			themeService,
 			viewDescriptorService,
-			contextKeyService, // someting about borders
+			contextKeyService,
 			extensionService,
 			menuService,
 		);
