@@ -81,6 +81,7 @@ export interface IChatRequestModel {
 	readonly confirmation?: string;
 	readonly locationData?: IChatLocationData;
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly workingSet?: URI[];
 	readonly isCompleteAddedRequest: boolean;
 	readonly response?: IChatResponseModel;
 	isDisabled: boolean;
@@ -215,6 +216,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._attachedContext;
 	}
 
+	public get workingSet(): URI[] | undefined {
+		return this._workingSet;
+	}
+
 	constructor(
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
@@ -223,6 +228,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _confirmation?: string,
 		private _locationData?: IChatLocationData,
 		private _attachedContext?: IChatRequestVariableEntry[],
+		private _workingSet?: URI[],
 		public readonly isCompleteAddedRequest = false,
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
@@ -1142,8 +1148,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments, isCompleteAddedRequest);
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
 		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
 
 		this._requests.push(request);
