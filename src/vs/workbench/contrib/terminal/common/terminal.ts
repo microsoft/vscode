@@ -553,6 +553,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.terminal.focusAtIndex7',
 	'workbench.action.terminal.focusAtIndex8',
 	'workbench.action.terminal.focusAtIndex9',
+	'workbench.action.terminal.focusLast',
 	'workbench.action.focusSecondEditorGroup',
 	'workbench.action.focusThirdEditorGroup',
 	'workbench.action.focusFourthEditorGroup',
