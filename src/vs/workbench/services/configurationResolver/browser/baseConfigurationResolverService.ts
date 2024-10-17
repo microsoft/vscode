@@ -27,6 +27,14 @@ import { IPathService } from '../../path/common/pathService.js';
 const LAST_INPUT_STORAGE_KEY = 'configResolveInputLru';
 const LAST_INPUT_CACHE_SIZE = 5;
 
+function getSelection(editorService: IEditorService) {
+	const activeTextEditorControl = editorService.activeTextEditorControl;
+	if (isCodeEditor(activeTextEditorControl)) {
+		return activeTextEditorControl.getSelection();
+	}
+	return undefined;
+}
+
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
 	static readonly INPUT_OR_COMMAND_VARIABLES_PATTERN = /\${((input|command):(.*?))}/g;
@@ -111,13 +119,16 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				const activeTextEditorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(activeTextEditorControl)) {
-					const selection = activeTextEditorControl.getSelection();
-					if (selection) {
-						const lineNumber = selection.positionLineNumber;
-						return String(lineNumber);
-					}
+				const selection = getSelection(editorService);
+				if (selection) {
+					return String(selection.positionLineNumber);
+				}
+				return undefined;
+			},
+			getColumnNumber: (): string | undefined => {
+				const selection = getSelection(editorService);
+				if (selection) {
+					return String(selection.positionColumn);
 				}
 				return undefined;
 			},

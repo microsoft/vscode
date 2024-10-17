@@ -30,6 +30,13 @@ interface DynamicContext {
 	folders: vscode.WorkspaceFolder[];
 }
 
+function getSelection(editorService?: IExtHostDocumentsAndEditors) {
+	if (editorService) {
+		return editorService.activeEditor()?.selection;
+	}
+	return undefined;
+}
+
 class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
 	constructor(
@@ -100,20 +107,24 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 				return undefined;
 			},
 			getSelectedText: (): string | undefined => {
-				if (editorService) {
-					const activeEditor = editorService.activeEditor();
-					if (activeEditor && !activeEditor.selection.isEmpty) {
-						return activeEditor.document.getText(activeEditor.selection);
-					}
+				const selection = getSelection(editorService);
+				if (selection && !selection.isEmpty) {
+					return editorService?.activeEditor()?.document.getText(selection);
+
 				}
 				return undefined;
 			},
 			getLineNumber: (): string | undefined => {
-				if (editorService) {
-					const activeEditor = editorService.activeEditor();
-					if (activeEditor) {
-						return String(activeEditor.selection.end.line + 1);
-					}
+				const selection = getSelection(editorService);
+				if (selection) {
+					return String(selection.end.line + 1);
+				}
+				return undefined;
+			},
+			getColumnNumber: (): string | undefined => {
+				const selection = getSelection(editorService);
+				if (selection) {
+					return String(selection.end.character + 1);
 				}
 				return undefined;
 			},
