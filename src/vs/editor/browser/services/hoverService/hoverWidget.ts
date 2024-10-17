@@ -457,7 +457,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		// Hover on bottom is going beyond window
-		if (this._y > this._targetWindow.innerHeight) {
+		const hoverHeight = this._hover.containerDomNode.clientHeight;
+		if (this._y - hoverHeight > this._targetWindow.innerHeight) {
 			this._y = target.bottom;
 		}
 	}
