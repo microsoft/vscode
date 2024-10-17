@@ -3,10 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { OS } from '../../../../../base/common/platform.js';
+import { detectLinks } from '../../links/browser/terminalLinkParsing.js';
+import { fallbackMatchers } from '../../links/browser/terminalLocalLinkDetector.js';
+
+
 /**
  * Manages all the terminal smart paste related operations
  */
 export class SmartPasteUtils {
+
+	private static _detectLink(text: string): boolean {
+		const links = detectLinks(text, OS);
+
+		/* Check the first link only */
+		if (links.length > 0 && links[0]?.path?.text === text) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private static _matchFallbackMatchers(text: string) {
+		let hasMatchedFallbackMatchers = false;
+
+		fallbackMatchers.forEach((regexPattern) => {
+			if (regexPattern.test(text)) {
+				hasMatchedFallbackMatchers = true;
+				return;
+			}
+		});
+		return hasMatchedFallbackMatchers;
+	}
+
 	/**
 	 * Check if the input string looks like a path
 	 * @param text input string, returns true if it looks like a path
@@ -20,7 +49,10 @@ export class SmartPasteUtils {
 
 		return windowsPathPattern.test(text) ||
 			windowsUNCPathPattern.test(text) ||
-			unixPathPattern.test(text);
+			unixPathPattern.test(text) ||
+			/* Checks below are to validate if the path is relative */
+			this._detectLink(text) ||
+			this._matchFallbackMatchers(text);
 	}
 
 	/**
