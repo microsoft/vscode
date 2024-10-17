@@ -556,10 +556,6 @@ abstract class BaseInstallChatAction extends Action2 {
 		}, ProgressLocation.Notification);
 
 		commandService.executeCommand(CHAT_OPEN_ACTION_ID);
-
-		if (defaultChat.gettingStartedCommand) {
-			commandService.executeCommand(defaultChat.gettingStartedCommand);
-		}
 	}
 }
 

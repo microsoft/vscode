@@ -139,7 +139,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
 		},
-		'chat.experimental.offerInstall': {
+		'chat.experimental.offerInstall': { //TODO@bpasero experimental chat install setting
 			type: 'boolean',
 			description: nls.localize('chat.experimental.offerInstall', "Offers to install the default chat extension if not installed already."),
 			default: false,
