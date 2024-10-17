@@ -638,6 +638,12 @@ export class DynamicMarkdownPreview extends Disposable implements IManagedMarkdo
 		this._register(webview.onDidDispose(() => { this.dispose(); }));
 
 		this._register(this._webviewPanel.onDidChangeViewState(e => {
+			// refresh dynamic preview when it becomes inactive,
+			// this will avoid the stale content when the preview is reactivated
+			// https://github.com/microsoft/vscode/issues/165188
+			if (!e.webviewPanel.active) {
+				this.refresh();
+			}
 			this._onDidChangeViewStateEmitter.fire(e);
 		}));
 
