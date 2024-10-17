@@ -24,6 +24,7 @@ import { DebugModel, StackFrame, Thread } from '../../common/debugModel.js';
 import { Source } from '../../common/debugSource.js';
 import { createMockDebugModel, mockUriIdentityService } from './mockDebugModel.js';
 import { MockRawSession } from '../common/mockDebug.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const mockWorkspaceContextService = {
 	getWorkspace: () => {
@@ -343,11 +344,17 @@ suite('Debug - CallStack', () => {
 			sourceReference: 10,
 		}, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 		const stackFrame = new StackFrame(thread, 1, firstSource, 'app', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1, true);
-		assert.strictEqual(stackFrame.toString(), 'app (internalModule.js:1)');
+		const labelFormatter = () => { assert.fail(); };
+		assert.strictEqual(stackFrame.toString(labelFormatter), 'app (internalModule.js:1)');
 
 		const secondSource = new Source(undefined, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
 		const stackFrame2 = new StackFrame(thread, 2, secondSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2, true);
-		assert.strictEqual(stackFrame2.toString(), 'module');
+		assert.strictEqual(stackFrame2.toString(labelFormatter), 'module');
+
+		const labelFormatter3 = (uri: URI) => { return `!${uri.fsPath}`; };
+		const thirdSource = new Source({ name: "module.js", path: "val\\module.js" }, 'aDebugSessionId', mockUriIdentityService, new NullLogService());
+		const stackFrame3 = new StackFrame(thread, 2, thirdSource, 'module', 'normal', { startLineNumber: undefined!, startColumn: undefined!, endLineNumber: undefined!, endColumn: undefined! }, 2, true);
+		assert.strictEqual(stackFrame3.toString(labelFormatter3), 'mmmodule.js:1');
 	});
 
 	test('debug child sessions are added in correct order', () => {

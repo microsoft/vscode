@@ -559,7 +559,7 @@ export interface IStackFrame extends ITreeElement {
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	forgetScopes(): void;
 	restart(): Promise<any>;
-	toString(): string;
+	toString(labelFormatter: (uri: URI) => string): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined>;
 	equals(other: IStackFrame): boolean;
 }
