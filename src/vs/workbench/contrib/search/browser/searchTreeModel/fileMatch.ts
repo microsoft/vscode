@@ -84,7 +84,6 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	public get context(): Map<number, string> {
 		return new Map(this._context);
 	}
-
 	constructor(
 		protected _query: IPatternInfo,
 		private _previewOptions: ITextSearchPreviewOptions | undefined,
@@ -110,12 +109,12 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 
 	hasReadonlyMatches(): boolean {
-		return this.matches().some(m => m.isReadonly());
+		return this.matches().some(m => m.isReadonly);
 	}
 
-	createMatches(isAiContributed: boolean): void {
+	createMatches(): void {
 		const model = this.modelService.getModel(this._resource);
-		if (model && !isAiContributed) {
+		if (model) {
 			// todo: handle better when ai contributed results has model, currently, createMatches does not work for this
 			this.bindModel(model);
 			this.updateMatchesForModel();
@@ -125,7 +124,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 				this.rawMatch.results
 					.filter(resultIsMatch)
 					.forEach(rawMatch => {
-						textSearchResultToMatches(rawMatch, this, isAiContributed)
+						textSearchResultToMatches(rawMatch, this, false)
 							.forEach(m => this.add(m));
 					});
 			}
@@ -190,8 +189,6 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? DEFAULT_MAX_SEARCH_RESULTS);
 		this.updateMatches(matches, modelChange, this._model, false);
-
-		// await this.updateMatchesForEditorWidget();
 	}
 
 
@@ -356,7 +353,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => match.isReadonly());
+		return this.matches().every(match => match.isReadonly);
 	}
 
 	// #region strictly notebook methods

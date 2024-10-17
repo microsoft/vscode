@@ -192,7 +192,7 @@ class AgentCompletions extends Disposable {
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentAndSubcommand',
-			triggerCharacters: ['@', '/'],
+			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				const viewModel = widget?.viewModel;
@@ -205,10 +205,6 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const preceedingChar = position.column > 1 ?
-					model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column)) :
-					'@';
-
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
@@ -219,7 +215,7 @@ class AgentCompletions extends Disposable {
 					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
 					// When I type `/exp`, the workspace one should be sorted over the terminal one.
 					const dummyPrefix = agent.id === 'github.copilot.terminalPanel' ? `0000` : ``;
-					return `${preceedingChar}${dummyPrefix}${agent.name}.${command}`;
+					return `${chatAgentLeader}${dummyPrefix}${agent.name}.${command}`;
 				};
 
 				const justAgents: CompletionItem[] = agents
@@ -233,7 +229,7 @@ class AgentCompletions extends Disposable {
 								{ label: agentLabel, description: agent.description, detail: ` (${agent.publisherDisplayName})` } :
 								agentLabel,
 							detail,
-							filterText: `${preceedingChar}${agent.name}`,
+							filterText: `${chatAgentLeader}${agent.name}`,
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
@@ -276,10 +272,62 @@ class AgentCompletions extends Disposable {
 		}));
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'chatAgentAndSubcommand',
+			triggerCharacters: [chatSubcommandLeader],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				const viewModel = widget?.viewModel;
+				if (!widget || !viewModel) {
+					return;
+				}
+
+				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				if (!range) {
+					return null;
+				}
+
+				const agents = this.chatAgentService.getAgents()
+					.filter(a => a.locations.includes(widget.location));
+
+				return {
+					suggestions: agents.flatMap(agent => agent.slashCommands.map((c, i) => {
+						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
+						const withSlash = `${chatSubcommandLeader}${c.name}`;
+						const item: CompletionItem = {
+							label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
+							commitCharacters: [' '],
+							insertText: `${agentLabel} ${withSlash} `,
+							detail: `(${agentLabel}) ${c.description ?? ''}`,
+							range: new Range(1, 1, 1, 1),
+							kind: CompletionItemKind.Text, // The icons are disabled here anyway
+							sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
+						};
+
+						if (agent.isDefault) {
+							// default agent isn't mentioned nor inserted
+							const label = `${chatSubcommandLeader}${c.name}`;
+							item.label = label;
+							item.insertText = `${label} `;
+							item.detail = c.description;
+						}
+
+						return item;
+					}))
+				};
+			}
+		}));
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'installChatExtensions',
 			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				if (!model.getLineContent(1).startsWith(chatAgentLeader)) {
+					return;
+				}
+
+				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+				if (widget?.location !== ChatAgentLocation.Panel) {
 					return;
 				}
 
@@ -289,7 +337,7 @@ class AgentCompletions extends Disposable {
 					insertText: '',
 					range: new Range(1, 1, 1, 1),
 					kind: CompletionItemKind.Text, // The icons are disabled here anyway
-					command: { id: 'workbench.extensions.search', title: '', arguments: ['@category:chat'] },
+					command: { id: 'workbench.extensions.search', title: '', arguments: ['@tag:chat-participant'] },
 					filterText: chatAgentLeader + label,
 					sortText: 'zzz'
 				};

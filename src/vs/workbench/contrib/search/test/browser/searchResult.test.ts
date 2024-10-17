@@ -466,7 +466,7 @@ suite('SearchResult', () => {
 		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).allDownstreamFileMatches(), Array.from(getFolderMatchAtIndex(root0, 0).fileMatchesIterator()));
 		assert.deepStrictEqual(getFileMatchAtIndex(getFolderMatchAtIndex(root0, 0), 0).parent(), getFolderMatchAtIndex(root0, 0));
 		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).parent(), root0);
-		assert.deepStrictEqual(getFolderMatchAtIndex(root0, 0).closestRoot, root0);
+		assert.deepStrictEqual((getFolderMatchAtIndex(root0, 0) as FolderMatchImpl).closestRoot, root0);
 		root0DownstreamFiles.forEach((e) => {
 			assert.deepStrictEqual(e.closestRoot, root0);
 		});
@@ -538,7 +538,7 @@ suite('SearchResult', () => {
 		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
 			pattern: ''
 		}, undefined, undefined, root, rawMatch, null, '');
-		fileMatch.createMatches(false);
+		fileMatch.createMatches();
 
 		store.add(fileMatch);
 		return fileMatch;
