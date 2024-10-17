@@ -16,7 +16,7 @@ import { TimeoutTimer } from '../../../common/async.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { IDisposable, dispose } from '../../../common/lifecycle.js';
 import * as platform from '../../../common/platform.js';
-import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from '../../../common/scrollable.js';
+import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ISmoothScrollOptions, ScrollEvent, Scrollable, ScrollbarVisibility } from '../../../common/scrollable.js';
 import './media/scrollbars.css';
 
 const HIDE_TIMEOUT = 500;
@@ -612,7 +612,7 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 		super(element, options, scrollable);
 	}
 
-	public setScrollPosition(update: INewScrollPosition & { reuseAnimation?: boolean }): void {
+	public setScrollPosition(update: INewScrollPosition & { reuseAnimation?: boolean | ISmoothScrollOptions }): void {
 		if (update.reuseAnimation) {
 			this._scrollable.setScrollPositionSmooth(update, update.reuseAnimation);
 		} else {

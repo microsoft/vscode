@@ -1891,7 +1891,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.getFocus().map(i => this.view.element(i));
 	}
 
-	reveal(index: number, relativeTop?: number, paddingTop: number = 0): void {
+	reveal(index: number, relativeTop?: number, paddingTop: number = 0, animationDuration: number = 0): void {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1903,7 +1903,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (isNumber(relativeTop)) {
 			// y = mx + b
 			const m = elementHeight - this.view.renderHeight + paddingTop;
-			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop);
+			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop, { duration: animationDuration });
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const scrollBottom = scrollTop + this.view.renderHeight;
@@ -1911,9 +1911,9 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			if (elementTop < scrollTop + paddingTop && viewItemBottom >= scrollBottom) {
 				// The element is already overflowing the viewport, no-op
 			} else if (elementTop < scrollTop + paddingTop || (viewItemBottom >= scrollBottom && elementHeight >= this.view.renderHeight)) {
-				this.view.setScrollTop(elementTop - paddingTop);
+				this.view.setScrollTop(elementTop - paddingTop, { duration: animationDuration });
 			} else if (viewItemBottom >= scrollBottom) {
-				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
+				this.view.setScrollTop(viewItemBottom - this.view.renderHeight, { duration: animationDuration });
 			}
 		}
 	}

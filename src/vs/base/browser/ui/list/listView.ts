@@ -15,7 +15,7 @@ import { memoize } from '../../../common/decorators.js';
 import { Emitter, Event, IValueWithChangeEvent } from '../../../common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { IRange, Range } from '../../../common/range.js';
-import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
+import { INewScrollDimensions, ISmoothScrollOptions, Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import { ISpliceable } from '../../../common/sequence.js';
 import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
 import { IRangeMap, RangeMap, shift } from './rangeMap.js';
@@ -261,7 +261,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	indexAfter(position: number): number;
 	updateOptions(options: IListViewOptionsUpdate): void;
 	getScrollTop(): number;
-	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void;
+	setScrollTop(scrollTop: number, reuseAnimation?: boolean | ISmoothScrollOptions): void;
 	getScrollLeft(): number;
 	setScrollLeft(scrollLeft: number): void;
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
@@ -1020,7 +1020,7 @@ export class ListView<T> implements IListView<T> {
 		return scrollPosition.scrollTop;
 	}
 
-	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void {
+	setScrollTop(scrollTop: number, reuseAnimation?: boolean | ISmoothScrollOptions): void {
 		if (this.scrollableElementUpdateDisposable) {
 			this.scrollableElementUpdateDisposable.dispose();
 			this.scrollableElementUpdateDisposable = null;
