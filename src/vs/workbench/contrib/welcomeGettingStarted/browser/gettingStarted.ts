@@ -304,6 +304,11 @@ export class GettingStartedPage extends EditorPane {
 				return;
 			}
 
+			const editorPane = this.groupsService.activeGroup.activeEditorPane;
+			if (!(editorPane instanceof GettingStartedPage)) {
+				return;
+			}
+
 			// Save the state of the walkthrough so we can restore it on reload
 			const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
 			this.storageService.store(
