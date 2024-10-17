@@ -18,7 +18,7 @@ import { IListService } from '../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST } from '../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatService } from '../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../common/chatViewModel.js';
@@ -355,7 +355,7 @@ registerAction2(class RemoveAction extends Action2 {
 			title: localize2('chat.undoEdits.label', "Undo Edits"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.discard,
+			icon: Codicon.x,
 			keybinding: {
 				primary: KeyCode.Delete,
 				mac: {
@@ -365,12 +365,6 @@ registerAction2(class RemoveAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
-				{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					order: 4,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), CONTEXT_RESPONSE)
-				},
 				{
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
@@ -383,7 +377,7 @@ registerAction2(class RemoveAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		let item: ChatTreeItem | undefined = args[0];
-		if (!isResponseVM(item)) {
+		if (!isResponseVM(item) && !isRequestVM(item)) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const widget = chatWidgetService.lastFocusedWidget;
 			item = widget?.getFocus();
