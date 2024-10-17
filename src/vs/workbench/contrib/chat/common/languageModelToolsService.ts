@@ -41,12 +41,18 @@ export interface IToolInvocationContext {
 }
 
 export interface IToolResult {
-	items: IToolResultItem[];
+	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
 }
 
-export interface IToolResultItem {
+export interface IToolResultPromptTsxPart {
+	kind: 'promptTsx';
 	mime: string;
-	data: any;
+	value: any;
+}
+
+export interface IToolResultTextPart {
+	kind: 'text';
+	value: string;
 }
 
 export interface IToolConfirmationMessages {

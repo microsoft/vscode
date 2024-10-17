@@ -52,7 +52,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(toolData));
 
 		const toolImpl: IToolImpl = {
-			invoke: async () => ({ items: [{ mime: 'text/plain', data: 'result' }] }),
+			invoke: async () => ({ content: [{ mime: 'text/plain', value: 'result' }] }),
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
@@ -109,7 +109,7 @@ suite('LanguageModelToolsService', () => {
 				assert.strictEqual(invocation.callId, '1');
 				assert.strictEqual(invocation.toolId, 'testTool');
 				assert.deepStrictEqual(invocation.parameters, { a: 1 });
-				return { items: [{ mime: 'text/plain', data: 'result' }] };
+				return { content: [{ mime: 'text/plain', value: 'result' }] };
 			}
 		};
 
@@ -127,6 +127,6 @@ suite('LanguageModelToolsService', () => {
 		};
 
 		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
-		assert.strictEqual(result.items[0].data, 'result');
+		assert.strictEqual(result.content[0].data, 'result');
 	});
 });

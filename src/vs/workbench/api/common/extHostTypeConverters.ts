@@ -2939,6 +2939,33 @@ export namespace LanguageModelToolDescription {
 
 export namespace LanguageModelToolResult {
 	export function to(result: IToolResult): vscode.LanguageModelToolResult {
-		return new types.LanguageModelToolResult(result.items.map(item => new types.LanguageModelToolResultItem(item.data, item.mime)));
+		return new types.LanguageModelToolResult(result.content.map(item => {
+			if (item.kind === 'text') {
+				return new types.LanguageModelTextPart(item.value);
+			} else {
+				return new types.LanguageModelPromptTsxPart(item.value, item.mime);
+			}
+		}));
+	}
+
+	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+		return {
+			content: result.content.map(item => {
+				if (item instanceof types.LanguageModelTextPart) {
+					return {
+						kind: 'text',
+						value: item.value
+					};
+				} else if (item instanceof types.LanguageModelPromptTsxPart) {
+					return {
+						kind: 'promptTsx',
+						value: item.value,
+						mime: item.mime
+					};
+				} else {
+					throw new Error('Unknown LanguageModelToolResult part type');
+				}
+			})
+		};
 	}
 }

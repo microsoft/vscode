@@ -106,18 +106,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
-		for (const item of extensionResult.items) {
-			if (item.data instanceof Promise) {
-				throw new Error(`Tool result for '${item.mime}' cannot be a Promise`);
-			} else if (!options.requestedMimeTypes.includes(item.mime)) {
-				// This could help the scenario where a tool updated the prompt-tsx library, but did not update the contentType in package.json.
-				// Or, where a tool author didn't declare supportedContentTypes and isn't checking the list of requestedContentTypes.
-				// toString check can be temp, just to help with tools that are already published.
-				throw new Error(`Tool result for '${item.mime}' was not requested from ${dto.toolId}.`);
-			}
-		}
-
-		return extensionResult;
+		return typeConvert.LanguageModelToolResult.from(extensionResult);
 	}
 
 	async $prepareToolInvocation(toolId: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {

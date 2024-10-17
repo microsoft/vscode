@@ -158,9 +158,9 @@ declare module 'vscode' {
 	 * A result returned from a tool invocation.
 	 */
 	export class LanguageModelToolResult {
-		items: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 
-		constructor(items: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
+		constructor(content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 	}
 
 	export namespace lm {

@@ -37,7 +37,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		return {
-			items: [{ mime: 'text/plain', data: 'result' }]
+			content: [{ mime: 'text/plain', value: 'result' }]
 		};
 	}
 }

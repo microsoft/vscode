@@ -4638,15 +4638,16 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 
 	constructor(value: string) {
 		this.value = value;
-
 	}
 }
 
 export class LanguageModelPromptTsxPart {
 	value: string;
+	mime: string;
 
-	constructor(value: string) {
+	constructor(value: string, mime: string) {
 		this.value = value;
+		this.mime = mime;
 	}
 }
 
@@ -4711,16 +4712,8 @@ export class LanguageModelError extends Error {
 
 }
 
-export class LanguageModelToolResultItem {
-	static text(content: string): LanguageModelToolResultItem {
-		return new LanguageModelToolResultItem(content, 'text/plain');
-	}
-
-	constructor(public data: any, public mime: string) { }
-}
-
 export class LanguageModelToolResult {
-	constructor(public items: LanguageModelToolResultItem[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
 }
 
 export enum LanguageModelChatToolMode {
