@@ -73,6 +73,7 @@ export interface IModifiedFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
