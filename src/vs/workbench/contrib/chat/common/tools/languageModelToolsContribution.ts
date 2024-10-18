@@ -15,8 +15,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { toolsParametersSchemaSchema } from './languageModelToolsParametersSchema.js';
 
-interface IRawToolContribution {
+export interface IRawToolContribution {
 	name: string;
 	displayName: string;
 	modelDescription: string;
@@ -83,9 +84,9 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string'
 				},
 				parametersSchema: {
-					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts."),
-					type: 'object',
-					$ref: 'http://json-schema.org/draft-07/schema#'
+					...toolsParametersSchemaSchema,
+					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts. Must be an object at the top level."),
+
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
