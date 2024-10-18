@@ -299,7 +299,7 @@ export class AttachContextAction extends Action2 {
 				} else {
 					// file attachment
 					if (chatEditingService) {
-						chatEditingService.addFileToWorkingSet(pick.resource);
+						chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(pick.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: pick.resource }),
@@ -323,7 +323,7 @@ export class AttachContextAction extends Action2 {
 				for (const editor of editorService.editors) {
 					if (editor.resource) {
 						if (chatEditingService) {
-							chatEditingService.addFileToWorkingSet(editor.resource);
+							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(editor.resource);
 						} else {
 							toAttach.push({
 								id: this._getFileContextId({ resource: editor.resource }),
@@ -339,7 +339,7 @@ export class AttachContextAction extends Action2 {
 				const searchView = viewsService.getViewWithId(SEARCH_VIEW_ID) as SearchView;
 				for (const result of searchView.model.searchResult.matches()) {
 					if (chatEditingService) {
-						chatEditingService.addFileToWorkingSet(result.resource);
+						chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(result.resource);
 					} else {
 						toAttach.push({
 							id: this._getFileContextId({ resource: result.resource }),

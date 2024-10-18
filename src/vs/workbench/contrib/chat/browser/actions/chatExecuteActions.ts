@@ -185,7 +185,7 @@ class SendToChatEditingAction extends Action2 {
 		const { widget: editingWidget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
-				await chatEditingService.addFileToWorkingSet(attachment.value);
+				chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
 			} else {
 				editingWidget.attachmentModel.addContext(attachment);
 			}

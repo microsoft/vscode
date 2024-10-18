@@ -509,12 +509,12 @@ export function registerChatTitleActions() {
 
 					if (workingSetInputs.size) {
 						for (const reference of workingSetInputs) {
-							await chatEditingService.addFileToWorkingSet(reference);
+							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(reference);
 						}
 					} else {
 						for (const { reference } of request.response?.contentReferences ?? []) {
 							if (URI.isUri(reference) && [Schemas.file, Schemas.vscodeRemote].includes(reference.scheme)) {
-								await chatEditingService.addFileToWorkingSet(reference);
+								chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(reference);
 							}
 						}
 					}
