@@ -38,7 +38,7 @@ export class SubmitAction extends Action2 {
 	constructor() {
 		super({
 			id: SubmitAction.ID,
-			title: localize2('interactive.submit.label', "Send and dispatch"),
+			title: localize2('interactive.submit.label', "Send and Dispatch"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
