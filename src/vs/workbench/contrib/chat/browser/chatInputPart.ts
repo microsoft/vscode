@@ -704,13 +704,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		onDidChangeCursorPosition();
 	}
 
-	private async renderAttachedContext(isLayout = false) {
+	private async renderAttachedContext() {
 		const container = this.attachedContextContainer;
-		this.attachedContextDisposables.clear();
-		const store = new DisposableStore;
+		const oldHeight = container.offsetHeight;
+		const store = new DisposableStore();
 		this.attachedContextDisposables.value = store;
 
-		const oldHeight = container.offsetHeight;
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 		dom.setVisibility(Boolean(this.attachmentModel.size) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
@@ -836,7 +835,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			widget.ariaLabel = ariaLabel;
 		}
 
-		if (oldHeight !== container.offsetHeight && !isLayout) {
+		if (oldHeight !== container.offsetHeight) {
 			this._onDidChangeHeight.fire();
 		}
 	}
@@ -875,7 +874,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.focus();
 			}
 
-			this._onDidChangeHeight.fire();
 			this._onDidChangeContext.fire({ removed: [attachment] });
 		});
 		store.add(disp);
@@ -1066,8 +1064,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
-		this.renderAttachedContext(true);
-
 		const data = this.getLayoutData();
 		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight);
 
