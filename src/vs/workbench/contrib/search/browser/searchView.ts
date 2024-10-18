@@ -9,7 +9,7 @@ import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
-import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Delayer, RunOnceScheduler, Throttler } from '../../../../base/common/async.js';
 import * as errors from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
@@ -168,6 +168,7 @@ export class SearchView extends ViewPane {
 
 	private searchDataSource: SearchViewDataSource | undefined;
 
+	private refreshTreeThrottler: Throttler;
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -223,6 +224,7 @@ export class SearchView extends ViewPane {
 		this.hasSomeCollapsibleResultKey = Constants.SearchContext.ViewHasSomeCollapsibleKey.bindTo(this.contextKeyService);
 		this.treeViewKey = Constants.SearchContext.InTreeViewKey.bindTo(this.contextKeyService);
 
+		this.refreshTreeThrottler = new Throttler();
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			const keys = Constants.SearchContext.hasAIResultProvider.keys();
 			if (e.affectsSome(new Set(keys))) {
@@ -248,7 +250,7 @@ export class SearchView extends ViewPane {
 					// so that updated files are re-retrieved next time.
 					this.removeFileStats();
 				}
-				await this.refreshTree();
+				await this.queueRefreshTree();
 			}
 		}));
 
@@ -307,13 +309,32 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
+	private queuedIChangeEvents: IChangeEvent[] = [];
+	async queueRefreshTree(e?: IChangeEvent): Promise<void> {
+		if (e) {
+			this.queuedIChangeEvents.push(e);
+		}
+		return this.refreshTreeThrottler.queue(this.refreshTreeUsingQueue);
+	}
+
+	async refreshTreeUsingQueue(): Promise<void> {
+		const aggregateChangeEvent: IChangeEvent = {
+			elements: this.queuedIChangeEvents.map(e => e.elements).flat(),
+			added: this.queuedIChangeEvents.some(e => e.added),
+			removed: this.queuedIChangeEvents.some(e => e.removed),
+			clearingAll: this.queuedIChangeEvents.some(e => e.clearingAll),
+		};
+		this.queuedIChangeEvents = [];
+		return this.refreshTree(aggregateChangeEvent);
+	}
+
 	async setTreeView(visible: boolean): Promise<void> {
 		if (visible === this.isTreeLayoutViewVisible) {
 			return;
 		}
 		this.isTreeLayoutViewVisible = visible;
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		return this.refreshTree();
+		return this.queueRefreshTree();
 	}
 
 	private get state(): SearchUIState {
@@ -385,7 +406,7 @@ export class SearchView extends ViewPane {
 		searchModel.replaceActive = this.viewModel.isReplaceActive();
 		searchModel.replaceString = this.searchWidget.getReplaceValue();
 		this._onSearchResultChangedDisposable?.dispose();
-		this._onSearchResultChangedDisposable = this._register(this._getSearchResultChangedDisposable(searchModel));
+		this._onSearchResultChangedDisposable = this._register(searchModel.onSearchResultChanged(async (event) => this.onSearchResultsChanged(event)));
 
 		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
@@ -526,7 +547,7 @@ export class SearchView extends ViewPane {
 			this.toggleQueryDetails(true, true, true);
 		}
 
-		this._onSearchResultChangedDisposable = this._register(this._getSearchResultChangedDisposable());
+		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged(async (event) => await this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -534,23 +555,23 @@ export class SearchView extends ViewPane {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 	}
 
-	private _getSearchResultChangedDisposable(searchModel: ISearchModel = this.viewModel): IDisposable {
-		return Event.debounce(searchModel.onSearchResultChanged, (last, event) => {
-			const elements = event.elements.concat(...last?.elements ?? []);
-			const added = event.added || last?.added;
-			const removed = event.removed || last?.removed;
-			const clearingAll = event.clearingAll || last?.clearingAll;
+	// private _getSearchResultChangedDisposable(searchModel: ISearchModel = this.viewModel): IDisposable {
+	// 	return Event.debounce(searchModel.onSearchResultChanged, (last, event) => {
+	// 		const elements = event.elements.concat(...last?.elements ?? []);
+	// 		const added = event.added || last?.added;
+	// 		const removed = event.removed || last?.removed;
+	// 		const clearingAll = event.clearingAll || last?.clearingAll;
 
-			return {
-				elements,
-				added,
-				removed,
-				clearingAll
-			};
-		}, 80, true)(event => {
-			this.onSearchResultsChanged(event);
-		});
-	}
+	// 		return {
+	// 			elements,
+	// 			added,
+	// 			removed,
+	// 			clearingAll
+	// 		};
+	// 	}, 80, true)(event => {
+	// 		this.onSearchResultsChanged(event);
+	// 	});
+	// }
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
 		this.resultsElement.classList.toggle('hide-arrows', this.isTreeLayoutViewVisible && theme.hidesExplorerArrows);
@@ -652,17 +673,17 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onReplaceToggled(() => this.reLayout()));
 		this._register(this.searchWidget.onReplaceStateChange(async (state) => {
 			this.viewModel.replaceActive = state;
-			await this.refreshTree();
+			await this.queueRefreshTree();
 		}));
 
 		this._register(this.searchWidget.onPreserveCaseChange(async (state) => {
 			this.viewModel.preserveCase = state;
-			await this.refreshTree();
+			await this.queueRefreshTree();
 		}));
 
 		this._register(this.searchWidget.onReplaceValueChanged(() => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-			this.delayedRefresh.trigger(async () => this.refreshTree());
+			this.delayedRefresh.trigger(async () => this.queueRefreshTree());
 		}));
 
 		this._register(this.searchWidget.onBlur(() => {
@@ -681,7 +702,7 @@ export class SearchView extends ViewPane {
 	}
 	private async onConfigurationUpdated(event?: IConfigurationChangeEvent): Promise<void> {
 		if (event && (event.affectsConfiguration('search.decorations.colors') || event.affectsConfiguration('search.decorations.badges'))) {
-			return this.refreshTree();
+			return this.queueRefreshTree();
 		}
 	}
 
@@ -716,7 +737,7 @@ export class SearchView extends ViewPane {
 	private async refreshAndUpdateCount(event?: IChangeEvent): Promise<void> {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
 		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
-		return this.refreshTree(event);
+		return this.queueRefreshTree(event);
 	}
 
 	private async refreshTree(event?: IChangeEvent): Promise<void> {
@@ -2118,7 +2139,7 @@ export class SearchView extends ViewPane {
 			const changedMatches = matches.filter(m => e.contains(m.resource));
 			if (changedMatches.length && this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// No matches need to be removed, but modified files need to have their file stat updated.
-				this.updateFileStats(changedMatches).then(async () => this.refreshTree());
+				this.updateFileStats(changedMatches).then(async () => this.queueRefreshTree());
 			}
 		}
 	}
