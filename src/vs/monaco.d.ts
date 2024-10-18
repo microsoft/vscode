@@ -4486,7 +4486,7 @@ declare namespace monaco.editor {
 		horizontalScrollbarSize?: number;
 		/**
 		 * Width in pixels for the vertical scrollbar.
-		 * Defaults to 10 (px).
+		 * Defaults to 14 (px).
 		 */
 		verticalScrollbarSize?: number;
 		/**
