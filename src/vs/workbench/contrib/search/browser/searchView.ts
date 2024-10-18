@@ -724,6 +724,7 @@ export class SearchView extends ViewPane {
 
 	private async refreshTree(event?: IChangeEvent): Promise<void> {
 		// this.refreshTreePromiseSerializer = this.refreshTreePromiseSerializer.then(async () => {
+		console.log('started refreshtree');
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
 			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
@@ -747,6 +748,7 @@ export class SearchView extends ViewPane {
 				}));
 			}
 		}
+		console.log('finished refreshtree');
 		// });
 		// return this.refreshTreePromiseSerializer;
 	}
@@ -1667,15 +1669,18 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete, shouldDoFinalRefresh = true) {
 
 		this.state = SearchUIState.Idle;
 
 		// Complete up to 100% as needed
 		progressComplete();
 
-		// Do final render, then expand if just 1 file with less than 50 matches
-		await this.onSearchResultsChanged();
+		// expand if just 1 file with less than 50 matches
+		if (shouldDoFinalRefresh) {
+			// anything that gets called from `getChildren` should not do this, since the tree will refresh anyways.
+			await this.refreshAndUpdateCount();
+		}
 
 		const collapseResults = this.searchConfig.collapseResults;
 		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
@@ -1770,10 +1775,10 @@ export class SearchView extends ViewPane {
 		this.reLayout();
 	}
 
-	private async onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+	private async onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete, shouldDoFinalRefresh = true) {
 		this.state = SearchUIState.Idle;
 		if (errors.isCancellationError(e)) {
-			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed);
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed, shouldDoFinalRefresh);
 		} else {
 			progressComplete();
 			this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
@@ -1801,10 +1806,6 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		this._refreshResultsScheduler.schedule();
-
-		this.searchWidget.setReplaceAllActionState(false);
-
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
 
@@ -1812,10 +1813,10 @@ export class SearchView extends ViewPane {
 		const result = this.viewModel.addAIResults();
 		return result.then((complete) => {
 			clearTimeout(slowTimer);
-			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete, false);
 		}, (e) => {
 			clearTimeout(slowTimer);
-			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+			return this.onSearchError(e, progressComplete, excludePatternText, includePatternText, undefined, false);
 		});
 
 	}
