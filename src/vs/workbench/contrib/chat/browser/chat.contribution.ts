@@ -135,6 +135,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.editing.confirmEditRequestRetry', "Whether to show a confirmation before retrying a request and its associated edits."),
 			default: true,
 		},
+		'chat.editing.experimental.enableRestoreFile': {
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.editing.enableRestoreFile', "Whether to show a toggle to restore an earlier version of a file that was edited in a chat editing session request."),
+			default: false,
+		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
