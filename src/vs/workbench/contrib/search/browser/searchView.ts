@@ -309,7 +309,6 @@ export class SearchView extends ViewPane {
 		this.treeViewKey.set(visible);
 	}
 
-
 	async setTreeView(visible: boolean): Promise<void> {
 		if (visible === this.isTreeLayoutViewVisible) {
 			return;
@@ -406,13 +405,7 @@ export class SearchView extends ViewPane {
 			return this.onSearchError(e, progressComplete, undefined, undefined);
 		});
 
-		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
-			if (onlyMatch.count() < 50) {
-				await this.tree.expand(onlyMatch);
-			}
-		}
+		await this.expandIfSingularResult();
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -1622,6 +1615,19 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private async expandIfSingularResult() {
+		// expand if just 1 file with less than 50 matches
+
+		const collapseResults = this.searchConfig.collapseResults;
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches()[0];
+			await this.tree.expandTo(onlyMatch);
+			if (onlyMatch.count() < 50) {
+				await this.tree.expand(onlyMatch);
+			}
+		}
+	}
+
 	private async onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete, shouldDoFinalRefresh = true) {
 
 		this.state = SearchUIState.Idle;
@@ -1629,19 +1635,12 @@ export class SearchView extends ViewPane {
 		// Complete up to 100% as needed
 		progressComplete();
 
-		// expand if just 1 file with less than 50 matches
 		if (shouldDoFinalRefresh) {
 			// anything that gets called from `getChildren` should not do this, since the tree will refresh anyways.
 			await this.refreshAndUpdateCount();
 		}
 
-		const collapseResults = this.searchConfig.collapseResults;
-		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-			const onlyMatch = this.viewModel.searchResult.matches()[0];
-			if (onlyMatch.count() < 50) {
-				await this.tree.expand(onlyMatch);
-			}
-		}
+		await this.expandIfSingularResult();
 
 		const hasResults = !this.viewModel.searchResult.isEmpty();
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
