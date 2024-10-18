@@ -977,8 +977,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const attachedContext = this.inputPart.getAttachedAndImplicitContext();
-			const workingSet: URI[] = [];
+			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
+				workingSet = [];
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
 				if (currentEditingSession?.workingSet) {
 					for (const [file, _] of currentEditingSession?.workingSet) {

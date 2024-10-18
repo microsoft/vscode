@@ -467,6 +467,8 @@ class BuiltinDynamicCompletions extends Disposable {
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
+						prefix: 'file',
+						isFile: true,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]
