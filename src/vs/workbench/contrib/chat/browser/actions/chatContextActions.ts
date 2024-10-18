@@ -20,7 +20,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -423,7 +422,6 @@ export class AttachContextAction extends Action2 {
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const clipboardService = accessor.get(IClipboardService);
-		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const labelService = accessor.get(ILabelService);
 		const contextKeyService = accessor.get(IContextKeyService);
@@ -453,16 +451,14 @@ export class AttachContextAction extends Action2 {
 				}
 			}
 
-			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-				const imageData = await clipboardService.readImage();
-				if (isImage(imageData)) {
-					quickPickItems.push({
-						kind: 'image',
-						id: await imageToHash(imageData),
-						label: localize('imageFromClipboard', 'Image from Clipboard'),
-						iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
-					});
-				}
+			const imageData = await clipboardService.readImage();
+			if (isImage(imageData)) {
+				quickPickItems.push({
+					kind: 'image',
+					id: await imageToHash(imageData),
+					label: localize('imageFromClipboard', 'Image from Clipboard'),
+					iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+				});
 			}
 
 			if (widget.viewModel?.sessionId) {
@@ -514,17 +510,17 @@ export class AttachContextAction extends Action2 {
 				prefix: SymbolsQuickAccessProvider.PREFIX,
 				id: 'symbol'
 			});
-			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-				quickPickItems.push({
-					kind: 'screenshot',
-					id: ScreenshotVariableId,
-					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
-					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-					label: (isElectron
-						? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
-						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
-				});
-			}
+
+			quickPickItems.push({
+				kind: 'screenshot',
+				id: ScreenshotVariableId,
+				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+				label: (isElectron
+					? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
+					: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
+			});
+
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',
