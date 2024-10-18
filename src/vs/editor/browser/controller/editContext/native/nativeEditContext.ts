@@ -113,7 +113,21 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
-			this._emitTypeEvent(viewController, e);
+			const offsetOfEditContextStartWithinEditor = context.viewModel.model.getOffsetAt(this._textStartPositionWithinEditor);
+			const offsetOfEditContextUpdateRangeStart = offsetOfEditContextStartWithinEditor + e.updateRangeStart;
+			const offsetOfEditContextUpdateRangeEnd = offsetOfEditContextStartWithinEditor + e.updateRangeEnd;
+			const updateRangeStartWithinEditor = context.viewModel.model.getPositionAt(offsetOfEditContextUpdateRangeStart);
+			const updateRangeEndWithinEditor = context.viewModel.model.getPositionAt(offsetOfEditContextUpdateRangeEnd);
+			const updateRangeWithinEditor = Range.fromPositions(updateRangeStartWithinEditor, updateRangeEndWithinEditor);
+			const textWithinUpdateRange = context.viewModel.model.getValueInRange(updateRangeWithinEditor);
+			if (textWithinUpdateRange === e.text) {
+				const offsetOfEditContextSelectionStart = offsetOfEditContextStartWithinEditor + e.selectionStart;
+				const offsetOfEditContextSelectionEnd = offsetOfEditContextStartWithinEditor + e.selectionEnd;
+				const selectionStartWithinEditor = context.viewModel.model.getPositionAt(offsetOfEditContextSelectionStart);
+				const selectionEndWithinEditor = context.viewModel.model.getPositionAt(offsetOfEditContextSelectionEnd);
+			} else {
+				this._emitTypeEvent(viewController, e);
+			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
