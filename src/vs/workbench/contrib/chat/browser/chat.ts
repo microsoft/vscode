@@ -153,6 +153,11 @@ export interface IChatResourceViewContext {
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
 
+export interface IChatAcceptInputOptions {
+	noCommandDetection?: boolean;
+	isVoiceInput?: boolean;
+}
+
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
@@ -179,7 +184,7 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

@@ -44,7 +44,7 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -935,8 +935,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.logInputHistory();
 	}
 
-	async acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined, isVoiceInput);
+	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {
@@ -953,7 +953,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | { prefix: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 			if (!this.viewOptions.autoScroll) {
@@ -962,10 +962,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
-			const input = !opts ? editorValue :
-				'query' in opts ? opts.query :
-					`${opts.prefix} ${editorValue}`;
-			const isUserQuery = !opts || 'prefix' in opts;
+			const input = !query ? editorValue :
+				'query' in query ? query.query :
+					`${query.prefix} ${editorValue}`;
+			const isUserQuery = !query || 'prefix' in query;
 
 			if (this.viewModel.model.checkpoint) {
 				const requests = this.viewModel.model.getRequests();
@@ -1011,7 +1011,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
 				attachedContext,
-				workingSet
+				workingSet,
+				noCommandDetection: options?.noCommandDetection,
 			});
 
 			if (result) {
@@ -1020,7 +1021,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, isVoiceInput);
+					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
 					// Keep the checkpoint toggled on until the response is complete to help the user keep their place in the chat history
 					this.viewModel?.model.setCheckpoint(undefined);
 					if (lastResponse?.result?.nextQuestion) {
