@@ -113,7 +113,7 @@ const editorConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 			markdownDescription: nls.localize('editor.experimental.treeSitterTelemetry', "Controls whether tree sitter parsing should be turned on and telemetry collected. Setting `editor.experimental.preferTreeSitter` for specific languages will take precedence."),
-			tags: ['experimental']
+			tags: ['experimental', 'onExP']
 		},
 		'editor.experimental.preferTreeSitter': {
 			type: 'array',
@@ -123,6 +123,7 @@ const editorConfiguration: IConfigurationNode = {
 			},
 			default: [],
 			markdownDescription: nls.localize('editor.experimental.preferTreeSitter', "Controls whether tree sitter parsing should be turned on for specific languages. This will take precedence over `editor.experimental.treeSitterTelemetry` for the specified languages."),
+			tags: ['experimental']
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],

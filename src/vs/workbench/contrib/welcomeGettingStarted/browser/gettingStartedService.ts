@@ -59,6 +59,7 @@ export interface IWalkthrough {
 	icon:
 	| { type: 'icon'; icon: ThemeIcon }
 	| { type: 'image'; path: string };
+	walkthroughPageTitle: string;
 }
 
 export type IWalkthroughLoose = Omit<IWalkthrough, 'steps'> & { steps: (Omit<IWalkthroughStep, 'description'> & { description: string })[] };
@@ -390,6 +391,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				isFeatured,
 				source: extension.displayName ?? extension.name,
 				order: 0,
+				walkthroughPageTitle: extension.displayName ?? extension.name,
 				steps,
 				icon: {
 					type: 'image',
