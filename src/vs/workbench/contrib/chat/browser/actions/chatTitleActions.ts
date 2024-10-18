@@ -470,6 +470,9 @@ export function registerChatTitleActions() {
 					}
 
 					await currentEditingSession?.stop();
+					const existingEditingChatWidget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
+					existingEditingChatWidget?.clear();
+					existingEditingChatWidget?.attachmentModel.clear();
 				}
 
 				const { widget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
@@ -516,6 +519,7 @@ export function registerChatTitleActions() {
 						}
 					}
 				}
+				widget.focusInput();
 
 			}
 		}
