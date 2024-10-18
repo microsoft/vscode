@@ -358,7 +358,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					}
 				} catch (error) {
 					if (error.code !== 'ENOENT') {
-						this.logService.error(error); // log errors but do not give up writing
+						this.logService.trace(error); // log errors but do not give up writing
 					}
 				}
 			}
@@ -389,6 +389,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 						} catch (error) {
 							this.logService.trace(error); // log errors but do not give up writing
 						}
+
+						// Reset `fd` to be able to try again with 'w'
 						fd = undefined;
 					}
 				}
