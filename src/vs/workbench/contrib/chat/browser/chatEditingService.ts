@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareBy, delta } from '../../../../base/common/arrays.js';
 import { AsyncIterableSource, RunOnceScheduler, Sequencer, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -10,8 +11,8 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { autorun, derived, IObservable, ITransaction, observableValue, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { derived, IObservable, ITransaction, observableValue, runOnChange, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { compare } from '../../../../base/common/strings.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -373,51 +374,46 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 }
 
+/**
+ * Emits an event containing the added or removed elements of the observable.
+ */
+function observeArrayChanges<T>(obs: IObservable<T[]>, compare: (a: T, b: T) => number, store: DisposableStore): Event<T[]> {
+	const emitter = store.add(new Emitter<T[]>());
+	store.add(runOnChange(obs, (newArr, oldArr) => {
+		const change = delta(oldArr || [], newArr, compare);
+		const changedElements = ([] as T[]).concat(change.added).concat(change.removed);
+		emitter.fire(changedElements);
+	}));
+	return emitter.event;
+}
+
 class ChatDecorationsProvider extends Disposable implements IDecorationsProvider {
 
 	readonly label: string = localize('chat', "Chat Editing");
 
-	private readonly _onDidChange = new Emitter<readonly URI[]>();
-	readonly onDidChange: Event<readonly URI[]> = this._onDidChange.event;
+	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
+		const session = this._session.read(r);
+		if (!session) {
+			return [];
+		}
+		const state = session.state.read(r);
+		if (state === ChatEditingSessionState.Disposed) {
+			return [];
+		}
+		return session.entries.read(r).filter(entry => entry.isCurrentlyBeingModified.read(r)).map(entry => entry.modifiedURI);
+	});
+
+	public readonly onDidChange = observeArrayChanges(this._currentlyEditingUris, compareBy(uri => uri.toString(), compare), this._store);
 
 	constructor(
 		private readonly _session: IObservable<IChatEditingSession | null>
 	) {
 		super();
-
-		this._store.add(autorun(r => {
-			const session = _session.read(r);
-			if (!session) {
-				return;
-			}
-			const state = session.state.read(r);
-			if (state === ChatEditingSessionState.Disposed) {
-				return;
-			}
-			const entries = session.entries.read(r);
-			const uris: URI[] = [];
-			for (const entry of entries) {
-				entry.state.read(r);
-				uris.push(entry.modifiedURI);
-			}
-			this._onDidChange.fire(uris);
-		}));
 	}
 
 	provideDecorations(uri: URI, _token: CancellationToken): IDecorationData | undefined {
-		const session = this._session.get();
-		if (!session) {
-			return undefined;
-		}
-		if (session.state.get() !== ChatEditingSessionState.StreamingEdits) {
-			return undefined;
-		}
-		const entry = session.entries.get().find(entry => isEqual(uri, entry.modifiedURI));
-		if (!entry) {
-			return undefined;
-		}
-		const state = entry.state.get();
-		if (state !== WorkingSetEntryState.Modified) {
+		const isCurrentlyBeingModified = this._currentlyEditingUris.get().some(e => e.toString() === uri.toString());
+		if (!isCurrentlyBeingModified) {
 			return undefined;
 		}
 		return {
@@ -959,7 +955,9 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 	private async _acceptStreamingEditsStart(): Promise<void> {
 		this._state.set(ChatEditingSessionState.StreamingEdits, undefined);
-		this._onDidChange.fire();
+		for (const entry of this._entriesObs.get()) {
+			entry.acceptStreamingEditsStart();
+		}
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): Promise<void> {
@@ -992,6 +990,9 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private async _resolve(): Promise<void> {
+		for (const entry of this._entriesObs.get()) {
+			entry.acceptStreamingEditsEnd();
+		}
 		this._state.set(ChatEditingSessionState.Idle, undefined);
 		this._onDidChange.fire();
 	}
@@ -1062,6 +1063,11 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	private readonly _stateObs = observableValue<WorkingSetEntryState>(this, WorkingSetEntryState.Modified);
 	public get state(): IObservable<WorkingSetEntryState> {
 		return this._stateObs;
+	}
+
+	private readonly _isCurrentlyBeingModifiedObs = observableValue<boolean>(this, false);
+	public get isCurrentlyBeingModified(): IObservable<boolean> {
+		return this._isCurrentlyBeingModifiedObs;
 	}
 
 	private _isFirstEditAfterStartOrSnapshot: boolean = true;
@@ -1148,6 +1154,14 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	resetToInitialValue(value: string) {
 		this._setDocValue(value);
+	}
+
+	acceptStreamingEditsStart() {
+		this._isCurrentlyBeingModifiedObs.set(false, undefined);
+	}
+
+	acceptStreamingEditsEnd() {
+		this._isCurrentlyBeingModifiedObs.set(false, undefined);
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
@@ -1240,6 +1254,8 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 				this._diffOperation = this._updateDiffInfo();
 			}
 		});
+
+		this._isCurrentlyBeingModifiedObs.set(true, undefined);
 	}
 
 	private async _updateDiffInfo(): Promise<void> {
