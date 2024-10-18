@@ -487,7 +487,7 @@ interface IDataBreakpointInputTemplateData {
 interface IExceptionBreakpointInputTemplateData {
 	inputBox: InputBox;
 	checkbox: HTMLInputElement;
-	breakpoint: IExceptionBreakpoint;
+	currentBreakpoint?: IExceptionBreakpoint;
 	templateDisposables: DisposableStore;
 	elementDisposables: DisposableStore;
 }
@@ -1200,14 +1200,13 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 	}
 
 	renderTemplate(container: HTMLElement): IExceptionBreakpointInputTemplateData {
-		const template: IExceptionBreakpointInputTemplateData = Object.create(null);
 		const toDispose = new DisposableStore();
 
 		const breakpoint = dom.append(container, $('.breakpoint'));
 		breakpoint.classList.add('exception');
-		template.checkbox = createCheckbox(toDispose);
+		const checkbox = createCheckbox(toDispose);
 
-		dom.append(breakpoint, template.checkbox);
+		dom.append(breakpoint, checkbox);
 		this.view.breakpointInputFocused.set(true);
 		const inputBoxContainer = dom.append(breakpoint, $('.inputBoxContainer'));
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, {
@@ -1216,14 +1215,18 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 		});
 
 
-		template.templateDisposables.add(inputBox);
+		toDispose.add(inputBox);
 		const wrapUp = (success: boolean) => {
+			if (!templateData.currentBreakpoint) {
+				return;
+			}
+
 			this.view.breakpointInputFocused.set(false);
-			let newCondition = template.breakpoint.condition;
+			let newCondition = templateData.currentBreakpoint.condition;
 			if (success) {
 				newCondition = inputBox.value !== '' ? inputBox.value : undefined;
 			}
-			this.debugService.setExceptionBreakpointCondition(template.breakpoint, newCondition);
+			this.debugService.setExceptionBreakpointCondition(templateData.currentBreakpoint, newCondition);
 		};
 
 		toDispose.add(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
@@ -1242,17 +1245,23 @@ class ExceptionBreakpointInputRenderer implements IListRenderer<IExceptionBreakp
 			});
 		}));
 
-		template.inputBox = inputBox;
-		template.elementDisposables = new DisposableStore();
-		template.templateDisposables = toDispose;
-		template.templateDisposables.add(template.elementDisposables);
-		return template;
+		const elementDisposables = new DisposableStore();
+		toDispose.add(elementDisposables);
+
+		const templateData: IExceptionBreakpointInputTemplateData = {
+			inputBox,
+			checkbox,
+			templateDisposables: toDispose,
+			elementDisposables: new DisposableStore(),
+		};
+
+		return templateData;
 	}
 
 	renderElement(exceptionBreakpoint: ExceptionBreakpoint, _index: number, data: IExceptionBreakpointInputTemplateData): void {
 		const placeHolder = exceptionBreakpoint.conditionDescription || localize('exceptionBreakpointPlaceholder', "Break when expression evaluates to true");
 		data.inputBox.setPlaceHolder(placeHolder);
-		data.breakpoint = exceptionBreakpoint;
+		data.currentBreakpoint = exceptionBreakpoint;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 		data.checkbox.disabled = true;
 		data.inputBox.value = exceptionBreakpoint.condition || '';
