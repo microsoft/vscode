@@ -27,9 +27,7 @@ steps:
     displayName: Prepare node_modules cache key
 
   - script: |
-      tar --help
-      zip --help
-      unzip --help
+      tar --version
       gcc --version
       apt-get --version
     displayName: List versions
