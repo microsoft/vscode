@@ -51,7 +51,9 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 		const widgets = updateWidget ? [updateWidget] : this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel);
 		for (const widget of widgets) {
-			widget.input.implicitContext.value = newValue;
+			if (widget.input.implicitContext) {
+				widget.input.implicitContext.value = newValue;
+			}
 		}
 	}
 }
