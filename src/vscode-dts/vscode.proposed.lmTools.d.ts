@@ -29,18 +29,19 @@ declare module 'vscode' {
 		parametersSchema?: object;
 	}
 
+	/**
+	 * A tool-calling mode for the language model to use.
+	 */
 	export enum LanguageModelChatToolMode {
 		/**
-		 * The language model can choose to call a tool or generate a message. The default.
+		 * The language model can choose to call a tool or generate a message. Is the default.
 		 */
 		Auto = 1,
 
 		/**
-		 * The language model must call one of the provided tools. An extension can force a particular tool to be used by using the
-		 * Required mode and only providing that one tool.
-		 * TODO@API 'required' is not supported by CAPI
-		 * The LM provider can throw if more than one tool is provided. But this mode is supported by different models and it makes sense
-		 * to represent it in the API. We can note the limitation here.
+		 * The language model must call one of the provided tools. Note- some models only support a single tool when using this
+		 * mode. TODO@API - do we throw, or just pick the first tool? Or only offer an API that allows callers to pick a single
+		 * tool? Go back to `toolChoice?: string`?
 		 */
 		Required = 2
 	}
@@ -61,7 +62,7 @@ declare module 'vscode' {
 		tools?: LanguageModelChatTool[];
 
 		/**
-		 * 	The tool calling mode to use. {@link LanguageModelChatToolMode.Auto} by default.
+		 * 	The tool-selecting mode to use. {@link LanguageModelChatToolMode.Auto} by default.
 		 */
 		toolMode?: LanguageModelChatToolMode;
 	}
@@ -118,7 +119,6 @@ declare module 'vscode' {
 		 */
 		mime: string;
 
-		// TODO@API needs the version number/mimeType from prompt-tsx?
 		constructor(value: unknown, mime: string);
 	}
 
@@ -178,7 +178,7 @@ declare module 'vscode' {
 
 		/**
 		 * Invoke a tool with the given parameters.
-		 * TODO describe content types and token options here
+		 * TODO@API describe tool calling flow here, LanguageModelToolInvocationOptions
 		 */
 		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
@@ -207,14 +207,6 @@ declare module 'vscode' {
 		 * {@link LanguageModelToolInformation.parametersSchema}
 		 */
 		parameters: T;
-
-		/**
-		 * A tool can return multiple types of content. A tool user must specifically request one or more types of content to be
-		 * returned, based on what the tool user supports. The typical type is `text/plain` to return string-type content, and all
-		 * tools are recommended to support `text/plain`. See {@link LanguageModelToolResult} for more.
-		 * TODO@API delete
-		 */
-		requestedMimeTypes: string[];
 
 		/**
 		 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
@@ -256,12 +248,6 @@ declare module 'vscode' {
 		 * A JSON schema for the parameters this tool accepts.
 		 */
 		readonly parametersSchema: object | undefined;
-
-		/**
-		 * The list of mime types that the tool is able to return as a result. See {@link LanguageModelToolResult}.
-		 * TODO@API delete
-		 */
-		readonly supportedResultMimeTypes: readonly string[];
 
 		/**
 		 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter

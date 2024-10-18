@@ -2931,7 +2931,6 @@ export namespace LanguageModelToolDescription {
 			name: item.id,
 			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
-			supportedResultMimeTypes: item.supportedResultMimeTypes,
 			tags: item.tags ?? [],
 		};
 	}

@@ -24,7 +24,6 @@ export interface IToolData {
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedResultMimeTypes: string[];
 }
 
 export interface IToolInvocation {
@@ -33,7 +32,6 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
-	requestedMimeTypes: string[];
 }
 
 export interface IToolInvocationContext {

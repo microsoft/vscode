@@ -31,7 +31,6 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -45,14 +44,13 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
 		store.add(service.registerToolData(toolData));
 
 		const toolImpl: IToolImpl = {
-			invoke: async () => ({ content: [{ mime: 'text/plain', value: 'result' }] }),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
 		};
 
 		store.add(service.registerToolImplementation('testTool', toolImpl));
@@ -65,7 +63,6 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool1',
 			modelDescription: 'Test Tool 1',
 			when: ContextKeyEqualsExpr.create('testKey', false),
-			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -73,14 +70,12 @@ suite('LanguageModelToolsService', () => {
 			id: 'testTool2',
 			modelDescription: 'Test Tool 2',
 			when: ContextKeyEqualsExpr.create('testKey', true),
-			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
 		const toolData3: IToolData = {
 			id: 'testTool3',
 			modelDescription: 'Test Tool 3',
-			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -98,7 +93,6 @@ suite('LanguageModelToolsService', () => {
 		const toolData: IToolData = {
 			id: 'testTool',
 			modelDescription: 'Test Tool',
-			supportedResultMimeTypes: [],
 			displayName: 'Test Tool'
 		};
 
@@ -109,7 +103,7 @@ suite('LanguageModelToolsService', () => {
 				assert.strictEqual(invocation.callId, '1');
 				assert.strictEqual(invocation.toolId, 'testTool');
 				assert.deepStrictEqual(invocation.parameters, { a: 1 });
-				return { content: [{ mime: 'text/plain', value: 'result' }] };
+				return { content: [{ kind: 'text', value: 'result' }] };
 			}
 		};
 
@@ -123,10 +117,9 @@ suite('LanguageModelToolsService', () => {
 				a: 1
 			},
 			context: undefined,
-			requestedMimeTypes: ['text/plain']
 		};
 
 		const result = await service.invokeTool(dto, async () => 0, CancellationToken.None);
-		assert.strictEqual(result.content[0].data, 'result');
+		assert.strictEqual(result.content[0].value, 'result');
 	});
 });
