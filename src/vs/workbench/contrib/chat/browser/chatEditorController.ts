@@ -5,6 +5,9 @@
 
 import { binarySearch, coalesceInPlace } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { themeColorFromId } from '../../../../base/common/themables.js';
 import { ICodeEditor, IViewZone } from '../../../../editor/browser/editorBrowser.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { diffAddDecoration, diffDeleteDecoration, diffWholeLineAddDecoration } from '../../../../editor/browser/widget/diffEditor/registrations.contribution.js';
@@ -12,13 +15,13 @@ import { EditorOption } from '../../../../editor/common/config/editorOptions.js'
 import { Range } from '../../../../editor/common/core/range.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
-import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../editor/common/viewModel.js';
-import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { autorun, derived } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { minimapGutterAddedBackground, minimapGutterDeletedBackground, minimapGutterModifiedBackground, overviewRulerAddedForeground, overviewRulerDeletedForeground, overviewRulerModifiedForeground } from '../../scm/browser/dirtydiffDecorator.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, WorkingSetEntryState } from '../common/chatEditingService.js';
 
 export const ctxHasEditorModification = new RawContextKey<boolean>('chat.hasEditorModifications', undefined, localize('chat.hasEditorModifications', "The current editor contains chat modifications"));
 
@@ -166,7 +169,24 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		this._ctxHasEditorModification.set(true);
 		const originalModel = entry.originalModel;
 
-		// original view zone
+		const chatDiffAddDecoration = ModelDecorationOptions.createDynamic({
+			...diffAddDecoration,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+		});
+		const chatDiffWholeLineAddDecoration = ModelDecorationOptions.createDynamic({
+			...diffWholeLineAddDecoration,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		});
+		const createOverviewDecoration = (overviewRulerColor: string, minimapColor: string) => {
+			return ModelDecorationOptions.createDynamic({
+				description: 'chat-editing-decoration',
+				overviewRuler: { color: themeColorFromId(overviewRulerColor), position: OverviewRulerLane.Left },
+				minimap: { color: themeColorFromId(minimapColor), position: MinimapPosition.Gutter },
+			});
+		};
+		const modifiedDecoration = createOverviewDecoration(overviewRulerModifiedForeground, minimapGutterModifiedBackground);
+		const addedDecoration = createOverviewDecoration(overviewRulerAddedForeground, minimapGutterAddedBackground);
+		const deletedDecoration = createOverviewDecoration(overviewRulerDeletedForeground, minimapGutterDeletedBackground);
 
 		this._editor.changeViewZones((viewZoneChangeAccessor) => {
 			for (const id of this._viewZones) {
@@ -195,18 +215,32 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 						InlineDecorationType.Regular
 					));
 					modifiedDecorations.push({
-						range: i.modifiedRange, options: {
-							...diffAddDecoration,
-							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-						}
+						range: i.modifiedRange, options: chatDiffAddDecoration
 					});
 				}
 				if (!diffEntry.modified.isEmpty) {
 					modifiedDecorations.push({
-						range: diffEntry.modified.toInclusiveRange()!, options: {
-							...diffWholeLineAddDecoration,
-							stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-						}
+						range: diffEntry.modified.toInclusiveRange()!, options: chatDiffWholeLineAddDecoration
+					});
+				}
+
+				if (diffEntry.original.isEmpty) {
+					// insertion
+					modifiedDecorations.push({
+						range: diffEntry.modified.toInclusiveRange()!,
+						options: addedDecoration
+					});
+				} else if (diffEntry.modified.isEmpty) {
+					// deletion
+					modifiedDecorations.push({
+						range: new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, 1),
+						options: deletedDecoration
+					});
+				} else {
+					// modification
+					modifiedDecorations.push({
+						range: diffEntry.modified.toInclusiveRange()!,
+						options: modifiedDecoration
 					});
 				}
 				const domNode = document.createElement('div');
