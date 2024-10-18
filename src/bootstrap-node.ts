@@ -40,14 +40,10 @@ function setupCurrentWorkingDirectory(): void {
 		// for consistent lookups, but make sure to only
 		// do this once unless defined already from e.g.
 		// a parent process.
-		if (typeof process.env['VSCODE_CWD'] !== 'string') {
-			process.env['VSCODE_CWD'] = process.cwd();
-		}
+		if (typeof process.env['VSCODE_CWD'] !== 'string') process.env['VSCODE_CWD'] = process.cwd();
 
 		// Windows: always set application folder as current working dir
-		if (process.platform === 'win32') {
-			process.chdir(path.dirname(process.execPath));
-		}
+		if (process.platform === 'win32') process.chdir(path.dirname(process.execPath));
 	} catch (err) {
 		console.error(err);
 	}
