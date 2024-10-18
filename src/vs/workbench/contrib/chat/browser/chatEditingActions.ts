@@ -480,6 +480,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 				id: MenuId.ChatEditingCodeBlockContext,
 				group: 'navigation',
 				order: 0,
+				when: ContextKeyExpr.notIn(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key),
 			},]
 		});
 	}
