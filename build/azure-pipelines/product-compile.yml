@@ -26,6 +26,14 @@ steps:
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
+  - script: |
+      tar --help
+      zip --help
+      unzip --help
+      gcc --version
+      apt-get --version
+    displayName: List versions
+
   - task: Cache@2
     inputs:
       key: '"node_modules" | .build/packagelockhash'
