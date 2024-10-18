@@ -59,6 +59,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _suggestPreviewMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
+		private readonly _inlineEditsEnabled: IObservable<boolean>,
 		private readonly _shouldHideInlineEdit: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -149,6 +150,8 @@ export class InlineCompletionsModel extends Disposable {
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: suggestItem?.toSelectedSuggestionInfo(),
+			includeInlineCompletions: true,
+			includeInlineEdits: this._inlineEditsEnabled.read(reader),
 		};
 		const itemToPreserveCandidate = this.selectedInlineCompletion.get();
 		const itemToPreserve = changeSummary.preserveCurrentCompletion || itemToPreserveCandidate?.forwardStable
@@ -289,7 +292,7 @@ export class InlineCompletionsModel extends Disposable {
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
-			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed), inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
+			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed, true), inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
 
 		const suggestItem = this.selectedSuggestItem.read(reader);

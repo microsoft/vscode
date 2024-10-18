@@ -95,6 +95,11 @@ export class InlineCompletionsController extends Disposable {
 		return this._cursorIsInIndentation.read(reader);
 	});
 
+	private readonly optionPreview = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
+	private readonly optionPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
+	private readonly optionMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
+	private readonly optionInlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental?.enabled);
+
 	public readonly model = derivedDisposable<InlineCompletionsModel | undefined>(this, reader => {
 		if (this._editorObs.isReadonly.read(reader)) { return undefined; }
 		const textModel = this._editorObs.model.read(reader);
@@ -107,10 +112,11 @@ export class InlineCompletionsController extends Disposable {
 			this._editorObs.versionId,
 			this._positions,
 			this._debounceValue,
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.suggest).preview),
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.suggest).previewMode),
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).mode),
+			this.optionPreview,
+			this.optionPreviewMode,
+			this.optionMode,
 			this._enabled,
+			this.optionInlineEditsEnabled,
 			this._shouldHideInlineEdit,
 		);
 		return model;

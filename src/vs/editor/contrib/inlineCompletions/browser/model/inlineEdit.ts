@@ -9,6 +9,7 @@ export class InlineEdit {
 	constructor(
 		public readonly edit: SingleTextEdit,
 		public readonly isCollapsed: boolean,
+		public readonly showInlineIfPossible: boolean,
 	) { }
 
 	public get range() {
