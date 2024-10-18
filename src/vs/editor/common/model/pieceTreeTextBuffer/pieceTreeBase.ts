@@ -483,6 +483,9 @@ export class PieceTreeBase {
 
 	public getValueInRange2(startPosition: NodePosition, endPosition: NodePosition): string {
 		if (startPosition.node === endPosition.node) {
+			if (startPosition.node === SENTINEL) {
+				return '';
+			}
 			const node = startPosition.node;
 			const buffer = this._buffers[node.piece.bufferIndex].buffer;
 			const startOffset = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);
@@ -629,10 +632,15 @@ export class PieceTreeBase {
 	}
 
 	private _getCharCode(nodePos: NodePosition): number {
+		/*
+		if (nodePos.node.piece === null) {
+			return 0;
+		}*/
+
 		if (nodePos.remainder === nodePos.node.piece.length) {
 			// the char we want to fetch is at the head of next node.
 			const matchingNode = nodePos.node.next();
-			if (!matchingNode) {
+			if (!matchingNode || matchingNode === SENTINEL) {
 				return 0;
 			}
 
@@ -650,6 +658,9 @@ export class PieceTreeBase {
 
 	public getLineCharCode(lineNumber: number, index: number): number {
 		const nodePos = this.nodeAt2(lineNumber, index + 1);
+		if (nodePos.node === SENTINEL) {
+			return 0;
+		}
 		return this._getCharCode(nodePos);
 	}
 
@@ -741,13 +752,11 @@ export class PieceTreeBase {
 		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
 
 		let startPosition = this.nodeAt2(searchRange.startLineNumber, searchRange.startColumn);
-		if (startPosition === null) {
+		if (startPosition.node === SENTINEL) {
 			return [];
 		}
 		const endPosition = this.nodeAt2(searchRange.endLineNumber, searchRange.endColumn);
-		if (endPosition === null) {
-			return [];
-		}
+
 		let start = this.positionInBuffer(startPosition.node, startPosition.remainder);
 		const end = this.positionInBuffer(endPosition.node, endPosition.remainder);
 
@@ -1564,6 +1573,7 @@ export class PieceTreeBase {
 		}
 
 		// search in order, to find the node contains position.column
+		let last_x = x;
 		x = x.next();
 		while (x !== SENTINEL) {
 
@@ -1588,10 +1598,24 @@ export class PieceTreeBase {
 				}
 			}
 
+			last_x = x;
 			x = x.next();
 		}
 
-		return null!;
+		if (last_x === SENTINEL) {
+			return {
+				node: last_x,
+				remainder: 0,
+				nodeStartOffset
+			};
+		} else {
+			const nodeStartOffset = this.offsetOfNode(last_x);
+			return {
+				node: last_x,
+				remainder: last_x.piece.length,
+				nodeStartOffset
+			};
+		}
 	}
 
 	private nodeCharCodeAt(node: TreeNode, offset: number): number {
