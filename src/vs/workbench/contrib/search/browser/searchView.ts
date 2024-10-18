@@ -314,11 +314,11 @@ export class SearchView extends ViewPane {
 		if (e) {
 			this.queuedIChangeEvents.push(e);
 		}
-		return this.refreshTreeThrottler.queue(this.refreshTreeUsingQueue);
+		return this.refreshTreeThrottler.queue(this.refreshTreeUsingQueue.bind(this));
 	}
 
 	async refreshTreeUsingQueue(): Promise<void> {
-		const aggregateChangeEvent: IChangeEvent = {
+		const aggregateChangeEvent: IChangeEvent | undefined = this.queuedIChangeEvents.length === 0 ? undefined : {
 			elements: this.queuedIChangeEvents.map(e => e.elements).flat(),
 			added: this.queuedIChangeEvents.some(e => e.added),
 			removed: this.queuedIChangeEvents.some(e => e.removed),
@@ -555,24 +555,6 @@ export class SearchView extends ViewPane {
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
 	}
 
-	// private _getSearchResultChangedDisposable(searchModel: ISearchModel = this.viewModel): IDisposable {
-	// 	return Event.debounce(searchModel.onSearchResultChanged, (last, event) => {
-	// 		const elements = event.elements.concat(...last?.elements ?? []);
-	// 		const added = event.added || last?.added;
-	// 		const removed = event.removed || last?.removed;
-	// 		const clearingAll = event.clearingAll || last?.clearingAll;
-
-	// 		return {
-	// 			elements,
-	// 			added,
-	// 			removed,
-	// 			clearingAll
-	// 		};
-	// 	}, 80, true)(event => {
-	// 		this.onSearchResultsChanged(event);
-	// 	});
-	// }
-
 	private updateIndentStyles(theme: IFileIconTheme): void {
 		this.resultsElement.classList.toggle('hide-arrows', this.isTreeLayoutViewVisible && theme.hidesExplorerArrows);
 	}
@@ -733,7 +715,7 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	public refreshTreePromiseSerializer: Promise<void> = Promise.resolve();
+	// public refreshTreePromiseSerializer: Promise<void> = Promise.resolve();
 	private async refreshAndUpdateCount(event?: IChangeEvent): Promise<void> {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
 		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles, this.viewModel.searchResult.query?.onlyOpenEditors, event?.clearingAll);
@@ -741,32 +723,32 @@ export class SearchView extends ViewPane {
 	}
 
 	private async refreshTree(event?: IChangeEvent): Promise<void> {
-		this.refreshTreePromiseSerializer = this.refreshTreePromiseSerializer.then(async () => {
-			if (!event || event.added || event.removed) {
-				// Refresh whole tree
-				if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
-					// Ensure all matches have retrieved their file stat
-					await this.retrieveFileStats()
-						.then(() => this.tree.updateChildren(undefined));
-				} else {
-					await this.tree.updateChildren(undefined);
-				}
+		// this.refreshTreePromiseSerializer = this.refreshTreePromiseSerializer.then(async () => {
+		if (!event || event.added || event.removed) {
+			// Refresh whole tree
+			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
+				// Ensure all matches have retrieved their file stat
+				await this.retrieveFileStats()
+					.then(() => this.tree.updateChildren(undefined));
 			} else {
-				// If updated counts affect our search order, re-sort the view.
-				if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
-					this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-
-					await this.tree.updateChildren(undefined);
-				} else {
-					// IFileMatchInstance modified, refresh those elements
-					await Promise.all(event.elements.map(async element => {
-						await this.tree.updateChildren(element);
-						this.tree.rerender(element);
-					}));
-				}
+				await this.tree.updateChildren(undefined);
 			}
-		});
-		return this.refreshTreePromiseSerializer;
+		} else {
+			// If updated counts affect our search order, re-sort the view.
+			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
+				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
+
+				await this.tree.updateChildren(undefined);
+			} else {
+				// IFileMatchInstance modified, refresh those elements
+				await Promise.all(event.elements.map(async element => {
+					await this.tree.updateChildren(element);
+					this.tree.rerender(element);
+				}));
+			}
+		}
+		// });
+		// return this.refreshTreePromiseSerializer;
 	}
 
 	private originalShouldCollapse(match: RenderableMatch) {
