@@ -4590,6 +4590,11 @@ declare namespace monaco.editor {
 		 * Font family for inline suggestions.
 		 */
 		fontFamily?: string | 'default';
+		edits?: {
+			experimental?: {
+				enabled?: boolean;
+			};
+		};
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -7179,6 +7184,8 @@ declare namespace monaco.languages {
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
 		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+		readonly includeInlineEdits: boolean;
+		readonly includeInlineCompletions: boolean;
 	}
 
 	export class SelectedSuggestionInfo {
