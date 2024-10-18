@@ -682,7 +682,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		let didChange = false;
 		for (const entry of existingTransientEntries) {
-			didChange ||= this._workingSet.delete(entry);
+			didChange = this._workingSet.delete(entry) || didChange;
 		}
 
 		for (const entry of activeEditors) {
@@ -802,7 +802,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		let didRemoveUris = false;
 		for (const uri of uris) {
-			didRemoveUris ||= this._workingSet.delete(uri);
+			didRemoveUris = this._workingSet.delete(uri) || didRemoveUris;
 		}
 
 		if (!didRemoveUris) {
