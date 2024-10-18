@@ -19,7 +19,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/comm
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatService } from '../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
@@ -62,7 +62,7 @@ registerAction2(class RemoveFileFromWorkingSet extends WorkingSetAction {
 			title: localize2('removeFileFromWorkingSet', 'Remove File'),
 			icon: Codicon.close,
 			menu: [{
-				id: MenuId.ChatEditingSessionWidgetToolbar,
+				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
 				when: ContextKeyExpr.or(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Attached), ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Transient)),
 				order: 0,
 				group: 'navigation'
@@ -95,7 +95,7 @@ registerAction2(class OpenFileInDiffAction extends WorkingSetAction {
 			title: localize2('open.fileInDiff', 'Open Changes in Diff Editor'),
 			icon: Codicon.diffSingle,
 			menu: [{
-				id: MenuId.ChatEditingSessionWidgetToolbar,
+				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 2,
 				group: 'navigation'
@@ -131,7 +131,7 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 				order: 0,
 				group: 'navigation',
 			}, {
-				id: MenuId.ChatEditingSessionWidgetToolbar,
+				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 0,
 				group: 'navigation'
@@ -153,10 +153,10 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			menu: [{
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
 				id: MenuId.MultiDiffEditorFileToolbar,
-				order: 0,
+				order: 2,
 				group: 'navigation',
 			}, {
-				id: MenuId.ChatEditingSessionWidgetToolbar,
+				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
 				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, WorkingSetEntryState.Modified),
 				order: 1,
 				group: 'navigation'
@@ -177,13 +177,21 @@ export class ChatEditingAcceptAllAction extends Action2 {
 		super({
 			id: ChatEditingAcceptAllAction.ID,
 			title: ChatEditingAcceptAllAction.LABEL,
-			// icon: Codicon.goToFile,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-				id: MenuId.EditorTitle,
-				order: 0,
-				group: 'navigation',
-			},
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
+			menu: [
+				{
+					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+					id: MenuId.EditorTitle,
+					order: 0,
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+				}
+			]
 		});
 	}
 
@@ -206,13 +214,21 @@ export class ChatEditingDiscardAllAction extends Action2 {
 		super({
 			id: ChatEditingDiscardAllAction.ID,
 			title: ChatEditingDiscardAllAction.LABEL,
-			// icon: Codicon.goToFile,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-				id: MenuId.EditorTitle,
-				order: 0,
-				group: 'navigation',
-			},
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
+			menu: [
+				{
+					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+					id: MenuId.EditorTitle,
+					order: 2,
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 2,
+					when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)
+				}
+			],
 		});
 	}
 
@@ -235,7 +251,17 @@ export class ChatEditingShowChangesAction extends Action2 {
 		super({
 			id: ChatEditingShowChangesAction.ID,
 			title: ChatEditingShowChangesAction.LABEL,
-			f1: false
+			f1: false,
+			icon: Codicon.diffMultiple,
+			precondition: hasUndecidedChatEditingResourceContextKey,
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 4,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+				}
+			],
 		});
 	}
 
