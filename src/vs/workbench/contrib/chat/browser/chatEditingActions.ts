@@ -6,13 +6,16 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../base/common/map.js';
+import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -461,6 +464,53 @@ registerAction2(class RemoveAction extends Action2 {
 			// Remove the request and all that come after it
 			for (const request of chatRequests.slice(itemIndex)) {
 				await chatService.removeRequest(item.sessionId, request.id);
+			}
+		}
+	}
+});
+
+registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
+
+	static readonly id = 'chat.openWorkingSetHistory';
+	constructor() {
+		super({
+			id: OpenWorkingSetHistoryAction.id,
+			title: localize('chat.openWorkingSetHistory.label', "Open File Checkpoint"),
+			menu: [{
+				id: MenuId.ChatEditingCodeBlockContext,
+				group: 'navigation',
+				order: 0,
+			},]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context: { sessionId: string; requestId: string; uri: URI } | undefined = args[0];
+		if (!context?.sessionId) {
+			return;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const chatEditingService = accessor.get(IChatEditingService);
+		const editorService = accessor.get(IEditorService);
+
+		const chatModel = chatService.getSession(context.sessionId);
+		const requests = chatModel?.getRequests();
+		if (!requests) {
+			return;
+		}
+		const snapshotRequestIndex = requests?.findIndex((v, i) => i > 0 && requests[i - 1]?.id === context.requestId);
+		if (snapshotRequestIndex < 1) {
+			return;
+		}
+		const snapshotRequestId = requests[snapshotRequestIndex]?.id;
+		if (snapshotRequestId) {
+			const snapshot = chatEditingService.getSnapshotUri(snapshotRequestId, context.uri);
+			if (snapshot) {
+				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.checkpoint', '{0} (Checkpoint {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+				if (isCodeEditor(editor)) {
+					editor.updateOptions({ readOnly: true });
+				}
 			}
 		}
 	}
