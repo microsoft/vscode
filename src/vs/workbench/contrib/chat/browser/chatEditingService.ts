@@ -580,8 +580,6 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 	private readonly _sequencer = new Sequencer();
 
-	private _entries: ModifiedFileEntry[] = [];
-
 	private _workingSet = new ResourceMap<WorkingSetEntryState>();
 	get workingSet() {
 		this._assertNotDisposed();
@@ -777,7 +775,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 
 		// Reset all the files which are modified in this session state
 		// but which are not found in the snapshot
-		for (const entry of this._entries) {
+		for (const entry of this._entriesObs.get()) {
 			const snapshotEntry = snapshot.entries.get(entry.modifiedURI);
 			if (!snapshotEntry) {
 				const initialContents = this._initialFileContents.get(entry.modifiedURI);
@@ -796,8 +794,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 			entriesArr.push(entry);
 		}
 
-		this._entries = entriesArr;
-		this._entriesObs.set(this._entries, undefined);
+		this._entriesObs.set(entriesArr, undefined);
 	}
 
 	remove(...uris: URI[]): void {
@@ -825,11 +822,11 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this._assertNotDisposed();
 
 		if (uris.length === 0) {
-			await Promise.all(this._entries.map(entry => entry.accept(undefined)));
+			await Promise.all(this._entriesObs.get().map(entry => entry.accept(undefined)));
 		}
 
 		for (const uri of uris) {
-			const entry = this._entries.find(e => e.modifiedURI.toString() === uri.toString());
+			const entry = this._entriesObs.get().find(e => e.modifiedURI.toString() === uri.toString());
 			if (entry) {
 				await entry.accept(undefined);
 			}
@@ -842,11 +839,11 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		this._assertNotDisposed();
 
 		if (uris.length === 0) {
-			await Promise.all(this._entries.map(entry => entry.reject(undefined)));
+			await Promise.all(this._entriesObs.get().map(entry => entry.reject(undefined)));
 		}
 
 		for (const uri of uris) {
-			const entry = this._entries.find(e => e.modifiedURI.toString() === uri.toString());
+			const entry = this._entriesObs.get().find(e => e.modifiedURI.toString() === uri.toString());
 			if (entry) {
 				await entry.reject(undefined);
 			}
@@ -904,7 +901,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	getVirtualModel(documentId: string): ITextModel | null {
 		this._assertNotDisposed();
 
-		const entry = this._entries.find(e => e.entryId === documentId);
+		const entry = this._entriesObs.get().find(e => e.entryId === documentId);
 		return entry?.docSnapshot ?? null;
 	}
 
@@ -993,7 +990,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ModifiedFileEntry> {
-		const existingEntry = this._entries.find(e => e.resource.toString() === resource.toString());
+		const existingEntry = this._entriesObs.get().find(e => e.resource.toString() === resource.toString());
 		if (existingEntry) {
 			return existingEntry;
 		}
@@ -1001,8 +998,8 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		const entry = await this._createModifiedFileEntry(resource, responseModel);
 		this._register(entry);
 		this._initialFileContents.set(resource, entry.modifiedModel.getValue());
-		this._entries = [...this._entries, entry];
-		this._entriesObs.set(this._entries, undefined);
+		const entriesArr = [...this._entriesObs.get(), entry];
+		this._entriesObs.set(entriesArr, undefined);
 		this._onDidChange.fire();
 
 		return entry;
