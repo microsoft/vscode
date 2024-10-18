@@ -80,9 +80,10 @@ export class CLIServerBase {
 	}
 
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-		const sendResponse = (statusCode: number, returnObj: string | undefined) => {
+		const sendResponse = (statusCode: number, returnObj: string | undefined, isError: boolean = false) => {
 			res.writeHead(statusCode, { 'content-type': 'application/json' });
-			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err)); // CodeQL [SM01524] Only the message portion of errors are passed in.
+			const response = isError ? { error: "An error occurred" } : returnObj;
+			res.end(JSON.stringify(response || null), (err?: any) => err && this.logService.error(err)); // CodeQL [SM01524] Only the message portion of errors are passed in.
 		};
 
 		const chunks: string[] = [];
@@ -112,7 +113,7 @@ export class CLIServerBase {
 				sendResponse(200, returnObj);
 			} catch (e) {
 				const message = e instanceof Error ? e.message : JSON.stringify(e);
-				sendResponse(500, message);
+				sendResponse(500, undefined, true);
 				this.logService.error('Error while processing pipe request', e);
 			}
 		});
