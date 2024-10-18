@@ -4585,13 +4585,13 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
-	toolCallId: string;
-	content: string;
+	callId: string;
+	value: string;
 	isError: boolean;
 
-	constructor(toolCallId: string, content: string, isError?: boolean) {
-		this.toolCallId = toolCallId;
-		this.content = content;
+	constructor(callId: string, content: string, isError?: boolean) {
+		this.callId = callId;
+		this.value = content;
 		this.isError = isError ?? false;
 	}
 }
@@ -4623,12 +4623,12 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	name: string;
-	toolCallId: string;
+	callId: string;
 	parameters: any;
 
 	constructor(name: string, toolCallId: string, parameters: any) {
 		this.name = name;
-		this.toolCallId = toolCallId;
+		this.callId = toolCallId;
 		this.parameters = parameters;
 	}
 }
@@ -4701,6 +4701,23 @@ export class LanguageModelError extends Error {
 		this.code = code ?? '';
 	}
 
+}
+
+export class LanguageModelToolResultItem {
+	static text(content: string): LanguageModelToolResultItem {
+		return new LanguageModelToolResultItem(content, 'text/plain');
+	}
+
+	constructor(public data: any, public mime: string) { }
+}
+
+export class LanguageModelToolResult {
+	constructor(public items: LanguageModelToolResultItem[]) { }
+}
+
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2
 }
 
 //#endregion
