@@ -11,7 +11,7 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
-import { derived, IObservable, ITransaction, observableValue, runOnChange, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable, ITransaction, observableValue, runOnChange, transaction, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { compare } from '../../../../base/common/strings.js';
 import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -954,10 +954,12 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private async _acceptStreamingEditsStart(): Promise<void> {
-		this._state.set(ChatEditingSessionState.StreamingEdits, undefined);
-		for (const entry of this._entriesObs.get()) {
-			entry.acceptStreamingEditsStart();
-		}
+		transaction((tx) => {
+			this._state.set(ChatEditingSessionState.StreamingEdits, tx);
+			for (const entry of this._entriesObs.get()) {
+				entry.acceptStreamingEditsStart(tx);
+			}
+		});
 	}
 
 	private async _acceptTextEdits(resource: URI, textEdits: TextEdit[], responseModel: IChatResponseModel): Promise<void> {
@@ -990,10 +992,12 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private async _resolve(): Promise<void> {
-		for (const entry of this._entriesObs.get()) {
-			entry.acceptStreamingEditsEnd();
-		}
-		this._state.set(ChatEditingSessionState.Idle, undefined);
+		transaction((tx) => {
+			for (const entry of this._entriesObs.get()) {
+				entry.acceptStreamingEditsEnd(tx);
+			}
+			this._state.set(ChatEditingSessionState.Idle, tx);
+		});
 		this._onDidChange.fire();
 	}
 
@@ -1156,12 +1160,12 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this._setDocValue(value);
 	}
 
-	acceptStreamingEditsStart() {
-		this._isCurrentlyBeingModifiedObs.set(false, undefined);
+	acceptStreamingEditsStart(tx: ITransaction) {
+		this._isCurrentlyBeingModifiedObs.set(false, tx);
 	}
 
-	acceptStreamingEditsEnd() {
-		this._isCurrentlyBeingModifiedObs.set(false, undefined);
+	acceptStreamingEditsEnd(tx: ITransaction) {
+		this._isCurrentlyBeingModifiedObs.set(false, tx);
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
@@ -1245,7 +1249,10 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			this._isApplyingEdits = false;
 		}
 
-		this._stateObs.set(WorkingSetEntryState.Modified, undefined);
+		transaction((tx) => {
+			this._stateObs.set(WorkingSetEntryState.Modified, tx);
+			this._isCurrentlyBeingModifiedObs.set(true, tx);
+		});
 
 		// trigger diff computation but only at first, when done, or when last
 		const myDiffOperationId = ++this._diffOperationIds;
@@ -1255,7 +1262,6 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 			}
 		});
 
-		this._isCurrentlyBeingModifiedObs.set(true, undefined);
 	}
 
 	private async _updateDiffInfo(): Promise<void> {
