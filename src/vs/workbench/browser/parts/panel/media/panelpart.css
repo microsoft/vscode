@@ -11,7 +11,6 @@
 .monaco-workbench .part.panel.bottom .composite.title {
 	border-top-width: 1px;
 	border-top-style: solid;
-	box-sizing: content-box;
 }
 
 .monaco-workbench.nomaineditorarea .part.panel.bottom .composite.title {
