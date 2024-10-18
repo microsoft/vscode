@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Codicon } from '../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { derived, IObservable, ITransaction, observableValue, runOnChange, transaction, ValueWithChangeEventFromObservable } from '../../../../base/common/observable.js';
 import { compare } from '../../../../base/common/strings.js';
@@ -1084,7 +1084,7 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this._diffInfo;
 	}
 
-	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 500));
+	private readonly _editDecorationClear = this._register(new RunOnceScheduler(() => { this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []); }, 3000));
 	private _editDecorations: string[] = [];
 
 	private static readonly _editDecorationOptions = ModelDecorationOptions.register({
@@ -1135,6 +1135,14 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		this._register(resourceRef);
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+
+		this._register(toDisposable(() => {
+			this._clearCurrentEditLineDecoration();
+		}));
+	}
+
+	private _clearCurrentEditLineDecoration() {
+		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []);
 	}
 
 	createSnapshot(requestId: string | undefined): ISnapshotEntry {
@@ -1162,10 +1170,12 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	acceptStreamingEditsStart(tx: ITransaction) {
 		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._clearCurrentEditLineDecoration();
 	}
 
 	acceptStreamingEditsEnd(tx: ITransaction) {
 		this._isCurrentlyBeingModifiedObs.set(false, tx);
+		this._clearCurrentEditLineDecoration();
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
