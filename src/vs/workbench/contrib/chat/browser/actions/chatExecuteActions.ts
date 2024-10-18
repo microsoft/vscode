@@ -74,7 +74,7 @@ export class SubmitAction extends Action2 {
 }
 
 class SubmitWithoutDispatchingAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.submitWithoutDispatch';
+	static readonly ID = 'workbench.action.chat.submitWithoutDispatching';
 
 	constructor() {
 		super({
