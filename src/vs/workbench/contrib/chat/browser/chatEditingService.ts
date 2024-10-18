@@ -155,13 +155,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return null;
 	}
 
-	async addFileToWorkingSet(resource: URI): Promise<void> {
-		const session = this._currentSessionObs.get();
-		if (session) {
-			session.addFileToWorkingSet(resource);
-		}
-	}
-
 	override dispose(): void {
 		this._currentSessionObs.get()?.dispose();
 		super.dispose();

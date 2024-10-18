@@ -12,6 +12,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -977,15 +978,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const attachedContext = this.inputPart.getAttachedAndImplicitContext();
-			const workingSet: URI[] = [];
+			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
+				const uniqueWorkingSetEntries = new ResourceSet();
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
 				if (currentEditingSession?.workingSet) {
 					for (const [file, _] of currentEditingSession?.workingSet) {
 						attachedContext.push(this.attachmentModel.asVariableEntry(file));
-						workingSet.push(file);
+						uniqueWorkingSetEntries.add(file);
 					}
 				}
+				// Collect file variables from previous requests before sending the request
+				const previousRequests = this.viewModel.model.getRequests();
+				for (const request of previousRequests) {
+					for (const variable of request.variableData.variables) {
+						if (!URI.isUri(variable.value) || !variable.isFile) {
+							continue;
+						}
+						const uri = variable.value;
+						if (!attachedContext.find((context) => URI.isUri(context.value) && context.value.toString() === uri.toString())) {
+							attachedContext.push(variable);
+							uniqueWorkingSetEntries.add(variable.value);
+						}
+					}
+				}
+				workingSet = [...uniqueWorkingSetEntries.values()];
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {

@@ -318,7 +318,7 @@ registerAction2(class AddFilesToWorkingSetAction extends Action2 {
 		}
 
 		for (const file of uris) {
-			await chatEditingService?.addFileToWorkingSet(file);
+			chatEditingService?.currentEditingSessionObs.get()?.addFileToWorkingSet(file);
 		}
 	}
 });

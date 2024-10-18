@@ -60,7 +60,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
 				} else if (part instanceof ChatRequestToolPart) {
 					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
