@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-custom-toggle {
+	--vscode-monaco-toggle-border-radius: 3px;
 	margin-left: 2px;
 	float: left;
 	cursor: pointer;
 	overflow: hidden;
 	width: 20px;
 	height: 20px;
-	border-radius: 3px;
+	border-radius: var(--vscode-monaco-toggle-border-radius);
 	border: 1px solid transparent;
 	padding: 1px;
 	box-sizing:	border-box;
@@ -41,7 +42,7 @@
 	height: 18px;
 	width: 18px;
 	border: 1px solid transparent;
-	border-radius: 3px;
+	border-radius: var(--vscode-monaco-toggle-border-radius);
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;
