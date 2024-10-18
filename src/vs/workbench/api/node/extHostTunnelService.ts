@@ -105,7 +105,7 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 }
 
 function knownExcludeCmdline(command: string): boolean {
-	if (command.length > 100) {
+	if (command.length > 500) {
 		return false;
 	}
 	return !!command.match(/.*\.vscode-server-[a-zA-Z]+\/bin.*/)
