@@ -216,7 +216,10 @@ export function registerChatTitleActions() {
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const shouldPrompt = configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
+
+				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
+				const didLastRequestModifyWorkingSet = chatEditingService.currentEditingSessionObs.get()?.entries.get().find((entry) => entry.lastModifyingRequestId === item.requestId);
+				const shouldPrompt = didLastRequestModifyWorkingSet && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({
 						title: localize('chat.retryLast.confirmation.title', "Do you want to retry your last edit?"),

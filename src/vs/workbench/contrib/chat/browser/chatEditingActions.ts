@@ -433,7 +433,10 @@ registerAction2(class RemoveAction extends Action2 {
 			const itemIndex = chatRequests.findIndex(request => request.id === requestId);
 			const editsToUndo = chatRequests.length - itemIndex;
 
-			const shouldPrompt = configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+			const requestsToRemove = chatRequests.slice(itemIndex);
+			const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+			const didRemovedRequestsModifyWorkingSet = chatEditingService.currentEditingSessionObs.get()?.entries.get().find((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId));
+			const shouldPrompt = didRemovedRequestsModifyWorkingSet && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
 
 			const confirmation = shouldPrompt
 				? await dialogService.confirm({
@@ -462,7 +465,7 @@ registerAction2(class RemoveAction extends Action2 {
 			await chatEditingService.restoreSnapshot(snapshotRequestId);
 
 			// Remove the request and all that come after it
-			for (const request of chatRequests.slice(itemIndex)) {
+			for (const request of requestsToRemove) {
 				await chatService.removeRequest(item.sessionId, request.id);
 			}
 		}

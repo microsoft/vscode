@@ -75,6 +75,7 @@ export interface IModifiedFileEntry {
 	readonly state: IObservable<WorkingSetEntryState>;
 	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
+	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 }

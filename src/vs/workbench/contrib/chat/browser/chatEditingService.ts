@@ -1107,6 +1107,10 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		return this._telemetryInfo;
 	}
 
+	get lastModifyingRequestId() {
+		return this._telemetryInfo.requestId;
+	}
+
 	constructor(
 		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel>,
