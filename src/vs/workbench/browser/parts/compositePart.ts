@@ -437,8 +437,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			updateStyles: () => {
 				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) || '' : '';
-				const border = $this.titleBorderColor ? $this.getColor($this.titleBorderColor) : undefined;
-				parent.style.borderBottom = border ? `1px solid ${border}` : '';
+				const borderColor = $this.titleBorderColor ? $this.getColor($this.titleBorderColor) : undefined;
+				parent.style.borderBottom = borderColor ? `1px solid ${borderColor}` : '';
 			}
 		};
 	}
