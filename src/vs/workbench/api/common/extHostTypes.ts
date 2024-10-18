@@ -4642,10 +4642,10 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 }
 
 export class LanguageModelPromptTsxPart {
-	value: string;
+	value: unknown;
 	mime: string;
 
-	constructor(value: string, mime: string) {
+	constructor(value: unknown, mime: string) {
 		this.value = value;
 		this.mime = mime;
 	}

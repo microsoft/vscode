@@ -54,6 +54,8 @@ import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
+import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
+import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
 
 export namespace Command {
 
@@ -2349,7 +2351,14 @@ export namespace LanguageModelChatMessage {
 			if (c.type === 'text') {
 				return c.value;
 			} else if (c.type === 'tool_result') {
-				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
+				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
+					if (part.type === 'text') {
+						return new types.LanguageModelTextPart(part.value);
+					} else {
+						return new types.LanguageModelPromptTsxPart(part.value, part.mime);
+					}
+				});
+				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else {
 				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
 			}
@@ -2371,7 +2380,23 @@ export namespace LanguageModelChatMessage {
 				return {
 					type: 'tool_result',
 					toolCallId: c.callId,
-					value: c.content,
+					value: coalesce(c.content.map(part => {
+						if (part instanceof types.LanguageModelTextPart) {
+							return {
+								type: 'text',
+								value: part.value
+							} satisfies IChatResponseTextPart;
+						} else if (part instanceof types.LanguageModelPromptTsxPart) {
+							return {
+								type: 'prompt_tsx',
+								value: part.value,
+								mime: part.mime
+							} satisfies IChatResponsePromptTsxPart;
+						} else {
+							// Strip unknown parts
+							return undefined;
+						}
+					})),
 					isError: c.isError
 				};
 			} else if (c instanceof types.LanguageModelToolCallPart) {
