@@ -125,6 +125,7 @@ export class InlineEditsView extends Disposable {
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
+			zIndex: '100', // over minimap
 		},
 	}, [
 		h('div.editorContainer@editorContainer', { style: { position: 'absolute' } }, [
@@ -217,7 +218,9 @@ export class InlineEditsView extends Disposable {
 		const diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
 
 		const originalDisplayRange = edit.originalText.lineRange.intersect(
-			LineRange.ofLength(edit.originalLineRange.startLineNumber - 1, edit.lineEdit.newLines.length + 2)
+			edit.originalLineRange.join(
+				LineRange.ofLength(edit.originalLineRange.startLineNumber, edit.lineEdit.newLines.length)
+			)
 		)!;
 
 		let state: 'collapsed' | 'inline' | 'sideBySide' = 'sideBySide';
