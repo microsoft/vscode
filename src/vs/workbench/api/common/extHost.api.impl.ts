@@ -1503,6 +1503,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.tools;
 			},
+			fileIsIgnored(uri: vscode.Uri, token: vscode.CancellationToken) {
+				return extHostLanguageModels.fileIsIgnored(extension, uri, token);
+			},
+			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
+				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
+			}
 		};
 
 		// namespace: speech

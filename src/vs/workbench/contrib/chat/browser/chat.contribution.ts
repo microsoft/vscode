@@ -76,6 +76,7 @@ import './contrib/chatInputEditorHover.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeContributions.js';
+import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 
 
 // Register configuration
@@ -335,3 +336,4 @@ registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProv
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
+registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
