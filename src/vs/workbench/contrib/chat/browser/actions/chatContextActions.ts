@@ -525,7 +525,6 @@ export class AttachContextAction extends Action2 {
 				id: 'symbol'
 			});
 
-
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',
