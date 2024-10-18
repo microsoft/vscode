@@ -9,16 +9,20 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { localize } from '../../../../nls.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 
 export class ChatImageDropAndPaste extends Disposable {
 
 	constructor(
 		private readonly inputPart: ChatInputPart,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this._register(this.inputPart.inputEditor.onDidPaste((e) => {
-			this._handlePaste();
+			if (this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+				this._handlePaste();
+			}
 		}));
 	}
 

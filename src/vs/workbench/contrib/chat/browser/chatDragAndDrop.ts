@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { containsDragType, extractEditorsDropData, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { IChatWidgetStyles } from './chatWidget.js';
@@ -33,7 +34,8 @@ export class ChatDragAndDrop extends Themable {
 		private readonly contianer: HTMLElement,
 		private readonly inputPart: ChatInputPart,
 		private readonly styles: IChatWidgetStyles,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(themeService);
 
@@ -140,7 +142,7 @@ export class ChatDragAndDrop extends Themable {
 	private guessDropType(e: DragEvent): ChatDragAndDropType | undefined {
 		// This is an esstimation based on the datatransfer types/items
 		if (this.isImageDnd(e)) {
-			return ChatDragAndDropType.IMAGE;
+			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? ChatDragAndDropType.IMAGE : undefined;
 		} else if (containsDragType(e, DataTransfers.FILES, DataTransfers.INTERNAL_URI_LIST)) {
 			return ChatDragAndDropType.FILE;
 		}
@@ -176,7 +178,7 @@ export class ChatDragAndDrop extends Themable {
 		// Image
 		const imageContext = getImageAttachContext(editorInput);
 		if (imageContext) {
-			return imageContext;
+			return this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData')) ? imageContext : undefined;
 		}
 
 		// File

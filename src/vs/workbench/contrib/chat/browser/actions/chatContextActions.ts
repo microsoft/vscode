@@ -27,6 +27,7 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -427,6 +428,7 @@ export class AttachContextAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
 		const hostService = accessor.get(IHostService);
+		const extensionService = accessor.get(IExtensionService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -451,13 +453,25 @@ export class AttachContextAction extends Action2 {
 				}
 			}
 
-			const imageData = await clipboardService.readImage();
-			if (isImage(imageData)) {
+			if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
+				const imageData = await clipboardService.readImage();
+				if (isImage(imageData)) {
+					quickPickItems.push({
+						kind: 'image',
+						id: await imageToHash(imageData),
+						label: localize('imageFromClipboard', 'Image from Clipboard'),
+						iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+					});
+				}
+
 				quickPickItems.push({
-					kind: 'image',
-					id: await imageToHash(imageData),
-					label: localize('imageFromClipboard', 'Image from Clipboard'),
-					iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
+					kind: 'screenshot',
+					id: ScreenshotVariableId,
+					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+					label: (isElectron
+						? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
+						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
 				});
 			}
 
@@ -511,15 +525,6 @@ export class AttachContextAction extends Action2 {
 				id: 'symbol'
 			});
 
-			quickPickItems.push({
-				kind: 'screenshot',
-				id: ScreenshotVariableId,
-				icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
-				iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-				label: (isElectron
-					? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
-					: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
-			});
 
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
