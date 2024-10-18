@@ -286,6 +286,17 @@ suite('SnippetParser', () => {
 		});
 	});
 
+	test('Parser, placeholder with choice; for $0 (#150745)', () => {
+		const p = new SnippetParser();
+		const snippet = p.parse('${0|one,two,three|}');
+		assertMarker(snippet, Placeholder);
+		const expected = [Placeholder, Text, Text, Text];
+		snippet.walk(marker => {
+			assert.strictEqual(marker, expected.shift());
+			return true;
+		});
+	});
+
 	test('Snippet choices: unable to escape comma and pipe, #31521', function () {
 		assertTextAndMarker('console.log(${1|not\\, not, five, 5, 1   23|});', 'console.log(not, not);', Text, Placeholder, Text);
 	});
@@ -644,12 +655,6 @@ suite('SnippetParser', () => {
 			return true;
 		});
 	});
-
-	test('Snippets: make parser ignore `${0|choice|}`, #31599', function () {
-		assertTextAndMarker('${0|foo,bar|}', '${0|foo,bar|}', Text);
-		assertTextAndMarker('${1|foo,bar|}', 'foo', Placeholder);
-	});
-
 
 	test('Transform -> FormatString#resolve', function () {
 
