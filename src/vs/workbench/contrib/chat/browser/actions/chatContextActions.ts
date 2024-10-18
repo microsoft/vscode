@@ -20,7 +20,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -28,6 +27,7 @@ import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/q
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -423,12 +423,12 @@ export class AttachContextAction extends Action2 {
 		const languageModelToolsService = accessor.get(ILanguageModelToolsService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const clipboardService = accessor.get(IClipboardService);
-		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 		const labelService = accessor.get(ILabelService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		const viewsService = accessor.get(IViewsService);
 		const hostService = accessor.get(IHostService);
+		const extensionService = accessor.get(IExtensionService);
 
 		const context: { widget?: IChatWidget; showFilesOnly?: boolean; placeholder?: string } | undefined = args[0];
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
@@ -453,7 +453,7 @@ export class AttachContextAction extends Action2 {
 				}
 			}
 
-			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+			if (extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
 				const imageData = await clipboardService.readImage();
 				if (isImage(imageData)) {
 					quickPickItems.push({
@@ -463,6 +463,16 @@ export class AttachContextAction extends Action2 {
 						iconClass: ThemeIcon.asClassName(Codicon.fileMedia),
 					});
 				}
+
+				quickPickItems.push({
+					kind: 'screenshot',
+					id: ScreenshotVariableId,
+					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
+					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
+					label: (isElectron
+						? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
+						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
+				});
 			}
 
 			if (widget.viewModel?.sessionId) {
@@ -514,17 +524,7 @@ export class AttachContextAction extends Action2 {
 				prefix: SymbolsQuickAccessProvider.PREFIX,
 				id: 'symbol'
 			});
-			if (configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-				quickPickItems.push({
-					kind: 'screenshot',
-					id: ScreenshotVariableId,
-					icon: ThemeIcon.fromId(Codicon.deviceCamera.id),
-					iconClass: ThemeIcon.asClassName(Codicon.deviceCamera),
-					label: (isElectron
-						? localize('chatContext.attachScreenshot.labelElectron.Window', 'Screenshot Window')
-						: localize('chatContext.attachScreenshot.labelWeb', 'Screenshot')),
-				});
-			}
+
 			if (widget.location === ChatAgentLocation.Notebook) {
 				quickPickItems.push({
 					kind: 'command',
