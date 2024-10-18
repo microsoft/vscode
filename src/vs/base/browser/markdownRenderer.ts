@@ -454,7 +454,14 @@ function sanitizeRenderedMarkdown(
 					fragment.appendChild(endTagTextNode);
 				}
 
-				element.parentElement.replaceChild(fragment, element);
+				if (element.nodeType === Node.COMMENT_NODE) {
+					// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+					// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+					// an exception. Instead we insert the text node before the comment.
+					element.parentElement.insertBefore(fragment, element);
+				} else {
+					element.parentElement.replaceChild(fragment, element);
+				}
 			}
 		}
 	}));
