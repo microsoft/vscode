@@ -433,16 +433,32 @@ registerAction2(class RemoveAction extends Action2 {
 			const itemIndex = chatRequests.findIndex(request => request.id === requestId);
 			const editsToUndo = chatRequests.length - itemIndex;
 
-			const shouldPrompt = configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+			const requestsToRemove = chatRequests.slice(itemIndex);
+			const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+			const entriesModifiedInRequestsToRemove = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+			const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+
+			let message: string;
+			if (editsToUndo === 1) {
+				if (entriesModifiedInRequestsToRemove.length === 1) {
+					message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+				} else {
+					message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+				}
+			} else {
+				if (entriesModifiedInRequestsToRemove.length === 1) {
+					message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+				} else {
+					message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+				}
+			}
 
 			const confirmation = shouldPrompt
 				? await dialogService.confirm({
 					title: editsToUndo === 1
 						? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
 						: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
-					message: editsToUndo === 1
-						? localize('chat.removeLast.confirmation.message', "This will remove your last request and undo the edits it made to your working set.")
-						: localize('chat.remove.confirmation.message', "This will remove all subsequent requests and undo the edits they made to your working set."),
+					message: message,
 					primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
 					checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
 					type: 'info'
@@ -462,7 +478,7 @@ registerAction2(class RemoveAction extends Action2 {
 			await chatEditingService.restoreSnapshot(snapshotRequestId);
 
 			// Remove the request and all that come after it
-			for (const request of chatRequests.slice(itemIndex)) {
+			for (const request of requestsToRemove) {
 				await chatService.removeRequest(item.sessionId, request.id);
 			}
 		}

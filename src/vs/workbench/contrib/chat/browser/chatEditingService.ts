@@ -999,6 +999,9 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private async _getOrCreateModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo): Promise<ModifiedFileEntry> {
 		const existingEntry = this._entriesObs.get().find(e => e.resource.toString() === resource.toString());
 		if (existingEntry) {
+			if (responseModel.requestId !== existingEntry.telemetryInfo.requestId) {
+				existingEntry.updateTelemetryInfo(responseModel);
+			}
 			return existingEntry;
 		}
 
@@ -1093,11 +1096,19 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 		},
 	});
 
+	get telemetryInfo(): IModifiedEntryTelemetryInfo {
+		return this._telemetryInfo;
+	}
+
+	get lastModifyingRequestId() {
+		return this._telemetryInfo.requestId;
+	}
+
 	constructor(
 		public readonly resource: URI,
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
-		private readonly _telemetryInfo: IModifiedEntryTelemetryInfo,
+		private _telemetryInfo: IModifiedEntryTelemetryInfo,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -1138,6 +1149,10 @@ class ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 
 	private _clearCurrentEditLineDecoration() {
 		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, []);
+	}
+
+	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo) {
+		this._telemetryInfo = telemetryInfo;
 	}
 
 	createSnapshot(requestId: string | undefined): ISnapshotEntry {
