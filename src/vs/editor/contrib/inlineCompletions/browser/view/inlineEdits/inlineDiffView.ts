@@ -83,7 +83,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 						originalDecorations.push({
 							range: i.originalRange, options: {
 								description: 'char-delete',
-								shouldFillLineOnLineBreak: true,
+								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'char-delete',
 									(i.originalRange.isEmpty() && showEmptyDecorations) && 'diff-range-empty'
