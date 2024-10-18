@@ -620,7 +620,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 		@IBulkEditService public readonly _bulkEditService: IBulkEditService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IFileDialogService private readonly _dialogService: IFileDialogService,
@@ -628,7 +628,7 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	) {
 		super();
 
-		const widget = chatWidgetService.getWidgetBySessionId(chatSessionId);
+		const widget = _chatWidgetService.getWidgetBySessionId(chatSessionId);
 		if (!widget) {
 			return; // Shouldn't happen
 		}
@@ -644,7 +644,9 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
-		if (this._entriesObs.get().length === 0) {
+		const widget = this._chatWidgetService.getWidgetBySessionId(this.chatSessionId);
+		const requests = widget?.viewModel?.getItems();
+		if (requests && requests.length > 0) {
 			return;
 		}
 
