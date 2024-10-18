@@ -1253,6 +1253,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		const models = this._languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ id: modelId, model: this._languageModelsService.lookupLanguageModel(modelId)! }))
 			.filter(entry => entry.model?.isUserSelectable);
+		models.sort((a, b) => a.model.name.localeCompare(b.model.name));
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => this.element!,
 			getActions: () => models.map(entry => setLanguageModelAction(entry.id, entry.model)),
