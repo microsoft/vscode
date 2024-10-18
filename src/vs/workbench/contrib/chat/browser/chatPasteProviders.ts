@@ -16,7 +16,6 @@ import { IChatWidgetService } from './chat.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
@@ -24,15 +23,10 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 	public readonly pasteMimeTypes = ['image/*'];
 	constructor(
-		private readonly chatWidgetService: IChatWidgetService,
-		private readonly configurationService: IConfigurationService
+		private readonly chatWidgetService: IChatWidgetService
 	) { }
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (!this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
-			return;
-		}
-
 		const supportedMimeTypes = [
 			'image/png',
 			'image/jpeg',
@@ -139,10 +133,9 @@ export function isImage(array: Uint8Array): boolean {
 export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IChatWidgetService chatWidgetService: IChatWidgetService
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, configurationService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService)));
 	}
 }
