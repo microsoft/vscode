@@ -18,6 +18,8 @@ import { IAuthenticationAccessService } from '../../services/authentication/brow
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { URI } from '../../../base/common/uri.js';
+import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
@@ -26,6 +28,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
 	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment> }>();
+	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -34,7 +37,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
-		@IExtensionService private readonly _extensionService: IExtensionService
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILanguageModelIgnoredFilesService private readonly _ignoredFilesService: ILanguageModelIgnoredFilesService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
 		this._proxy.$acceptChatModelMetadata({ added: _chatProviderService.getLanguageModelIds().map(id => ({ identifier: id, metadata: _chatProviderService.lookupLanguageModel(id)! })) });
@@ -43,6 +47,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 
 	dispose(): void {
 		this._providerRegistrations.dispose();
+		this._ignoredFileProviderRegistrations.dispose();
 		this._store.dispose();
 	}
 
@@ -182,6 +187,20 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			this._proxy.$updateModelAccesslist(accessList);
 		}));
 		return disposables;
+	}
+
+	$fileIsIgnored(uri: URI, token: CancellationToken): Promise<boolean> {
+		return this._ignoredFilesService.fileIsIgnored(uri, token);
+	}
+
+	$registerFileIgnoreProvider(handle: number): void {
+		this._ignoredFileProviderRegistrations.set(handle, this._ignoredFilesService.registerIgnoredFileProvider({
+			isFileIgnored: async (uri: URI, token: CancellationToken) => this._proxy.$isFileIgnored(handle, uri, token)
+		}));
+	}
+
+	$unregisterFileIgnoreProvider(handle: number): void {
+		this._ignoredFileProviderRegistrations.deleteAndDispose(handle);
 	}
 }
 
