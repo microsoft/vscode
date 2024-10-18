@@ -926,7 +926,7 @@ export class CommandExecutor {
 				} else {
 					// Try to lock it with surrounding text
 					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
-					if (selection.startColumn === maxLineColumn) {
+					if (selection.startColumn >= maxLineColumn) {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
 						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
