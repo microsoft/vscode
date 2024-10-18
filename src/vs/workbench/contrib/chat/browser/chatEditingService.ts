@@ -583,7 +583,14 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private _workingSet = new ResourceMap<WorkingSetEntryState>();
 	get workingSet() {
 		this._assertNotDisposed();
-		return this._workingSet;
+
+		// Return here a reunion between the AI modified entries and the user built working set
+		const result = new ResourceMap<WorkingSetEntryState>(this._workingSet);
+		for (const entry of this._entriesObs.get()) {
+			result.set(entry.modifiedURI, entry.state.get());
+		}
+
+		return result;
 	}
 
 	get state(): IObservable<ChatEditingSessionState> {
