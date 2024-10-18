@@ -182,7 +182,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 					order: 1,
 					// Show the option to save without accepting if the user has autosave
 					// and also hasn't configured the setting to always save with generated changes
-					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.files.autoSave', 'none'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.files.autoSave', 'off'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
 				}
 			],
 		});
