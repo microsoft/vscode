@@ -634,6 +634,10 @@ class ChatEditingSession extends Disposable implements IChatEditingSession {
 	}
 
 	private _trackCurrentEditorsInWorkingSet(e?: IEditorCloseEvent) {
+		if (this._entriesObs.get().length === 0) {
+			return;
+		}
+
 		const closedEditor = e?.editor.resource?.toString();
 
 		const existingTransientEntries = new ResourceSet();

@@ -24,6 +24,10 @@
 	-webkit-user-select: text;
 }
 
+.interactive-item-container.disabled {
+	filter: blur(2px);
+}
+
 .interactive-item-container .header {
 	display: flex;
 	align-items: center;
@@ -489,8 +493,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session {
 	margin-bottom: -4px;
-	width: calc(100% - 6px);
-	padding: 0 3px;
+	width: 100%;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container {
@@ -1024,7 +1027,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	background-color: rgba(128, 128, 128, 0.2);
+	background-color: rgba(64, 64, 64, 0.2);
 	pointer-events: none;
 	display: flex;
 	cursor: default;

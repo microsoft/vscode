@@ -287,7 +287,8 @@ export class InlineCompletionsModel extends Disposable {
 			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
-			const currentItemIsCollapsed = cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId;
+			const disableCollapsing = true;
+			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
 			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed), inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
 
@@ -345,6 +346,11 @@ export class InlineCompletionsModel extends Disposable {
 		const s = this.state.read(reader);
 		if (!s || s.kind !== 'inlineEdit') { return undefined; }
 		return s;
+	});
+
+	public readonly inlineEditAvailable = derived(reader => {
+		const s = this.inlineEditState.read(reader);
+		return !!s;
 	});
 
 	private _computeAugmentation(suggestCompletion: SingleTextEdit, reader: IReader | undefined) {
