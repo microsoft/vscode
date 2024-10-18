@@ -4585,12 +4585,12 @@ export enum LanguageModelChatMessageRole {
 
 export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
-	toolCallId: string;
-	content: string;
+	callId: string;
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 	isError: boolean;
 
-	constructor(toolCallId: string, content: string, isError?: boolean) {
-		this.toolCallId = toolCallId;
+	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[], isError?: boolean) {
+		this.callId = callId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
@@ -4623,12 +4623,12 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	name: string;
-	toolCallId: string;
+	callId: string;
 	parameters: any;
 
 	constructor(name: string, toolCallId: string, parameters: any) {
 		this.name = name;
-		this.toolCallId = toolCallId;
+		this.callId = toolCallId;
 		this.parameters = parameters;
 	}
 }
@@ -4638,7 +4638,16 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 
 	constructor(value: string) {
 		this.value = value;
+	}
+}
 
+export class LanguageModelPromptTsxPart {
+	value: unknown;
+	mime: string;
+
+	constructor(value: unknown, mime: string) {
+		this.value = value;
+		this.mime = mime;
 	}
 }
 
@@ -4701,6 +4710,15 @@ export class LanguageModelError extends Error {
 		this.code = code ?? '';
 	}
 
+}
+
+export class LanguageModelToolResult {
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+}
+
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2
 }
 
 //#endregion

@@ -39,7 +39,7 @@ import { IViewBadge } from '../../common/views.js';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatModel.js';
 import { IChatAgentDetection, IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatProgressMessage, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IToolData } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolData, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
 import * as notebooks from '../../contrib/notebook/common/notebookCommon.js';
@@ -54,6 +54,8 @@ import * as extHostProtocol from './extHost.protocol.js';
 import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
+import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
+import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
 
 export namespace Command {
 
@@ -2349,7 +2351,14 @@ export namespace LanguageModelChatMessage {
 			if (c.type === 'text') {
 				return c.value;
 			} else if (c.type === 'tool_result') {
-				return new types.LanguageModelToolResultPart(c.toolCallId, c.value, c.isError);
+				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
+					if (part.type === 'text') {
+						return new types.LanguageModelTextPart(part.value);
+					} else {
+						return new types.LanguageModelPromptTsxPart(part.value, part.mime);
+					}
+				});
+				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else {
 				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
 			}
@@ -2370,14 +2379,30 @@ export namespace LanguageModelChatMessage {
 			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',
-					toolCallId: c.toolCallId,
-					value: c.content,
+					toolCallId: c.callId,
+					value: coalesce(c.content.map(part => {
+						if (part instanceof types.LanguageModelTextPart) {
+							return {
+								type: 'text',
+								value: part.value
+							} satisfies IChatResponseTextPart;
+						} else if (part instanceof types.LanguageModelPromptTsxPart) {
+							return {
+								type: 'prompt_tsx',
+								value: part.value,
+								mime: part.mime
+							} satisfies IChatResponsePromptTsxPart;
+						} else {
+							// Strip unknown parts
+							return undefined;
+						}
+					})),
 					isError: c.isError
 				};
 			} else if (c instanceof types.LanguageModelToolCallPart) {
 				return {
 					type: 'tool_use',
-					toolCallId: c.toolCallId,
+					toolCallId: c.callId,
 					name: c.name,
 					parameters: c.parameters
 				};
@@ -2809,7 +2834,7 @@ export namespace ChatLanguageModelToolReference {
 		}
 
 		return {
-			id: variable.id,
+			name: variable.id,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
 	}
@@ -2925,14 +2950,46 @@ export namespace DebugTreeItem {
 }
 
 export namespace LanguageModelToolDescription {
-	export function to(item: IToolData): vscode.LanguageModelToolDescription {
+	export function to(item: IToolData): vscode.LanguageModelToolInformation {
 		return {
 			// Note- the reason this is a unique 'name' is just to avoid confusion with the toolCallId
 			name: item.id,
 			description: item.modelDescription,
 			parametersSchema: item.parametersSchema,
-			supportedContentTypes: item.supportedContentTypes,
 			tags: item.tags ?? [],
+		};
+	}
+}
+
+export namespace LanguageModelToolResult {
+	export function to(result: IToolResult): vscode.LanguageModelToolResult {
+		return new types.LanguageModelToolResult(result.content.map(item => {
+			if (item.kind === 'text') {
+				return new types.LanguageModelTextPart(item.value);
+			} else {
+				return new types.LanguageModelPromptTsxPart(item.value, item.mime);
+			}
+		}));
+	}
+
+	export function from(result: vscode.LanguageModelToolResult): IToolResult {
+		return {
+			content: result.content.map(item => {
+				if (item instanceof types.LanguageModelTextPart) {
+					return {
+						kind: 'text',
+						value: item.value
+					};
+				} else if (item instanceof types.LanguageModelPromptTsxPart) {
+					return {
+						kind: 'promptTsx',
+						value: item.value,
+						mime: item.mime
+					};
+				} else {
+					throw new Error('Unknown LanguageModelToolResult part type');
+				}
+			})
 		};
 	}
 }
