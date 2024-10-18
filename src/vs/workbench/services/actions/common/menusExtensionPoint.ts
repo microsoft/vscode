@@ -394,13 +394,6 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
-		key: 'editor/inlineEdit/actions',
-		id: MenuId.InlineEditActions,
-		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
-		supportsSubmenus: false,
-		proposed: 'inlineEdit'
-	},
-	{
 		key: 'editor/content',
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),

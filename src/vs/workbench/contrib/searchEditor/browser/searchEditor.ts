@@ -43,9 +43,9 @@ import { ExcludePatternInputWidget, IncludePatternInputWidget } from '../../sear
 import { SearchWidget } from '../../search/browser/searchWidget.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
 import { getOutOfWorkspaceEditorResources } from '../../search/common/search.js';
-import { SearchModel, SearchResult } from '../../search/browser/searchModel.js';
-import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId } from './constants.js';
-import type { SearchConfiguration, SearchEditorInput } from './searchEditorInput.js';
+import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchModel.js';
+import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
+import type { SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -64,6 +64,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { SearchContext } from '../../search/common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -92,7 +93,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private searchHistoryDelayer: Delayer<void>;
 	private readonly messageDisposables: DisposableStore;
 	private container: HTMLElement;
-	private searchModel: SearchModel;
+	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
 	private updatingModelForSearch: boolean = false;
 
@@ -126,7 +127,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.searchHistoryDelayer = new Delayer<void>(2000);
 
-		this.searchModel = this._register(this.instantiationService.createInstance(SearchModel));
+		this.searchModel = this._register(this.instantiationService.createInstance(SearchModelImpl));
 	}
 
 	protected override createEditor(parent: HTMLElement) {
@@ -655,7 +656,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		DOM.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerSearch()));
 	}
 
-	private async retrieveFileStats(searchResult: SearchResult): Promise<void> {
+	private async retrieveFileStats(searchResult: ISearchResult): Promise<void> {
 		const files = searchResult.matches().filter(f => !f.fileStat).map(f => f.resolveFileStat(this.fileService));
 		await Promise.all(files);
 	}

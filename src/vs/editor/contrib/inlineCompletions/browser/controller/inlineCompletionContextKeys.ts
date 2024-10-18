@@ -39,13 +39,13 @@ export class InlineCompletionContextKeys extends Disposable {
 		this._register(bindContextKey(
 			InlineCompletionContextKeys.inlineEditVisible,
 			this.contextKeyService,
-			reader => this.model.read(reader)?.stateInlineEdit.read(reader) !== undefined
+			reader => this.model.read(reader)?.inlineEditState.read(reader) !== undefined
 		));
 
 		this._register(autorun(reader => {
 			/** @description update context key: inlineCompletionVisible, suppressSuggestions */
 			const model = this.model.read(reader);
-			const state = model?.state.read(reader);
+			const state = model?.inlineCompletionState.read(reader);
 
 			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
 			this.inlineCompletionVisible.set(isInlineCompletionVisible);

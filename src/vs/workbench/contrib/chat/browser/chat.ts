@@ -35,6 +35,10 @@ export interface IChatWidgetService {
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
+	readonly onDidAddWidget: Event<IChatWidget>;
+
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
+
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 	getWidgetByLocation(location: ChatAgentLocation): IChatWidget[];
@@ -112,6 +116,7 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	autoScroll?: boolean;
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';

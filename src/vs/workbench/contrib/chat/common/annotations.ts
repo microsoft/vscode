@@ -6,58 +6,52 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from './chatModel.js';
 import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from './chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export type ContentRefData =
-	| { readonly kind: 'symbol'; readonly symbol: IWorkspaceSymbol }
-	| {
-		readonly kind?: undefined;
-		readonly uri: URI;
-		readonly range?: IRange;
-	};
+export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+	let refIdPool = 0;
 
-export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
-		const previousItem = result[result.length - 1];
+		const previousItem = result.filter(p => p.kind !== 'textEditGroup').at(-1);
+		const previousItemIndex = result.findIndex(p => p === previousItem);
 		if (item.kind === 'inlineReference') {
-			const location: ContentRefData = 'uri' in item.inlineReference
-				? item.inlineReference
-				: 'name' in item.inlineReference
-					? { kind: 'symbol', symbol: item.inlineReference }
-					: { uri: item.inlineReference };
-
-			const printUri = URI.parse(contentRefUrl).with({ fragment: JSON.stringify(location) });
 			let label: string | undefined = item.name;
 			if (!label) {
-				if (location.kind === 'symbol') {
-					label = location.symbol.name;
+				if (URI.isUri(item.inlineReference)) {
+					label = basename(item.inlineReference);
+				} else if ('name' in item.inlineReference) {
+					label = item.inlineReference.name;
 				} else {
-					label = basename(location.uri);
+					label = basename(item.inlineReference.uri);
 				}
 			}
 
+			const refId = refIdPool++;
+			const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
 			const markdownText = `[${label}](${printUri.toString()})`;
+
+			const annotationMetadata = { [refId]: item };
+
 			if (previousItem?.kind === 'markdownContent') {
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+				result[previousItemIndex] = { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } };
 			} else {
-				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
+				result.push({ content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' });
 			}
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
 			const merged = appendMarkdownString(previousItem.content, item.content);
-			result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+			result[previousItemIndex] = { ...previousItem, content: merged };
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
 			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
 				// Since this is inside a codeblock, it needs to be merged into the previous markdown content.
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+				result[previousItemIndex] = { ...previousItem, content: merged };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
@@ -65,7 +59,7 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			if (previousItem?.kind === 'markdownContent') {
 				const markdownText = `<vscode_codeblock_uri>${item.uri.toString()}</vscode_codeblock_uri>`;
 				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
+				result[previousItemIndex] = { ...previousItem, content: merged };
 			}
 		} else {
 			result.push(item);

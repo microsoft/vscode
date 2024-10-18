@@ -68,6 +68,15 @@ export class TextAreaState {
 		return new TextAreaState(this.value, this.value.length, this.value.length, null, undefined);
 	}
 
+	public isWrittenToTextArea(textArea: ITextAreaWrapper, select: boolean): boolean {
+		const valuesEqual = this.value === textArea.getValue();
+		if (!select) {
+			return valuesEqual;
+		}
+		const selectionsEqual = this.selectionStart === textArea.getSelectionStart() && this.selectionEnd === textArea.getSelectionEnd();
+		return selectionsEqual && valuesEqual;
+	}
+
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
 		if (_debugComposition) {
 			console.log(`writeToTextArea ${reason}: ${this.toString()}`);

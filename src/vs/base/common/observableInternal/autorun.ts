@@ -5,7 +5,7 @@
 
 import { IChangeContext, IObservable, IObserver, IReader } from './base.js';
 import { DebugNameData, IDebugNameData } from './debugName.js';
-import { assertFn, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
+import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, toDisposable, trackDisposable } from './commonFacade/deps.js';
 import { getLogger } from './logging.js';
 
 /**
@@ -193,9 +193,12 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 				const changeSummary = this.changeSummary!;
 				try {
 					this.changeSummary = this.createChangeSummary?.();
+					this._isReaderValid = true;
 					this._runFn(this, changeSummary);
 				} catch (e) {
 					onBugIndicatingError(e);
+				} finally {
+					this._isReaderValid = false;
 				}
 			}
 		} finally {
@@ -272,7 +275,11 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 	}
 
 	// IReader implementation
+	private _isReaderValid = false;
+
 	public readObservable<T>(observable: IObservable<T>): T {
+		if (!this._isReaderValid) { throw new BugIndicatingError('The reader object cannot be used outside its compute function!'); }
+
 		// In case the run action disposes the autorun
 		if (this.disposed) {
 			return observable.get();

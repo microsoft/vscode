@@ -814,6 +814,7 @@ export interface IDebugConfiguration {
 	autoExpandLazyVariables: 'auto' | 'off' | 'on';
 	enableStatusBarColor: boolean;
 	showVariableTypes: boolean;
+	hideSlowPreLaunchWarning: boolean;
 }
 
 export interface IGlobalConfig {

@@ -33,9 +33,6 @@
 	z-index: 600 !important;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container .monaco-editor .overlayWidgets {
-	z-index: 638 !important;
-}
 
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div.parameter-hints-widget {
 	z-index: 639 !important;
