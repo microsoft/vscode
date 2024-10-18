@@ -126,6 +126,8 @@ function buildDebPackage(arch) {
 	const cwd = `.build/linux/deb/${debArch}`;
 
 	return async () => {
+		await exec('fakeroot --version');
+		await exec('dpkg-deb --version');
 		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
 		await exec('mkdir -p deb', { cwd });
 		await exec(`fakeroot dpkg-deb -Zxz -b ${product.applicationName}-${debArch} deb`, { cwd });
@@ -233,6 +235,7 @@ function buildRpmPackage(arch) {
 	const destination = `.build/linux/rpm/${rpmArch}`;
 
 	return async () => {
+		await exec('rpmbuild --version');
 		await exec(`mkdir -p ${destination}`);
 		await exec(`HOME="$(pwd)/${destination}" rpmbuild -bb ${rpmBuildPath}/SPECS/${product.applicationName}.spec --target=${rpmArch}`);
 		await exec(`cp "${rpmOut}/$(ls ${rpmOut})" ${destination}/`);
