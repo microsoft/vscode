@@ -19,7 +19,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from '../common/chatContextKeys.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
@@ -167,12 +168,23 @@ export class ChatEditingSaveAllAction extends Action2 {
 		super({
 			id: ChatEditingSaveAllAction.ID,
 			title: ChatEditingSaveAllAction.LABEL,
-			menu: {
-				when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
-				id: MenuId.EditorTitle,
-				order: 0,
-				group: 'navigation',
-			},
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
+			menu: [
+				{
+					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
+					id: MenuId.EditorTitle,
+					order: 1,
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 1,
+					// Show the option to save without accepting if the user has autosave
+					// and also hasn't configured the setting to always save with generated changes
+					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.files.autoSave', 'off'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+				}
+			],
 		});
 	}
 

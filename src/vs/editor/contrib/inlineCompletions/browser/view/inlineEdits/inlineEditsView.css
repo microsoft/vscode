@@ -139,3 +139,7 @@
 		}
 	}
 }
+
+.strike-through {
+	text-decoration: line-through;
+}

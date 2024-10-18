@@ -27,7 +27,7 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -424,20 +424,55 @@ export function registerChatTitleActions() {
 
 			if (request) {
 				const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
-				const currentEditCount = currentEditingSession?.entries.get().length;
-				if (currentEditCount) {
-					const result = await dialogService.confirm({
-						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-						message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
-						type: 'info',
-						primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
-					});
+				const currentEdits = currentEditingSession?.entries.get();
+				const currentEditCount = currentEdits?.length;
 
-					if (!result.confirmed) {
-						return;
+				if (currentEditingSession && currentEditCount) {
+
+					const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+					if (undecidedEdits.length) {
+						const { result } = await dialogService.prompt({
+							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+							message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+							type: 'info',
+							buttons: [
+								{
+									label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+									run: async () => {
+										await currentEditingSession.reject();
+										return true;
+									}
+								},
+								{
+									label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+									run: async () => {
+										await currentEditingSession.accept();
+										return true;
+									}
+								}
+							],
+						});
+
+						if (!result) {
+							return;
+						}
+					} else {
+						const result = await dialogService.confirm({
+							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+							message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+							type: 'info',
+							primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
+						});
+
+						if (!result.confirmed) {
+							return;
+						}
 					}
 
 					await currentEditingSession?.stop();
+					const existingEditingChatWidget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
+					existingEditingChatWidget?.clear();
+					existingEditingChatWidget?.attachmentModel.clear();
 				}
 
 				const { widget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
@@ -484,6 +519,7 @@ export function registerChatTitleActions() {
 						}
 					}
 				}
+				widget.focusInput();
 
 			}
 		}

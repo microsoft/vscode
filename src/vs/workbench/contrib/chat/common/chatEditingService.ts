@@ -73,6 +73,7 @@ export interface IModifiedFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
@@ -97,3 +98,4 @@ export const chatEditingResourceContextKey = new RawContextKey<string | undefine
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
 export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);
+export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
