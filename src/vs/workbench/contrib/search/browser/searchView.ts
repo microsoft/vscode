@@ -301,6 +301,9 @@ export class SearchView extends ViewPane {
 		this.changedWhileHidden = this.hasSearchResults();
 	}
 
+	async queueRefreshTree(): Promise<void> {
+		return this.refreshTreeController.queue();
+	}
 	get isTreeLayoutViewVisible(): boolean {
 		return this.treeViewKey.get() ?? false;
 	}
