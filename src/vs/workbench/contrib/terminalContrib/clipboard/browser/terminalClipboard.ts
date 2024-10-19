@@ -8,6 +8,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { Constants } from '../../../terminal/browser/terminal.contribution.js';
 import { TerminalClipboardSettingId } from '../common/terminalClipboardConfiguration.js';
 import { SmartPasteUtils } from './smartPasteUtils.js';
 
@@ -106,8 +107,14 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 		return false;
 	}
 
-	if (result.confirmed && checkboxChecked) {
-		await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
+	if (result.confirmed) {
+		/* Send ctrl+v to PSReadline if its a pwsh instance */
+		if (shellType === 'pwsh') {
+			return { modifiedText: String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset) };
+		}
+		if (checkboxChecked) {
+			await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
+		}
 	}
 
 	if (result.singleLine) {
