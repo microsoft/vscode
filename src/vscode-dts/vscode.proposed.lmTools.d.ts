@@ -13,6 +13,7 @@ declare module 'vscode' {
 		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution
 		 * point. A registered tool is available in the {@link lm.tools} list for any extension to see. But in order for it to
 		 * be seen by a language model, it must be passed in the list of available tools in {@link LanguageModelChatRequestOptions.tools}.
+		 * @returns A {@link Disposable} that unregisters the tool when disposed.
 		 */
 		export function registerTool<T>(name: string, tool: LanguageModelTool<T>): Disposable;
 
@@ -37,6 +38,8 @@ declare module 'vscode' {
 		 * If a chat participant wants to preserve tool results for requests across multiple turns, it can store tool results in
 		 * the {@link ChatResult.metadata} returned from the handler and retrieve them on the next turn from
 		 * {@link ChatResponseTurn.result}.
+		 *
+		 * @returns The result of the tool invocation.
 		 */
 		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
