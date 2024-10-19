@@ -156,8 +156,7 @@ impl LauncherPaths {
 		if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
 			// no logger exists at this point in the lifecycle, so just log to stderr
 			eprintln!(
-				"Failed to migrate old CLI data directory, will create a new one ({})",
-				e
+				"Failed to migrate old CLI data directory, will create a new one ({e})"
 			);
 		}
 
@@ -165,7 +164,7 @@ impl LauncherPaths {
 	}
 
 	pub fn new(root: Option<String>) -> Result<LauncherPaths, AnyError> {
-		let root = root.unwrap_or_else(|| format!("~/{}/cli", DEFAULT_DATA_PARENT_DIR));
+		let root = root.unwrap_or_else(|| format!("~/{DEFAULT_DATA_PARENT_DIR}/cli"));
 		let mut replaced = root.to_owned();
 		for token in HOME_DIR_ALTS {
 			if root.contains(token) {
