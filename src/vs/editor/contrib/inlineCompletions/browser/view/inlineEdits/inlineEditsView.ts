@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h, svgElem } from '../../../../../../base/browser/dom.js';
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedDisposable, derivedWithCancellationToken, IObservable, observableFromEvent, ObservablePromise } from '../../../../../../base/common/observable.js';
@@ -19,7 +17,6 @@ import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { IDiffProviderFactoryService } from '../../../../../browser/widget/diffEditor/diffProviderFactoryService.js';
-import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecorationEmpty, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
 import { appendRemoveOnDispose } from '../../../../../browser/widget/diffEditor/utils.js';
 import { EditorOption } from '../../../../../common/config/editorOptions.js';
 import { SingleLineEdit } from '../../../../../common/core/lineEdit.js';
@@ -30,13 +27,14 @@ import { Range } from '../../../../../common/core/range.js';
 import { AbstractText, SingleTextEdit, StringText, TextEdit } from '../../../../../common/core/textEdit.js';
 import { TextLength } from '../../../../../common/core/textLength.js';
 import { lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
-import { IModelDeltaDecoration } from '../../../../../common/model.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
 import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { IModelService } from '../../../../../common/services/model.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import './inlineEditsView.css';
+import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { applyEditToModifiedRangeMappings, maxLeftInRange, Point, StatusBarViewItem, UniqueUriGenerator } from './utils.js';
+import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
@@ -68,7 +66,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 				maxComputationTimeMs: 1000,
 			}, token);
 
-			if (result.identical) { return undefined; }
+			if (token.isCancellationRequested || result.identical) { return undefined; }
 
 			const rangeStartPos = edit.range.getStartPosition();
 			const innerChanges = result.changes.flatMap(c => c.innerChanges!);
@@ -78,15 +76,13 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 				return TextLength.ofRange(range).createRange(start.addToPosition(pos));
 			}
 
-
-
 			const edits = innerChanges.map(c => new SingleTextEdit(
 				addRangeToPos(rangeStartPos, c.originalRange),
 				this._modifiedModel.get()!.getValueInRange(c.modifiedRange)
 			));
 			const diffEdits = new TextEdit(edits);
 
-			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed);
+			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, true); //inlineEdit.showInlineIfPossible);
 		});
 	});
 
@@ -115,6 +111,7 @@ export class InlineEditWithChanges {
 		public readonly originalText: AbstractText,
 		public readonly edit: TextEdit,
 		public readonly isCollapsed: boolean,
+		public readonly showInlineIfPossible: boolean,
 	) {
 	}
 }
@@ -128,6 +125,7 @@ export class InlineEditsView extends Disposable {
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
+			zIndex: '100', // over minimap
 		},
 	}, [
 		h('div.editorContainer@editorContainer', { style: { position: 'absolute' } }, [
@@ -141,20 +139,6 @@ export class InlineEditsView extends Disposable {
 		]),
 	]);
 
-	private readonly _indicator = h('div.inline-edits-view-indicator', {
-		style: {
-			position: 'absolute',
-			overflow: 'visible',
-		},
-	}, [
-		h('div.icon', {}, [
-			renderIcon(Codicon.arrowLeft),
-		]),
-		h('div.label', {}, [
-			' inline edit'
-		])
-	]);
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
@@ -164,7 +148,7 @@ export class InlineEditsView extends Disposable {
 
 		this._register(appendRemoveOnDispose(this._editor.getDomNode()!, this._elements.root));
 
-		this._register(observableCodeEditor(_editor).createOverlayWidget({
+		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._elements.root,
 			position: constObservable(null),
 			allowEditorOverflow: false,
@@ -176,42 +160,8 @@ export class InlineEditsView extends Disposable {
 			}),
 		}));
 
-		this._register(observableCodeEditor(_editor).createOverlayWidget({
-			domNode: this._indicator.root,
-			position: constObservable(null),
-			allowEditorOverflow: false,
-			minContentWidthInPx: constObservable(0),
-		}));
-
 		this._previewEditor.setModel(this._previewTextModel);
 
-		this._register(this._previewEditorObs.setDecorations(this._decorations.map(d => d?.modifiedDecorations ?? [])));
-
-		this._register(observableCodeEditor(_editor).setDecorations(this._decorations.map(d => d?.originalDecorations ?? [])));
-
-		this._register(autorun(reader => {
-			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
-			if (!layoutInfo) {
-				this._indicator.root.style.visibility = 'hidden';
-				return;
-			}
-
-			this._indicator.root.style.visibility = '';
-			const i = this._editorObs.layoutInfo.read(reader);
-
-			const range = new OffsetRange(0, i.height - 30);
-
-			const topEdit = layoutInfo.edit1;
-			this._indicator.root.classList.toggle('top', topEdit.y < range.start);
-			this._indicator.root.classList.toggle('bottom', topEdit.y > range.endExclusive);
-			const showAnyway = !this._diffViewInformation.read(reader);
-			this._indicator.root.classList.toggle('visible', showAnyway);
-			this._indicator.root.classList.toggle('contained', range.contains(topEdit.y));
-
-
-			this._indicator.root.style.top = `${range.clip(topEdit.y)}px`;
-			this._indicator.root.style.right = `${i.minimap.minimapWidth + i.verticalScrollbarWidth}px`;
-		}));
 
 		this._register(autorun(reader => {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
@@ -254,13 +204,6 @@ export class InlineEditsView extends Disposable {
 		}));
 	}
 
-	private readonly _diffViewInformation = derived(this, reader => {
-		const edit = this._edit.read(reader);
-		if (!edit || edit.isCollapsed) { return undefined; }
-
-		return true;
-	});
-
 	private readonly _uiState = derived(this, reader => {
 		const edit = this._edit.read(reader);
 		if (!edit) { return undefined; }
@@ -275,54 +218,26 @@ export class InlineEditsView extends Disposable {
 		const diff = lineRangeMappingFromRangeMappings(mappings, edit.originalText, new StringText(newText));
 
 		const originalDisplayRange = edit.originalText.lineRange.intersect(
-			LineRange.ofLength(edit.originalLineRange.startLineNumber - 1, edit.lineEdit.newLines.length + 2)
+			edit.originalLineRange.join(
+				LineRange.ofLength(edit.originalLineRange.startLineNumber, edit.lineEdit.newLines.length)
+			)
 		)!;
 
+		let state: 'collapsed' | 'inline' | 'sideBySide' = 'sideBySide';
+		if (edit.isCollapsed) {
+			state = 'collapsed';
+		} else if (edit.showInlineIfPossible && diff.every(m => OriginalEditorInlineDiffView.supportsInlineDiffRendering(m))) {
+			state = 'inline';
+		}
+
 		return {
+			state,
 			diff,
 			edit,
 			newText,
 			newTextLineCount: edit.modifiedLineRange.length,
 			originalDisplayRange: originalDisplayRange,
 		};
-	});
-
-	private readonly _decorations = derived(this, (reader) => {
-		this._updatePreviewEditor.read(reader);
-		const s = this._uiState.read(reader);
-		if (!s) { return undefined; }
-		const diff = s.diff;
-		const originalDecorations: IModelDeltaDecoration[] = [];
-		const modifiedDecorations: IModelDeltaDecoration[] = [];
-		if (s.edit.originalLineRange.length === 0) { return undefined; }
-		for (const m of diff) {
-			if (m.modified.isEmpty || m.original.isEmpty) {
-				if (!m.original.isEmpty) {
-					originalDecorations.push({ range: m.original.toInclusiveRange()!, options: diffWholeLineDeleteDecoration });
-				}
-				if (!m.modified.isEmpty) {
-					modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
-				}
-			} else {
-				for (const i of m.innerChanges || []) {
-					// Don't show empty markers outside the line range
-					if (m.original.contains(i.originalRange.startLineNumber)) {
-						originalDecorations.push({
-							range: i.originalRange, options: i.originalRange.isEmpty() ? diffDeleteDecorationEmpty : {
-								className: 'char-delete',
-								description: 'char-delete',
-								shouldFillLineOnLineBreak: false,
-							}
-						});
-					}
-					if (m.modified.contains(i.modifiedRange.startLineNumber)) {
-						modifiedDecorations.push({ range: i.modifiedRange, options: i.modifiedRange.isEmpty() ? diffAddDecorationEmpty : diffAddDecoration });
-					}
-				}
-			}
-		}
-
-		return { originalDecorations, modifiedDecorations };
 	});
 
 	protected readonly _toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar, MenuId.InlineEditsActions, {
@@ -382,13 +297,13 @@ export class InlineEditsView extends Disposable {
 
 	private readonly _previewEditorObs = observableCodeEditor(this._previewEditor);
 
-	private readonly _rootVisibility = derived(this, reader => !!this._diffViewInformation.read(reader) ? 'block' : 'none');
-	private readonly _updateRootVisibility = derived(reader => {
-		this._elements.root.style.display = this._rootVisibility.read(reader);
+	private readonly _previewEditorRootVisibility = derived(this, reader => this._uiState.read(reader)?.state === 'sideBySide' ? 'block' : 'none');
+	private readonly _updatePreviewEditorRootVisibility = derived(reader => {
+		this._elements.root.style.display = this._previewEditorRootVisibility.read(reader);
 	});
 
 	private readonly _updatePreviewEditor = derived(reader => {
-		this._updateRootVisibility.read(reader);
+		this._updatePreviewEditorRootVisibility.read(reader);
 
 		const uiState = this._uiState.read(reader);
 		if (!uiState) { return; }
@@ -461,6 +376,33 @@ export class InlineEditsView extends Disposable {
 			editHeight,
 		};
 	});
+
+	private readonly _inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
+		const e = this._uiState.read(reader);
+		if (!e) { return undefined; }
+
+		return {
+			modifiedText: new StringText(e.newText),
+			diff: e.diff,
+			showInline: e.edit.showInlineIfPossible,
+			modifiedCodeEditor: this._previewEditor,
+		};
+	});
+	protected readonly _inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState));
+
+	protected readonly _indicator = this._register(new InlineEditsIndicator(
+		this._editorObs,
+		derived<IInlineEditsIndicatorState | undefined>(reader => {
+			const state = this._uiState.read(reader);
+			const edit1 = this._previewEditorLayoutInfo.read(reader)?.edit1;
+			if (!edit1 || !state) { return undefined; }
+			return { editTopLeft: edit1, showAlways: state.state === 'collapsed' };
+		}),
+	));
+}
+
+export function classNames(...classes: (string | false | undefined | null)[]) {
+	return classes.filter(c => typeof c === 'string').join(' ');
 }
 
 function offsetRangeToRange(columnOffsetRange: OffsetRange, startPos: Position): Range {

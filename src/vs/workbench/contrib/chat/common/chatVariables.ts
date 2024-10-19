@@ -61,5 +61,6 @@ export interface IDynamicVariable {
 	icon?: ThemeIcon;
 	prefix?: string;
 	modelDescription?: string;
+	isFile?: boolean;
 	data: IChatRequestVariableValue;
 }

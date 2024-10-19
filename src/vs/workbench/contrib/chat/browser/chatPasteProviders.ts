@@ -16,7 +16,7 @@ import { IChatWidgetService } from './chat.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
@@ -25,11 +25,11 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	public readonly pasteMimeTypes = ['image/*'];
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
-		private readonly configurationService: IConfigurationService
+		private readonly extensionService: IExtensionService
 	) { }
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
-		if (!this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+		if (!this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
 			return;
 		}
 
@@ -140,9 +140,9 @@ export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, configurationService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService)));
 	}
 }

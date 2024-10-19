@@ -44,13 +44,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
-		if (!options.requestedContentTypes?.length) {
-			throw new Error('LanguageModelToolInvocationOptions.requestedContentTypes is required to be set');
-		}
-
 		const callId = generateUuid();
-		if (options.tokenOptions) {
-			this._tokenCountFuncs.set(callId, options.tokenOptions.countTokens);
+		if (options.tokenizationOptions) {
+			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
 		}
 		try {
 			// Making the round trip here because not all tools were necessarily registered in this EH
@@ -58,11 +54,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				toolId,
 				callId,
 				parameters: options.parameters,
-				tokenBudget: options.tokenOptions?.tokenBudget,
+				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				requestedContentTypes: options.requestedContentTypes,
 			}, token);
-			return result;
+			return typeConvert.LanguageModelToolResult.to(result);
 		} finally {
 			this._tokenCountFuncs.delete(callId);
 		}
@@ -75,7 +70,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 	}
 
-	get tools(): vscode.LanguageModelToolDescription[] {
+	get tools(): vscode.LanguageModelToolInformation[] {
 		return Array.from(this._allTools.values())
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
@@ -86,9 +81,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context, requestedContentTypes: dto.requestedContentTypes };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context };
 		if (dto.tokenBudget !== undefined) {
-			options.tokenOptions = {
+			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
 				countTokens: this._tokenCountFuncs.get(dto.callId) || ((value, token = CancellationToken.None) =>
 					this._proxy.$countTokensForInvocation(dto.callId, value, token))
@@ -106,19 +101,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
-		for (const key of Object.keys(extensionResult)) {
-			const value = extensionResult[key];
-			if (value instanceof Promise) {
-				throw new Error(`Tool result for '${key}' cannot be a Promise`);
-			} else if (!options.requestedContentTypes.includes(key) && key !== 'toString') {
-				// This could help the scenario where a tool updated the prompt-tsx library, but did not update the contentType in package.json.
-				// Or, where a tool author didn't declare supportedContentTypes and isn't checking the list of requestedContentTypes.
-				// toString check can be temp, just to help with tools that are already published.
-				throw new Error(`Tool result for '${key}' was not requested from ${dto.toolId}.`);
-			}
-		}
-
-		return extensionResult;
+		return typeConvert.LanguageModelToolResult.from(extensionResult);
 	}
 
 	async $prepareToolInvocation(toolId: string, parameters: any, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -127,11 +110,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		if (!item.tool.prepareToolInvocation) {
+		if (!item.tool.prepareInvocation) {
 			return undefined;
 		}
 
-		const result = await item.tool.prepareToolInvocation({ parameters }, token);
+		const result = await item.tool.prepareInvocation({ parameters }, token);
 		if (!result) {
 			return undefined;
 		}

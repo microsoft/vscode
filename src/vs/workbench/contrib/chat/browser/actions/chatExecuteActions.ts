@@ -38,7 +38,7 @@ export class SubmitAction extends Action2 {
 	constructor() {
 		super({
 			id: SubmitAction.ID,
-			title: localize2('interactive.submit.label', "Send"),
+			title: localize2('interactive.submit.label', "Send and Dispatch"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
@@ -52,6 +52,7 @@ export class SubmitAction extends Action2 {
 				{
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
+					order: 1
 				},
 				{
 					id: MenuId.ChatExecute,
@@ -69,6 +70,43 @@ export class SubmitAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		widget?.acceptInput(context?.inputValue);
+	}
+}
+
+class SubmitWithoutDispatchingAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.submitWithoutDispatching';
+
+	constructor() {
+		super({
+			id: SubmitWithoutDispatchingAction.ID,
+			title: localize2('interactive.submitWithoutDispatch.label', "Send"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: ContextKeyExpr.and(
+				CONTEXT_CHAT_INPUT_HAS_TEXT,
+				CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
+				ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel))),
+			keybinding: {
+				when: CONTEXT_IN_CHAT_INPUT,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_1',
+					order: 2
+				} // need 'when'?
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
 	}
 }
 
@@ -91,14 +129,10 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 			id: ChatSubmitSecondaryAgentAction.ID,
 			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
-			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			},
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
-				group: 'group_1'
+				group: 'group_1',
+				order: 3
 			}
 		});
 	}
@@ -137,7 +171,7 @@ class SendToChatEditingAction extends Action2 {
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
 			},
 			keybinding: {
@@ -185,7 +219,7 @@ class SendToChatEditingAction extends Action2 {
 		const { widget: editingWidget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
 		for (const attachment of widget.attachmentModel.attachments) {
 			if (attachment.isFile && URI.isUri(attachment.value)) {
-				await chatEditingService.addFileToWorkingSet(attachment.value);
+				chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(attachment.value);
 			} else {
 				editingWidget.attachmentModel.addContext(attachment);
 			}
@@ -280,6 +314,7 @@ export class CancelAction extends Action2 {
 
 export function registerChatExecuteActions() {
 	registerAction2(SubmitAction);
+	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitSecondaryAgentAction);

@@ -24,7 +24,6 @@ export interface IToolData {
 	modelDescription: string;
 	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedContentTypes: string[];
 }
 
 export interface IToolInvocation {
@@ -33,7 +32,6 @@ export interface IToolInvocation {
 	parameters: Object;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
-	requestedContentTypes: string[];
 }
 
 export interface IToolInvocationContext {
@@ -41,7 +39,18 @@ export interface IToolInvocationContext {
 }
 
 export interface IToolResult {
-	[contentType: string]: any;
+	content: (IToolResultPromptTsxPart | IToolResultTextPart)[];
+}
+
+export interface IToolResultPromptTsxPart {
+	kind: 'promptTsx';
+	mime: string;
+	value: unknown;
+}
+
+export interface IToolResultTextPart {
+	kind: 'text';
+	value: string;
 }
 
 export interface IToolConfirmationMessages {

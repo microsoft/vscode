@@ -568,8 +568,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-button-foreground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover,
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button:hover {
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
 
@@ -612,7 +611,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-left: 4px;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.codicon {
+.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
 	background-color: transparent;
 	border-color: transparent;
 	color: var(--vscode-foreground);
@@ -633,7 +632,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.codicon:hover,
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }

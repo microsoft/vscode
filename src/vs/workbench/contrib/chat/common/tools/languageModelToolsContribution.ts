@@ -15,8 +15,9 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
+import { toolsParametersSchemaSchema } from './languageModelToolsParametersSchema.js';
 
-interface IRawToolContribution {
+export interface IRawToolContribution {
 	name: string;
 	displayName: string;
 	modelDescription: string;
@@ -27,7 +28,6 @@ interface IRawToolContribution {
 	userDescription?: string;
 	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
-	supportedContentTypes?: string[];
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -43,7 +43,21 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 		items: {
 			additionalProperties: false,
 			type: 'object',
-			defaultSnippets: [{ body: { name: '', description: '' } }],
+			defaultSnippets: [{
+				body: {
+					name: '${1}',
+					modelDescription: '${2}',
+					parametersSchema: {
+						type: 'object',
+						properties: {
+							'${3:paramName}': {
+								type: 'string',
+								description: '${4:description}'
+							}
+						}
+					},
+				}
+			}],
 			required: ['name', 'displayName', 'modelDescription'],
 			properties: {
 				name: {
@@ -70,9 +84,9 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string'
 				},
 				parametersSchema: {
-					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts."),
-					type: 'object',
-					$ref: 'http://json-schema.org/draft-07/schema#'
+					...toolsParametersSchemaSchema,
+					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts. Must be an object at the top level."),
+
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
@@ -100,13 +114,6 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				when: {
 					markdownDescription: localize('condition', "Condition which must be true for this tool to be enabled. Note that a tool may still be invoked by another extension even when its `when` condition is false."),
 					type: 'string'
-				},
-				supportedContentTypes: {
-					markdownDescription: localize('contentTypes', "The list of content types that this tool can return. It's recommended that all tools support `text/plain`, which would indicate any text-based content. Another example is the contentType exported by the `@vscode/prompt-tsx` library, which would let a tool return a `PromptElementJSON` which can be easily rendered in a prompt by an extension using `@vscode/prompt-tsx`."),
-					type: 'array',
-					items: {
-						type: 'string'
-					}
 				},
 				tags: {
 					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),
@@ -170,7 +177,6 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
-						supportedContentTypes: rawTool.supportedContentTypes ? rawTool.supportedContentTypes : [],
 					};
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, rawTool.name), disposable);

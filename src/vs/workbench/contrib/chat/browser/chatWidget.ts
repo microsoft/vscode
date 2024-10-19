@@ -12,6 +12,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
@@ -43,7 +44,7 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
@@ -227,7 +228,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
 		@ILogService private readonly logService: ILogService,
@@ -251,8 +252,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
-
-		this._register((chatWidgetService as ChatWidgetService).register(this));
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
@@ -446,6 +445,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}).filter(isDefined);
 
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
+		this._register((this.chatWidgetService as ChatWidgetService).register(this));
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -748,6 +748,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 				menus: { executeToolbar: MenuId.ChatExecute, ...this.viewOptions.menus },
 				editorOverflowWidgetsDomNode: this.viewOptions.editorOverflowWidgetsDomNode,
+				enableImplicitContext: this.viewOptions.enableImplicitContext
 			},
 			() => this.collectInputState()
 		));
@@ -934,8 +935,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.logInputHistory();
 	}
 
-	async acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
-		return this._acceptInput(query ? { query } : undefined, isVoiceInput);
+	async acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
+		return this._acceptInput(query ? { query } : undefined, options);
 	}
 
 	async acceptInputWithPrefix(prefix: string): Promise<void> {
@@ -952,7 +953,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return inputState;
 	}
 
-	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined> {
+	private async _acceptInput(query: { query: string } | { prefix: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 			if (!this.viewOptions.autoScroll) {
@@ -961,10 +962,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();
-			const input = !opts ? editorValue :
-				'query' in opts ? opts.query :
-					`${opts.prefix} ${editorValue}`;
-			const isUserQuery = !opts || 'prefix' in opts;
+			const input = !query ? editorValue :
+				'query' in query ? query.query :
+					`${query.prefix} ${editorValue}`;
+			const isUserQuery = !query || 'prefix' in query;
 
 			if (this.viewModel.model.checkpoint) {
 				const requests = this.viewModel.model.getRequests();
@@ -977,15 +978,31 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			const attachedContext = this.inputPart.getAttachedAndImplicitContext();
-			const workingSet: URI[] = [];
+			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
+				const uniqueWorkingSetEntries = new ResourceSet();
 				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
 				if (currentEditingSession?.workingSet) {
 					for (const [file, _] of currentEditingSession?.workingSet) {
 						attachedContext.push(this.attachmentModel.asVariableEntry(file));
-						workingSet.push(file);
+						uniqueWorkingSetEntries.add(file);
 					}
 				}
+				// Collect file variables from previous requests before sending the request
+				const previousRequests = this.viewModel.model.getRequests();
+				for (const request of previousRequests) {
+					for (const variable of request.variableData.variables) {
+						if (!URI.isUri(variable.value) || !variable.isFile) {
+							continue;
+						}
+						const uri = variable.value;
+						if (!attachedContext.find((context) => URI.isUri(context.value) && context.value.toString() === uri.toString())) {
+							attachedContext.push(variable);
+							uniqueWorkingSetEntries.add(variable.value);
+						}
+					}
+				}
+				workingSet = [...uniqueWorkingSetEntries.values()];
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
@@ -994,7 +1011,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				locationData: this._location.resolveData?.(),
 				parserContext: { selectedAgent: this._lastSelectedAgent },
 				attachedContext,
-				workingSet
+				workingSet,
+				noCommandDetection: options?.noCommandDetection,
 			});
 
 			if (result) {
@@ -1003,7 +1021,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, isVoiceInput);
+					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
 					// Keep the checkpoint toggled on until the response is complete to help the user keep their place in the chat history
 					this.viewModel?.model.setCheckpoint(undefined);
 					if (lastResponse?.result?.nextQuestion) {

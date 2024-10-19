@@ -123,7 +123,7 @@ registerAction2(class RemoveAction extends Action2 {
 			searchResult.batchRemove(elementsToRemove);
 		}
 
-		await searchView.refreshTreePromiseSerializer; // wait for refreshTree to finish
+		await searchView.queueRefreshTree(); // wait for refreshTree to finish
 
 		if (focusElement && shouldRefocusMatch) {
 			if (!nextFocusElement) {
@@ -291,7 +291,7 @@ async function performReplace(accessor: ServicesAccessor,
 		await searchResult.batchReplace(elementsToReplace);
 	}
 
-	await viewlet?.refreshTreePromiseSerializer; // wait for refreshTree to finish
+	await viewlet?.queueRefreshTree(); // wait for refreshTree to finish
 
 	if (focusElement) {
 		if (!nextFocusElement) {
