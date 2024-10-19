@@ -12,8 +12,8 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
 import { FileSearchProviderFolderOptions, FileSearchProviderNew, FileSearchProviderOptions } from './searchExtTypes.js';
-import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
+import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 
 interface IInternalFileMatch {
 	base: URI;
@@ -125,13 +125,13 @@ class FileSearchEngine {
 		};
 
 
-		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>();
-		fqs.forEach(fq => {
+		const getFolderQueryInfo = (fq: IFolderQuery) => {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
-			folderMappings.set(fq.folder, { queryTester, noSiblingsClauses, folder: fq.folder, tree: this.initDirectoryTree() });
-		});
+			return { queryTester, noSiblingsClauses, folder: fq.folder, tree: this.initDirectoryTree() };
+		};
 
+		const folderMappings: FolderQuerySearchTree<FolderQueryInfo> = new FolderQuerySearchTree<FolderQueryInfo>(fqs, getFolderQueryInfo);
 
 		let providerSW: StopWatch;
 
@@ -153,8 +153,7 @@ class FileSearchEngine {
 
 			if (results) {
 				results.forEach(result => {
-
-					const fqFolderInfo = folderMappings.findSubstr(result)!;
+					const fqFolderInfo = folderMappings.findQueryFragmentAwareSubstr(result)!;
 					const relativePath = path.posix.relative(fqFolderInfo.folder.path, result.path);
 
 					if (fqFolderInfo.noSiblingsClauses) {
@@ -173,7 +172,7 @@ class FileSearchEngine {
 				return null;
 			}
 
-			folderMappings.forEach(e => {
+			folderMappings.forEachFolderQueryInfo(e => {
 				this.matchDirectoryTree(e.tree, e.queryTester, onResult);
 			});
 
