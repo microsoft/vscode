@@ -1,2 +1,2 @@
 [target.'cfg(target_os = "windows")']
-rustflags = ["-Clink-args=/guard:cf /CETCOMPAT", "-Ctarget-feature=+crt-static"]
+rustflags = ["-Ctarget-feature=+crt-static", "-Clink-args=/guard:cf", "-Clink-args=/CETCOMPAT"]
