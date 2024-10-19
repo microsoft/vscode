@@ -59,9 +59,9 @@ export class SmartPasteUtils {
 	 * Wraps the input path in " and escapes the " in the path
 	 * @param path input path which needs to be wrapped in "
 	 */
-	static wrapAndEscapePath(path: string): string {
+	static wrapAndEscapePath(path: string, escapeChar: string): string {
 		// Escape double quotes in the path
-		const escapedPath = path.replace(/"/g, '\\"');
+		const escapedPath = path.replace(/"/g, `${escapeChar}"`);
 		// Wrap the escaped path in double quotes
 		return `"${escapedPath}"`;
 	}
@@ -86,16 +86,20 @@ export class SmartPasteUtils {
 					// Escape backslashes and wrap in double quotes if necessary
 					const escapedPath = text.replace(/\\/g, '\\\\');
 					if (text.includes(' ')) {
-						return this.wrapAndEscapePath(escapedPath);
+						return this.wrapAndEscapePath(escapedPath, '\\');
 					}
 					return escapedPath;
 				}
 
 			case 'pwsh':
+				if (text.includes(' ')) {
+					return this.wrapAndEscapePath(text, '`');
+				}
+				return text;
 			case 'cmd':
 				// Simply wrap in quotes if spaces are present
 				if (text.includes(' ')) {
-					return this.wrapAndEscapePath(text);
+					return this.wrapAndEscapePath(text, '^');
 				}
 				return text;
 
