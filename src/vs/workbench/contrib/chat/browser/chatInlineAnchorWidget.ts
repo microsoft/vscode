@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -15,11 +16,13 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { LanguageFeatureRegistry } from '../../../../editor/common/languageFeatureRegistry.js';
 import { Location, SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { DefinitionAction } from '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import * as nls from '../../../../nls.js';
 import { localize } from '../../../../nls.js';
@@ -62,6 +65,8 @@ export class InlineAnchorWidget extends Disposable {
 
 	readonly data: ContentRefData;
 
+	private _isDisposed = false;
+
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
 		public readonly inlineReference: IChatContentInlineReference,
@@ -75,6 +80,7 @@ export class InlineAnchorWidget extends Disposable {
 		@ILanguageService languageService: ILanguageService,
 		@IMenuService menuService: IMenuService,
 		@IModelService modelService: IModelService,
+		@ITextModelService textModelService: ITextModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
@@ -98,6 +104,8 @@ export class InlineAnchorWidget extends Disposable {
 		let location: { readonly uri: URI; readonly range?: IRange };
 		let contextMenuId: MenuId;
 		let contextMenuArg: URI | { readonly uri: URI; readonly range?: IRange };
+
+		let updateContextKeys: (() => Promise<void>) | undefined;
 		if (this.data.kind === 'symbol') {
 			location = this.data.symbol.location;
 			contextMenuId = MenuId.ChatInlineSymbolAnchorContext;
@@ -106,22 +114,35 @@ export class InlineAnchorWidget extends Disposable {
 			iconText = this.data.symbol.name;
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(this.data.symbol.kind))];
 
-			const model = modelService.getModel(location.uri);
-			if (model) {
-				const hasDefinitionProvider = EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
-				const hasReferenceProvider = EditorContextKeys.hasReferenceProvider.bindTo(contextKeyService);
+			updateContextKeys = createSingleCallFunction(async () => {
+				const modelRef = await textModelService.createModelReference(location.uri);
+				if (this._isDisposed) {
+					return;
+				}
+
+				this._register(modelRef);
+				const model = modelRef.object.textEditorModel;
+
+				const providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> = [
+					[EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.definitionProvider],
+					[EditorContextKeys.hasReferenceProvider.bindTo(contextKeyService), languageFeaturesService.referenceProvider],
+					[EditorContextKeys.hasImplementationProvider.bindTo(contextKeyService), languageFeaturesService.implementationProvider],
+					[EditorContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.typeDefinitionProvider],
+				];
 				const updateContents = () => {
 					if (model.isDisposed()) {
 						return;
 					}
 
-					hasDefinitionProvider.set(languageFeaturesService.definitionProvider.has(model));
-					hasReferenceProvider.set(languageFeaturesService.definitionProvider.has(model));
+					for (const [contextKey, registry] of providerContexts) {
+						contextKey.set(registry.has(model));
+					}
 				};
 				updateContents();
-				this._register(languageFeaturesService.definitionProvider.onDidChange(updateContents));
-				this._register(languageFeaturesService.referenceProvider.onDidChange(updateContents));
-			}
+				for (const [_, registry] of providerContexts) {
+					this._register(registry.onDidChange(updateContents));
+				}
+			});
 
 			this._register(dom.addDisposableListener(element, 'click', () => {
 				telemetryService.publicLog2<{
@@ -179,9 +200,11 @@ export class InlineAnchorWidget extends Disposable {
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
 
 		// Context menu
-		this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, domEvent => {
+		this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
 			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 			dom.EventHelper.stop(domEvent, true);
+
+			await updateContextKeys?.();
 
 			contextMenuService.showContextMenu({
 				contextKeyService,
@@ -206,6 +229,11 @@ export class InlineAnchorWidget extends Disposable {
 
 			e.dataTransfer?.setDragImage(element, 0, 0);
 		}));
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -339,17 +367,80 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
 
-		await editorService.openCodeEditor({
-			resource: location.uri, options: {
-				selection: {
-					startColumn: location.range.startColumn,
-					startLineNumber: location.range.startLineNumber,
-				}
-			}
-		}, null);
+		await openEditorWithSelection(editorService, location);
 
 		const action = new DefinitionAction({ openToSide: false, openInPeek: false, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
 		return action.run(accessor);
+	}
+});
+
+async function openEditorWithSelection(editorService: ICodeEditorService, location: Location) {
+	await editorService.openCodeEditor({
+		resource: location.uri, options: {
+			selection: {
+				startColumn: location.range.startColumn,
+				startLineNumber: location.range.startLineNumber,
+			}
+		}
+	}, null);
+}
+
+async function runGoToCommand(accessor: ServicesAccessor, command: string, location: Location) {
+	const editorService = accessor.get(ICodeEditorService);
+	const commandService = accessor.get(ICommandService);
+
+	await openEditorWithSelection(editorService, location);
+
+	return commandService.executeCommand(command);
+}
+
+registerAction2(class GoToTypeDefinitionsAction extends Action2 {
+
+	static readonly id = 'chat.inlineSymbolAnchor.goToTypeDefinitions';
+
+	constructor() {
+		super({
+			id: GoToTypeDefinitionsAction.id,
+			title: {
+				...nls.localize2('goToTypeDefinitions.label', "Go to Type Definitions"),
+				mnemonicTitle: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definitions"),
+			},
+			precondition: EditorContextKeys.hasTypeDefinitionProvider,
+			menu: [{
+				id: MenuId.ChatInlineSymbolAnchorContext,
+				group: 'navigation',
+				order: 1.1,
+			},]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+		return runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
+	}
+});
+
+registerAction2(class GoToImplementations extends Action2 {
+
+	static readonly id = 'chat.inlineSymbolAnchor.goToImplementations';
+
+	constructor() {
+		super({
+			id: GoToImplementations.id,
+			title: {
+				...nls.localize2('goToImplementations.label', "Go to Implementations"),
+				mnemonicTitle: nls.localize({ key: 'miGotoImplementations', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations"),
+			},
+			precondition: EditorContextKeys.hasImplementationProvider,
+			menu: [{
+				id: MenuId.ChatInlineSymbolAnchorContext,
+				group: 'navigation',
+				order: 1.2,
+			},]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
@@ -368,25 +459,13 @@ registerAction2(class GoToReferencesAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatInlineSymbolAnchorContext,
 				group: 'navigation',
-				order: 1.1,
+				order: 1.3,
 			},]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		const editorService = accessor.get(ICodeEditorService);
-		const commandService = accessor.get(ICommandService);
-
-		await editorService.openCodeEditor({
-			resource: location.uri, options: {
-				selection: {
-					startColumn: location.range.startColumn,
-					startLineNumber: location.range.startLineNumber,
-				}
-			}
-		}, null);
-
-		await commandService.executeCommand('editor.action.goToReferences');
+		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
