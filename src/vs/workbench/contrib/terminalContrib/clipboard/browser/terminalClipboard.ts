@@ -109,7 +109,7 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 
 	if (result.confirmed) {
 		/* Send ctrl+v to PSReadline if its a pwsh instance */
-		if (shellType === 'pwsh') {
+		if (shellType === 'pwsh' && !result.singleLine) {
 			return { modifiedText: String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset) };
 		}
 		if (checkboxChecked) {
