@@ -611,6 +611,11 @@ export class ChatService extends Disposable implements IChatService {
 
 						// Variables may have changed if the agent and slash command changed, so resolve them again even if we already had a chatRequest
 						const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, request.attachedContext, model, progressCallback, token);
+						for (const variable of variableData.variables) {
+							if (request.workingSet && variable.isFile && URI.isUri(variable.value)) {
+								request.workingSet.push(variable.value);
+							}
+						}
 						model.updateRequest(request, variableData);
 						const promptTextResult = getPromptText(request.message);
 						const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
