@@ -222,9 +222,7 @@ impl CodeVersionManager {
 /// Shows a nice UI prompt to users asking them if they want to install the
 /// requested version.
 pub fn prompt_to_install(version: &RequestedVersion) {
-	println!(
-		"No installation of {QUALITYLESS_PRODUCT_NAME} {version} was found."
-	);
+	println!("No installation of {QUALITYLESS_PRODUCT_NAME} {version} was found.");
 
 	if let RequestedVersion::Default = version {
 		if let Some(uri) = PRODUCT_DOWNLOAD_URL {

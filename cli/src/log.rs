@@ -312,9 +312,7 @@ fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String
 
 	if use_colors {
 		if let Some(c) = level.color_code() {
-			return format!(
-				"\x1b[2m[{timestamp}]\x1b[0m {c}{name}\x1b[0m {prefix}{message}\n"
-			);
+			return format!("\x1b[2m[{timestamp}]\x1b[0m {c}{name}\x1b[0m {prefix}{message}\n");
 		}
 	}
 

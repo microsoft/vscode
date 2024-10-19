@@ -223,11 +223,9 @@ fn append_secret_headers(
 	let headers = res.headers_mut();
 	headers.append(
 		hyper::header::SET_COOKIE,
-		format!(
-			"{PATH_COOKIE_NAME}={base_path}{SECRET_KEY_MINT_PATH}; SameSite=Strict; Path=/",
-		)
-		.parse()
-		.unwrap(),
+		format!("{PATH_COOKIE_NAME}={base_path}{SECRET_KEY_MINT_PATH}; SameSite=Strict; Path=/",)
+			.parse()
+			.unwrap(),
 	);
 	headers.append(
 		hyper::header::SET_COOKIE,

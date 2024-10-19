@@ -93,9 +93,7 @@ impl StatusError {
 		let body = res.text().await.map_err(|e| {
 			wrap(
 				e,
-				format!(
-					"failed to read response body on {status_code} code from {url}"
-				),
+				format!("failed to read response body on {status_code} code from {url}"),
 			)
 		})?;
 

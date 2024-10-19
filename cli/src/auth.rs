@@ -93,9 +93,9 @@ impl AuthProvider {
 
 	pub fn get_default_scopes(&self) -> String {
 		match self {
-			AuthProvider::Microsoft => format!(
-				"{PROD_FIRST_PARTY_APP_ID}/.default+offline_access+profile+openid"
-			),
+			AuthProvider::Microsoft => {
+				format!("{PROD_FIRST_PARTY_APP_ID}/.default+offline_access+profile+openid")
+			}
 			AuthProvider::Github => "read:user+read:org".to_string(),
 		}
 	}
