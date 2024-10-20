@@ -37,3 +37,5 @@ export const CONTEXT_IN_QUICK_CHAT = new RawContextKey<boolean>('quickChatHasFoc
 export const CONTEXT_CHAT_HAS_FILE_ATTACHMENTS = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 
 export const CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
+
+export const CONTEXT_CHAT_INSTALL_ENTITLED = new RawContextKey<boolean>('chatInstallEntitled', false, { type: 'boolean', description: localize('chatInstallEntitled', "True when the user is entitled for chat installation.") });
