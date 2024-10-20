@@ -2375,7 +2375,8 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		const content = message.content2.map((c): chatProvider.IChatMessagePart => {
+		const messageContent = asArray(message.content);
+		const content = messageContent.map((c): chatProvider.IChatMessagePart => {
 			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
 					type: 'tool_result',

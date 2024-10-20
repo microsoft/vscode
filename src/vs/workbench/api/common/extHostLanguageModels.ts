@@ -407,9 +407,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (message.role as number === extHostTypes.LanguageModelChatMessageRole.System) {
 				checkProposedApiEnabled(extension, 'languageModelSystem');
 			}
-			if (message.content2.some(part => part instanceof extHostTypes.LanguageModelToolResultPart)) {
-				checkProposedApiEnabled(extension, 'lmTools');
-			}
 			internalMessages.push(typeConvert.LanguageModelChatMessage.from(message));
 		}
 		return internalMessages;
