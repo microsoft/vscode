@@ -504,11 +504,11 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 				run() { }
 			});
 
-			const hasChatExtension = agentService.getAgents().some(agent => agent.isDefault);
+			const chatExtensionInstalled = agentService.getAgents().some(agent => agent.isDefault);
 
 			const primaryAction = instantiationService.createInstance(MenuItemAction, {
-				id: hasChatExtension ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
-				title: hasChatExtension ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
+				id: chatExtensionInstalled ? CHAT_OPEN_ACTION_ID : InstallChatWithPromptAction.ID,
+				title: chatExtensionInstalled ? OpenChatGlobalAction.TITLE : InstallChatWithPromptAction.TITLE,
 				icon: defaultChat.icon,
 			}, undefined, undefined, undefined, undefined);
 
@@ -545,7 +545,7 @@ abstract class BaseInstallChatAction extends Action2 {
 			installPreReleaseVersion: productService.quality !== 'stable'
 		}, ProgressLocation.Notification);
 
-		commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
 	}
 }
 
