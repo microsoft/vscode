@@ -74,7 +74,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 
 		this._register(this.authenticationService.onDidChangeSessions(async (e) => {
 			if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.added?.length) {
-				await this.enableEntitlement(e.event.added[0]);
+				await this.resolveEntitlement(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.removed?.length) {
 				this.disableEntitlement();
 			}
@@ -82,12 +82,31 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
 			if (e.id === this.productService.gitHubEntitlement?.providerId) {
-				this.enableEntitlement((await this.authenticationService.getSessions(e.id))[0]);
+				this.resolveEntitlement((await this.authenticationService.getSessions(e.id))[0]);
 			}
 		}));
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession): Promise<boolean> {
+	private async resolveEntitlement(session: AuthenticationSession | undefined) {
+		if (!session) {
+			return;
+		}
+
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
+		if (installed) {
+			this.disableEntitlement();
+			return;
+		}
+
+		const entitled = await this.doResolveEntitlement(session);
+		if (entitled) {
+			this.chatInstallEntitledContextKey.set(true);
+			this.telemetryService.publicLog2<ChatInstallEntitlementEnablementEvent, ChatInstallEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: true });
+		}
+	}
+
+	private async doResolveEntitlement(session: AuthenticationSession): Promise<boolean> {
 		if (this.didCheckForEntitlement) {
 			return false;
 		}
@@ -127,26 +146,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		return entitled;
 	}
 
-	private async enableEntitlement(session: AuthenticationSession | undefined) {
-		if (!session) {
-			return;
-		}
-
-		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
-		if (installed) {
-			this.disableEntitlement();
-			return;
-		}
-
-		const entitled = await this.resolveEntitlement(session);
-		if (entitled) {
-			this.chatInstallEntitledContextKey.set(true);
-			this.telemetryService.publicLog2<ChatInstallEntitlementEnablementEvent, ChatInstallEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: true });
-		}
-	}
-
-	private disableEntitlement() {
+	private disableEntitlement(): void {
 		this.chatInstallEntitledContextKey.set(false);
 	}
 }
