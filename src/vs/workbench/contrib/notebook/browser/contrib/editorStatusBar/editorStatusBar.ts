@@ -72,7 +72,7 @@ class ImplictKernelSelector implements IDisposable {
 	}
 }
 
-export class KernelStatus extends Disposable implements IWorkbenchContribution {
+class KernelStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _editorDisposables = this._register(new DisposableStore());
 	private readonly _kernelInfoElement = this._register(new DisposableStore());
@@ -85,6 +85,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._updateStatusbar()));
+		this._updateStatusbar();
 	}
 
 	private _updateStatusbar() {
@@ -179,7 +180,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
+class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _itemDisposables = this._register(new DisposableStore());
 	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -190,6 +191,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	) {
 		super();
 		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
+		this._update();
 	}
 
 	private _update() {
@@ -253,7 +255,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 }
 
-export class NotebookIndentationStatus extends Disposable {
+class NotebookIndentationStatus extends Disposable {
 
 	private readonly _itemDisposables = this._register(new DisposableStore());
 	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -272,6 +274,7 @@ export class NotebookIndentationStatus extends Disposable {
 				this._update();
 			}
 		}));
+		this._update();
 	}
 
 	private _update() {
@@ -335,7 +338,7 @@ export class NotebookIndentationStatus extends Disposable {
 	}
 }
 
-export class NotebookEditorStatusContribution extends Disposable implements IWorkbenchContribution {
+class NotebookEditorStatusContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'notebook.contrib.editorStatus';
 
