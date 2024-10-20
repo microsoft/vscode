@@ -113,9 +113,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
-			tags: ['experimental'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
-			default: false
+			default: true
 		},
 		'chat.editing.alwaysSaveWithGeneratedChanges': {
 			type: 'boolean',
@@ -145,12 +144,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
-		},
-		'chat.experimental.offerInstall': { //TODO@bpasero experimental chat install setting
-			type: 'boolean',
-			description: nls.localize('chat.experimental.offerInstall', "Offers to install the default chat extension if not installed already."),
-			default: false,
-			tags: ['experimental']
 		},
 	}
 });

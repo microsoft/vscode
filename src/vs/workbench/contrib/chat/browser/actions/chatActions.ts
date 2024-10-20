@@ -20,7 +20,7 @@ import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actio
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsLinuxContext, IsWebContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -34,7 +34,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INSTALL_ENTITLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -459,11 +459,9 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatCommandCenter,
 	title: localize('title4', "Chat"),
 	icon: defaultChat.icon,
-	when: ContextKeyExpr.or(
-		// Chat extension installed: show when `chat.commandCenter.enabled`
-		ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, ContextKeyExpr.has('config.chat.commandCenter.enabled')),
-		// Chat extension not installed: show when `chat.experimental.offerInstall` and native platform
-		ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate(), ContextKeyExpr.has('config.chat.experimental.offerInstall'), IsWebContext.negate())
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
+		ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_INSTALL_ENTITLED)
 	),
 	order: 10001,
 });
@@ -471,21 +469,13 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 	constructor() {
 		super(
-			{ main: 'chat.commandCenter.enabled', dependent: ['chat.experimental.offerInstall'] },
+			'chat.commandCenter.enabled',
 			localize('toggle.chatControl', 'Chat Controls'),
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
-			ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, ContextKeyExpr.has('config.window.commandCenter'))
-		);
-	}
-});
-
-registerAction2(class ToggleChatInstall extends ToggleTitleBarConfigAction {
-	constructor() {
-		super(
-			{ main: 'chat.experimental.offerInstall', dependent: ['chat.commandCenter.enabled'] },
-			localize('toggle.chatControl', 'Chat Controls'),
-			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
-			ContextKeyExpr.and(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate(), ContextKeyExpr.has('config.window.commandCenter'))
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('config.window.commandCenter'),
+				ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_INSTALL_ENTITLED)
+			)
 		);
 	}
 });
