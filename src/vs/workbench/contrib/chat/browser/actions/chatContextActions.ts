@@ -36,7 +36,7 @@ import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
@@ -166,7 +166,7 @@ class AttachFileAction extends Action2 {
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
@@ -197,7 +197,7 @@ class AttachSelectionAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor'),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
