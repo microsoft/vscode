@@ -15,6 +15,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CONTEXT_CHAT_INSTALL_ENTITLED } from './chatContextKeys.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 // TODO@bpasero revisit this flow
 
@@ -30,6 +31,8 @@ type ChatInstallEntitlementEnablementEvent = {
 
 class ChatInstallEntitlementContribution extends Disposable implements IWorkbenchContribution {
 
+	private static readonly CHAT_EXTENSION_INSTALLED_KEY = 'chat.extensionInstalled';
+
 	private readonly chatInstallEntitledContextKey = CONTEXT_CHAT_INSTALL_ENTITLED.bindTo(this.contextService);
 	private readonly listeners = this._register(new DisposableStore());
 
@@ -42,7 +45,8 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IRequestService private readonly requestService: IRequestService
+		@IRequestService private readonly requestService: IRequestService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -59,14 +63,16 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
 		if (!installed) {
 			this.registerListeners();
+		} else {
+			this.disableEntitlement(true);
 		}
 	}
 
 	private registerListeners(): void {
 		this.listeners.add(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.added) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, extension.identifier)) {
-					this.disableEntitlement();
+				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement?.extensionId, extension.identifier)) {
+					this.disableEntitlement(true);
 					return;
 				}
 			}
@@ -76,7 +82,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 			if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.added?.length) {
 				await this.resolveEntitlement(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.removed?.length) {
-				this.disableEntitlement();
+				this.disableEntitlement(false);
 			}
 		}));
 
@@ -93,9 +99,9 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		}
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
+		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
 		if (installed) {
-			this.disableEntitlement();
+			this.disableEntitlement(true);
 			return;
 		}
 
@@ -143,7 +149,10 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		return entitled;
 	}
 
-	private disableEntitlement(): void {
+	private disableEntitlement(isExtensionInstalled: boolean): void {
+		if (isExtensionInstalled) {
+			this.storageService.store(ChatInstallEntitlementContribution.CHAT_EXTENSION_INSTALLED_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
 		this.chatInstallEntitledContextKey.set(false);
 		this.listeners.dispose();
 	}
