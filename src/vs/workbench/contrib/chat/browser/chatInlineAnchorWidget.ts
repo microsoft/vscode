@@ -7,7 +7,6 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { createSingleCallFunction } from '../../../../base/common/functional.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -114,35 +113,28 @@ export class InlineAnchorWidget extends Disposable {
 			iconText = this.data.symbol.name;
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(this.data.symbol.kind))];
 
-			updateContextKeys = createSingleCallFunction(async () => {
+			const providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> = [
+				[EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.definitionProvider],
+				[EditorContextKeys.hasReferenceProvider.bindTo(contextKeyService), languageFeaturesService.referenceProvider],
+				[EditorContextKeys.hasImplementationProvider.bindTo(contextKeyService), languageFeaturesService.implementationProvider],
+				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.typeDefinitionProvider],
+			];
+
+			updateContextKeys = async () => {
 				const modelRef = await textModelService.createModelReference(location.uri);
-				if (this._isDisposed) {
-					return;
-				}
-
-				this._register(modelRef);
-				const model = modelRef.object.textEditorModel;
-
-				const providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> = [
-					[EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.definitionProvider],
-					[EditorContextKeys.hasReferenceProvider.bindTo(contextKeyService), languageFeaturesService.referenceProvider],
-					[EditorContextKeys.hasImplementationProvider.bindTo(contextKeyService), languageFeaturesService.implementationProvider],
-					[EditorContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService), languageFeaturesService.typeDefinitionProvider],
-				];
-				const updateContents = () => {
-					if (model.isDisposed()) {
+				try {
+					if (this._isDisposed) {
 						return;
 					}
 
+					const model = modelRef.object.textEditorModel;
 					for (const [contextKey, registry] of providerContexts) {
 						contextKey.set(registry.has(model));
 					}
-				};
-				updateContents();
-				for (const [_, registry] of providerContexts) {
-					this._register(registry.onDidChange(updateContents));
+				} finally {
+					modelRef.dispose();
 				}
-			});
+			};
 
 			this._register(dom.addDisposableListener(element, 'click', () => {
 				telemetryService.publicLog2<{
@@ -196,7 +188,7 @@ export class InlineAnchorWidget extends Disposable {
 		iconEl.classList.add(...iconClasses);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
-		const fragment = location.range ? `${location.range.startLineNumber}-${location.range.endLineNumber}` : '';
+		const fragment = location.range ? `${location.range.startLineNumber}` : '';
 		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
 
 		// Context menu
@@ -204,7 +196,15 @@ export class InlineAnchorWidget extends Disposable {
 			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
 			dom.EventHelper.stop(domEvent, true);
 
-			await updateContextKeys?.();
+			try {
+				await updateContextKeys?.();
+			} catch (e) {
+				console.error(e);
+			}
+
+			if (this._isDisposed) {
+				return;
+			}
 
 			contextMenuService.showContextMenu({
 				contextKeyService,
@@ -307,13 +307,13 @@ registerAction2(class CopyResourceAction extends Action2 {
 	}
 });
 
-registerAction2(class CopyResourceAction extends Action2 {
+registerAction2(class OpenToSideResourceAction extends Action2 {
 
 	static readonly id = 'chat.inlineResourceAnchor.openToSide';
 
 	constructor() {
 		super({
-			id: CopyResourceAction.id,
+			id: OpenToSideResourceAction.id,
 			title: nls.localize2('actions.openToSide.label', "Open to the Side"),
 			f1: false,
 			precondition: chatResourceContextKey,
@@ -355,11 +355,11 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 				...nls.localize2('actions.goToDecl.label', "Go to Definition"),
 				mnemonicTitle: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition"),
 			},
-			precondition: EditorContextKeys.hasDefinitionProvider,
 			menu: [{
 				id: MenuId.ChatInlineSymbolAnchorContext,
 				group: 'navigation',
 				order: 1.1,
+				when: EditorContextKeys.hasDefinitionProvider,
 			},]
 		});
 	}
@@ -405,11 +405,11 @@ registerAction2(class GoToTypeDefinitionsAction extends Action2 {
 				...nls.localize2('goToTypeDefinitions.label', "Go to Type Definitions"),
 				mnemonicTitle: nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definitions"),
 			},
-			precondition: EditorContextKeys.hasTypeDefinitionProvider,
 			menu: [{
 				id: MenuId.ChatInlineSymbolAnchorContext,
 				group: 'navigation',
 				order: 1.1,
+				when: EditorContextKeys.hasTypeDefinitionProvider,
 			},]
 		});
 	}
@@ -430,11 +430,11 @@ registerAction2(class GoToImplementations extends Action2 {
 				...nls.localize2('goToImplementations.label', "Go to Implementations"),
 				mnemonicTitle: nls.localize({ key: 'miGotoImplementations', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementations"),
 			},
-			precondition: EditorContextKeys.hasImplementationProvider,
 			menu: [{
 				id: MenuId.ChatInlineSymbolAnchorContext,
 				group: 'navigation',
 				order: 1.2,
+				when: EditorContextKeys.hasImplementationProvider,
 			},]
 		});
 	}
@@ -455,11 +455,11 @@ registerAction2(class GoToReferencesAction extends Action2 {
 				...nls.localize2('goToReferences.label', "Go to References"),
 				mnemonicTitle: nls.localize({ key: 'miGotoReference', comment: ['&& denotes a mnemonic'] }, "Go to &&References"),
 			},
-			precondition: EditorContextKeys.hasReferenceProvider,
 			menu: [{
 				id: MenuId.ChatInlineSymbolAnchorContext,
 				group: 'navigation',
 				order: 1.3,
+				when: EditorContextKeys.hasReferenceProvider,
 			},]
 		});
 	}
