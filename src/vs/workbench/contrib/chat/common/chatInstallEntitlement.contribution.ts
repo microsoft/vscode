@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
@@ -30,8 +30,10 @@ type ChatInstallEntitlementEnablementEvent = {
 
 class ChatInstallEntitlementContribution extends Disposable implements IWorkbenchContribution {
 
-	private didCheckForEntitlement = false;
 	private readonly chatInstallEntitledContextKey = CONTEXT_CHAT_INSTALL_ENTITLED.bindTo(this.contextService);
+	private readonly listeners = this._register(new DisposableStore());
+
+	private didCheckForEntitlement = false;
 
 	constructor(
 		@IContextKeyService private readonly contextService: IContextKeyService,
@@ -55,15 +57,13 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		const extensions = await this.extensionManagementService.getInstalled();
 
 		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
-		if (installed) {
-			this.disableEntitlement();
-		} else {
+		if (!installed) {
 			this.registerListeners();
 		}
 	}
 
 	private registerListeners(): void {
-		this._register(this.extensionService.onDidChangeExtensions(result => {
+		this.listeners.add(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.added) {
 				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, extension.identifier)) {
 					this.disableEntitlement();
@@ -72,7 +72,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 			}
 		}));
 
-		this._register(this.authenticationService.onDidChangeSessions(async (e) => {
+		this.listeners.add(this.authenticationService.onDidChangeSessions(async e => {
 			if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.added?.length) {
 				await this.resolveEntitlement(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.removed?.length) {
@@ -80,7 +80,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 			}
 		}));
 
-		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
+		this.listeners.add(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
 			if (e.id === this.productService.gitHubEntitlement?.providerId) {
 				this.resolveEntitlement((await this.authenticationService.getSessions(e.id))[0]);
 			}
@@ -148,6 +148,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 
 	private disableEntitlement(): void {
 		this.chatInstallEntitledContextKey.set(false);
+		this.listeners.dispose();
 	}
 }
 
