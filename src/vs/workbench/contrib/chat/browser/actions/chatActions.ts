@@ -602,12 +602,17 @@ class LearnMoreChatAction extends Action2 {
 			id: LearnMoreChatAction.ID,
 			title: LearnMoreChatAction.TITLE,
 			category: CHAT_CATEGORY,
-			menu: {
+			menu: [{
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 2,
 				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
-			}
+			}, {
+				id: MenuId.ChatCommandCenter,
+				group: 'z_atlast',
+				order: 1,
+				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED
+			}]
 		});
 	}
 
