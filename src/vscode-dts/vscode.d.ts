@@ -1078,7 +1078,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents theme specific rendeirng styles for {@link ThemableDecorationRenderOptions.before before} and
+	 * Represents theme specific rendering styles for {@link ThemableDecorationRenderOptions.before before} and
 	 * {@link ThemableDecorationRenderOptions.after after} the content of text decorations.
 	 */
 	export interface ThemableDecorationAttachmentRenderOptions {
@@ -2484,7 +2484,7 @@ declare module 'vscode' {
 		static readonly SourceFixAll: CodeActionKind;
 
 		/**
-		 * Base kind for all code actions applying to the enitre notebook's scope. CodeActionKinds using
+		 * Base kind for all code actions applying to the entire notebook's scope. CodeActionKinds using
 		 * this should always begin with `notebook.`
 		 *
 		 * This requires that new CodeActions be created for it and contributed via extensions.
@@ -2502,7 +2502,7 @@ declare module 'vscode' {
 		static readonly Notebook: CodeActionKind;
 
 		/**
-		 * Private constructor, use statix `CodeActionKind.XYZ` to derive from an existing code action kind.
+		 * Private constructor, use static `CodeActionKind.XYZ` to derive from an existing code action kind.
 		 *
 		 * @param value The value of the kind, such as `refactor.extract.function`.
 		 */
@@ -4216,7 +4216,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a semantic tokens builder.
 		 *
-		 * @param legend A semantic tokens legent.
+		 * @param legend A semantic tokens legend.
 		 */
 		constructor(legend?: SemanticTokensLegend);
 
@@ -6514,7 +6514,7 @@ declare module 'vscode' {
 			workspaceValue?: T;
 
 			/**
-			 * The workpace-folder-specific value.
+			 * The workspace-folder-specific value.
 			 */
 			workspaceFolderValue?: T;
 
@@ -7343,7 +7343,7 @@ declare module 'vscode' {
 		 * is created. Listen to {@link window.onDidChangeTerminalShellIntegration} to be notified
 		 * when shell integration is activated for a terminal.
 		 *
-		 * Note that this object may remain undefined if shell integation never activates. For
+		 * Note that this object may remain undefined if shell integration never activates. For
 		 * example Command Prompt does not support shell integration and a user's shell setup could
 		 * conflict with the automatic shell integration activation.
 		 */

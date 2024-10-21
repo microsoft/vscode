@@ -706,7 +706,7 @@ export class SearchView extends ViewPane {
 			ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 	}
 
-	private shouldCollapse(match: RenderableMatch): boolean {
+	private shouldCollapseAccordingToConfig(match: RenderableMatch): boolean {
 		const collapseResults = this.originalShouldCollapse(match);
 		if (collapseResults === ObjectTreeElementCollapseState.PreserveOrCollapsed) {
 			return true;
@@ -887,11 +887,16 @@ export class SearchView extends ViewPane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
 				collapseByDefault: (e: RenderableMatch) => {
-					if (isTextSearchHeading(e) && e.isAIContributed) {
-						// always collapse the ai text search result
-						return true;
+					if (isTextSearchHeading(e)) {
+						// always collapse the ai text search result, but always expand the text result
+						return e.isAIContributed;
 					}
-					return this.shouldCollapse(e);
+
+					// always expand compressed nodes
+					if (isSearchTreeFolderMatch(e) && e.matches().length === 1 && isSearchTreeFolderMatch(e.matches()[0])) {
+						return false;
+					}
+					return this.shouldCollapseAccordingToConfig(e);
 				}
 			}));
 
@@ -2448,11 +2453,16 @@ class RefreshTreeController extends Disposable {
 
 				await this.searchView.getControl().updateChildren(undefined);
 			} else {
-				// IFileMatchInstance modified, refresh those elements
-				await Promise.all(event.elements.map(async element => {
-					await this.searchView.getControl().updateChildren(element);
-					this.searchView.getControl().rerender(element);
-				}));
+				const treeHasAllElements = event.elements.every(elem => this.searchView.getControl().hasNode(elem));
+				if (treeHasAllElements) {
+					// IFileMatchInstance modified, refresh those elements
+					await Promise.all(event.elements.map(async element => {
+						await this.searchView.getControl().updateChildren(element);
+						this.searchView.getControl().rerender(element);
+					}));
+				} else {
+					this.searchView.getControl().updateChildren(undefined);
+				}
 			}
 		}
 	}

@@ -387,7 +387,7 @@ export function registerChatTitleActions() {
 				title: localize2('chat.startEditing.label2', "Edit with Copilot"),
 				f1: false,
 				category: CHAT_CATEGORY,
-				icon: Codicon.edit,
+				icon: Codicon.goToEditingSession,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession)),
 				menu: {
 					id: MenuId.ChatMessageFooter,
