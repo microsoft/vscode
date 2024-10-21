@@ -4599,7 +4599,6 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
 		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		// value.content2 = [content];
 		return value;
 	}
 
@@ -4608,14 +4607,12 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
-	content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
-	// content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
+	content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
-		this.content = content;
-		// this.content2 = [content];
+		this.content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
 		this.name = name;
 	}
 }
