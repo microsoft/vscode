@@ -118,7 +118,7 @@ export interface NativeParsedArgs {
 	'disable-chromium-sandbox'?: boolean;
 	sandbox?: boolean;
 
-	'enable-coi'?: boolean;
+	'disable-coi'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
 	'no-proxy-server'?: boolean;

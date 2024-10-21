@@ -10,7 +10,7 @@ import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
-import * as dompurify from './dompurify/dompurify.js';
+import dompurify from './dompurify/dompurify.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities, Schemas } from '../common/network.js';

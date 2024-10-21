@@ -226,7 +226,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
 		let responseContent = '';
-		const response = await this._terminalChatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput, isVoiceInput);
+		const response = await this._terminalChatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput, { isVoiceInput });
 		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
 		try {

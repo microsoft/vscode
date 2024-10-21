@@ -2341,6 +2341,7 @@ export interface IInlineEdit {
 	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
+	commands?: Command[];
 }
 
 export interface IInlineEditContext {
