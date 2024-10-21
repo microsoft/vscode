@@ -1494,7 +1494,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTool<T>(name: string, tool: vscode.LanguageModelTool<T>) {
 				return extHostLanguageModelTools.registerTool(extension, name, tool);
 			},
-			invokeTool<T>(name: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token: vscode.CancellationToken) {
+			invokeTool<T>(name: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token?: vscode.CancellationToken) {
 				return extHostLanguageModelTools.invokeTool(name, parameters, token);
 			},
 			get tools() {

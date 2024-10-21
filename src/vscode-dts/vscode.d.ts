@@ -19403,7 +19403,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+		content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 
 		/**
 		 * The optional name of a user for this message.
@@ -19724,7 +19724,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token. See {@link CancellationTokenSource} for how to create one.
 		 * @returns The result of the tool invocation.
 		 */
-		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token?: CancellationToken): Thenable<LanguageModelToolResult>;
 	}
 
 	/**
