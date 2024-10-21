@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { ResourceSet } from '../../../../base/common/map.js';
-import { basename } from '../../../../base/common/resources.js';
-import { URI } from '../../../../base/common/uri.js';
-import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { EditorActivation } from '../../../../platform/editor/common/editor.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IListService } from '../../../../platform/list/browser/listService.js';
-import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ChatAgentLocation } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../common/chatEditingService.js';
-import { IChatService } from '../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../common/chatViewModel.js';
-import { CHAT_CATEGORY } from './actions/chatActions.js';
-import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
+import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../../common/chatContextKeys.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
+import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
 abstract class WorkingSetAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]) {
