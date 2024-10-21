@@ -705,6 +705,9 @@ export interface InlineCompletionContext {
 	 * @internal
 	*/
 	readonly userPrompt?: string | undefined;
+
+	readonly includeInlineEdits: boolean;
+	readonly includeInlineCompletions: boolean;
 }
 
 export class SelectedSuggestionInfo {
@@ -2338,6 +2341,7 @@ export interface IInlineEdit {
 	range: IRange;
 	accepted?: Command;
 	rejected?: Command;
+	commands?: Command[];
 }
 
 export interface IInlineEditContext {

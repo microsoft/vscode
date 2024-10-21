@@ -5,8 +5,9 @@
 
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
-import { commonPrefixLength, commonSuffixLength } from '../../../base/common/strings.js';
+import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
 import { ISingleEditOperation } from './editOperation.js';
+import { LineEdit } from './lineEdit.js';
 import { LineRange } from './lineRange.js';
 import { OffsetEdit } from './offsetEdit.js';
 import { Position } from './position.js';
@@ -330,6 +331,11 @@ export abstract class AbstractText {
 	getLineAt(lineNumber: number): string {
 		return this.getValueOfRange(new Range(lineNumber, 1, lineNumber, Number.MAX_SAFE_INTEGER));
 	}
+
+	getLines(): string[] {
+		const value = this.getValue();
+		return splitLines(value);
+	}
 }
 
 export class LineBasedText extends AbstractText {
@@ -386,5 +392,18 @@ export class StringText extends AbstractText {
 
 	get length(): TextLength {
 		return this._t.textLength;
+	}
+}
+
+export class BasedTextEdit {
+	constructor(
+		public readonly base: AbstractText,
+		public readonly edit: TextEdit,
+	) {
+	}
+
+	toString() {
+		const lineEdit = LineEdit.fromTextEdit(this.edit, this.base);
+		return lineEdit.humanReadablePatch(this.base.getLines());
 	}
 }

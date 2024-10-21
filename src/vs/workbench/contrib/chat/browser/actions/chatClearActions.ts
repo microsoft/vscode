@@ -17,10 +17,11 @@ import { clearChatEditor } from './chatClear.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED } from '../../common/chatContextKeys.js';
+import { CONTEXT_IN_CHAT_SESSION, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_EDITING_CAN_REDO } from '../../common/chatContextKeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
 
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
@@ -162,13 +163,61 @@ export function registerNewChatActions() {
 		}
 	});
 
+	registerAction2(class UndoChatEditInteractionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.undoEditInteraction',
+				title: localize2('chat.undoEditInteraction.label', "Undo Interaction"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.discard,
+				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				f1: true,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', EDITS_VIEW_ID),
+					group: 'navigation',
+					order: -3
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const chatEditingService = accessor.get(IChatEditingService);
+			await chatEditingService.currentEditingSession?.undoInteraction();
+		}
+	});
+
+	registerAction2(class RedoChatEditInteractionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.redoEditInteraction',
+				title: localize2('chat.redoEditInteraction.label', "Redo Interaction"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.redo,
+				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				f1: true,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.equals('view', EDITS_VIEW_ID),
+					group: 'navigation',
+					order: -2
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const chatEditingService = accessor.get(IChatEditingService);
+			await chatEditingService.currentEditingSession?.redoInteraction();
+		}
+	});
+
 	registerAction2(class GlobalClearEditsAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openEditSession',
 				title: localize2('chat.openEdits.label', "Open Edit Session"),
 				category: CHAT_CATEGORY,
-				icon: Codicon.edit,
+				icon: Codicon.goToEditingSession,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
 				f1: true,
 				menu: [{
