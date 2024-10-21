@@ -145,6 +145,7 @@ steps:
       SymbolsFolder: '$(Agent.BuildDirectory)\symbols'
       SearchPattern: '**\*.pdb'
       SymbolServerType: TeamServices
+      SymbolsProduct: 'code'
     displayName: Publish Symbols
     condition: succeeded()
 
