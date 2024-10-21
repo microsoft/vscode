@@ -26,6 +26,8 @@ export class MoveLinesCommand implements ICommand {
 	private _selectionId: string | null;
 	private _moveEndPositionDown?: boolean;
 	private _moveEndLineSelectionShrink: boolean;
+	private startVirtualSpace: number;
+	private endVirtualSpace: number;
 
 	constructor(
 		selection: Selection,
@@ -38,6 +40,8 @@ export class MoveLinesCommand implements ICommand {
 		this._autoIndent = autoIndent;
 		this._selectionId = null;
 		this._moveEndLineSelectionShrink = false;
+		this.startVirtualSpace = 0;
+		this.endVirtualSpace = 0;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
@@ -49,19 +53,30 @@ export class MoveLinesCommand implements ICommand {
 			return model.getLanguageIdAtPosition(lineNumber, column);
 		};
 
+		let s = this._selection;
+		const maxStartColumn = model.getLineMaxColumn(s.startLineNumber);
+		if (s.startColumn >= maxStartColumn) {
+			this.startVirtualSpace = s.startColumn - maxStartColumn;
+			s = s.setStartPosition(s.startLineNumber, maxStartColumn);
+		}
+		const maxEndColumn = model.getLineMaxColumn(s.endLineNumber);
+		if (s.endColumn >= maxEndColumn) {
+			this.endVirtualSpace = s.endColumn - maxEndColumn;
+			s = s.setEndPosition(s.endLineNumber, maxEndColumn);
+		}
+
 		const modelLineCount = model.getLineCount();
 
-		if (this._isMovingDown && this._selection.endLineNumber === modelLineCount) {
-			this._selectionId = builder.trackSelection(this._selection);
+		if (this._isMovingDown && s.endLineNumber === modelLineCount) {
+			this._selectionId = builder.trackSelection(s);
 			return;
 		}
-		if (!this._isMovingDown && this._selection.startLineNumber === 1) {
-			this._selectionId = builder.trackSelection(this._selection);
+		if (!this._isMovingDown && s.startLineNumber === 1) {
+			this._selectionId = builder.trackSelection(s);
 			return;
 		}
 
 		this._moveEndPositionDown = false;
-		let s = this._selection;
 
 		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
 			this._moveEndPositionDown = true;
@@ -438,6 +453,14 @@ export class MoveLinesCommand implements ICommand {
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		let result = helper.getTrackedSelection(this._selectionId!);
+
+		if (this.endVirtualSpace > 0) {
+			result = result.setEndPosition(result.endLineNumber, result.endColumn + this.endVirtualSpace);
+		}
+
+		if (this.startVirtualSpace > 0) {
+			result = result.setStartPosition(result.startLineNumber, result.startColumn + this.startVirtualSpace);
+		}
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);

@@ -1046,7 +1046,7 @@ export namespace CoreNavigationCommands {
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
-				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, 1, 0));
+				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, 1, null));
 			}
 			return result;
 		}
@@ -1183,7 +1183,7 @@ export namespace CoreNavigationCommands {
 				const cursor = cursors[i];
 				const lineNumber = cursor.modelState.position.lineNumber;
 				const maxColumn = viewModel.model.getLineMaxColumn(lineNumber);
-				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, maxColumn, 0));
+				result[i] = CursorState.fromModelState(cursor.modelState.move(this._inSelectionMode, lineNumber, maxColumn, null));
 			}
 			return result;
 		}
