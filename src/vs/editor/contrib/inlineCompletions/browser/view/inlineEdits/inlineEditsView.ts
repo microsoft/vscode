@@ -35,6 +35,9 @@ import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { applyEditToModifiedRangeMappings, maxLeftInRange, Point, StatusBarViewItem, UniqueUriGenerator } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
+import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
@@ -116,6 +119,17 @@ export class InlineEditWithChanges {
 	}
 }
 
+export const originalBackgroundColor = registerColor('inlineEdit.originalBackground', transparent(diffRemoved, 0.4), '', true
+);
+
+export const modifiedBackgroundColor = registerColor('inlineEdit.modifiedBackground',
+	transparent(diffInserted, 0.4),
+	'',
+	true
+);
+
+export const border = registerColor('inlineEdit.border', editorLineHighlightBorder, '');
+
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
 
@@ -132,10 +146,8 @@ export class InlineEditsView extends Disposable {
 			h('div.preview@editor', { style: {} }),
 			h('div.toolbar@toolbar', { style: {} }),
 		]),
-		svgElem('svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, [
-			svgElem('path@path', {
-				d: ''
-			}),
+		svgElem('svg@svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, [
+
 		]),
 	]);
 
@@ -166,30 +178,53 @@ export class InlineEditsView extends Disposable {
 		this._register(autorun(reader => {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 			if (!layoutInfo) {
-				this._elements.path.style.visibility = 'hidden';
+				this._elements.svg.replaceChildren();
 				return;
 			}
-			this._elements.path.style.visibility = '';
 
 			const topEdit = layoutInfo.edit1;
 			const editHeight = layoutInfo.editHeight;
 
 			const width = this._previewEditorWidth.read(reader) + 10;
 
-			const pathBuilder = new PathBuilder();
-			pathBuilder.moveTo(layoutInfo.code1.deltaX(-5));
-			pathBuilder.lineTo(layoutInfo.code1);
-			pathBuilder.lineTo(layoutInfo.edit1);
-			pathBuilder.lineTo(layoutInfo.edit1.deltaX(width));
-			pathBuilder.lineTo(layoutInfo.edit2.deltaX(width));
-			pathBuilder.lineTo(layoutInfo.edit2);
-			pathBuilder.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
-			pathBuilder.lineTo(layoutInfo.code2.deltaX(-5));
+			const pathBuilder1 = new PathBuilder();
+			pathBuilder1.moveTo(layoutInfo.code2);
+			pathBuilder1.lineTo(layoutInfo.codeStart2);
+			pathBuilder1.lineTo(layoutInfo.codeStart1);
+			pathBuilder1.lineTo(layoutInfo.code1);
 
-			this._elements.path.setAttribute('d', pathBuilder.build());
-			this._elements.path.style.fill = 'none';
-			this._elements.path.style.stroke = 'var(--vscode-activityBarBadge-background)';
-			this._elements.path.style.strokeWidth = '1px';
+
+			const pathBuilder2 = new PathBuilder();
+			pathBuilder2.moveTo(layoutInfo.code1);
+			pathBuilder2.lineTo(layoutInfo.edit1);
+			pathBuilder2.lineTo(layoutInfo.edit1.deltaX(width));
+			pathBuilder2.lineTo(layoutInfo.edit2.deltaX(width));
+			pathBuilder2.lineTo(layoutInfo.edit2);
+			pathBuilder2.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+			pathBuilder2.lineTo(layoutInfo.code2);
+
+			const pathBuilder3 = new PathBuilder();
+			pathBuilder3.moveTo(layoutInfo.code1);
+			pathBuilder3.lineTo(layoutInfo.code2);
+
+			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path1.setAttribute('d', pathBuilder1.build());
+			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
+			path1.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path1.style.strokeWidth = '1px';
+
+			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path2.setAttribute('d', pathBuilder2.build());
+			path2.style.fill = 'var(--vscode-inlineEdit-modifiedBackground, transparent)';
+			path2.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path2.style.strokeWidth = '1px';
+
+			const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path3.setAttribute('d', pathBuilder3.build());
+			path3.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path3.style.strokeWidth = '1px';
+
+			this._elements.svg.replaceChildren(path1, path2, path3);
 
 			this._elements.editorContainer.style.top = `${topEdit.y}px`;
 			this._elements.editorContainer.style.left = `${topEdit.x}px`;
@@ -337,6 +372,9 @@ export class InlineEditsView extends Disposable {
 		return { left: contentLeft + maxLeft };
 	});
 
+	/**
+	 * ![test](./layout.dio.svg)
+	*/
 	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) { return null; }
@@ -355,7 +393,7 @@ export class InlineEditsView extends Disposable {
 		const code1 = new Point(left, selectionTop);
 		const codeStart1 = new Point(codeLeft, selectionTop);
 		const code2 = new Point(left, selectionBottom);
-		const codeStart2 = new Point(0, selectionBottom);
+		const codeStart2 = new Point(codeLeft, selectionBottom);
 		const codeHeight = selectionBottom - selectionTop;
 
 		const codeEditDist = 60;
