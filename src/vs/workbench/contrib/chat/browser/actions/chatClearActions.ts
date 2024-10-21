@@ -217,7 +217,7 @@ export function registerNewChatActions() {
 				id: 'workbench.action.chat.openEditSession',
 				title: localize2('chat.openEdits.label', "Open Edit Session"),
 				category: CHAT_CATEGORY,
-				icon: Codicon.edit,
+				icon: Codicon.goToEditingSession,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
 				f1: true,
 				menu: [{
