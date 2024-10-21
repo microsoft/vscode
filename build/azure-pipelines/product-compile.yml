@@ -10,6 +10,12 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        tar --version
+        gcc --version
+        apt-get --version
+      displayName: List build tool versions
+
     - template: ./distro/download-distro.yml@self
 
     - task: AzureKeyVault@2
@@ -25,12 +31,6 @@ steps:
 
   - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/packagelockhash
     displayName: Prepare node_modules cache key
-
-  - script: |
-      tar --version
-      gcc --version
-      apt-get --version
-    displayName: List versions
 
   - task: Cache@2
     inputs:
