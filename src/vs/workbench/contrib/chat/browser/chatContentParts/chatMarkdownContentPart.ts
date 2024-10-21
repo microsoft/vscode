@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -17,14 +18,17 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { createAndFillInContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
@@ -32,9 +36,9 @@ import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
+import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import '../media/chatCodeBlockPill.css';
 
 const $ = dom.$;
 
@@ -50,7 +54,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
-		private readonly markdown: IMarkdownString,
+		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
@@ -59,7 +63,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatListItemRendererOptions,
-		isResponseComplete: boolean,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -67,15 +70,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		super();
 
 		const element = context.element;
-		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		let codeBlockIndex = codeBlockStartIndex;
-		const result = this._register(renderer.render(markdown, {
+		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = isResponseComplete || !raw || raw?.endsWith('```');
+				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
@@ -100,7 +102,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				if (!rendererOptions.renderCodeBlockPills) {
+				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
@@ -131,7 +133,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					orderedDisposablesList.push(ref);
 					return ref.object.element;
 				} else {
-					const ref = this.renderCodeBlockPill(codeBlockInfo.codemapperUri, isCodeBlockComplete);
+					const requestId = isRequestVM(element) ? element.id : element.requestId;
+					const isStreaming = isResponseVM(element) ? !element.isComplete : !isCodeBlockComplete;
+					const ref = this.renderCodeBlockPill(element.sessionId, requestId, codeBlockInfo.codemapperUri, !isStreaming);
 					if (isResponseVM(codeBlockInfo.element)) {
 						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
 						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId }).then((e) => {
@@ -146,7 +150,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly ownerMarkdownPartId = ownerMarkdownPartId;
 						readonly codeBlockIndex = index;
 						readonly element = element;
-						readonly isStreaming = !isCodeBlockComplete;
+						readonly isStreaming = isStreaming;
 						codemapperUri = undefined; // will be set async
 						public get uri() {
 							return undefined;
@@ -166,14 +170,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 
-		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
+		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
 		this.domNode = result.element;
 	}
 
-	private renderCodeBlockPill(codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
-		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock);
+	private renderCodeBlockPill(sessionId: string, requestId: string, codemapperUri: URI | undefined, isCodeBlockComplete?: boolean): IDisposableReference<CollapsedCodeBlock> {
+		const codeBlock = this.instantiationService.createInstance(CollapsedCodeBlock, sessionId, requestId);
 		if (codemapperUri) {
 			codeBlock.render(codemapperUri, !isCodeBlockComplete);
 		}
@@ -201,8 +206,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.value
-			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
+		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
+			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {
@@ -270,18 +275,38 @@ class CollapsedCodeBlock extends Disposable {
 	private isStreaming: boolean | undefined;
 
 	constructor(
+		sessionId: string,
+		requestId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
 		this.element.classList.add('show-file-icons');
-		this._register(dom.addDisposableListener(this.element, 'click', () => {
+		this._register(dom.addDisposableListener(this.element, 'click', async () => {
 			if (this.uri) {
 				this.editorService.openEditor({ resource: this.uri });
 			}
+		}));
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
+			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+			dom.EventHelper.stop(domEvent, true);
+
+			this.contextMenuService.showContextMenu({
+				contextKeyService: this.contextKeyService,
+				getAnchor: () => event,
+				getActions: () => {
+					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri } });
+					const primary: IAction[] = [];
+					createAndFillInContextMenuActions(menu, primary);
+					return primary;
+				},
+			});
 		}));
 	}
 

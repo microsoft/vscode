@@ -14,15 +14,15 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
-import { ChatAttachmentModel } from './chatAttachmentModel.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -34,6 +34,10 @@ export interface IChatWidgetService {
 	 * Returns the most recently focused widget if any.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
+
+	readonly onDidAddWidget: Event<IChatWidget>;
+
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
@@ -112,6 +116,7 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	autoScroll?: boolean;
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
@@ -135,6 +140,7 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	enableImplicitContext?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -147,6 +153,11 @@ export interface IChatResourceViewContext {
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
 
+export interface IChatAcceptInputOptions {
+	noCommandDetection?: boolean;
+	isVoiceInput?: boolean;
+}
+
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
@@ -154,7 +165,6 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
-	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -174,7 +184,7 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;

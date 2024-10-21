@@ -27,6 +27,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { isWeb } from '../../../../base/common/platform.js';
 
+// TODO@bpasero remove this experiment eventually
+
 const accountsBadgeConfigKey = 'workbench.accounts.experimental.showEntitlements';
 
 type EntitlementEnablementClassification = {
@@ -247,8 +249,8 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
 			default: false,
-			tags: ['experimental'],
-			description: localize('workbench.accounts.showEntitlements', "When enabled, available entitlements for the account will be show in the accounts menu.")
+			tags: ['experimental', 'onExP'],
+			description: localize('workbench.accounts.showEntitlements', "When enabled, available entitlements for the account will be shown in the accounts menu.")
 		}
 	}
 });

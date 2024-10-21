@@ -17,7 +17,8 @@ import { RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 export function maxLeftInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
-	const model = editor.model.get()!;
+
+	const model = editor.model.read(reader);
 	if (!model) { return 0; }
 	let maxLeft = 0;
 
@@ -26,6 +27,11 @@ export function maxLeftInRange(editor: ObservableCodeEditor, range: LineRange, r
 		const column = model.getLineMaxColumn(i);
 		const left = editor.editor.getOffsetForColumn(i, column);
 		maxLeft = Math.max(maxLeft, left);
+	}
+	const lines = range.mapToLineArray(l => model.getLineContent(l));
+
+	if (maxLeft < 5 && lines.some(l => l.length > 0) && model.uri.scheme !== 'file') {
+		console.error('unexpected width');
 	}
 	return maxLeft;
 }
@@ -65,6 +71,7 @@ export class Point {
 		return new Point(this.x + delta, this.y);
 	}
 }
+
 export class UniqueUriGenerator {
 	private static _modelId = 0;
 

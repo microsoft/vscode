@@ -11,15 +11,24 @@ import { TextLength } from './textLength.js';
 
 export class PositionOffsetTransformer {
 	private readonly lineStartOffsetByLineIdx: number[];
+	private readonly lineEndOffsetByLineIdx: number[];
 
 	constructor(public readonly text: string) {
 		this.lineStartOffsetByLineIdx = [];
+		this.lineEndOffsetByLineIdx = [];
+
 		this.lineStartOffsetByLineIdx.push(0);
 		for (let i = 0; i < text.length; i++) {
 			if (text.charAt(i) === '\n') {
 				this.lineStartOffsetByLineIdx.push(i + 1);
+				if (i > 0 && text.charAt(i - 1) === '\r') {
+					this.lineEndOffsetByLineIdx.push(i - 1);
+				} else {
+					this.lineEndOffsetByLineIdx.push(i);
+				}
 			}
 		}
+		this.lineEndOffsetByLineIdx.push(text.length);
 	}
 
 	getOffset(position: Position): number {
@@ -54,5 +63,9 @@ export class PositionOffsetTransformer {
 	get textLength(): TextLength {
 		const lineIdx = this.lineStartOffsetByLineIdx.length - 1;
 		return new TextLength(lineIdx, this.text.length - this.lineStartOffsetByLineIdx[lineIdx]);
+	}
+
+	getLineLength(lineNumber: number): number {
+		return this.lineEndOffsetByLineIdx[lineNumber - 1] - this.lineStartOffsetByLineIdx[lineNumber - 1];
 	}
 }
