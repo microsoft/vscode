@@ -44,6 +44,7 @@ export class EditSessionsDataViews extends Disposable {
 		treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: viewId,
 			name: EDIT_SESSIONS_TITLE,

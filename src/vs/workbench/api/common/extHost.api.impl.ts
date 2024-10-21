@@ -1491,18 +1491,24 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
 			},
-			registerTool<T>(toolId: string, tool: vscode.LanguageModelTool<T>) {
+			registerTool<T>(name: string, tool: vscode.LanguageModelTool<T>) {
 				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
+				return extHostLanguageModelTools.registerTool(extension, name, tool);
 			},
-			invokeTool<T>(toolId: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token: vscode.CancellationToken) {
+			invokeTool<T>(name: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
+				return extHostLanguageModelTools.invokeTool(name, parameters, token);
 			},
 			get tools() {
 				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.tools;
 			},
+			fileIsIgnored(uri: vscode.Uri, token: vscode.CancellationToken) {
+				return extHostLanguageModels.fileIsIgnored(extension, uri, token);
+			},
+			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
+				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
+			}
 		};
 
 		// namespace: speech
@@ -1742,6 +1748,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
+			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,
 			DebugThread: extHostTypes.DebugThread,
@@ -1775,10 +1782,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
-			LanguageModelChatMessageToolResultPart: extHostTypes.LanguageModelToolResultPart,
-			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
-			LanguageModelChatResponseToolCallPart: extHostTypes.LanguageModelToolCallPart,
+			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
+			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
+			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
+			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,
+			LanguageModelPromptTsxPart: extHostTypes.LanguageModelPromptTsxPart,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,

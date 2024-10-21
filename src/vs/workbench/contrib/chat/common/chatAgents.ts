@@ -62,7 +62,6 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
-	supportsModelPicker?: boolean;
 	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
@@ -77,7 +76,6 @@ export interface IChatAgentData {
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
-	supportsToolReferences?: boolean;
 }
 
 export interface IChatWelcomeMessageContent {

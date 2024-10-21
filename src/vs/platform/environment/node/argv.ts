@@ -178,7 +178,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'continueOn': { type: 'string' },
 	'locate-shell-integration-path': { type: 'string', args: ['bash', 'pwsh', 'zsh', 'fish'] },
 
-	'enable-coi': { type: 'boolean' },
+	'disable-coi': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -272,6 +272,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		const newArgs = args.filter(a => a !== firstArg);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
 			[firstArg]: subcommandOptions,
 			_: []

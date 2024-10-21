@@ -150,6 +150,7 @@ export class InlineChatWidget {
 			location,
 			undefined,
 			{
+				autoScroll: true,
 				defaultElementHeight: 32,
 				renderStyle: 'minimal',
 				renderInputOnTop: false,

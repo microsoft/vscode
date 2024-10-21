@@ -385,13 +385,23 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			} else if (matchesSomeScheme(uri, Schemas.mailto, Schemas.http, Schemas.https)) {
 				templateData.label.setResource({ resource: uri, name: uri.toString() }, { icon: icon ?? Codicon.globe, title: data.options?.status?.description ?? data.title ?? uri.toString() });
 			} else {
-				templateData.label.setFile(uri, {
-					fileKind: FileKind.FILE,
-					// Should not have this live-updating data on a historical reference
-					fileDecorations: undefined,
-					range: 'range' in reference ? reference.range : undefined,
-					title: data.options?.status?.description ?? data.title
-				});
+				if (data.state === WorkingSetEntryState.Transient) {
+					templateData.label.setResource(
+						{
+							resource: uri,
+							name: basenameOrAuthority(uri),
+							description: localize('chat.openEditor', 'Open Editor'),
+							range: 'range' in reference ? reference.range : undefined,
+						}, { icon, title: data.options?.status?.description ?? data.title });
+				} else {
+					templateData.label.setFile(uri, {
+						fileKind: FileKind.FILE,
+						// Should not have this live-updating data on a historical reference
+						fileDecorations: undefined,
+						range: 'range' in reference ? reference.range : undefined,
+						title: data.options?.status?.description ?? data.title
+					});
+				}
 			}
 		}
 

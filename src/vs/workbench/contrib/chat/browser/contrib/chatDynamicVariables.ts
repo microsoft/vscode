@@ -208,6 +208,8 @@ export class SelectAndInsertFileAction extends Action2 {
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: 'vscode.file',
+			isFile: true,
+			prefix: 'file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: resource
 		});
@@ -278,6 +280,8 @@ export class AddDynamicVariableAction extends Action2 {
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			id: context.id,
 			range: range,
+			isFile: true,
+			prefix: 'file',
 			data: variableData
 		});
 	}
