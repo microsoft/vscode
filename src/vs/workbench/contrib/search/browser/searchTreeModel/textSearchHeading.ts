@@ -12,26 +12,26 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IReplaceService } from '../replace.js';
-import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
+import { IFileMatch, ISearchComplete, ITextQuery, ITextSearchQuery } from '../../../../services/search/common/search.js';
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { FolderMatchNoRootImpl, FolderMatchWorkspaceRootImpl } from './folderMatch.js';
-import { IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, ITextSearchHeading, ISearchTreeMatch, TEXT_SEARCH_HEADING_PREFIX, PLAIN_TEXT_SEARCH__RESULT_ID } from './searchTreeCommon.js';
+import { IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchTreeFolderMatchWithResource, ISearchTreeFolderMatchWorkspaceRoot, IPlainTextSearchHeading, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, ITextSearchHeading, ISearchTreeMatch, TEXT_SEARCH_HEADING_PREFIX, PLAIN_TEXT_SEARCH__RESULT_ID, ISearchTreeFolderMatchNoRoot } from './searchTreeCommon.js';
 import { isNotebookFileMatch } from '../notebookSearch/notebookSearchModelBase.js';
 
 
-export abstract class TextSearchHeadingImpl extends Disposable implements ITextSearchHeading {
-	private _onChange = this._register(new Emitter<IChangeEvent>());
+export abstract class TextSearchHeadingImpl<QueryType extends ITextSearchQuery> extends Disposable implements ITextSearchHeading {
+	protected _onChange = this._register(new Emitter<IChangeEvent>());
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _isDirty = false;
 	private _showHighlights: boolean = false;
 
-	private _query: ITextQuery | null = null;
+	protected _query: QueryType | null = null;
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => Promise<void> = () => Promise.resolve();
 
-	private _folderMatches: ISearchTreeFolderMatchWorkspaceRoot[] = [];
-	private _otherFilesMatch: ISearchTreeFolderMatch | null = null;
-	private _folderMatchesMap: TernarySearchTree<URI, ISearchTreeFolderMatchWithResource> = TernarySearchTree.forUris<ISearchTreeFolderMatchWorkspaceRoot>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
+	protected _folderMatches: ISearchTreeFolderMatchWorkspaceRoot[] = [];
+	protected _otherFilesMatch: ISearchTreeFolderMatch | null = null;
+	protected _folderMatchesMap: TernarySearchTree<URI, ISearchTreeFolderMatchWithResource> = TernarySearchTree.forUris<ISearchTreeFolderMatchWorkspaceRoot>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
 	public resource = null;
 	public hidden = false;
 
@@ -162,11 +162,9 @@ export abstract class TextSearchHeadingImpl extends Disposable implements ITextS
 		return this._folderMatchesMap.findSubstr(resource);
 	}
 
-	get query(): ITextQuery | null {
-		return this._query;
-	}
+	abstract query: QueryType | null;
 
-	set query(query: ITextQuery | null) {
+	protected clearQuery(): void {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
 		this.disposePastResults = async () => {
@@ -179,35 +177,7 @@ export abstract class TextSearchHeadingImpl extends Disposable implements ITextS
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forUris<ISearchTreeFolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
-		if (!query) {
-			return;
-		}
-
-		this._folderMatches = (query && query.folderQueries || [])
-			.map(fq => fq.folder)
-			.map((resource, index) => <ISearchTreeFolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query, this.isAIContributed));
-
-		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
-
-		if (this._allowOtherResults) {
-			this._otherFilesMatch = this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query, this.isAIContributed);
-		}
-
-		this._query = query;
 	}
-	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery, ai: boolean): ISearchTreeFolderMatch {
-		let folderMatch: ISearchTreeFolderMatch;
-		if (resource) {
-			folderMatch = this._register(this.createWorkspaceRootWithResourceImpl(resource, id, index, query));
-		} else {
-			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchNoRootImpl, id, index, query, this));
-		}
-		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-		this._register(folderMatch.onDispose(() => disposable.dispose()));
-		return folderMatch;
-	}
-
-	protected abstract createWorkspaceRootWithResourceImpl(resource: URI, id: string, index: number, query: ITextQuery): ISearchTreeFolderMatchWorkspaceRoot;
 
 	folderMatches(): ISearchTreeFolderMatch[] {
 		return this._otherFilesMatch && this._allowOtherResults ?
@@ -295,7 +265,7 @@ export abstract class TextSearchHeadingImpl extends Disposable implements ITextS
 	}
 }
 
-export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl implements IPlainTextSearchHeading {
+export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl<ITextQuery> implements IPlainTextSearchHeading {
 	constructor(
 		parent: ISearchResult,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -340,7 +310,45 @@ export class PlainTextSearchHeadingImpl extends TextSearchHeadingImpl implements
 		});
 	}
 
-	protected override createWorkspaceRootWithResourceImpl(resource: URI, id: string, index: number, query: ITextQuery,): ISearchTreeFolderMatchWorkspaceRoot {
+	override get query(): ITextQuery | null {
+		return this._query;
+	}
+
+	override set query(query: ITextQuery | null) {
+		this.clearQuery();
+
+		if (!query) {
+			return;
+		}
+
+		this._folderMatches = (query && query.folderQueries || [])
+			.map(fq => fq.folder)
+			.map((resource, index) => <ISearchTreeFolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query));
+
+		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
+
+		this._otherFilesMatch = this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
+
+		this._query = query;
+	}
+
+	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): ISearchTreeFolderMatch {
+		let folderMatch: ISearchTreeFolderMatch;
+		if (resource) {
+			folderMatch = this._register(this.createWorkspaceRootWithResourceImpl(resource, id, index, query));
+		} else {
+			folderMatch = this._register(this.createNoRootWorkspaceImpl(id, index, query));
+		}
+		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
+		this._register(folderMatch.onDispose(() => disposable.dispose()));
+		return folderMatch;
+	}
+
+	private createWorkspaceRootWithResourceImpl(resource: URI, id: string, index: number, query: ITextQuery,): ISearchTreeFolderMatchWorkspaceRoot {
 		return this.instantiationService.createInstance(FolderMatchWorkspaceRootImpl, resource, id, index, query, this);
+	}
+
+	private createNoRootWorkspaceImpl(id: string, index: number, query: ITextQuery): ISearchTreeFolderMatchNoRoot {
+		return this._register(this.instantiationService.createInstance(FolderMatchNoRootImpl, id, index, query, this));
 	}
 }

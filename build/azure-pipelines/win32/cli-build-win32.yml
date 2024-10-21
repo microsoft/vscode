@@ -53,8 +53,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static/include
-          RUSTFLAGS: "-Ctarget-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
-          CFLAGS: "/guard:cf /Qspectre"
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
     - template: ../cli/cli-compile.yml@self
@@ -66,8 +65,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/include
-          RUSTFLAGS: "-C target-feature=+crt-static -Clink-args=/guard:cf -Clink-args=/CETCOMPAT"
-          CFLAGS: "/guard:cf /Qspectre"
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
   - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
     - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:

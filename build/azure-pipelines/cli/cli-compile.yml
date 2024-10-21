@@ -108,6 +108,15 @@ steps:
             ${{ pair.key }}: ${{ pair.value }}
 
     - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
+      - task: PublishSymbols@2
+        inputs:
+          IndexSources: false
+          SymbolsFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
+          SearchPattern: 'code.pdb'
+          SymbolServerType: TeamServices
+          SymbolsProduct: 'code'
+        displayName: Publish Symbols
+
       - task: CopyFiles@2
         inputs:
           SourceFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
