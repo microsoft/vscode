@@ -168,7 +168,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							return this.chatOptions.location === ChatAgentLocation.EditingSession;
 						},
 					},
-					enableImplicitContext: true
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
