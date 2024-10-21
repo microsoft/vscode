@@ -2765,7 +2765,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat): vscode.ChatRequest {
 		const toolReferences = request.variables.variables.filter(v => v.isTool);
 		const variableReferences = request.variables.variables.filter(v => !v.isTool);
 		return {
@@ -2780,7 +2780,8 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze({ sessionId: request.sessionId })
+			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }),
+			model
 		};
 	}
 }
