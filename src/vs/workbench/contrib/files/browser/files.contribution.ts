@@ -584,6 +584,21 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
 		},
+		'explorer.copyPathSeparator': {
+			'type': 'string',
+			'enum': [
+				'/',
+				'\\',
+				'auto'
+			],
+			'enumDescriptions': [
+				nls.localize('copyPathSeparator.slash', "Use slash as path separation character."),
+				nls.localize('copyPathSeparator.backslash', "Use backslash as path separation character."),
+				nls.localize('copyPathSeparator.auto', "Uses operating system specific path separation character."),
+			],
+			'description': nls.localize('copyPathSeparator', "The path separation character used when copying file paths."),
+			'default': 'auto'
+		},
 		'explorer.excludeGitIgnore': {
 			type: 'boolean',
 			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the Explorer. Similar to {0}.", '`#files.exclude#`'),
