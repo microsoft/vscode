@@ -23,7 +23,7 @@ import { IFilesConfigurationService } from '../../../services/filesConfiguration
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS } from '../common/chatContextKeys.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
 
@@ -209,7 +209,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 					order: 1,
 					// Show the option to save without accepting if the user has autosave
 					// and also hasn't configured the setting to always save with generated changes
-					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.files.autoSave', 'off'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.notEquals('config.files.autoSave', 'off'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)))
 				}
 			],
 		});
