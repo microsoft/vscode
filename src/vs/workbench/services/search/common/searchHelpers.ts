@@ -5,7 +5,7 @@
 
 import { Range } from '../../../../editor/common/core/range.js';
 import { FindMatch, ITextModel } from '../../../../editor/common/model.js';
-import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextQuery } from './search.js';
+import { ITextSearchPreviewOptions, TextSearchMatch, ITextSearchResult, ITextSearchMatch, ITextSearchQuery } from './search.js';
 
 function editorMatchToTextSearchResult(matches: FindMatch[], model: ITextModel, previewOptions?: ITextSearchPreviewOptions): TextSearchMatch {
 	const firstLine = matches[0].range.startLineNumber;
@@ -44,7 +44,7 @@ export function editorMatchesToTextSearchResults(matches: FindMatch[], model: IT
 	});
 }
 
-export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
+export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextSearchQuery): ITextSearchResult[] {
 	const results: ITextSearchResult[] = [];
 
 	let prevLine = -1;
