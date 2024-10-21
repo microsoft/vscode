@@ -85,8 +85,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 				parametersSchema: {
 					...toolsParametersSchemaSchema,
-					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts. Must be an object at the top level."),
-
+					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts. The parameters must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
 				},
 				canBeReferencedInPrompt: {
 					markdownDescription: localize('canBeReferencedInPrompt', "If true, this tool shows up as an attachment that the user can add manually to their request. Chat participants will receive the tool in {0}.", '`ChatRequest#toolReferences`'),
@@ -116,7 +115,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string'
 				},
 				tags: {
-					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand."),
+					description: localize('toolTags', "A set of tags that roughly describe the tool's capabilities. A tool user may use these to filter the set of tools to just ones that are relevant for the task at hand, or they may want to pick a tag that can be used to identify just the tools contributed by this extension."),
 					type: 'array',
 					items: {
 						type: 'string'

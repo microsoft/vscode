@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue } from '../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../base/common/map.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -36,14 +39,13 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
-		@IDialogService private readonly _dialogService: IDialogService,
+		@IDialogService dialogService: IDialogService,
 		@IFilesConfigurationService private readonly _fileConfigService: IFilesConfigurationService,
 	) {
 		super();
 
 		const store = this._store.add(new DisposableStore());
 
-		const queue = new Queue();
 
 		const update = () => {
 
@@ -57,6 +59,68 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 			if (chatEditingService.currentEditingSession) {
 				this._handleNewEditingSession(chatEditingService.currentEditingSession, store);
 			}
+
+			const saveJobs = new class {
+
+				private _deferred?: DeferredPromise<void>;
+				private readonly _soon = new RunOnceScheduler(() => this._prompt(), 0);
+				private readonly _uris = new ResourceSet();
+
+				add(uri: URI) {
+					this._uris.add(uri);
+					this._soon.schedule();
+					this._deferred ??= new DeferredPromise();
+					return this._deferred.p;
+				}
+
+				private async _prompt() {
+
+					// this might have changed in the meantime and there is checked again and acted upon
+					const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
+					if (alwaysSave) {
+						return;
+					}
+
+					const uri = Iterable.first(this._uris);
+					if (!uri) {
+						// bogous?
+						return;
+					}
+
+					const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? localize('chat', "chat");
+					const filelabel = labelService.getUriBasenameLabel(uri);
+
+					const message = this._uris.size === 1
+						? localize('message.1', "Do you want to save the changes {0} made in {1}?", agentName, filelabel)
+						: localize('message.2', "Do you want to save the changes {0} made to {1} files?", agentName, this._uris.size);
+
+					const result = await dialogService.confirm({
+						message,
+						detail: localize('detail2', "AI-generated changes may be incorrect and should be reviewed before saving.", agentName),
+						primaryButton: localize('save', "Save"),
+						cancelButton: localize('discard', "Cancel"),
+						checkbox: {
+							label: localize('config', "Always save with AI-generated changes without asking"),
+							checked: false
+						}
+					});
+
+					this._uris.clear();
+
+					if (result.confirmed && result.checkboxChecked) {
+						// remember choice
+						await configService.updateValue(ChatEditorSaving._config, true);
+					}
+
+					if (!result.confirmed) {
+						// cancel the save
+						this._deferred?.error(new CancellationError());
+					} else {
+						this._deferred?.complete();
+					}
+					this._deferred = undefined;
+				}
+			};
 
 			store.add(chatEditingService.onDidCreateEditingSession(e => this._handleNewEditingSession(e, store)));
 			store.add(textFileService.files.addSaveParticipant({
@@ -73,48 +137,11 @@ export class ChatEditorSaving extends Disposable implements IWorkbenchContributi
 						return;
 					}
 
-
 					if (!session.entries.get().find(e => e.state.get() === WorkingSetEntryState.Modified && e.modifiedURI.toString() === workingCopy.resource.toString())) {
 						return;
 					}
 
-					// ensure one modal at the time
-					await queue.queue(async () => {
-
-						// this might have changed in the meantime and there is checked again and acted upon
-						const alwaysSave = configService.getValue<boolean>(ChatEditorSaving._config);
-						if (alwaysSave) {
-							return;
-						}
-
-						const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName;
-						const filelabel = labelService.getUriBasenameLabel(workingCopy.resource);
-
-						const message = agentName
-							? localize('message.1', "Do you want to save the changes {0} made in {1}?", agentName, filelabel)
-							: localize('message.2', "Do you want to save the changes chat made in {0}?", filelabel);
-
-						const result = await this._dialogService.confirm({
-							message,
-							detail: localize('detail2', "AI-generated changes may be incorrect and should be reviewed before saving.", agentName),
-							primaryButton: localize('save', "Save"),
-							cancelButton: localize('discard', "Cancel"),
-							checkbox: {
-								label: localize('config', "Always save with AI-generated changes without asking"),
-								checked: false
-							}
-						});
-
-						if (!result.confirmed) {
-							// cancel the save
-							throw new CancellationError();
-						}
-
-						if (result.checkboxChecked) {
-							// remember choice
-							await configService.updateValue(ChatEditorSaving._config, true);
-						}
-					});
+					return saveJobs.add(workingCopy.resource);
 				}
 			}));
 		};

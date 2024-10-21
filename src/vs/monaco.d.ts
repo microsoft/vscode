@@ -8113,6 +8113,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		accepted?: Command;
 		rejected?: Command;
+		commands?: Command[];
 	}
 
 	export interface IInlineEditContext {
