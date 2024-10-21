@@ -19,6 +19,7 @@ import { IChatResponseModel } from './chatModel.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingService {
+
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
@@ -33,7 +34,6 @@ export interface IChatEditingService {
 	readonly currentAutoApplyOperation: CancellationTokenSource | null;
 
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
-	addFileToWorkingSet(resource: URI): Promise<void>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
 	createSnapshot(requestId: string): void;
@@ -49,6 +49,7 @@ export interface IChatEditingSession {
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	readonly workingSet: ResourceMap<WorkingSetEntryState>;
 	readonly isVisible: boolean;
+	addFileToWorkingSet(uri: URI): void;
 	show(): Promise<void>;
 	remove(...uris: URI[]): void;
 	accept(...uris: URI[]): Promise<void>;
@@ -57,6 +58,9 @@ export interface IChatEditingSession {
 	 * Will lead to this object getting disposed
 	 */
 	stop(): Promise<void>;
+
+	undoInteraction(): Promise<void>;
+	redoInteraction(): Promise<void>;
 }
 
 export const enum WorkingSetEntryState {
@@ -73,7 +77,9 @@ export interface IModifiedFileEntry {
 	readonly originalModel: ITextModel;
 	readonly modifiedURI: URI;
 	readonly state: IObservable<WorkingSetEntryState>;
+	readonly isCurrentlyBeingModified: IObservable<boolean>;
 	readonly diffInfo: IObservable<IDocumentDiff>;
+	readonly lastModifyingRequestId: string;
 	accept(transaction: ITransaction | undefined): Promise<void>;
 	reject(transaction: ITransaction | undefined): Promise<void>;
 }
@@ -97,3 +103,4 @@ export const chatEditingResourceContextKey = new RawContextKey<string | undefine
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
 export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);
+export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);

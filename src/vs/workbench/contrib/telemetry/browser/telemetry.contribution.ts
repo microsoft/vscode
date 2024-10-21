@@ -395,6 +395,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.commandCenter', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
+			case 'chat.commandCenter.enabled':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know if command center chat menu is enabled or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('chat.commandCenter.enabled', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
 			case 'window.customTitleBarVisibility':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'benibenj';

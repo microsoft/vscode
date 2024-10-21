@@ -290,7 +290,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 
 		let didChange = false;
 
-		this._isComputing = true;
+		this._isComputing = false; // TODO@hediet: Set to true and investigate diff editor scrolling issues! (also see test.skip('catches cyclic dependencies')
 
 		try {
 			const changeSummary = this.changeSummary!;

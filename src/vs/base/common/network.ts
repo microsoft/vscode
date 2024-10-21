@@ -360,10 +360,12 @@ export const FileAccess = new FileAccessImpl();
 
 export namespace COI {
 
+	const coepDefault = platform.isElectron ? 'credentialless' : 'require-corp';
+
 	const coiHeaders = new Map<'3' | '2' | '1' | string, Record<string, string>>([
 		['1', { 'Cross-Origin-Opener-Policy': 'same-origin' }],
-		['2', { 'Cross-Origin-Embedder-Policy': 'require-corp' }],
-		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+		['2', { 'Cross-Origin-Embedder-Policy': coepDefault }],
+		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': coepDefault }],
 	]);
 
 	export const CoopAndCoep = Object.freeze(coiHeaders.get('3'));

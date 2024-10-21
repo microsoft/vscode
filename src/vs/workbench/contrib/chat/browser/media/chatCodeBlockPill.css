@@ -12,6 +12,7 @@
 	text-decoration: none;
 	font-size: 11px;
 	padding: 0 3px;
+	cursor: pointer;
 }
 
 .chat-codeblock-pill-widget .icon-label {

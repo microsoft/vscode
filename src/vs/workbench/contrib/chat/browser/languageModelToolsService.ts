@@ -165,7 +165,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				: undefined;
 
 			if (prepared?.confirmationMessages) {
-				await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+				const result = await this._dialogService.confirm({ message: prepared.confirmationMessages.title, detail: renderStringAsPlaintext(prepared.confirmationMessages.message) });
+				if (!result.confirmed) {
+					throw new CancellationError();
+				}
 			}
 		}
 
