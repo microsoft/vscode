@@ -961,22 +961,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				// Note, undefined/null have different meanings on "exclude"
 				return extHostWorkspace.findFiles(include, exclude, maxResults, extension.identifier, token);
 			},
-			findFiles2: (filePattern: vscode.GlobPattern, options?: vscode.FindFiles2Options, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
-				checkProposedApiEnabled(extension, 'findFiles2');
-				return extHostWorkspace.findFiles2(filePattern, options, extension.identifier, token);
+			findFiles2: (filePattern: vscode.GlobPattern | vscode.GlobPattern[], options?: vscode.FindFiles2OptionsOld | vscode.FindFiles2Options, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
+				if (isProposedApiEnabled(extension, 'findFiles2New')) {
+					return extHostWorkspace.findFiles2New(<vscode.GlobPattern[]>filePattern, <vscode.FindFiles2Options>options, extension.identifier, token);
+				} else {
+					checkProposedApiEnabled(extension, 'findFiles2');
+					return extHostWorkspace.findFiles2(<vscode.GlobPattern>filePattern, <vscode.FindFiles2OptionsOld>options, extension.identifier, token);
+				}
 			},
-			findFiles2New: (filePattern: vscode.GlobPattern[], options?: vscode.FindFiles2OptionsNew, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> => {
-				checkProposedApiEnabled(extension, 'findFiles2New');
-				return extHostWorkspace.findFiles2New(filePattern, options, extension.identifier, token);
-			},
-			findTextInFiles: (query: vscode.TextSearchQuery, optionsOrCallback: vscode.FindTextInFilesOptions | ((result: vscode.TextSearchResult) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResult) => void), token?: vscode.CancellationToken) => {
+			findTextInFiles: (query: vscode.TextSearchQueryOld, optionsOrCallback: vscode.FindTextInFilesOptionsOld | ((result: vscode.TextSearchResultOld) => void), callbackOrToken?: vscode.CancellationToken | ((result: vscode.TextSearchResultOld) => void), token?: vscode.CancellationToken) => {
 				checkProposedApiEnabled(extension, 'findTextInFiles');
-				let options: vscode.FindTextInFilesOptions;
-				let callback: (result: vscode.TextSearchResult) => void;
+				let options: vscode.FindTextInFilesOptionsOld;
+				let callback: (result: vscode.TextSearchResultOld) => void;
 
 				if (typeof optionsOrCallback === 'object') {
 					options = optionsOrCallback;
-					callback = callbackOrToken as (result: vscode.TextSearchResult) => void;
+					callback = callbackOrToken as (result: vscode.TextSearchResultOld) => void;
 				} else {
 					options = {};
 					callback = optionsOrCallback;
@@ -985,7 +985,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
-			findTextInFilesNew: (query: vscode.TextSearchQueryNew, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
+			findTextInFiles2: (query: vscode.TextSearchQuery, options?: vscode.FindTextInFilesOptions, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
 				checkProposedApiEnabled(extension, 'findTextInFilesNew');
 				checkProposedApiEnabled(extension, 'textSearchProviderNew');
 				return extHostWorkspace.findTextInFilesNew(query, options, extension.identifier, token);
@@ -1125,33 +1125,45 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get fs() {
 				return extHostConsumerFileSystem.value;
 			},
-			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider) => {
-				checkProposedApiEnabled(extension, 'fileSearchProvider');
-				return extHostSearch.registerFileSearchProviderOld(scheme, provider);
+			registerFileSearchProvider: (scheme: string, provider: vscode.FileSearchProvider | vscode.FileSearchProviderOld) => {
+				if (isProposedApiEnabled(extension, 'fileSearchProviderNew')) {
+					const providerNew = provider as vscode.FileSearchProvider;
+
+					return extHostSearch.registerFileSearchProvider(scheme, providerNew);
+
+				} else {
+					checkProposedApiEnabled(extension, 'fileSearchProvider');
+					const providerOld = provider as vscode.FileSearchProviderOld; // if they haven't opted in, we assume they are using the old API
+
+					return extHostSearch.registerFileSearchProviderOld(scheme, providerOld);
+				}
 			},
-			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider) => {
-				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerTextSearchProviderOld(scheme, provider);
+			registerTextSearchProvider: (scheme: string, provider: vscode.TextSearchProvider | vscode.TextSearchProviderOld) => {
+
+				if (isProposedApiEnabled(extension, 'textSearchProviderNew')) {
+					const providerNew = provider as vscode.TextSearchProvider;
+
+					return extHostSearch.registerTextSearchProvider(scheme, providerNew);
+				} else {
+					checkProposedApiEnabled(extension, 'textSearchProvider');
+					const providerOld = provider as vscode.TextSearchProviderOld; // if they haven't opted in, we assume they are using the old API
+
+					return extHostSearch.registerTextSearchProviderOld(scheme, providerOld);
+				}
 			},
-			registerAITextSearchProvider: (scheme: string, provider: vscode.AITextSearchProvider) => {
+			registerAITextSearchProvider: (scheme: string, provider: vscode.AITextSearchProvider | vscode.AITextSearchProviderOld) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
-				checkProposedApiEnabled(extension, 'aiTextSearchProvider');
-				checkProposedApiEnabled(extension, 'textSearchProvider');
-				return extHostSearch.registerAITextSearchProviderOld(scheme, provider);
-			},
-			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
-				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
-				return extHostSearch.registerFileSearchProvider(scheme, provider);
-			},
-			registerTextSearchProviderNew: (scheme: string, provider: vscode.TextSearchProviderNew) => {
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				return extHostSearch.registerTextSearchProvider(scheme, provider);
-			},
-			registerAITextSearchProviderNew: (scheme: string, provider: vscode.AITextSearchProviderNew) => {
-				// there are some dependencies on textSearchProvider, so we need to check for both
-				checkProposedApiEnabled(extension, 'aiTextSearchProviderNew');
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				return extHostSearch.registerAITextSearchProvider(scheme, provider);
+				if (isProposedApiEnabled(extension, 'textSearchProviderNew') && isProposedApiEnabled(extension, 'aiTextSearchProviderNew')) {
+					const providerNew = provider as vscode.AITextSearchProvider;
+
+					return extHostSearch.registerAITextSearchProvider(scheme, providerNew);
+				} else {
+					checkProposedApiEnabled(extension, 'aiTextSearchProvider');
+					checkProposedApiEnabled(extension, 'textSearchProvider');
+					const providerOld = provider as vscode.AITextSearchProviderOld; // if they haven't opted in, we assume they are using the old API
+
+					return extHostSearch.registerAITextSearchProviderOld(scheme, providerOld);
+				}
 			},
 			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
 				checkProposedApiEnabled(extension, 'resolvers');
@@ -1795,8 +1807,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
-			TextSearchContextNew: TextSearchContextNew,
-			TextSearchMatchNew: TextSearchMatchNew,
+			TextSearchContext: TextSearchContextNew,
+			TextSearchMatch: TextSearchMatchNew,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};
