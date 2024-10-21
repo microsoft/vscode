@@ -362,7 +362,7 @@
 			left: 50%;
 			width: 1px;
 
-			border-left: 2px var(--vscode-menu-border) solid;
+			border-left: 2px var(--vscode-menu-separatorBackground) solid;
 		}
 
 		.buttons {
