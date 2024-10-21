@@ -1,2 +1,5 @@
 [target.'cfg(target_os = "windows")']
+rustflags = ["-Ctarget-feature=+crt-static", "-Clink-args=/guard:cf"]
+
+[target.'cfg(all(target_os = "windows", any(target_arch = "i686", target_arch = "x86_64", target_arch = "x86")))']
 rustflags = ["-Ctarget-feature=+crt-static", "-Clink-args=/guard:cf", "-Clink-args=/CETCOMPAT"]
