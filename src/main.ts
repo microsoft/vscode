@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
+import { performance } from 'perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
@@ -23,6 +24,14 @@ import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/didStartMain');
+
+perf.mark('code/willLoadMainBundle', {
+	// When built, the main bundle is a single JS file with all
+	// dependencies inlined. As such, we mark `willLoadMainBundle`
+	// as the start of the main bundle loading process.
+	startTime: Math.floor(performance.timeOrigin)
+});
+perf.mark('code/didLoadMainBundle');
 
 // Enable portable support
 const portable = configurePortable(product);
@@ -177,9 +186,8 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	await bootstrapESM();
 
 	// Load Main
-	perf.mark('code/willLoadMainBundle');
 	await import('./vs/code/electron-main/main.js');
-	perf.mark('code/didLoadMainBundle');
+	perf.mark('code/didRunMainBundle');
 }
 
 function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
@@ -289,6 +297,13 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	const blinkFeaturesToDisable =
 		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
+
+	// Following features are enabled from the runtime:
+	// `DeferSpeculativeRFHCreation` - Defer the creation of the speculative RFH when the navigation
+	//	starts. This allows unnecessary RFH swap on startup when coi is enabled.
+	const featuresToEnable =
+		`DeferSpeculativeRFHCreation,${app.commandLine.getSwitchValue('enable-features')}`;
+	app.commandLine.appendSwitch('enable-features', featuresToEnable);
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);

@@ -24,6 +24,7 @@ const enum Constants {
 	VerticalMargin = 30
 }
 
+const terminalChatPlaceholder = localize('default.placeholder', "Ask how to do something in the terminal");
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -148,7 +149,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _reset() {
-		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
+		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
 		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 	}
 
@@ -156,6 +157,7 @@ export class TerminalChatWidget extends Disposable {
 		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
+		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
 		this._inlineChatWidget.focus();
 		this._instance.scrollToBottom();
 	}

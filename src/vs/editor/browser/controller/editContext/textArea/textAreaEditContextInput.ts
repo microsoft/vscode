@@ -580,7 +580,9 @@ export class TextAreaInput extends Disposable {
 		if (!this._hasFocus) {
 			textAreaState = textAreaState.collapseSelection();
 		}
-
+		if (!textAreaState.isWrittenToTextArea(this._textArea, this._hasFocus)) {
+			this._logService.trace(`writeTextAreaState(reason: ${reason})`);
+		}
 		textAreaState.writeToTextArea(reason, this._textArea, this._hasFocus);
 		this._textAreaState = textAreaState;
 	}
@@ -591,7 +593,6 @@ export class TextAreaInput extends Disposable {
 			// Do not write to the text area when doing composition
 			return;
 		}
-		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 

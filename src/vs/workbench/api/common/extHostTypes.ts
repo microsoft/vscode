@@ -4342,6 +4342,11 @@ export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	}
 }
 
+export enum ChatEditingSessionActionOutcome {
+	Accepted = 1,
+	Rejected = 2
+}
+
 //#endregion
 
 //#region Interactive Editor
@@ -4578,14 +4583,14 @@ export enum LanguageModelChatMessageRole {
 	System = 3
 }
 
-export class LanguageModelToolResultPart implements vscode.LanguageModelChatMessageToolResultPart {
+export class LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart {
 
-	toolCallId: string;
-	content: string;
+	callId: string;
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
 	isError: boolean;
 
-	constructor(toolCallId: string, content: string, isError?: boolean) {
-		this.toolCallId = toolCallId;
+	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[], isError?: boolean) {
+		this.callId = callId;
 		this.content = content;
 		this.isError = isError ?? false;
 	}
@@ -4605,7 +4610,7 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
-	content2: (string | vscode.LanguageModelChatMessageToolResultPart | vscode.LanguageModelChatResponseToolCallPart)[];
+	content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
@@ -4616,24 +4621,33 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 }
 
-export class LanguageModelToolCallPart implements vscode.LanguageModelChatResponseToolCallPart {
+export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	name: string;
-	toolCallId: string;
+	callId: string;
 	parameters: any;
 
 	constructor(name: string, toolCallId: string, parameters: any) {
 		this.name = name;
-		this.toolCallId = toolCallId;
+		this.callId = toolCallId;
 		this.parameters = parameters;
 	}
 }
 
-export class LanguageModelTextPart implements vscode.LanguageModelChatResponseTextPart {
+export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	value: string;
 
 	constructor(value: string) {
 		this.value = value;
+	}
+}
 
+export class LanguageModelPromptTsxPart {
+	value: unknown;
+	mime: string;
+
+	constructor(value: unknown, mime: string) {
+		this.value = value;
+		this.mime = mime;
 	}
 }
 
@@ -4696,6 +4710,15 @@ export class LanguageModelError extends Error {
 		this.code = code ?? '';
 	}
 
+}
+
+export class LanguageModelToolResult {
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+}
+
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2
 }
 
 //#endregion

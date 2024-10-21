@@ -4,11 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.optimizeTask = optimizeTask;
+exports.bundleTask = bundleTask;
 exports.minifyTask = minifyTask;
 const es = require("event-stream");
 const gulp = require("gulp");
-const concat = require("gulp-concat");
 const filter = require("gulp-filter");
 const path = require("path");
 const fs = require("fs");
@@ -18,13 +17,15 @@ const bundle = require("./bundle");
 const postcss_1 = require("./postcss");
 const esbuild = require("esbuild");
 const sourcemaps = require("gulp-sourcemaps");
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
     ' * Copyright (C) Microsoft Corporation. All rights reserved.',
     ' *--------------------------------------------------------*/'
 ].join('\n');
-function optimizeESMTask(opts) {
+function bundleESMTask(opts) {
     const resourcesStream = es.through(); // this stream will contain the resources
     const bundlesStream = es.through(); // this stream will contain the bundled files
     const entryPoints = opts.entryPoints.map(entryPoint => {
@@ -43,28 +44,43 @@ function optimizeESMTask(opts) {
         const files = [];
         const tasks = [];
         for (const entryPoint of entryPoints) {
-            console.log(`[bundle] '${entryPoint.name}'`);
+            fancyLog(`Bundled entry point: ${ansiColors.yellow(entryPoint.name)}...`);
             // support for 'dest' via esbuild#in/out
             const dest = entryPoint.dest?.replace(/\.[^/.]+$/, '') ?? entryPoint.name;
-            // boilerplate massage
+            // banner contents
             const banner = {
                 js: DEFAULT_FILE_HEADER,
                 css: DEFAULT_FILE_HEADER
             };
-            const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
-            banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
-            const boilerplateTrimmer = {
-                name: 'boilerplate-trimmer',
+            // TS Boilerplate
+            if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+                const tslibPath = path.join(require.resolve('tslib'), '../tslib.es6.js');
+                banner.js += await fs.promises.readFile(tslibPath, 'utf-8');
+            }
+            const contentsMapper = {
+                name: 'contents-mapper',
                 setup(build) {
-                    build.onLoad({ filter: /\.js$/ }, async (args) => {
-                        const contents = await fs.promises.readFile(args.path, 'utf-8');
-                        const newContents = bundle.removeAllTSBoilerplate(contents);
+                    build.onLoad({ filter: /\.js$/ }, async ({ path }) => {
+                        const contents = await fs.promises.readFile(path, 'utf-8');
+                        // TS Boilerplate
+                        let newContents;
+                        if (!opts.skipTSBoilerplateRemoval?.(entryPoint.name)) {
+                            newContents = bundle.removeAllTSBoilerplate(contents);
+                        }
+                        else {
+                            newContents = contents;
+                        }
+                        // File Content Mapper
+                        const mapper = opts.fileContentMapper?.(path);
+                        if (mapper) {
+                            newContents = await mapper(newContents);
+                        }
                         return { contents: newContents };
                     });
                 }
             };
-            const overrideExternalPlugin = {
-                name: 'override-external',
+            const externalOverride = {
+                name: 'external-override',
                 setup(build) {
                     // We inline selected modules that are we depend on on startup without
                     // a conditional `await import(...)` by hooking into the resolution.
@@ -80,7 +96,7 @@ function optimizeESMTask(opts) {
                 platform: 'neutral', // makes esm
                 format: 'esm',
                 sourcemap: 'external',
-                plugins: [boilerplateTrimmer, overrideExternalPlugin],
+                plugins: [contentsMapper, externalOverride],
                 target: ['es2022'],
                 loader: {
                     '.ttf': 'file',
@@ -99,25 +115,15 @@ function optimizeESMTask(opts) {
                 outdir: path.join(REPO_ROOT_PATH, opts.src),
                 write: false, // enables res.outputFiles
                 metafile: true, // enables res.metafile
+                // minify: NOT enabled because we have a separate minify task that takes care of the TSLib banner as well
             }).then(res => {
                 for (const file of res.outputFiles) {
-                    let contents = file.contents;
                     let sourceMapFile = undefined;
                     if (file.path.endsWith('.js')) {
-                        if (opts.fileContentMapper) {
-                            // UGLY the fileContentMapper is per file but at this point we have all files
-                            // bundled already. So, we call the mapper for the same contents but each file
-                            // that has been included in the bundle...
-                            let newText = file.text;
-                            for (const input of Object.keys(res.metafile.inputs)) {
-                                newText = opts.fileContentMapper(newText, input);
-                            }
-                            contents = Buffer.from(newText);
-                        }
                         sourceMapFile = res.outputFiles.find(f => f.path === `${file.path}.map`);
                     }
                     const fileProps = {
-                        contents: Buffer.from(contents),
+                        contents: Buffer.from(file.contents),
                         sourceMap: sourceMapFile ? JSON.parse(sourceMapFile.text) : undefined, // support gulp-sourcemaps
                         path: file.path,
                         base: path.join(REPO_ROOT_PATH, opts.src)
@@ -144,22 +150,9 @@ function optimizeESMTask(opts) {
         includeContent: true
     }));
 }
-function optimizeManualTask(options) {
-    const concatenations = options.map(opt => {
-        return gulp
-            .src(opt.src)
-            .pipe(concat(opt.out));
-    });
-    return es.merge(...concatenations);
-}
-function optimizeTask(opts) {
+function bundleTask(opts) {
     return function () {
-        const optimizers = [];
-        optimizers.push(optimizeESMTask(opts.esm));
-        if (opts.manual) {
-            optimizers.push(optimizeManualTask(opts.manual));
-        }
-        return es.merge(...optimizers).pipe(gulp.dest(opts.out));
+        return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
     };
 }
 function minifyTask(src, sourceMapBaseUrl) {
@@ -176,7 +169,8 @@ function minifyTask(src, sourceMapBaseUrl) {
                 minify: true,
                 sourcemap: 'external',
                 outdir: '.',
-                platform: 'node',
+                packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
+                platform: 'neutral', // makes esm
                 target: ['es2022'],
                 write: false
             }).then(res => {

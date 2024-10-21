@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor, IDiffEditorConstructionOptions } from '../../../../../editor/browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -208,6 +208,7 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	private readonly markdown = new Lazy(
 		() => this._register(this.instantiationService.createInstance(MarkdownRenderer, {})),
 	);
+	private readonly rendered = this._register(new DisposableStore());
 
 	private element?: HTMLElement;
 
@@ -217,23 +218,24 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	}
 
 	public async update(subject: InspectSubject) {
+		this.clear();
 		if (!(subject instanceof MessageSubject)) {
-			this.clear();
 			return false;
 		}
 
 		const message = subject.message;
 		if (ITestMessage.isDiffable(message) || typeof message.message === 'string') {
-			this.clear();
 			return false;
 		}
 
 
-		const rendered = this._register(this.markdown.value.render(message.message, {}));
+		const rendered = this.rendered.add(this.markdown.value.render(message.message, {}));
 		rendered.element.style.userSelect = 'text';
 		rendered.element.classList.add('preview-text');
 		this.container.appendChild(rendered.element);
 		this.element = rendered.element;
+		this.rendered.add(toDisposable(() => rendered.element.remove()));
+
 		return true;
 	}
 
@@ -247,10 +249,8 @@ export class MarkdownTestMessagePeek extends Disposable implements IPeekOutputRe
 	}
 
 	private clear() {
-		if (this.element) {
-			this.element.remove();
-			this.element = undefined;
-		}
+		this.rendered.clear();
+		this.element = undefined;
 	}
 }
 

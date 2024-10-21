@@ -8,12 +8,13 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestHandler, IWorkerServer } from '../../../../../base/common/worker/simpleWorker.js';
 import { PieceTreeTextBufferBuilder } from '../../../../../editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
-import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata } from '../notebookCommon.js';
+import { CellKind, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookDocumentMetadata, TransientDocumentMetadata } from '../notebookCommon.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 import { MirrorModel } from '../../../../../editor/common/services/textModelSync/textModelSync.impl.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { IModelChangedEvent } from '../../../../../editor/common/model/mirrorTextModel.js';
+import { filter } from '../../../../../base/common/objects.js';
 
 class MirrorCell {
 	private readonly textModel: MirrorModel;
@@ -81,6 +82,7 @@ class MirrorNotebookDocument {
 		readonly uri: URI,
 		public cells: MirrorCell[],
 		public metadata: NotebookDocumentMetadata,
+		public transientDocumentMetadata: TransientDocumentMetadata,
 	) {
 	}
 
@@ -171,7 +173,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 	dispose(): void {
 	}
 
-	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, cells: IMainCellDto[]): void {
+	public $acceptNewModel(uri: string, metadata: NotebookDocumentMetadata, transientDocumentMetadata: TransientDocumentMetadata, cells: IMainCellDto[]): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), cells.map(dto => new MirrorCell(
 			dto.handle,
 			URI.parse(dto.url),
@@ -182,7 +184,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.cellKind,
 			dto.outputs,
 			dto.metadata
-		)), metadata);
+		)), metadata, transientDocumentMetadata);
 	}
 
 	public $acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
@@ -263,8 +265,10 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			}
 		});
  */
+		const originalMetadata = filter(original.metadata, key => !original.transientDocumentMetadata[key]);
+		const modifiedMetadata = filter(modified.metadata, key => !modified.transientDocumentMetadata[key]);
 		return {
-			metadataChanged: JSON.stringify(original.metadata) !== JSON.stringify(modified.metadata),
+			metadataChanged: JSON.stringify(originalMetadata) !== JSON.stringify(modifiedMetadata),
 			cellsDiff: diffResult,
 			// linesDiff: cellLineChanges
 		};

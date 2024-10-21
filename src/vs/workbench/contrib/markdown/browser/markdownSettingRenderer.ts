@@ -141,13 +141,21 @@ export class SimpleSettingRenderer {
 		return nls.localize('restorePreviousValue', "Restore value of \"{0}: {1}\"", displayName.category, displayName.label);
 	}
 
-	private booleanSettingMessage(setting: ISetting, booleanValue: boolean): string | undefined {
+	private isAlreadySet(setting: ISetting, value: string | number | boolean): boolean {
 		const currentValue = this._configurationService.getValue<boolean>(setting.key);
-		if (currentValue === booleanValue || (currentValue === undefined && setting.value === booleanValue)) {
-			return undefined;
+		return (currentValue === value || (currentValue === undefined && setting.value === value));
+	}
+
+	private booleanSettingMessage(setting: ISetting, booleanValue: boolean): string | undefined {
+		const displayName = settingKeyToDisplayFormat(setting.key);
+		if (this.isAlreadySet(setting, booleanValue)) {
+			if (booleanValue) {
+				return nls.localize('alreadysetBoolTrue', "\"{0}: {1}\" is already enabled", displayName.category, displayName.label);
+			} else {
+				return nls.localize('alreadysetBoolFalse', "\"{0}: {1}\" is already disabled", displayName.category, displayName.label);
+			}
 		}
 
-		const displayName = settingKeyToDisplayFormat(setting.key);
 		if (booleanValue) {
 			return nls.localize('trueMessage', "Enable \"{0}: {1}\"", displayName.category, displayName.label);
 		} else {
@@ -156,22 +164,20 @@ export class SimpleSettingRenderer {
 	}
 
 	private stringSettingMessage(setting: ISetting, stringValue: string): string | undefined {
-		const currentValue = this._configurationService.getValue<string>(setting.key);
-		if (currentValue === stringValue || (currentValue === undefined && setting.value === stringValue)) {
-			return undefined;
+		const displayName = settingKeyToDisplayFormat(setting.key);
+		if (this.isAlreadySet(setting, stringValue)) {
+			return nls.localize('alreadysetString', "\"{0}: {1}\" is already set to \"{2}\"", displayName.category, displayName.label, stringValue);
 		}
 
-		const displayName = settingKeyToDisplayFormat(setting.key);
 		return nls.localize('stringValue', "Set \"{0}: {1}\" to \"{2}\"", displayName.category, displayName.label, stringValue);
 	}
 
 	private numberSettingMessage(setting: ISetting, numberValue: number): string | undefined {
-		const currentValue = this._configurationService.getValue<number>(setting.key);
-		if (currentValue === numberValue || (currentValue === undefined && setting.value === numberValue)) {
-			return undefined;
+		const displayName = settingKeyToDisplayFormat(setting.key);
+		if (this.isAlreadySet(setting, numberValue)) {
+			return nls.localize('alreadysetNum', "\"{0}: {1}\" is already set to {2}", displayName.category, displayName.label, numberValue);
 		}
 
-		const displayName = settingKeyToDisplayFormat(setting.key);
 		return nls.localize('numberValue', "Set \"{0}: {1}\" to {2}", displayName.category, displayName.label, numberValue);
 
 	}
@@ -238,7 +244,7 @@ export class SimpleSettingRenderer {
 				actions.push({
 					class: undefined,
 					id: 'trySetting',
-					enabled: currentSettingValue !== newSettingValue,
+					enabled: !this.isAlreadySet(setting, newSettingValue),
 					tooltip: trySettingMessage,
 					label: trySettingMessage,
 					run: () => {
