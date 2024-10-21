@@ -46,6 +46,8 @@ import { basename, extname } from '../../../../base/common/resources.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
+import { Codicon } from '../../../../base/common/codicons';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -141,6 +143,7 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this.editor = editor;
 		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
@@ -749,6 +752,10 @@ export class SuggestController implements IEditorContribution {
 		this.widget.value.toggleDetailsFocus();
 	}
 
+	hideStatusBar(): void {
+		this._configurationService.updateValue('editor.suggest.showStatusBar', false);
+	}
+
 	resetWidgetSize(): void {
 		this.widget.value.resetPersistedSize();
 	}
@@ -1055,6 +1062,19 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
 	}
+}));
+
+registerEditorCommand(new SuggestCommand({
+	id: 'hideStatusBar',
+	precondition: SuggestContext.Visible,
+	handler: x => x.hideStatusBar(),
+	menuOpts: [{
+		menuId: suggestWidgetStatusbarMenu,
+		group: 'right',
+		order: 2,
+		icon: Codicon.close,
+		title: nls.localize('statusBar.hide', "Hide Status Bar")
+	}]
 }));
 
 //#region tab completions
