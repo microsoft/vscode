@@ -35,7 +35,7 @@ import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { applyEditToModifiedRangeMappings, maxLeftInRange, Point, StatusBarViewItem, UniqueUriGenerator } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
-import { registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
 import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 
@@ -119,16 +119,29 @@ export class InlineEditWithChanges {
 	}
 }
 
-export const originalBackgroundColor = registerColor('inlineEdit.originalBackground', transparent(diffRemoved, 0.4), '', true
+export const originalBackgroundColor = registerColor(
+	'inlineEdit.originalBackground',
+	transparent(diffRemoved, 0.4),
+	'',
+	true
 );
-
-export const modifiedBackgroundColor = registerColor('inlineEdit.modifiedBackground',
+export const modifiedBackgroundColor = registerColor(
+	'inlineEdit.modifiedBackground',
 	transparent(diffInserted, 0.4),
 	'',
 	true
 );
 
-export const border = registerColor('inlineEdit.border', editorLineHighlightBorder, '');
+export const border = registerColor(
+	'inlineEdit.border',
+	{
+		light: darken(editorLineHighlightBorder, 0.15),
+		dark: lighten(editorLineHighlightBorder, 0.50),
+		hcDark: editorLineHighlightBorder,
+		hcLight: editorLineHighlightBorder
+	},
+	''
+);
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
