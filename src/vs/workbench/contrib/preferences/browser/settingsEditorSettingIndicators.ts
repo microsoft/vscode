@@ -580,6 +580,13 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
+	// Add preview or experimental indicator text
+	if (element.tags?.has('preview')) {
+		ariaLabelSections.push(localize('previewLabel', "Preview"));
+	} else if (element.tags?.has('experimental')) {
+		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
+	}
+
 	// Add workspace trust text
 	if (element.isUntrusted) {
 		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value not applied"));
