@@ -2448,11 +2448,16 @@ class RefreshTreeController extends Disposable {
 
 				await this.searchView.getControl().updateChildren(undefined);
 			} else {
-				// IFileMatchInstance modified, refresh those elements
-				await Promise.all(event.elements.map(async element => {
-					await this.searchView.getControl().updateChildren(element);
-					this.searchView.getControl().rerender(element);
-				}));
+				const treeHasAllElements = event.elements.every(elem => this.searchView.getControl().hasNode(elem));
+				if (treeHasAllElements) {
+					// IFileMatchInstance modified, refresh those elements
+					await Promise.all(event.elements.map(async element => {
+						await this.searchView.getControl().updateChildren(element);
+						this.searchView.getControl().rerender(element);
+					}));
+				} else {
+					this.searchView.getControl().updateChildren(undefined);
+				}
 			}
 		}
 	}
