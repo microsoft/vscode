@@ -328,14 +328,14 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreFile',
-			title: localize2('chat.restoreFile.label', 'Restore Previous File State'),
+			title: localize2('chat.restoreSnapshot.label', 'Restore File Snapshot'),
 			f1: false,
 			icon: Codicon.target,
-			shortTitle: localize2('chat.restoreFile.shortTitle', 'Restore Previous File State'),
+			shortTitle: localize2('chat.restoreSnapshot.shortTitle', 'Restore Snapshot'),
 			toggled: {
 				condition: isChatRequestCheckpointed,
-				title: localize2('chat.restoreFile.title', 'Using Previous File State').value,
-				tooltip: localize('chat.restoreFile.tooltip', 'Toggle to use the previous state of an edited file in your next request')
+				title: localize2('chat.restoreSnapshot.title', 'Using Snapshot').value,
+				tooltip: localize('chat.restoreSnapshot.tooltip', 'Toggle to use a previous snapshot of an edited file in your next request')
 			},
 			precondition: ContextKeyExpr.and(applyingChatEditsContextKey.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			menu: {
@@ -487,11 +487,11 @@ registerAction2(class RemoveAction extends Action2 {
 
 registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 
-	static readonly id = 'chat.openWorkingSetHistory';
+	static readonly id = 'chat.openFileSnapshot';
 	constructor() {
 		super({
 			id: OpenWorkingSetHistoryAction.id,
-			title: localize('chat.openWorkingSetHistory.label', "Open File Checkpoint"),
+			title: localize('chat.openSnapshot.label', "Open File Snapshot"),
 			menu: [{
 				id: MenuId.ChatEditingCodeBlockContext,
 				group: 'navigation',
@@ -524,7 +524,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		if (snapshotRequestId) {
 			const snapshot = chatEditingService.getSnapshotUri(snapshotRequestId, context.uri);
 			if (snapshot) {
-				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.checkpoint', '{0} (Checkpoint {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
 				if (isCodeEditor(editor)) {
 					editor.updateOptions({ readOnly: true });
 				}
