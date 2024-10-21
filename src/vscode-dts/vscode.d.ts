@@ -19384,7 +19384,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage;
+		static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart)[], name?: string): LanguageModelChatMessage;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -19392,7 +19392,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage;
 
 		/**
 		 * The role of this message.
@@ -19428,8 +19428,11 @@ declare module 'vscode' {
 	export interface LanguageModelChatResponse {
 
 		/**
-		 * An async iterable that is a stream of text chunks forming the overall response. This is equivalent to just the text
-		 * parts from {@link LanguageModelChatResponse.stream}.
+		 * An async iterable that is a stream of text and tool-call parts forming the overall response. A
+		 * {@link LanguageModelTextPart} is part of the assistant's response to be shown to the user. A
+		 * {@link LanguageModelToolCallPart} is a request from the language model to call a tool. The latter will
+		 * only be returned if tools were passed in the request via {@link LanguageModelChatRequestOptions.tools}. The
+		 * `unknown`-type is used as a placeholder for future parts, like image data parts.
 		 *
 		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of the stream should handle
 		 * the errors accordingly.
@@ -19441,8 +19444,12 @@ declare module 'vscode' {
 		 * ```ts
 		 * try {
 		 *   // consume stream
-		 *   for await (const chunk of response.text) {
-		 *    console.log(chunk);
+		 *   for await (const chunk of response.stream) {
+		 *      if (chunk instanceof LanguageModelTextPart) {
+		 *        console.log("TEXT", chunk);
+		 *      } else if (chunk instanceof LanguageModelToolCallPart) {
+		 *        console.log("TOOL CALL", chunk);
+		 *      }
 		 *   }
 		 *
 		 * } catch(e) {
@@ -19451,15 +19458,14 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 */
-		text: AsyncIterable<string>;
+		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>;
 
 		/**
-		 * The full stream of parts that make up the response. Could be extended with more types in the future. A
-		 * {@link LanguageModelTextPart} is part of the assistant's response to be shown to the user. A
-		 * {@link LanguageModelToolCallPart} is a request from the language model to call a tool. A `LanguageModelToolCallPart`
-		 * would only be returned if tools were passed in the request via {@link LanguageModelChatRequestOptions.tools}.
+		 * This is equivalent to filtering everything except for text parts from a {@link LanguageModelChatResponse.stream}.
+		 *
+		 * @see {@link LanguageModelChatResponse.stream}
 		 */
-		stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>;
+		text: AsyncIterable<string>;
 	}
 
 	/**
