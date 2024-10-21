@@ -34,6 +34,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				if (codeEditor) {
 					activeEditorDisposables.add(codeEditor.onDidChangeModel(() => this.updateImplicitContext()));
 					activeEditorDisposables.add(Event.debounce(codeEditor.onDidChangeCursorSelection, () => undefined, 500)(() => this.updateImplicitContext()));
+					activeEditorDisposables.add(Event.debounce(codeEditor.onDidScrollChange, () => undefined, 500)(() => this.updateImplicitContext()));
 				}
 
 				this.updateImplicitContext();
@@ -45,21 +46,51 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 		const codeEditor = this.codeEditorService.getActiveCodeEditor();
 		const model = codeEditor?.getModel();
 		const selection = codeEditor?.getSelection();
-		const newValue = model ?
-			(selection && !selection?.isEmpty() ? { uri: model.uri, range: selection } satisfies Location : model.uri) :
-			undefined;
+		let newValue: Location | URI | undefined;
+		let isSelection = false;
+		if (model) {
+			if (selection && !selection.isEmpty()) {
+				newValue = { uri: model.uri, range: selection } satisfies Location;
+				isSelection = true;
+			} else {
+				const visibleRanges = codeEditor?.getVisibleRanges();
+				if (visibleRanges && visibleRanges.length > 0) {
+					// Merge visible ranges. Maybe the reference value could actually be an array of Locations?
+					// Something like a Location with an array of Ranges?
+					let range = visibleRanges[0];
+					visibleRanges.slice(1).forEach(r => {
+						range = range.plusRange(r);
+					});
+					newValue = { uri: model.uri, range } satisfies Location;
+				} else {
+					newValue = model.uri;
+				}
+			}
+		}
 
 		const widgets = updateWidget ? [updateWidget] : this.chatWidgetService.getAllWidgets(ChatAgentLocation.Panel);
 		for (const widget of widgets) {
 			if (widget.input.implicitContext) {
-				widget.input.implicitContext.value = newValue;
+				widget.input.implicitContext.setValue(newValue, isSelection);
 			}
 		}
 	}
 }
 
 export class ChatImplicitContext extends Disposable implements IChatRequestImplicitVariableEntry {
-	readonly id = 'vscode.implicit';
+	get id() {
+		if (URI.isUri(this.value)) {
+			return 'vscode.implicit.file';
+		} else if (this.value) {
+			if (this._isSelection) {
+				return 'vscode.implicit.selection';
+			} else {
+				return 'vscode.implicit.viewport';
+			}
+		} else {
+			return 'vscode.implicit';
+		}
+	}
 
 	get name(): string {
 		if (URI.isUri(this.value)) {
@@ -76,13 +107,21 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	get modelDescription(): string {
 		if (URI.isUri(this.value)) {
 			return `User's active file`;
-		} else {
+		} else if (this._isSelection) {
 			return `User's active selection`;
+		} else {
+			return `User's current visible code`;
 		}
 	}
 
+	// TODO@roblourens
 	readonly isDynamic = true;
 	readonly isFile = true;
+
+	private _isSelection = false;
+	public get isSelection(): boolean {
+		return this._isSelection;
+	}
 
 	private _onDidChangeValue = new Emitter<void>();
 	readonly onDidChangeValue = this._onDidChangeValue.event;
@@ -90,11 +129,6 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 	private _value: Location | URI | undefined;
 	get value() {
 		return this._value;
-	}
-
-	set value(value: Location | URI | undefined) {
-		this._value = value;
-		this._onDidChangeValue.fire();
 	}
 
 	private _enabled = true;
@@ -112,8 +146,9 @@ export class ChatImplicitContext extends Disposable implements IChatRequestImpli
 		this._value = value;
 	}
 
-	setValue(value: Location | URI) {
+	setValue(value: Location | URI | undefined, isSelection: boolean) {
 		this._value = value;
+		this._isSelection = isSelection;
 		this._onDidChangeValue.fire();
 	}
 
