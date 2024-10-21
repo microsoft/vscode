@@ -580,4 +580,5 @@ export const codiconsLibrary = {
 	sortPercentage: register('sort-percentage', 0xec33),
 	attach: register('attach', 0xec34),
 	goToEditingSession: register('go-to-editing-session', 0xec35),
+	editSession: register('edit-session', 0xec36),
 } as const;

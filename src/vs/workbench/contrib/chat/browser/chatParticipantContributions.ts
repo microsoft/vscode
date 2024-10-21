@@ -328,7 +328,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	private registerChatEditingView(): IDisposable {
 		const title = localize2('chatEditing.viewContainer.label', "Copilot Edits");
-		const icon = Codicon.requestChanges;
+		const icon = Codicon.editSession;
 		const viewContainerId = CHAT_EDITING_SIDEBAR_PANEL_ID;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
