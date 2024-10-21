@@ -316,7 +316,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: name, original: name },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
 			when: ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
@@ -349,7 +349,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: title.value, original: title.value },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ id, title: title.value }, { location: ChatAgentLocation.EditingSession }]),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
