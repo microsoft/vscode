@@ -20,7 +20,11 @@ steps:
       # Make sure we get latest packages
       sudo apt-get update
       sudo apt-get upgrade -y
-      sudo apt-get install -y curl apt-transport-https ca-certificates
+      sudo apt-get install -y curl apt-transport-https ca-certificates make g++
+
+      curl --version
+      make --version
+      g++ --version
 
       # Define variables
       SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
