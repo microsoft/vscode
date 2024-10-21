@@ -315,7 +315,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		// enable or disable proposed API per extension
-		this._extensionsProposedApi.updateEnabledApiProposals(toAdd);
+		await this._extensionsProposedApi.updateEnabledApiProposals(toAdd);
 
 		// Update extension points
 		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
@@ -455,7 +455,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		try {
 			const resolvedExtensions = await this._resolveExtensions();
 
-			this._processExtensions(lock, resolvedExtensions);
+			await this._processExtensions(lock, resolvedExtensions);
 
 			// Start extension hosts which are not automatically started
 			const snapshot = this._registry.getSnapshot();
@@ -474,10 +474,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await this._handleExtensionTests();
 	}
 
-	private _processExtensions(lock: ExtensionDescriptionRegistryLock, resolvedExtensions: ResolvedExtensions): void {
+	private async _processExtensions(lock: ExtensionDescriptionRegistryLock, resolvedExtensions: ResolvedExtensions): Promise<void> {
 		const { allowRemoteExtensionsInLocalWebWorker, hasLocalProcess } = resolvedExtensions;
-		const localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.local, false);
-		let remoteExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.remote, false);
+		const localExtensions = await checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.local, false);
+		let remoteExtensions = await checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, resolvedExtensions.remote, false);
 
 		// `initializeRunningLocation` will look at the complete picture (e.g. an extension installed on both sides),
 		// takes care of duplicates and picks a running location for each extension
@@ -1304,9 +1304,9 @@ class DeltaExtensionsQueueItem {
  * @argument extensions The extensions to be checked.
  * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
  */
-export function checkEnabledAndProposedAPI(logService: ILogService, extensionEnablementService: IWorkbenchExtensionEnablementService, extensionsProposedApi: ExtensionsProposedApi, extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
+export async function checkEnabledAndProposedAPI(logService: ILogService, extensionEnablementService: IWorkbenchExtensionEnablementService, extensionsProposedApi: ExtensionsProposedApi, extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): Promise<IExtensionDescription[]> {
 	// enable or disable proposed API per extension
-	extensionsProposedApi.updateEnabledApiProposals(extensions);
+	await extensionsProposedApi.updateEnabledApiProposals(extensions);
 
 	// keep only enabled extensions
 	return filterEnabledExtensions(logService, extensionEnablementService, extensions, ignoreWorkspaceTrust);
