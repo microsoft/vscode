@@ -31,6 +31,7 @@ import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defa
 import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot } from './searchTreeModel/searchTreeCommon.js';
 import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 
@@ -111,7 +112,7 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 	renderTemplate(container: HTMLElement): ITextSearchResultTemplate {
 		const disposables = new DisposableStore();
 		const textSearchResultElement = DOM.append(container, DOM.$('.textsearchresult'));
-		const label = this.labels.create(textSearchResultElement, { supportDescriptionHighlights: true, supportHighlights: true });
+		const label = this.labels.create(textSearchResultElement, { supportDescriptionHighlights: true, supportHighlights: true, supportIcons: true });
 		disposables.add(label);
 		return { label, disposables };
 	}
@@ -119,10 +120,13 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 	async renderElement(node: ITreeNode<ITextSearchHeading, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
 		if (node.element.isAIContributed) {
 			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
-			templateData.label.setLabel(nls.localize({
+			const localizedLabel = nls.localize({
 				key: 'searchFolderMatch.aiText.label',
 				comment: ['This is displayed before the AI text search results, where {0} will be in the place of the AI name (ie: Copilot)']
-			}, '{0} Results', aiName));
+			}, '{0} Results', aiName);
+
+			// todo: make icon extension-contributed.
+			templateData.label.setLabel(`$(${Codicon.copilot.id}) ${localizedLabel}`);
 		} else {
 			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
 		}

@@ -91,6 +91,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return linearHistoryIndex < linearHistory.length;
 	});
 
+	public hiddenRequestIds = derived<string[]>((r) => {
+		const linearHistory = this._linearHistory.read(r);
+		const linearHistoryIndex = this._linearHistoryIndex.read(r);
+		return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
+	});
+
 	private readonly _onDidChange = new Emitter<void>();
 	get onDidChange() {
 		this._assertNotDisposed();
@@ -277,7 +283,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// Restore pending snapshot
 			snapshot = this._pendingSnapshot;
 			this._pendingSnapshot = undefined;
-		} else {
+		} else if (!this._pendingSnapshot) {
 			// Create and save a pending snapshot
 			this.createSnapshot(undefined);
 		}
