@@ -283,7 +283,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			// Restore pending snapshot
 			snapshot = this._pendingSnapshot;
 			this._pendingSnapshot = undefined;
-		} else {
+		} else if (!this._pendingSnapshot) {
 			// Create and save a pending snapshot
 			this.createSnapshot(undefined);
 		}
