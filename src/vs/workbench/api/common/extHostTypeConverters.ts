@@ -2347,9 +2347,9 @@ export namespace LanguageModelChatMessageRole {
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		const content2 = message.content.map(c => {
+		const content = message.content.map(c => {
 			if (c.type === 'text') {
-				return c.value;
+				return new LanguageModelTextPart(c.value);
 			} else if (c.type === 'tool_result') {
 				const content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[] = c.value.map(part => {
 					if (part.type === 'text') {
@@ -2363,10 +2363,8 @@ export namespace LanguageModelChatMessage {
 				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
 			}
 		});
-		const content = content2.find(c => typeof c === 'string') ?? '';
 		const role = LanguageModelChatMessageRole.to(message.role);
 		const result = new types.LanguageModelChatMessage(role, content, message.name);
-		result.content2 = content2;
 		return result;
 	}
 
@@ -2375,7 +2373,11 @@ export namespace LanguageModelChatMessage {
 		const role = LanguageModelChatMessageRole.from(message.role);
 		const name = message.name;
 
-		const messageContent = asArray(message.content);
+		let messageContent = message.content;
+		if (typeof messageContent === 'string') {
+			messageContent = [new types.LanguageModelTextPart(messageContent)];
+		}
+
 		const content = messageContent.map((c): chatProvider.IChatMessagePart => {
 			if (c instanceof types.LanguageModelToolResultPart) {
 				return {
@@ -2406,6 +2408,11 @@ export namespace LanguageModelChatMessage {
 					toolCallId: c.callId,
 					name: c.name,
 					parameters: c.parameters
+				};
+			} else if (c instanceof types.LanguageModelTextPart) {
+				return {
+					type: 'text',
+					value: c.value
 				};
 			} else {
 				if (typeof c !== 'string') {

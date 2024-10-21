@@ -4597,25 +4597,25 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
 		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		value.content2 = [content];
+		// value.content2 = [content];
 		return value;
 	}
 
-	static Assistant(content: string, name?: string): LanguageModelChatMessage {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
-	content: string;
-	content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
+	content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+	// content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
-		this.content2 = [content];
+		// this.content2 = [content];
 		this.name = name;
 	}
 }
