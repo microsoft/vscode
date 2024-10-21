@@ -72,6 +72,7 @@ export class InlineEditsAdapter extends Disposable {
 								isInlineEdit: true,
 							};
 						}),
+						commands: definedEdits.flatMap(e => e.result.commands ?? []),
 					};
 				}
 				freeInlineCompletions(c: InlineCompletionsAndEdits) {

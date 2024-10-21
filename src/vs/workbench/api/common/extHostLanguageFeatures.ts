@@ -1554,12 +1554,16 @@ class InlineEditAdapter {
 			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
 		}
 
+		if (!disposableStore) {
+			disposableStore = new DisposableStore();
+		}
 		const langResult: extHostProtocol.IdentifiableInlineEdit = {
 			pid,
 			text: result.text,
 			range: typeConvert.Range.from(result.range),
 			accepted: acceptCommand,
 			rejected: rejectCommand,
+			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
 		};
 
 		return langResult;
