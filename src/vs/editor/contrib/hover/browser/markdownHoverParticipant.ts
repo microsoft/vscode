@@ -470,7 +470,7 @@ export function renderMarkdownHovers(
 	return new RenderedHoverParts(renderedHoverParts);
 }
 
-function renderMarkdownInContainer(
+export function renderMarkdownInContainer(
 	editor: ICodeEditor,
 	markdownHover: MarkdownHover,
 	languageService: ILanguageService,
