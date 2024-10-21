@@ -19704,19 +19704,24 @@ declare module 'vscode' {
 		/**
 		 * Invoke a tool listed in {@link lm.tools} by name with the given parameters.
 		 *
-		 * The caller must pass a {@link LanguageModelToolInvocationOptions.toolInvocationToken}, which comes from
-		 * {@link ChatRequest.toolInvocationToken} when the tool is being invoked by a by a {@link ChatParticipant}, and
-		 * associates the invocation to a chat session.
+		 * A tool can be invoked by a chat participant, in the context of handling a chat request, or globally by any extension in
+		 * any custom flow.
 		 *
-		 * The tool will return a {@link LanguageModelToolResult} which contains an array of {@link LanguageModelTextPart} and
-		 * {@link LanguageModelPromptTsxPart}. If the tool caller is using `@vscode/prompt-tsx`, it can incorporate the response
-		 *  parts into its prompt using a `ToolResult`. If not, the parts can be passed along to the {@link LanguageModelChat} via
-		 *  a User message with a {@link LanguageModelToolResultPart}.
+		 * In the former case, the caller shall pass the {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes with the a
+		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the correct conversation.
+		 *
+		 * A tool {@link LanguageModelToolResult result} is an array of {@link LanguageModelTextPart text-} and
+		 * {@link LanguageModelPromptTsxPart prompt-tsx}-parts. If the tool caller is using `@vscode/prompt-tsx`, it can incorporate the response
+		 * parts into its prompt using a `ToolResult`. If not, the parts can be passed along to the {@link LanguageModelChat} via
+		 * a user message with a {@link LanguageModelToolResultPart}.
 		 *
 		 * If a chat participant wants to preserve tool results for requests across multiple turns, it can store tool results in
 		 * the {@link ChatResult.metadata} returned from the handler and retrieve them on the next turn from
 		 * {@link ChatResponseTurn.result}.
 		 *
+		 * @param name The name of the tool to call.
+		 * @param options The options to use when invoking the tool.
+		 * @param token A cancellation token. See {@link CancellationTokenSource} for how to create one.
 		 * @returns The result of the tool invocation.
 		 */
 		export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
