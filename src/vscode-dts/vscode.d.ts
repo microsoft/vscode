@@ -19702,18 +19702,21 @@ declare module 'vscode' {
 		export const tools: readonly LanguageModelToolInformation[];
 
 		/**
-		 * Invoke a tool listed in {@link lm.tools} by name with the given parameters.
+		 * Invoke a tool listed in {@link lm.tools} by name with the given parameters. The parameters will be validated against
+		 * the schema declared by the tool
 		 *
 		 * A tool can be invoked by a chat participant, in the context of handling a chat request, or globally by any extension in
 		 * any custom flow.
 		 *
-		 * In the former case, the caller shall pass the {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes with the a
-		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the correct conversation.
+		 * In the former case, the caller shall pass the
+		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes with the a
+		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the
+		 * correct conversation.
 		 *
 		 * A tool {@link LanguageModelToolResult result} is an array of {@link LanguageModelTextPart text-} and
-		 * {@link LanguageModelPromptTsxPart prompt-tsx}-parts. If the tool caller is using `@vscode/prompt-tsx`, it can incorporate the response
-		 * parts into its prompt using a `ToolResult`. If not, the parts can be passed along to the {@link LanguageModelChat} via
-		 * a user message with a {@link LanguageModelToolResultPart}.
+		 * {@link LanguageModelPromptTsxPart prompt-tsx}-parts. If the tool caller is using `@vscode/prompt-tsx`, it can
+		 * incorporate the response parts into its prompt using a `ToolResult`. If not, the parts can be passed along to the
+		 * {@link LanguageModelChat} via a user message with a {@link LanguageModelToolResultPart}.
 		 *
 		 * If a chat participant wants to preserve tool results for requests across multiple turns, it can store tool results in
 		 * the {@link ChatResult.metadata} returned from the handler and retrieve them on the next turn from
@@ -19983,8 +19986,7 @@ declare module 'vscode' {
 		/**
 		 * Invoke the tool with the given parameters and return a result.
 		 *
-		 * The provided {@link LanguageModelToolInvocationOptions.parameters} are currently not validated against the declared
-		 * schema, but will be in the future.
+		 * The provided {@link LanguageModelToolInvocationOptions.parameters} have been validated against the declared schema.
 		 */
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
