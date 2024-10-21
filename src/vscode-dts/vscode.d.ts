@@ -19086,6 +19086,12 @@ declare module 'vscode' {
 		 * string-manipulation of the prompt.
 		 */
 		readonly references: readonly ChatPromptReference[];
+
+		/**
+		 * This is the model that is currently selected in the UI. Extensions can use this or use {@link chat.selectChatModels} to
+		 * pick another model. Don't hold onto this past the lifetime of the request.
+		 */
+		readonly model: LanguageModelChat;
 	}
 
 	/**
