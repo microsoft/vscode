@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IChatRequestVariableEntry } from '../../common/chatModel.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ResourceLabels } from '../../../../browser/labels.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { basename, dirname } from '../../../../../base/common/path.js';
-import { localize } from '../../../../../nls.js';
-import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename, dirname } from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { localize } from '../../../../../nls.js';
+import { FileKind, IFileService } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ResourceLabels } from '../../../../browser/labels.js';
+import { IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
@@ -28,6 +28,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	constructor(
 		private readonly variables: IChatRequestVariableEntry[],
 		private readonly contentReferences: ReadonlyArray<IChatContentReference> = [],
+		private readonly workingSet: ReadonlyArray<URI> = [],
 		public readonly domNode: HTMLElement = dom.$('.chat-attached-context'),
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -46,10 +47,15 @@ export class ChatAttachmentsContentPart extends Disposable {
 		const hoverDelegate = this.attachedContextDisposables.add(createInstantHoverDelegate());
 
 		this.variables.forEach(async (attachment) => {
-			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
 			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
+			if (file && attachment.isFile && this.workingSet.find(entry => entry.toString() === file.toString())) {
+				// Don't render attachment if it's in the working set
+				return;
+			}
+
+			const widget = dom.append(container, dom.$('.chat-attached-context-attachment.show-file-icons'));
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
 
 			const correspondingContentReference = this.contentReferences.find((ref) => typeof ref.reference === 'object' && 'variableName' in ref.reference && ref.reference.variableName === attachment.name);
 			const isAttachmentOmitted = correspondingContentReference?.options?.status?.kind === ChatResponseReferencePartStatusKind.Omitted;

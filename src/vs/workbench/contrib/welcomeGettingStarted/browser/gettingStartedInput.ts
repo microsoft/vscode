@@ -72,7 +72,7 @@ export class GettingStartedInput extends EditorInput {
 	}
 
 	override getName() {
-		return this.selectedCategory ? this.walkthroughService.getWalkthrough(this.selectedCategory).walkthroughPageTitle : localize('getStarted', "Welcome");
+		return this.selectedCategory ? localize('walkthroughPageTitle', 'Walkthrough: ') + this.walkthroughService.getWalkthrough(this.selectedCategory).walkthroughPageTitle : localize('getStarted', "Welcome");
 	}
 
 	get selectedCategory() {

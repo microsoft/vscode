@@ -4150,6 +4150,12 @@ export interface IInlineSuggestOptions {
 	 * Font family for inline suggestions.
 	 */
 	fontFamily?: string | 'default';
+
+	edits?: {
+		experimental?: {
+			enabled?: boolean;
+		};
+	};
 }
 
 /**
@@ -4170,6 +4176,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			keepOnBlur: false,
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: false,
+			edits: {
+				experimental: {
+					enabled: true,
+				},
+			},
 		};
 
 		super(
@@ -4206,6 +4217,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.fontFamily,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
+				'editor.inlineSuggest.edits.experimental.enabled': {
+					type: 'boolean',
+					default: defaults.edits!.experimental!.enabled!,
+					description: nls.localize('inlineSuggest.edits.experimental.enabled', "Controls whether to enable experimental edits in inline suggestions.")
+				},
 			}
 		);
 	}
@@ -4223,6 +4239,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
+			edits: {
+				experimental: {
+					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental!.enabled!),
+				},
+			},
 		};
 	}
 }

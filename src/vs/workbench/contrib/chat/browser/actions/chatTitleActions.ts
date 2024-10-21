@@ -8,6 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -27,7 +28,7 @@ import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/co
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -216,11 +217,16 @@ export function registerChatTitleActions() {
 			if (chatModel?.initialLocation === ChatAgentLocation.EditingSession) {
 				const configurationService = accessor.get(IConfigurationService);
 				const dialogService = accessor.get(IDialogService);
-				const shouldPrompt = configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
+
+				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
+				const entriesModifiedInLastRequest = chatEditingService.currentEditingSessionObs.get()?.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId) ?? [];
+				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({
-						title: localize('chat.retryLast.confirmation.title', "Do you want to retry your last edit?"),
-						message: localize('chat.retry.confirmation.message', "This will also undo any edits made to your working set from this request."),
+						title: localize('chat.retryLast.confirmation.title2', "Do you want to retry your last request?"),
+						message: entriesModifiedInLastRequest.length === 1
+							? localize('chat.retry.confirmation.message2', "This will undo edits made to {0} since this request.", basename(entriesModifiedInLastRequest[0].modifiedURI))
+							: localize('chat.retryLast.confirmation.message2', "This will undo edits made to {0} files in your working set since this request. Do you want to proceed?", entriesModifiedInLastRequest.length),
 						primaryButton: localize('chat.retry.confirmation.primaryButton', "Yes"),
 						checkbox: { label: localize('chat.retry.confirmation.checkbox', "Don't ask again"), checked: false },
 						type: 'info'
@@ -424,20 +430,55 @@ export function registerChatTitleActions() {
 
 			if (request) {
 				const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
-				const currentEditCount = currentEditingSession?.entries.get().length;
-				if (currentEditCount) {
-					const result = await dialogService.confirm({
-						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-						message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
-						type: 'info',
-						primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
-					});
+				const currentEdits = currentEditingSession?.entries.get();
+				const currentEditCount = currentEdits?.length;
 
-					if (!result.confirmed) {
-						return;
+				if (currentEditingSession && currentEditCount) {
+
+					const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+					if (undecidedEdits.length) {
+						const { result } = await dialogService.prompt({
+							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+							message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+							type: 'info',
+							buttons: [
+								{
+									label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+									run: async () => {
+										await currentEditingSession.reject();
+										return true;
+									}
+								},
+								{
+									label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+									run: async () => {
+										await currentEditingSession.accept();
+										return true;
+									}
+								}
+							],
+						});
+
+						if (!result) {
+							return;
+						}
+					} else {
+						const result = await dialogService.confirm({
+							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+							message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+							type: 'info',
+							primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
+						});
+
+						if (!result.confirmed) {
+							return;
+						}
 					}
 
 					await currentEditingSession?.stop();
+					const existingEditingChatWidget = chatWidgetService.getWidgetBySessionId(currentEditingSession.chatSessionId);
+					existingEditingChatWidget?.clear();
+					existingEditingChatWidget?.attachmentModel.clear();
 				}
 
 				const { widget } = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
@@ -474,16 +515,17 @@ export function registerChatTitleActions() {
 
 					if (workingSetInputs.size) {
 						for (const reference of workingSetInputs) {
-							await chatEditingService.addFileToWorkingSet(reference);
+							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(reference);
 						}
 					} else {
 						for (const { reference } of request.response?.contentReferences ?? []) {
 							if (URI.isUri(reference) && [Schemas.file, Schemas.vscodeRemote].includes(reference.scheme)) {
-								await chatEditingService.addFileToWorkingSet(reference);
+								chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(reference);
 							}
 						}
 					}
 				}
+				widget.focusInput();
 
 			}
 		}

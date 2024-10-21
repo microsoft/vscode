@@ -5,14 +5,15 @@
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from './chatModel.js';
 import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from './chatService.js';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
+	let refIdPool = 0;
+
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
 		const previousItem = result.filter(p => p.kind !== 'textEditGroup').at(-1);
@@ -29,8 +30,8 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 				}
 			}
 
-			const refId = generateUuid();
-			const printUri = URI.parse(contentRefUrl).with({ path: refId });
+			const refId = refIdPool++;
+			const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
 			const markdownText = `[${label}](${printUri.toString()})`;
 
 			const annotationMetadata = { [refId]: item };

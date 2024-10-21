@@ -1078,7 +1078,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents theme specific rendeirng styles for {@link ThemableDecorationRenderOptions.before before} and
+	 * Represents theme specific rendering styles for {@link ThemableDecorationRenderOptions.before before} and
 	 * {@link ThemableDecorationRenderOptions.after after} the content of text decorations.
 	 */
 	export interface ThemableDecorationAttachmentRenderOptions {
@@ -2484,7 +2484,7 @@ declare module 'vscode' {
 		static readonly SourceFixAll: CodeActionKind;
 
 		/**
-		 * Base kind for all code actions applying to the enitre notebook's scope. CodeActionKinds using
+		 * Base kind for all code actions applying to the entire notebook's scope. CodeActionKinds using
 		 * this should always begin with `notebook.`
 		 *
 		 * This requires that new CodeActions be created for it and contributed via extensions.
@@ -2502,7 +2502,7 @@ declare module 'vscode' {
 		static readonly Notebook: CodeActionKind;
 
 		/**
-		 * Private constructor, use statix `CodeActionKind.XYZ` to derive from an existing code action kind.
+		 * Private constructor, use static `CodeActionKind.XYZ` to derive from an existing code action kind.
 		 *
 		 * @param value The value of the kind, such as `refactor.extract.function`.
 		 */
@@ -4216,7 +4216,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a semantic tokens builder.
 		 *
-		 * @param legend A semantic tokens legent.
+		 * @param legend A semantic tokens legend.
 		 */
 		constructor(legend?: SemanticTokensLegend);
 
@@ -6514,7 +6514,7 @@ declare module 'vscode' {
 			workspaceValue?: T;
 
 			/**
-			 * The workpace-folder-specific value.
+			 * The workspace-folder-specific value.
 			 */
 			workspaceFolderValue?: T;
 
@@ -7343,7 +7343,7 @@ declare module 'vscode' {
 		 * is created. Listen to {@link window.onDidChangeTerminalShellIntegration} to be notified
 		 * when shell integration is activated for a terminal.
 		 *
-		 * Note that this object may remain undefined if shell integation never activates. For
+		 * Note that this object may remain undefined if shell integration never activates. For
 		 * example Command Prompt does not support shell integration and a user's shell setup could
 		 * conflict with the automatic shell integration activation.
 		 */
@@ -19475,8 +19475,8 @@ declare module 'vscode' {
 		 * Make a chat request using a language model.
 		 *
 		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
-		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
-		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * for the first time (for an extension) will show a consent dialog to the user and because of that this function
+		 * must _only be called in response to a user action!_ Extensions can use {@link LanguageModelAccessInformation.canSendRequest}
 		 * to check if they have the necessary permissions to make a request.
 		 *
 		 * This function will return a rejected promise if making a request to the language model is not
@@ -19486,6 +19486,10 @@ declare module 'vscode' {
 		 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
 		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
 		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 *
+		 * An extension can make use of language model tool calling by passing a set of tools to
+		 * {@link LanguageModelChatRequestOptions.tools}. The language model will return a {@link LanguageModelToolCallPart} and
+		 * the extension can invoke the tool and make another request with the result.
 		 *
 		 * @param messages An array of message instances.
 		 * @param options Options that control the request.

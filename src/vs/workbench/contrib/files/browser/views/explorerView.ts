@@ -191,7 +191,7 @@ class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 				filePattern: isFuzzyMatch ? pattern : `**/*${pattern}*`,
 				maxResults: 512,
 				sortByScore: true,
-				cacheKey: `explorerfindprovider:${sessionId}`,
+				cacheKey: `explorerfindprovider:${folder.index}:${sessionId}`,
 				excludePattern: searchExcludePattern,
 			}, token);
 
