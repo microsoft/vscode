@@ -112,7 +112,7 @@ steps:
         inputs:
           IndexSources: false
           SymbolsFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
-          SearchPattern: '**/*.pdb'
+          SearchPattern: 'code.pdb'
           SymbolServerType: TeamServices
         displayName: Publish Symbols
 
