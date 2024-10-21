@@ -19956,22 +19956,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * When this is returned in {@link PreparedToolInvocation}, the user will be asked to confirm before running the tool. These
-	 * messages will be shown with buttons that say "Continue" and "Cancel".
-	 */
-	export interface LanguageModelToolConfirmationMessages {
-		/**
-		 * The title of the confirmation message.
-		 */
-		title: string;
-
-		/**
-		 * The body of the confirmation message.
-		 */
-		message: string | MarkdownString;
-	}
-
-	/**
 	 * Options for {@link LanguageModelTool.prepareInvocation}.
 	 */
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -19996,10 +19980,28 @@ declare module 'vscode' {
 		/**
 		 * Called once before a tool is invoked. It's recommended to implement this to customize the progress message that appears
 		 * while the tool is running, and to provide a more useful message with context from the invocation parameters. Can also
-		 * signal that a tool needs user confirmation before running, if appropriate. Must be free of side-effects. A call to
-		 * `prepareInvocation` is not necessarily followed by a call to `invoke`.
+		 * signal that a tool needs user confirmation before running, if appropriate.
+		 *
+		 * * *Note 1:* Must be free of side-effects.
+		 * * *Note 2:* A call to `prepareInvocation` is not necessarily followed by a call to `invoke`.
 		 */
 		prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
+	}
+
+	/**
+	 * When this is returned in {@link PreparedToolInvocation}, the user will be asked to confirm before running the tool. These
+	 * messages will be shown with buttons that say "Continue" and "Cancel".
+	 */
+	export interface LanguageModelToolConfirmationMessages {
+		/**
+		 * The title of the confirmation message.
+		 */
+		title: string;
+
+		/**
+		 * The body of the confirmation message.
+		 */
+		message: string | MarkdownString;
 	}
 
 	/**
