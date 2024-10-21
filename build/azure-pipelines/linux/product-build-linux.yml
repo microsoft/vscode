@@ -295,7 +295,13 @@ steps:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
-    - script:  |
+    - script: |
+        dpkg-deb --version
+        fakeroot --version
+        rpmbuild --version
+      displayName: List build tool versions
+
+    - script: |
         set -e
         npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
       env:

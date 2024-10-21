@@ -10,6 +10,12 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: |
+        tar --version
+        gcc --version
+        apt-get --version
+      displayName: List build tool versions
+
     - template: ./distro/download-distro.yml@self
 
     - task: AzureKeyVault@2
