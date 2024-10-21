@@ -175,6 +175,7 @@ async function addRefAndCreateResult(
 	for await (const completions of inlineCompletionLists) {
 		if (!completions) { continue; }
 		completions.addRef();
+		lists.push(completions);
 		for (const item of completions.inlineCompletions.items) {
 			const inlineCompletionItem = InlineCompletionItem.from(
 				item,
