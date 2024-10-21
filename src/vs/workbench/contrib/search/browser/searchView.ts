@@ -706,7 +706,7 @@ export class SearchView extends ViewPane {
 			ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 	}
 
-	private shouldCollapse(match: RenderableMatch): boolean {
+	private shouldCollapseAccordingToConfig(match: RenderableMatch): boolean {
 		const collapseResults = this.originalShouldCollapse(match);
 		if (collapseResults === ObjectTreeElementCollapseState.PreserveOrCollapsed) {
 			return true;
@@ -887,11 +887,16 @@ export class SearchView extends ViewPane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				paddingBottom: SearchDelegate.ITEM_HEIGHT,
 				collapseByDefault: (e: RenderableMatch) => {
-					if (isTextSearchHeading(e) && e.isAIContributed) {
-						// always collapse the ai text search result
-						return true;
+					if (isTextSearchHeading(e)) {
+						// always collapse the ai text search result, but always expand the text result
+						return e.isAIContributed;
 					}
-					return this.shouldCollapse(e);
+
+					// always expand compressed nodes
+					if (isSearchTreeFolderMatch(e) && e.matches().length === 1 && isSearchTreeFolderMatch(e.matches()[0])) {
+						return false;
+					}
+					return this.shouldCollapseAccordingToConfig(e);
 				}
 			}));
 
