@@ -79,6 +79,7 @@ export type BuiltinGettingStartedCategory = {
 	when?: string;
 	content:
 	| { type: 'steps'; steps: BuiltinGettingStartedStep[] };
+	walkthroughPageTitle: string;
 };
 
 export type BuiltinGettingStartedStartEntry = {
@@ -216,6 +217,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		isFeatured: true,
 		icon: setupIcon,
 		when: '!isWeb',
+		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),
 		next: 'Beginner',
 		content: {
 			type: 'steps',
@@ -317,6 +319,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		when: 'isWeb',
 		next: 'Beginner',
+		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Setup VS Code Web'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -402,6 +405,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
 		next: 'Setup',
+		walkthroughPageTitle: localize('gettingStarted.setupAccessibility.walkthroughPageTitle', 'Setup VS Code Accessibility'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -498,6 +502,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
 		description: localize('gettingStarted.beginner.description', "Get an overview of the most essential features"),
+		walkthroughPageTitle: localize('gettingStarted.beginner.walkthroughPageTitle', 'Essential Features'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -604,6 +609,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		isFeatured: false,
 		when: `config.${NotebookSetting.openGettingStarted} && userHasOpenedNotebook`,
+		walkthroughPageTitle: localize('gettingStarted.notebook.walkthroughPageTitle', 'Notebooks'),
 		content: {
 			type: 'steps',
 			steps: [

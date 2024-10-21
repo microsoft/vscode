@@ -276,9 +276,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const name = product.nameShort;
 		const packageJsonUpdates = { name, version };
 
-		// for linux url handling
 		if (platform === 'linux') {
-			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
+			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
 		}
 
 		let packageJsonContents;

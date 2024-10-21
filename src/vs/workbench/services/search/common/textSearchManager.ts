@@ -9,8 +9,8 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import * as resources from '../../../../base/common/resources.js';
-import { TernarySearchTree } from '../../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../../base/common/uri.js';
+import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
 import { AITextSearchProviderNew, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from './searchExtTypes.js';
 
@@ -122,11 +122,14 @@ export class TextSearchManager {
 	}
 
 	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
-		const folderMappings: TernarySearchTree<URI, FolderQueryInfo> = TernarySearchTree.forUris<FolderQueryInfo>(() => true);
-		folderQueries.forEach((fq, i) => {
-			const queryTester = new QueryGlobTester(this.query, fq);
-			folderMappings.set(fq.folder, { queryTester, folder: fq.folder, folderIdx: i });
-		});
+		const folderMappings: FolderQuerySearchTree<FolderQueryInfo> = new FolderQuerySearchTree<FolderQueryInfo>(
+			folderQueries,
+			(fq, i) => {
+				const queryTester = new QueryGlobTester(this.query, fq);
+				return { queryTester, folder: fq.folder, folderIdx: i };
+			},
+			() => true
+		);
 
 		const testingPs: Promise<void>[] = [];
 		const progress = {
@@ -135,7 +138,7 @@ export class TextSearchManager {
 				if (result.uri === undefined) {
 					throw Error('Text search result URI is undefined. Please check provider implementation.');
 				}
-				const folderQuery = folderMappings.findSubstr(result.uri)!;
+				const folderQuery = folderMappings.findQueryFragmentAwareSubstr(result.uri)!;
 				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));

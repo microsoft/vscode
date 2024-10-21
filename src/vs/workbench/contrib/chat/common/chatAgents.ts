@@ -62,7 +62,6 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
-	supportsModelPicker?: boolean;
 	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;

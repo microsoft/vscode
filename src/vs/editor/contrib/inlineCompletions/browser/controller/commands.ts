@@ -5,8 +5,10 @@
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
+import { splitLines } from '../../../../../base/common/strings.js';
 import * as nls from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -150,30 +152,43 @@ export class AcceptInlineCompletion extends EditorAction {
 				group: 'primary',
 				order: 1,
 			}],
-			kbOpts: {
-				primary: KeyCode.Tab,
-				weight: 200,
-				kbExpr: ContextKeyExpr.or(
-					ContextKeyExpr.and(
-						InlineCompletionContextKeys.inlineSuggestionVisible,
-						EditorContextKeys.tabMovesFocus.toNegated(),
-						SuggestContext.Visible.toNegated(),
-						EditorContextKeys.hoverFocused.toNegated(),
+			kbOpts: [
+				{
+					primary: KeyCode.Tab,
+					weight: 200,
+					kbExpr: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							InlineCompletionContextKeys.inlineSuggestionVisible,
+							EditorContextKeys.tabMovesFocus.toNegated(),
+							SuggestContext.Visible.toNegated(),
+							EditorContextKeys.hoverFocused.toNegated(),
 
-						InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+							InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+						),
+						ContextKeyExpr.and(
+							InlineCompletionContextKeys.inlineEditVisible,
+							EditorContextKeys.tabMovesFocus.toNegated(),
+							SuggestContext.Visible.toNegated(),
+							EditorContextKeys.hoverFocused.toNegated(),
+
+							//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
+							InlineCompletionContextKeys.hasSelection.toNegated(),
+							InlineCompletionContextKeys.cursorAtInlineEdit,
+						)
 					),
-					ContextKeyExpr.and(
+				},
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: 200,
+					kbExpr: ContextKeyExpr.and(
+						EditorContextKeys.editorTextFocus,
 						InlineCompletionContextKeys.inlineEditVisible,
-						EditorContextKeys.tabMovesFocus.toNegated(),
 						SuggestContext.Visible.toNegated(),
 						EditorContextKeys.hoverFocused.toNegated(),
-
-						//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
-						InlineCompletionContextKeys.hasSelection.toNegated(),
-						InlineCompletionContextKeys.cursorAtInlineEdit,
-					)
-				),
-			}
+						EditorContextKeys.tabMovesFocus.toNegated(),
+					),
+				}
+			],
 		});
 	}
 
@@ -271,5 +286,35 @@ export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 		const currentValue = configService.getValue<'always' | 'onHover'>('editor.inlineSuggest.showToolbar');
 		const newValue = currentValue === 'always' ? 'onHover' : 'always';
 		configService.updateValue('editor.inlineSuggest.showToolbar', newValue);
+	}
+}
+
+export class DevExtractReproSample extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.dev.extractRepro',
+			label: nls.localize('action.inlineSuggest.dev.extractRepro', "Developer: Extract Inline Suggest State"),
+			alias: 'Developer: Inline Suggest Extract Repro',
+			precondition: InlineCompletionContextKeys.inlineEditVisible,
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
+		const clipboardService = accessor.get(IClipboardService);
+
+		const controller = InlineCompletionsController.get(editor);
+		const m = controller?.model.get();
+		if (!m) { return; }
+		const repro = m.extractReproSample();
+
+		const inlineCompletionLines = splitLines(JSON.stringify({ inlineCompletion: repro.inlineCompletion }, null, 4));
+
+		const json = inlineCompletionLines.map(l => '// ' + l).join('\n');
+
+		const reproStr = `${repro.documentValue}\n\n// <json>\n${json}\n// </json>\n`;
+
+		await clipboardService.writeText(reproStr);
+
+		return { reproCase: reproStr };
 	}
 }

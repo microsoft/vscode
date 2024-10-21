@@ -48,8 +48,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private didUnregisterProvider = false;
 
 	constructor(
+		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession },
 		options: IViewPaneOptions,
-		private readonly chatOptions: { location: ChatAgentLocation.Panel | ChatAgentLocation.EditingSession } = { location: ChatAgentLocation.Panel },
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -167,7 +167,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						renderTextEditsAsSummary: (uri) => {
 							return this.chatOptions.location === ChatAgentLocation.EditingSession;
 						},
-					}
+					},
+					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel
 				},
 				{
 					listForeground: SIDE_BAR_FOREGROUND,

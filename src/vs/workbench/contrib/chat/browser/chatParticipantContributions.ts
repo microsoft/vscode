@@ -7,6 +7,7 @@ import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -201,7 +202,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations || providerDescriptor.supportsModelPicker) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
@@ -243,7 +244,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								extensionDisplayName: extension.description.displayName ?? extension.description.name,
 								id: providerDescriptor.id,
 								description: providerDescriptor.description,
-								supportsModelPicker: providerDescriptor.supportsModelPicker,
 								when: providerDescriptor.when,
 								metadata: {
 									isSticky: providerDescriptor.isSticky,
@@ -290,6 +290,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			storageId: viewContainerId,
 			hideIfEmpty: true,
 			order: 100,
+			openCommandActionDescriptor: {
+				id: viewContainerId,
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+					}
+				},
+				order: 100
+			},
 		}, ViewContainerLocation.Sidebar);
 
 		return viewContainer;
@@ -306,7 +316,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: name, original: name },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
 			when: ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
@@ -339,7 +349,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: title.value, original: title.value },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ id, title: title.value }, { location: ChatAgentLocation.EditingSession }]),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);

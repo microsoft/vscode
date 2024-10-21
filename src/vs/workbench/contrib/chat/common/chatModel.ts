@@ -49,6 +49,7 @@ export interface IBaseChatRequestVariableEntry {
 export interface IChatRequestImplicitVariableEntry extends Omit<IBaseChatRequestVariableEntry, 'kind'> {
 	readonly kind: 'implicit';
 	readonly value: URI | Location | undefined;
+	readonly isSelection: boolean;
 	enabled: boolean;
 }
 
@@ -81,8 +82,11 @@ export interface IChatRequestModel {
 	readonly confirmation?: string;
 	readonly locationData?: IChatLocationData;
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly workingSet?: URI[];
+	readonly isCompleteAddedRequest: boolean;
 	readonly response?: IChatResponseModel;
 	isDisabled: boolean;
+	isHidden: boolean;
 }
 
 export interface IChatTextEditGroupState {
@@ -157,6 +161,8 @@ export interface IChatResponseModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	isDisabled: boolean;
+	readonly isHidden: boolean;
+	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
@@ -180,6 +186,8 @@ export class ChatRequestModel implements IChatRequestModel {
 	public get session() {
 		return this._session;
 	}
+
+	public isHidden: boolean = false;
 
 	public get username(): string {
 		return this.session.requesterUsername;
@@ -213,6 +221,10 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._attachedContext;
 	}
 
+	public get workingSet(): URI[] | undefined {
+		return this._workingSet;
+	}
+
 	constructor(
 		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
@@ -220,7 +232,9 @@ export class ChatRequestModel implements IChatRequestModel {
 		private _attempt: number = 0,
 		private _confirmation?: string,
 		private _locationData?: IChatLocationData,
-		private _attachedContext?: IChatRequestVariableEntry[]
+		private _attachedContext?: IChatRequestVariableEntry[],
+		private _workingSet?: URI[],
+		public readonly isCompleteAddedRequest = false,
 	) {
 		this.id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -410,8 +424,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isDisabled;
 	}
 
+	public get isHidden() {
+		return this._isHidden;
+	}
+
 	public get isComplete(): boolean {
 		return this._isComplete;
+	}
+
+	public set isHidden(hidden: boolean) {
+		this._isHidden = hidden;
+		this._onDidChange.fire();
 	}
 
 	public get isCanceled(): boolean {
@@ -500,6 +523,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _result?: IChatAgentResult,
 		followups?: ReadonlyArray<IChatFollowup>,
 		private _isDisabled: boolean = false,
+		public readonly isCompleteAddedRequest = false,
+		private _isHidden: boolean = false
 	) {
 		super();
 
@@ -620,6 +645,7 @@ export interface IChatModel {
 	readonly inputPlaceholder?: string;
 	readonly checkpoint: IChatRequestModel | undefined;
 	setCheckpoint(requestId: string | undefined): void;
+	disableRequests(requestIds: ReadonlyArray<string>): void;
 	getRequests(includeDisabledRequests?: boolean): IChatRequestModel[];
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
@@ -767,6 +793,7 @@ export type IChatChangeEvent =
 	| IChatSetAgentEvent
 	| IChatMoveEvent
 	| IChatSetCheckpointEvent
+	| IChatSetHiddenEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -812,6 +839,11 @@ export interface IChatSetCheckpointEvent {
 	kind: 'setCheckpoint';
 	disabledRequestIds: Set<string>;
 	disabledResponseIds: Set<string>;
+}
+
+export interface IChatSetHiddenEvent {
+	kind: 'setHidden';
+	hiddenRequestIds: Set<string>;
 }
 
 export interface IChatMoveEvent {
@@ -1138,9 +1170,24 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[]): ChatRequestModel {
-		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments);
-		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
+	disableRequests(requestIds: ReadonlyArray<string>) {
+		this._requests.forEach((request) => {
+			const isHidden = requestIds.includes(request.id);
+			request.isHidden = isHidden;
+			if (request.response) {
+				request.response.isHidden = isHidden;
+			}
+		});
+
+		this._onDidChange.fire({
+			kind: 'setHidden',
+			hiddenRequestIds: new Set(requestIds),
+		});
+	}
+
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], workingSet?: URI[], isCompleteAddedRequest?: boolean): ChatRequestModel {
+		const request = new ChatRequestModel(this, message, variableData, attempt, confirmation, locationData, attachments, workingSet, isCompleteAddedRequest);
+		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id, undefined, undefined, undefined, undefined, undefined, undefined, undefined, isCompleteAddedRequest);
 
 		this._requests.push(request);
 		this._lastMessageDate = Date.now();

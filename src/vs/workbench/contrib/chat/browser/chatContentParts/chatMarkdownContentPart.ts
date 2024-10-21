@@ -4,33 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../base/common/resources.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { localize } from '../../../../../nls.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { createAndFillInContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatMarkdownContent } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo, IChatListItemRendererOptions } from '../chat.js';
@@ -56,7 +54,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
 	constructor(
-		private readonly markdown: IMarkdownString,
+		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
@@ -72,12 +70,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		super();
 
 		const element = context.element;
-		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		let codeBlockIndex = codeBlockStartIndex;
-		const result = this._register(renderer.render(markdown, {
+		const result = this._register(renderer.render(markdown.content, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
@@ -105,7 +102,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				if (!rendererOptions.renderCodeBlockPills) {
+				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
@@ -173,7 +170,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 		}));
 
-		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
+		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
 		this.domNode = result.element;
@@ -208,8 +206,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.value
-			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.value.lastIndexOf('```'));
+		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
+			|| this.rendererOptions.renderCodeBlockPills && this.codeblocks.at(-1)?.isStreaming && this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
 	}
 
 	layout(width: number): void {
@@ -277,38 +275,38 @@ class CollapsedCodeBlock extends Disposable {
 	private isStreaming: boolean | undefined;
 
 	constructor(
-		private readonly sessionId: string,
-		private readonly requestId: string,
+		sessionId: string,
+		requestId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IModelService private readonly modelService: IModelService,
-		@IChatService private readonly chatService: IChatService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IChatEditingService private readonly chatEditingService: IChatEditingService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
 		this.element.classList.add('show-file-icons');
 		this._register(dom.addDisposableListener(this.element, 'click', async () => {
 			if (this.uri) {
-				const chatModel = this.chatService.getSession(this.sessionId);
-				const requests = chatModel?.getRequests();
-				if (!requests) {
-					return;
-				}
-				const snapshotRequestId = requests?.find((v, i) => i > 0 && requests[i - 1]?.id === this.requestId)?.id;
-				if (snapshotRequestId) {
-					const snapshot = this.chatEditingService.getSnapshotUri(snapshotRequestId, this.uri);
-					if (snapshot) {
-						const editor = await this.editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Working Set History)', basename(this.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
-						if (isCodeEditor(editor)) {
-							editor.updateOptions({ readOnly: true });
-						}
-					}
-				} else {
-					this.editorService.openEditor({ resource: this.uri });
-				}
+				this.editorService.openEditor({ resource: this.uri });
 			}
+		}));
+		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
+			const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+			dom.EventHelper.stop(domEvent, true);
+
+			this.contextMenuService.showContextMenu({
+				contextKeyService: this.contextKeyService,
+				getAnchor: () => event,
+				getActions: () => {
+					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri } });
+					const primary: IAction[] = [];
+					createAndFillInContextMenuActions(menu, primary);
+					return primary;
+				},
+			});
 		}));
 	}
 

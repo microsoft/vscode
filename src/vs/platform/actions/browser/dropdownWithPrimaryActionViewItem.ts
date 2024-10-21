@@ -26,6 +26,7 @@ export interface IDropdownWithPrimaryActionViewItemOptions {
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	hoverDelegate?: IHoverDelegate;
 	menuAsChild?: boolean;
+	skipTelemetry?: boolean;
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
@@ -62,8 +63,16 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
 			keybindingProvider: this._options?.getKeyBinding ?? (action => _keybindingService.lookupKeybinding(action.id)),
-			hoverDelegate: _options?.hoverDelegate
+			hoverDelegate: _options?.hoverDelegate,
+			skipTelemetry: _options?.skipTelemetry,
 		});
+	}
+
+	override set actionRunner(actionRunner: IActionRunner) {
+		super.actionRunner = actionRunner;
+
+		this._primaryAction.actionRunner = actionRunner;
+		this._dropdown.actionRunner = actionRunner;
 	}
 
 	override setActionContext(newContext: unknown): void {
