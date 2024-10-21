@@ -9,7 +9,7 @@ import { IObservable, ITransaction, observableValue, transaction } from '../../.
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
+import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { LineRange } from '../../../../../editor/common/core/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
@@ -233,8 +233,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this.docSnapshot.applyEdits(edits);
 	}
 
-
-	applyEdits(textEdits: TextEdit[]): void {
+	acceptAgentEdits(textEdits: TextEdit[]): void {
 
 		// highlight edits
 		this._editDecorations = this.doc.deltaDecorations(this._editDecorations, textEdits.map(edit => {
@@ -253,18 +252,22 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this._undoRedoService.pushElement(new SingleModelEditStackElement(label, 'chat.edit', this.doc, null));
 		}
 
-		// make the actual edit
-		this._isApplyingEdits = true;
-		try {
-			this.doc.pushEditOperations(null, textEdits.map(TextEdit.asEditOperation), () => null);
-		} finally {
-			this._isApplyingEdits = false;
-		}
+		this._applyEdits(textEdits.map(TextEdit.asEditOperation));
 
 		transaction((tx) => {
 			this._stateObs.set(WorkingSetEntryState.Modified, tx);
 			this._isCurrentlyBeingModifiedObs.set(true, tx);
 		});
+	}
+
+	private _applyEdits(edits: ISingleEditOperation[]) {
+		// make the actual edit
+		this._isApplyingEdits = true;
+		try {
+			this.doc.pushEditOperations(null, edits, () => null);
+		} finally {
+			this._isApplyingEdits = false;
+		}
 
 		// trigger diff computation but only at first, when done, or when last
 		const myDiffOperationId = ++this._diffOperationIds;
@@ -273,7 +276,6 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				this._diffOperation = this._updateDiffInfo();
 			}
 		});
-
 	}
 
 	private async _updateDiffInfo(): Promise<void> {
@@ -319,7 +321,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	private _setDocValue(value: string): void {
 		this.doc.pushStackElement();
 		const edit = EditOperation.replace(this.doc.getFullModelRange(), value);
-		this.doc.pushEditOperations(null, [edit], () => null);
+
+		this._applyEdits([edit]);
+
 		this.doc.pushStackElement();
 	}
 

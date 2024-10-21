@@ -378,6 +378,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	override dispose() {
 		this._assertNotDisposed();
 
+		for (const entry of this._entriesObs.get()) {
+			entry.dispose();
+		}
+
 		super.dispose();
 		this._state.set(ChatEditingSessionState.Disposed, undefined);
 		this._onDidDispose.fire();
@@ -469,7 +473,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get result() { return responseModel.result; }
 		};
 		const entry = await this._getOrCreateModifiedFileEntry(resource, telemetryInfo);
-		entry.applyEdits(textEdits);
+		entry.acceptAgentEdits(textEdits);
 		// await this._editorService.openEditor({ resource: entry.modifiedURI, options: { inactive: true } });
 	}
 
@@ -492,9 +496,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return existingEntry;
 		}
 
+		// This gets manually disposed in .dispose() or in .restoreSnapshot()
 		const entry = await this._createModifiedFileEntry(resource, responseModel);
-		this._register(entry);
-		this._initialFileContents.set(resource, entry.modifiedModel.getValue());
+		if (!this._initialFileContents.has(resource)) {
+			this._initialFileContents.set(resource, entry.modifiedModel.getValue());
+		}
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);
 		this._onDidChange.fire();
