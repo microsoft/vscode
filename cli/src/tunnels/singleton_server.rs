@@ -239,7 +239,8 @@ impl BroadcastLogSink {
 
 	fn replay_and_subscribe(
 		&self,
-	) -> ConcatReceivable<Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>, broadcast::Receiver<Vec<u8>>> {
+	) -> ConcatReceivable<Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>, broadcast::Receiver<Vec<u8>>>
+	{
 		let (log_replay_tx, log_replay_rx) = mpsc::unbounded_channel();
 
 		for log in self.recent.lock().unwrap().iter() {

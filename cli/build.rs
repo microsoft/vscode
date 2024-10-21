@@ -133,7 +133,7 @@ fn apply_build_environment_variables() {
 			} else {
 				PathBuf::from_str(&v).unwrap()
 			};
-			println!("cargo:warning=loading product.json from <{:?}>", path);
+			println!("cargo:warning=loading product.json from <{path:?}>");
 			apply_build_from_product_json(&path);
 		}
 

@@ -566,7 +566,7 @@ async fn process_socket(
 			{
 				debug!(log, "closing socket reader: {}", e);
 				socket_tx
-					.send(SocketSignal::CloseWith(CloseReason(format!("{}", e))))
+					.send(SocketSignal::CloseWith(CloseReason(format!("{e}"))))
 					.await
 					.ok();
 			}
@@ -1192,7 +1192,7 @@ async fn handle_acquire_cli(
 
 	let release = match params.commit_id {
 		Some(commit) => Release {
-			name: format!("{} CLI", PRODUCT_NAME_LONG),
+			name: format!("{PRODUCT_NAME_LONG} CLI"),
 			commit,
 			platform: params.platform,
 			quality: params.quality,
