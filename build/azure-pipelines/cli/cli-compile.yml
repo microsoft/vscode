@@ -114,6 +114,7 @@ steps:
           SymbolsFolder: $(Build.SourcesDirectory)/cli/target/${{ parameters.VSCODE_CLI_TARGET }}/release
           SearchPattern: 'code.pdb'
           SymbolServerType: TeamServices
+          SymbolsProduct: 'code'
         displayName: Publish Symbols
 
       - task: CopyFiles@2
