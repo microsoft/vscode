@@ -94,7 +94,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	public hiddenRequestIds = derived<string[]>((r) => {
 		const linearHistory = this._linearHistory.read(r);
 		const linearHistoryIndex = this._linearHistoryIndex.read(r);
-		return linearHistory.slice(linearHistoryIndex + 1).map(s => s.requestId).filter((r): r is string => !!r);
+		return linearHistory.slice(linearHistoryIndex).map(s => s.requestId).filter((r): r is string => !!r);
 	});
 
 	private readonly _onDidChange = new Emitter<void>();
@@ -473,10 +473,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	async undoInteraction(): Promise<void> {
-		// [] , 0
-		// [Sinitial], 1
-		// [Sinitial, Safter1stInteraction], 2
-		// [Sinitial, Safter1stInteraction], 1     - pendingSpanshot
 		const linearHistory = this._linearHistory.get();
 		const linearHistoryIndex = this._linearHistoryIndex.get();
 		if (linearHistoryIndex <= 0) {

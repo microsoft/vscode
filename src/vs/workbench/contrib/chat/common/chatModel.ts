@@ -86,6 +86,7 @@ export interface IChatRequestModel {
 	readonly isCompleteAddedRequest: boolean;
 	readonly response?: IChatResponseModel;
 	isDisabled: boolean;
+	isHidden: boolean;
 }
 
 export interface IChatTextEditGroupState {
@@ -160,6 +161,7 @@ export interface IChatResponseModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	isDisabled: boolean;
+	readonly isHidden: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	/** A stale response is one that has been persisted and rehydrated, so e.g. Commands that have their arguments stored in the EH are gone. */
 	readonly isStale: boolean;
@@ -184,6 +186,8 @@ export class ChatRequestModel implements IChatRequestModel {
 	public get session() {
 		return this._session;
 	}
+
+	public isHidden: boolean = false;
 
 	public get username(): string {
 		return this.session.requesterUsername;
@@ -420,8 +424,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._isDisabled;
 	}
 
+	public get isHidden() {
+		return this._isHidden;
+	}
+
 	public get isComplete(): boolean {
 		return this._isComplete;
+	}
+
+	public set isHidden(hidden: boolean) {
+		this._isHidden = hidden;
+		this._onDidChange.fire();
 	}
 
 	public get isCanceled(): boolean {
@@ -511,6 +524,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		followups?: ReadonlyArray<IChatFollowup>,
 		private _isDisabled: boolean = false,
 		public readonly isCompleteAddedRequest = false,
+		private _isHidden: boolean = false
 	) {
 		super();
 
@@ -631,6 +645,7 @@ export interface IChatModel {
 	readonly inputPlaceholder?: string;
 	readonly checkpoint: IChatRequestModel | undefined;
 	setCheckpoint(requestId: string | undefined): void;
+	disableRequests(requestIds: ReadonlyArray<string>): void;
 	getRequests(includeDisabledRequests?: boolean): IChatRequestModel[];
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
@@ -778,6 +793,7 @@ export type IChatChangeEvent =
 	| IChatSetAgentEvent
 	| IChatMoveEvent
 	| IChatSetCheckpointEvent
+	| IChatSetHiddenEvent
 	;
 
 export interface IChatAddRequestEvent {
@@ -823,6 +839,11 @@ export interface IChatSetCheckpointEvent {
 	kind: 'setCheckpoint';
 	disabledRequestIds: Set<string>;
 	disabledResponseIds: Set<string>;
+}
+
+export interface IChatSetHiddenEvent {
+	kind: 'setHidden';
+	hiddenRequestIds: Set<string>;
 }
 
 export interface IChatMoveEvent {
@@ -1146,6 +1167,21 @@ export class ChatModel extends Disposable implements IChatModel {
 			kind: 'setCheckpoint',
 			disabledRequestIds,
 			disabledResponseIds
+		});
+	}
+
+	disableRequests(requestIds: ReadonlyArray<string>) {
+		this._requests.forEach((request) => {
+			const isHidden = requestIds.includes(request.id);
+			request.isHidden = isHidden;
+			if (request.response) {
+				request.response.isHidden = isHidden;
+			}
+		});
+
+		this._onDidChange.fire({
+			kind: 'setHidden',
+			hiddenRequestIds: new Set(requestIds),
 		});
 	}
 
