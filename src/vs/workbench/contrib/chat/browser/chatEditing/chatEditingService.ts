@@ -32,7 +32,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -100,6 +100,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			const entries = currentSession.entries.read(reader);
 			const decidedEntries = entries.filter(entry => entry.state.read(reader) === WorkingSetEntryState.Modified);
 			return decidedEntries.length > 0;
+		}));
+		this._register(bindContextKey(hasAppliedChatEditsContextKey, contextKeyService, (reader) => {
+			const currentSession = this._currentSessionObs.read(reader);
+			if (!currentSession) {
+				return false;
+			}
+			const entries = currentSession.entries.read(reader);
+			return entries.length > 0;
 		}));
 		this._register(bindContextKey(inChatEditingSessionContextKey, contextKeyService, (reader) => {
 			return this._currentSessionObs.read(reader) !== null;

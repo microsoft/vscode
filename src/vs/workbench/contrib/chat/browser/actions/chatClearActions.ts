@@ -15,8 +15,8 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
-import { IChatEditingService } from '../../common/chatEditingService.js';
+import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
+import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -129,6 +129,54 @@ export function registerNewChatActions() {
 					order: -1
 				},
 				]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const context = args[0];
+			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
+			const widgetService = accessor.get(IChatWidgetService);
+			if (isChatViewTitleActionContext(context)) {
+				// Is running in the Chat view title
+				announceChatCleared(accessibilitySignalService);
+				const widget = widgetService.getWidgetBySessionId(context.sessionId);
+				if (widget) {
+					widget.clear();
+					widget.attachmentModel.clear();
+					widget.focusInput();
+				}
+			} else {
+				// Is running from f1 or keybinding
+				const viewsService = accessor.get(IViewsService);
+
+				let widget = widgetService.lastFocusedWidget;
+				if (!widget || widget.location !== ChatAgentLocation.EditingSession) {
+					const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+					widget = chatView.widget;
+				}
+
+				announceChatCleared(accessibilitySignalService);
+				widget.clear();
+				widget.attachmentModel.clear();
+				widget.focusInput();
+			}
+		}
+	});
+
+	registerAction2(class GlobalEditsDoneAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.done',
+				title: localize2('chat.done.label', "Done"),
+				category: CHAT_CATEGORY,
+				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				f1: false,
+				menu: [{
+					id: MenuId.ChatEditingWidgetToolbar,
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)),
+					group: 'navigation',
+					order: 0
+				}]
 			});
 		}
 
