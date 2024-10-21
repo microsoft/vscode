@@ -13,7 +13,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IFileMatch, IPatternInfo, ITextQuery, ITextSearchPreviewOptions, resultIsMatch } from '../../../../services/search/common/search.js';
+import { IAITextQuery, IFileMatch, ITextSearchPreviewOptions, resultIsMatch } from '../../../../services/search/common/search.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { IReplaceService } from '../replace.js';
 
@@ -24,7 +24,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { textSearchResultToMatches } from '../searchTreeModel/match.js';
 import { ISearchTreeAIFileMatch } from './aiSearchModelBase.js';
 
-export class AITextSearchHeadingImpl extends TextSearchHeadingImpl {
+export class AITextSearchHeadingImpl extends TextSearchHeadingImpl<IAITextQuery> {
 	constructor(
 		parent: ISearchResult,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -45,7 +45,33 @@ export class AITextSearchHeadingImpl extends TextSearchHeadingImpl {
 		return true;
 	}
 
-	protected override createWorkspaceRootWithResourceImpl(resource: URI, id: string, index: number, query: ITextQuery): ISearchTreeFolderMatchWorkspaceRoot {
+	override get query(): IAITextQuery | null {
+		return this._query;
+	}
+
+	override set query(query: IAITextQuery | null) {
+		this.clearQuery();
+		if (!query) {
+			return;
+		}
+
+		this._folderMatches = (query && query.folderQueries || [])
+			.map(fq => fq.folder)
+			.map((resource, index) => <ISearchTreeFolderMatchWorkspaceRoot>this._createBaseFolderMatch(resource, resource.toString(), index, query));
+
+		this._folderMatches.forEach(fm => this._folderMatchesMap.set(fm.resource, fm));
+
+		this._query = query;
+	}
+
+	private _createBaseFolderMatch(resource: URI, id: string, index: number, query: IAITextQuery): ISearchTreeFolderMatch {
+		const folderMatch: ISearchTreeFolderMatch = this._register(this.createWorkspaceRootWithResourceImpl(resource, id, index, query));
+		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
+		this._register(folderMatch.onDispose(() => disposable.dispose()));
+		return folderMatch;
+	}
+
+	private createWorkspaceRootWithResourceImpl(resource: URI, id: string, index: number, query: IAITextQuery): ISearchTreeFolderMatchWorkspaceRoot {
 		return this.instantiationService.createInstance(AIFolderMatchWorkspaceRootImpl, resource, id, index, query, this);
 	}
 }
@@ -65,7 +91,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 	constructor(private _resource: URI,
 		_id: string,
 		private _index: number,
-		private _query: ITextQuery,
+		private _query: IAITextQuery,
 		private _parent: ITextSearchHeading,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
@@ -196,7 +222,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 		return this._parent.parent();
 	}
 
-	get query(): ITextQuery | null {
+	get query(): IAITextQuery | null {
 		return this._query;
 	}
 	getDownstreamFileMatch(uri: URI): ISearchTreeFileMatch | null {
@@ -280,7 +306,7 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 
 class AIFileMatch extends FileMatchImpl implements ISearchTreeAIFileMatch {
 	constructor(
-		_query: IPatternInfo,
+		_query: string,
 		_previewOptions: ITextSearchPreviewOptions | undefined,
 		_maxResults: number | undefined,
 		_parent: ISearchTreeFolderMatch,
@@ -292,7 +318,7 @@ class AIFileMatch extends FileMatchImpl implements ISearchTreeAIFileMatch {
 		@IReplaceService replaceService: IReplaceService,
 		@ILabelService labelService: ILabelService,
 	) {
-		super(_query, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
+		super({ pattern: _query }, _previewOptions, _maxResults, _parent, rawMatch, _closestRoot, modelService, replaceService, labelService);
 	}
 
 	override id() {
