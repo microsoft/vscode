@@ -8,7 +8,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
@@ -37,9 +37,10 @@ import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
-
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
+	private readonly _linearHistory = observableValue<IChatEditingSessionSnapshot[]>(this, []);
+	private readonly _linearHistoryIndex = observableValue<number>(this, 0);
 
 	/**
 	 * Contains the contents of a file when the AI first began doing edits to it.
@@ -72,6 +73,23 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	get state(): IObservable<ChatEditingSessionState> {
 		return this._state;
 	}
+
+	public readonly canUndo = derived<boolean>((r) => {
+		if (this.state.read(r) !== ChatEditingSessionState.Idle) {
+			return false;
+		}
+		const linearHistoryIndex = this._linearHistoryIndex.read(r);
+		return linearHistoryIndex > 0;
+	});
+
+	public readonly canRedo = derived<boolean>((r) => {
+		if (this.state.read(r) !== ChatEditingSessionState.Idle) {
+			return false;
+		}
+		const linearHistory = this._linearHistory.read(r);
+		const linearHistoryIndex = this._linearHistoryIndex.read(r);
+		return linearHistoryIndex < linearHistory.length;
+	});
 
 	private readonly _onDidChange = new Emitter<void>();
 	get onDidChange() {
@@ -187,6 +205,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			for (const workingSetItem of this._workingSet.keys()) {
 				this._workingSet.set(workingSetItem, WorkingSetEntryState.Sent);
 			}
+			const linearHistory = this._linearHistory.get();
+			const linearHistoryIndex = this._linearHistoryIndex.get();
+			const newLinearHistory = linearHistory.slice(0, linearHistoryIndex);
+			newLinearHistory.push(snapshot);
+			transaction((tx) => {
+				this._linearHistory.set(newLinearHistory, tx);
+				this._linearHistoryIndex.set(newLinearHistory.length, tx);
+			});
 		} else {
 			this._pendingSnapshot = snapshot;
 		}
@@ -202,6 +228,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			entries.set(entry.modifiedURI, entry.createSnapshot(requestId));
 		}
 		return {
+			requestId,
 			workingSet,
 			entries
 		};
@@ -439,6 +466,31 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 	}
 
+	async undoInteraction(): Promise<void> {
+		const linearHistory = this._linearHistory.get();
+		const linearHistoryIndex = this._linearHistoryIndex.get();
+		if (linearHistoryIndex <= 0) {
+			return;
+		}
+		const previousSnapshot = linearHistory[linearHistoryIndex - 1];
+		await this.restoreSnapshot(previousSnapshot.requestId);
+		this._linearHistoryIndex.set(linearHistoryIndex - 1, undefined);
+	}
+
+	async redoInteraction(): Promise<void> {
+		const linearHistory = this._linearHistory.get();
+		const linearHistoryIndex = this._linearHistoryIndex.get();
+		if (linearHistoryIndex >= linearHistory.length) {
+			return;
+		}
+		const nextSnapshot = (linearHistoryIndex + 1 < linearHistory.length ? linearHistory[linearHistoryIndex + 1] : this._pendingSnapshot);
+		if (!nextSnapshot) {
+			return;
+		}
+		await this.restoreSnapshot(nextSnapshot.requestId);
+		this._linearHistoryIndex.set(linearHistoryIndex + 1, undefined);
+	}
+
 	private async _acceptStreamingEditsStart(): Promise<void> {
 		transaction((tx) => {
 			this._state.set(ChatEditingSessionState.StreamingEdits, tx);
@@ -531,6 +583,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 }
 
 export interface IChatEditingSessionSnapshot {
+	requestId: string | undefined;
 	workingSet: ResourceMap<WorkingSetEntryState>;
 	entries: ResourceMap<ISnapshotEntry>;
 }

@@ -162,9 +162,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	restoreFromSnapshot(snapshot: ISnapshotEntry) {
+		this._stateObs.set(snapshot.state, undefined);
 		this.docSnapshot.setValue(snapshot.original);
 		this._setDocValue(snapshot.current);
-		this._stateObs.set(snapshot.state, undefined);
 	}
 
 	resetToInitialValue(value: string) {

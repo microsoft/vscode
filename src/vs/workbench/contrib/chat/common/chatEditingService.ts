@@ -19,6 +19,7 @@ import { IChatResponseModel } from './chatModel.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingService {
+
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
@@ -57,6 +58,9 @@ export interface IChatEditingSession {
 	 * Will lead to this object getting disposed
 	 */
 	stop(): Promise<void>;
+
+	undoInteraction(): Promise<void>;
+	redoInteraction(): Promise<void>;
 }
 
 export const enum WorkingSetEntryState {
