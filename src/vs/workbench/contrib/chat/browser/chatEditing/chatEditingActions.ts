@@ -22,7 +22,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, isChatRequestCheckpointed, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -282,11 +282,11 @@ registerAction2(ChatEditingShowChangesAction);
 registerAction2(class AddFilesToWorkingSetAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.addFilesToWorkingSet',
-			title: localize2('workbench.action.chat.addFilesToWorkingSet.label', "Add Files to Working Set"),
+			id: 'workbench.action.chat.addSelectedFilesToWorkingSet',
+			title: localize2('workbench.action.chat.addSelectedFilesToWorkingSet.label', "Add Selected Files to Working Set"),
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
-			precondition: inChatEditingSessionContextKey,
+			precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession),
 			f1: true
 		});
 	}
