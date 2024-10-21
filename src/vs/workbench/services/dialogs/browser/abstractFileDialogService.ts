@@ -90,7 +90,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return this.preferredHome(schemeFilter);
 		}
 
-		return resources.dirname(candidate);
+		return this.configurationService.getValue('files.dialog.currentDirectory') ? candidate : resources.dirname(candidate);
 	}
 
 	async preferredHome(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
