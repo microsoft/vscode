@@ -26,6 +26,20 @@ import { IChatRequestVariableValue, IChatVariablesService, IDynamicVariable } fr
 
 export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
+function changeIsBeforeVariable(changeRange: IRange, variableRange: IRange): boolean {
+	return (
+		changeRange.endLineNumber < variableRange.startLineNumber ||
+		(changeRange.endLineNumber === variableRange.startLineNumber && changeRange.endColumn <= variableRange.startColumn)
+	);
+}
+
+function changeIsAfterVariable(changeRange: IRange, variableRange: IRange): boolean {
+	return (
+		changeRange.startLineNumber > variableRange.endLineNumber ||
+		(changeRange.startLineNumber === variableRange.endLineNumber && changeRange.startColumn >= variableRange.endColumn)
+	);
+}
+
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
 
@@ -60,18 +74,61 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 						}
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
-						const delta = c.text.length - c.rangeLength;
-						return {
-							...ref,
-							range: {
-								startLineNumber: ref.range.startLineNumber,
-								startColumn: ref.range.startColumn + delta,
-								endLineNumber: ref.range.endLineNumber,
-								endColumn: ref.range.endColumn + delta
-							}
-						};
-					}
+						// Determine if the change is before, after, or overlaps with the variable's range.
+						if (changeIsBeforeVariable(c.range, ref.range)) {
+							// Change is before the variable; adjust the variable's range.
 
+							// Calculate line delta
+							const linesInserted = c.text.split('\n').length - 1;
+							const linesRemoved = c.range.endLineNumber - c.range.startLineNumber;
+							const lineDelta = linesInserted - linesRemoved;
+
+							// Initialize column delta
+							let columnDelta = 0;
+
+							// Check if change is on the same line as the variable's start
+							if (c.range.endLineNumber === ref.range.startLineNumber) {
+								// Change is on the same line
+								if (c.range.endColumn <= ref.range.startColumn) {
+									// Change occurs before the variable's start column
+									if (linesInserted === 0) {
+										// Single-line change
+										const charsInserted = c.text.length;
+										const charsRemoved = c.rangeLength;
+										columnDelta = charsInserted - charsRemoved;
+									} else {
+										// Multi-line change (e.g., newline inserted)
+										// Adjust columns accordingly
+										columnDelta = - (c.range.endColumn - 1);
+										// The variable's column should be adjusted to account for the reset after newline
+									}
+								} else {
+									// Change occurs after the variable's start column
+									// Variable is unaffected
+									columnDelta = 0;
+								}
+							} else if (c.range.endLineNumber < ref.range.startLineNumber) {
+								// Change is on lines before the variable's line
+								columnDelta = 0;
+							}
+
+							return {
+								...ref,
+								range: {
+									startLineNumber: ref.range.startLineNumber + lineDelta,
+									startColumn: ref.range.startColumn + columnDelta,
+									endLineNumber: ref.range.endLineNumber + lineDelta,
+									endColumn: ref.range.endColumn + columnDelta
+								}
+							};
+						} else if (changeIsAfterVariable(c.range, ref.range)) {
+							// Change is after the variable; no adjustment needed.
+							return ref;
+						} else {
+							// Change overlaps with the variable; the variable is broken.
+							return null;
+						}
+					}
 					return ref;
 				}));
 			});
