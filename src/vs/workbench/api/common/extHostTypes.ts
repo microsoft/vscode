@@ -4599,8 +4599,7 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
-		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		return value;
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
 	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
