@@ -4608,30 +4608,34 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	// Temp to avoid breaking changes
-	content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined;
+	content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
-		// Temp for back-compat
-		if (this.content2) {
-			return this.content2.map(part => {
+	// Temp to avoid breaking changes
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined) {
+		if (value) {
+			this.content = value.map(part => {
 				if (typeof part === 'string') {
 					return new LanguageModelTextPart(part);
 				}
-
 				return part;
 			});
 		}
+	}
 
-		return this._content;
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined {
+		return this.content.map(part => {
+			if (part instanceof LanguageModelTextPart) {
+				return part.value;
+			}
+			return part;
+		});
 	}
 
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
-		this._content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
+		this.content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
 		this.name = name;
 	}
 }
