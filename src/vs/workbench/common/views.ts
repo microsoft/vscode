@@ -657,7 +657,8 @@ export interface ITreeView extends IDisposable {
 
 	readonly container: any | undefined;
 
-	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
+	// checkboxesChanged is a subset of treeItems
+	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 

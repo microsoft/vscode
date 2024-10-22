@@ -204,10 +204,7 @@ export class InlineChatController implements IEditorContribution {
 		this._store.add(this._inlineChatSessionService.onDidEndSession(e => {
 			if (e.session === this._session && e.endedByExternalCause) {
 				this._log('session ENDED by external cause');
-				this._session = undefined;
-				this._strategy?.cancel();
-				this._resetWidget();
-				this.cancelSession();
+				this.finishExistingSession();
 			}
 		}));
 

@@ -79,6 +79,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
 
+	private readonly _onDidTurnOnSync = this._register(new Emitter<void>());
+	readonly onDidTurnOnSync = this._onDidTurnOnSync.event;
+
 	private _current: UserDataSyncAccount | undefined;
 	get current(): UserDataSyncAccount | undefined { return this._current; }
 
@@ -324,6 +327,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE.value));
+		this._onDidTurnOnSync.fire();
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {

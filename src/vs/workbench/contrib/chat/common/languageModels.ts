@@ -32,7 +32,7 @@ export interface IChatMessageTextPart {
 export interface IChatMessageToolResultPart {
 	type: 'tool_result';
 	toolCallId: string;
-	value: any;
+	value: (IChatResponseTextPart | IChatResponsePromptTsxPart)[];
 	isError?: boolean;
 }
 
@@ -47,6 +47,11 @@ export interface IChatMessage {
 export interface IChatResponseTextPart {
 	type: 'text';
 	value: string;
+}
+
+export interface IChatResponsePromptTsxPart {
+	type: 'prompt_tsx';
+	value: unknown;
 }
 
 export interface IChatResponseToolUsePart {

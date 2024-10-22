@@ -21,8 +21,11 @@ import BaseHtml from '../browser/issueReporterPage.js';
 import { IProcessMainService, IIssueMainService, OldIssueReporterWindowConfiguration } from '../../../../platform/issue/common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
 
+export interface IIssueReporterMain {
+	startup(configuration: OldIssueReporterWindowConfiguration): void;
+}
 
-export function startup(configuration: OldIssueReporterWindowConfiguration) {
+export function startup(configuration: OldIssueReporterWindowConfiguration): void {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 

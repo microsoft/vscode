@@ -74,7 +74,6 @@ import { ExtensionStorageService } from '../../../../platform/extensionManagemen
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences.js';
-import { DeprecatedExtensionsChecker } from './deprecatedExtensionsChecker.js';
 import { ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from '../../../common/configuration.js';
@@ -1566,7 +1565,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
-			title: localize2('workbench.extensions.action.configure', 'Extension Settings'),
+			title: localize2('workbench.extensions.action.configure', 'Settings'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1577,8 +1576,20 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.manageAccountPreferences',
+			title: localize2('workbench.extensions.action.changeAccountPreference', "Account Preferences"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '2_configure',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.has('extensionHasAccountPreferences')),
+				order: 2,
+			},
+			run: (accessor: ServicesAccessor, id: string) => accessor.get(ICommandService).executeCommand('_manageAccountPreferencesForExtension', id)
+		});
+
+		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configureKeybindings',
-			title: localize2('workbench.extensions.action.configureKeybindings', 'Extension Keyboard Shortcuts'),
+			title: localize2('workbench.extensions.action.configureKeybindings', 'Keyboard Shortcuts'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1811,7 +1822,6 @@ workbenchRegistry.registerWorkbenchContribution(ExtensionDependencyChecker, Life
 workbenchRegistry.registerWorkbenchContribution(ExtensionEnablementWorkspaceTrustTransitionParticipant, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(ExtensionsCompletionItemsProvider, LifecyclePhase.Restored);
 workbenchRegistry.registerWorkbenchContribution(UnsupportedExtensionsMigrationContrib, LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(DeprecatedExtensionsChecker, LifecyclePhase.Eventually);
 if (isWeb) {
 	workbenchRegistry.registerWorkbenchContribution(ExtensionStorageCleaner, LifecyclePhase.Eventually);
 }

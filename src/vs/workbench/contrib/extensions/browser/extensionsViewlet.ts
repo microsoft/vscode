@@ -67,6 +67,8 @@ import { createActionViewItem } from '../../../../platform/actions/browser/menuE
 import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -725,6 +727,21 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				const standardKeyboardEvent = new StandardKeyboardEvent(e);
 				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
 					this.search(query ?? '');
+				}
+				standardKeyboardEvent.stopPropagation();
+			}));
+			const dismissAction = append(this.notificationContainer,
+				$(`span.message-action${ThemeIcon.asCSSSelector(Codicon.close)}`, {
+					'tabindex': '0',
+					'role': 'button',
+					'aria-label': localize('dismiss', "Dismiss"),
+					'title': localize('dismiss', "Dismiss")
+				}));
+			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.CLICK, () => status.dismiss()));
+			this.notificationDisposables.value.add(addDisposableListener(dismissAction, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				const standardKeyboardEvent = new StandardKeyboardEvent(e);
+				if (standardKeyboardEvent.keyCode === KeyCode.Enter || standardKeyboardEvent.keyCode === KeyCode.Space) {
+					status.dismiss();
 				}
 				standardKeyboardEvent.stopPropagation();
 			}));

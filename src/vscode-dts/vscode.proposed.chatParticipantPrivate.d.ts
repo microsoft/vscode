@@ -26,7 +26,11 @@ declare module 'vscode' {
 		/**
 		 * Code editor inline chat
 		 */
-		Editor = 4
+		Editor = 4,
+		/**
+		 * Chat is happening in an editing session
+		 */
+		EditingSession = 5,
 	}
 
 	export class ChatRequestEditorData {
@@ -103,5 +107,13 @@ declare module 'vscode' {
 		publisherName: string;
 		description?: string;
 		fullName?: string;
+	}
+
+	export namespace lm {
+		export function registerIgnoredFileProvider(provider: LanguageModelIgnoredFileProvider): Disposable;
+	}
+
+	export interface LanguageModelIgnoredFileProvider {
+		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
 	}
 }

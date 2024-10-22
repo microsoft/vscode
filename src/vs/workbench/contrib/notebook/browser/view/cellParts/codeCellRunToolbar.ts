@@ -107,7 +107,6 @@ export class RunToolbar extends CellContentPart {
 					dropdownAction,
 					secondary,
 					'notebook-cell-run-toolbar',
-					this.contextMenuService,
 					{
 						..._options,
 						getKeyBinding: keybindingProvider

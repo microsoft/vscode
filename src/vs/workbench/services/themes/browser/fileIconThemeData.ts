@@ -10,7 +10,7 @@ import * as resources from '../../../../base/common/resources.js';
 import * as Json from '../../../../base/common/json.js';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from '../common/workbenchThemeService.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
-import { asCSSUrl } from '../../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IExtensionResourceLoaderService } from '../../../../platform/extensionResourceLoader/common/extensionResourceLoader.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -395,23 +395,28 @@ export class FileIconThemeLoader {
 		const fonts = iconThemeDocument.fonts;
 		const fontSizes = new Map<string, string>();
 		if (Array.isArray(fonts)) {
-			const defaultFontSize = fonts[0].size || '150%';
+			const defaultFontSize = this.tryNormalizeFontSize(fonts[0].size) || '150%';
 			fonts.forEach(font => {
 				const src = font.src.map(l => `${asCSSUrl(resolvePath(l.path))} format('${l.format}')`).join(', ');
 				cssRules.push(`@font-face { src: ${src}; font-family: '${font.id}'; font-weight: ${font.weight}; font-style: ${font.style}; font-display: block; }`);
-				if (font.size !== undefined && font.size !== defaultFontSize) {
-					fontSizes.set(font.id, font.size);
+
+				const fontSize = this.tryNormalizeFontSize(font.size);
+				if (fontSize !== undefined && fontSize !== defaultFontSize) {
+					fontSizes.set(font.id, fontSize);
 				}
 			});
 			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${defaultFontSize}; }`);
 		}
+
+		// Use emQuads to prevent the icon from collapsing to zero height for image icons
+		const emQuad = '\\2001';
 
 		for (const defId in selectorByDefinitionId) {
 			const selectors = selectorByDefinitionId[defId];
 			const definition = iconThemeDocument.iconDefinitions[defId];
 			if (definition) {
 				if (definition.iconPath) {
-					cssRules.push(`${selectors.join(', ')} { content: ' '; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
+					cssRules.push(`${selectors.join(', ')} { content: '${emQuad}'; background-image: ${asCSSUrl(resolvePath(definition.iconPath))}; }`);
 				} else if (definition.fontCharacter || definition.fontColor) {
 					const body = [];
 					if (definition.fontColor) {
@@ -441,8 +446,8 @@ export class FileIconThemeLoader {
 					const icon = this.languageService.getIcon(languageId);
 					if (icon) {
 						const selector = `.show-file-icons .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`;
-						cssRules.push(`${selector} { content: ' '; background-image: ${asCSSUrl(icon.dark)}; }`);
-						cssRules.push(`.vs ${selector} { content: ' '; background-image: ${asCSSUrl(icon.light)}; }`);
+						cssRules.push(`${selector} { content: '${emQuad}'; background-image: ${asCSSUrl(icon.dark)}; }`);
+						cssRules.push(`.vs ${selector} { content: '${emQuad}'; background-image: ${asCSSUrl(icon.light)}; }`);
 					}
 				}
 			}
@@ -452,6 +457,27 @@ export class FileIconThemeLoader {
 		return result;
 	}
 
+	/**
+	 * Try converting absolute font sizes to relative values.
+	 *
+	 * This allows them to be scaled nicely depending on where they are used.
+	 */
+	private tryNormalizeFontSize(size: string | undefined): string | undefined {
+		if (!size) {
+			return undefined;
+		}
+
+		const defaultFontSizeInPx = 13;
+
+		if (size.endsWith('px')) {
+			const value = parseInt(size, 10);
+			if (!isNaN(value)) {
+				return Math.round((value / defaultFontSizeInPx) * 100) + '%';
+			}
+		}
+
+		return size;
+	}
 }
 
 function handleParentFolder(key: string, selectors: string[]): string {

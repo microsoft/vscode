@@ -38,17 +38,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			markdownEnumDescriptions: [
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
-			],
-			tags: ['experimental']
+			]
 		},
 		[InlineChatConfigKeys.FinishOnType]: {
 			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
 			default: false,
-			type: 'boolean'
-		},
-		[InlineChatConfigKeys.AcceptedOrDiscardBeforeSave]: {
-			description: localize('acceptedOrDiscardBeforeSave', "Whether pending inline chat sessions prevent saving."),
-			default: true,
 			type: 'boolean'
 		},
 		[InlineChatConfigKeys.HoldToSpeech]: {
@@ -71,7 +65,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('zoneToolbar', "Whether to show a toolbar to accept or reject changes in the inline chat changes view."),
 			default: false,
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 	}
 });
@@ -88,6 +82,7 @@ export const enum InlineChatResponseType {
 	MessagesAndEdits = 'messagesAndEdits'
 }
 
+export const CTX_INLINE_CHAT_POSSIBLE = new RawContextKey<boolean>('inlineChatPossible', false, localize('inlineChatHasPossible', "Whether a provider for inline chat exists and whether an editor for inline chat is open"));
 export const CTX_INLINE_CHAT_HAS_AGENT = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
 export const CTX_INLINE_CHAT_FOCUSED = new RawContextKey<boolean>('inlineChatFocused', false, localize('inlineChatFocused', "Whether the interactive editor input is focused"));

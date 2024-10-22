@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from './dom.js';
-import * as dompurify from './dompurify/dompurify.js';
-import { DomEmitter } from './event.js';
-import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
-import { StandardKeyboardEvent } from './keyboardEvent.js';
-import { StandardMouseEvent } from './mouseEvent.js';
-import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { Event } from '../common/event.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
@@ -25,6 +18,13 @@ import { cloneAndChange } from '../common/objects.js';
 import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI } from '../common/uri.js';
+import * as DOM from './dom.js';
+import dompurify from './dompurify/dompurify.js';
+import { DomEmitter } from './event.js';
+import { createElement, FormattedTextRenderOptions } from './formattedTextRenderer.js';
+import { StandardKeyboardEvent } from './keyboardEvent.js';
+import { StandardMouseEvent } from './mouseEvent.js';
+import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -32,7 +32,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
-	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
+	readonly codeBlockRendererSync?: (languageId: string, value: string, raw?: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
@@ -163,9 +163,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const syncCodeBlocks: [string, HTMLElement][] = [];
 
 	if (options.codeBlockRendererSync) {
-		renderer.code = ({ text, lang }: marked.Tokens.Code) => {
+		renderer.code = ({ text, lang, raw }: marked.Tokens.Code) => {
 			const id = defaultGenerator.nextId();
-			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), text);
+			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), text, raw);
 			syncCodeBlocks.push([id, value]);
 			return `<div class="code" data-code="${id}">${escape(text)}</div>`;
 		};
@@ -454,7 +454,14 @@ function sanitizeRenderedMarkdown(
 					fragment.appendChild(endTagTextNode);
 				}
 
-				element.parentElement.replaceChild(fragment, element);
+				if (element.nodeType === Node.COMMENT_NODE) {
+					// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+					// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+					// an exception. Instead we insert the text node before the comment.
+					element.parentElement.insertBefore(fragment, element);
+				} else {
+					element.parentElement.replaceChild(fragment, element);
+				}
 			}
 		}
 	}));

@@ -10,8 +10,6 @@ import { RawContextKey } from '../../../../../platform/contextkey/common/context
 export const enum TerminalChatCommandId {
 	Start = 'workbench.action.terminal.chat.start',
 	Close = 'workbench.action.terminal.chat.close',
-	FocusResponse = 'workbench.action.terminal.chat.focusResponse',
-	FocusInput = 'workbench.action.terminal.chat.focusInput',
 	Discard = 'workbench.action.terminal.chat.discard',
 	MakeRequest = 'workbench.action.terminal.chat.makeRequest',
 	Cancel = 'workbench.action.terminal.chat.cancel',

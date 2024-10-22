@@ -80,15 +80,15 @@ steps:
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
-      . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      retry { exec { npm ci } }
+      exec { npm ci }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}
-      CHILD_CONCURRENCY: 1
+      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    retryCountOnTaskFailure: 5
     displayName: Install dependencies
 
   - script: node build/azure-pipelines/distro/mixin-npm
@@ -139,6 +139,16 @@ steps:
       flattenFolders: true
     condition: succeeded()
 
+  - task: PublishSymbols@2
+    inputs:
+      IndexSources: false
+      SymbolsFolder: '$(Agent.BuildDirectory)\symbols'
+      SearchPattern: '**\*.pdb'
+      SymbolServerType: TeamServices
+      SymbolsProduct: 'code'
+    displayName: Publish Symbols
+    condition: succeeded()
+
   - task: APIScan@2
     inputs:
       softwareFolder: $(Agent.BuildDirectory)\scanbin
@@ -160,3 +170,11 @@ steps:
       ArtifactType: Container
       PublishProcessedResults: false
       AllTools: true
+
+  # TSA Upload
+  - task: securedevelopmentteam.vss-secure-development-tools.build-task-uploadtotsa.TSAUpload@2
+    displayName: TSA Upload
+    continueOnError: true
+    inputs:
+      GdnPublishTsaOnboard: true
+      GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json'

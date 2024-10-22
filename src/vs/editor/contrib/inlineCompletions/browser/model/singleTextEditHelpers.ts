@@ -14,10 +14,11 @@ export function singleTextRemoveCommonPrefix(edit: SingleTextEdit, model: ITextM
 	if (!modelRange) {
 		return edit;
 	}
+	const normalizedText = edit.text.replaceAll('\r\n', '\n');
 	const valueToReplace = model.getValueInRange(modelRange, EndOfLinePreference.LF);
-	const commonPrefixLen = commonPrefixLength(valueToReplace, edit.text);
+	const commonPrefixLen = commonPrefixLength(valueToReplace, normalizedText);
 	const start = TextLength.ofText(valueToReplace.substring(0, commonPrefixLen)).addToPosition(edit.range.getStartPosition());
-	const text = edit.text.substring(commonPrefixLen);
+	const text = normalizedText.substring(commonPrefixLen);
 	const range = Range.fromPositions(start, edit.range.getEndPosition());
 	return new SingleTextEdit(range, text);
 }

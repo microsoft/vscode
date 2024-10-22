@@ -528,6 +528,12 @@ export interface TextSearchCompleteMessage {
  * An AITextSearchProvider provides additional AI text search results in the workspace.
  */
 export interface AITextSearchProviderNew {
+
+	/**
+	 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
+	 */
+	readonly name?: string;
+
 	/**
 	 * WARNING: VERY EXPERIMENTAL.
 	 *

@@ -591,6 +591,10 @@ function createCodiconStyleSheet() {
 	delayer.schedule();
 }
 
+export interface IProcessExplorerMain {
+	startup(configuration: ProcessExplorerWindowConfiguration): void;
+}
+
 export function startup(configuration: ProcessExplorerWindowConfiguration): void {
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
 	mainWindow.document.body.classList.add(platformClass); // used by our fonts

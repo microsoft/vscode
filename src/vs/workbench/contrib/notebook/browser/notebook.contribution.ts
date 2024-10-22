@@ -70,6 +70,7 @@ import './controller/cellOutputActions.js';
 import './controller/apiActions.js';
 import './controller/foldingController.js';
 import './controller/chat/notebook.chat.contribution.js';
+import './controller/variablesActions.js';
 
 // Editor Contribution
 import './contrib/editorHint/emptyCellEditorHint.js';
@@ -785,7 +786,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
 		const viewType = this._getViewType(workingCopy);
-		if (!viewType || viewType === 'interactive' || extname(workingCopy.resource) === '.replNotebook') {
+		if (!viewType || viewType === 'interactive') {
 			return undefined;
 		}
 
@@ -810,8 +811,12 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 		this._register(this._workingCopyEditorService.registerHandler(this));
 	}
 
-	private _getViewType(workingCopy: IWorkingCopyIdentifier): string | undefined {
-		return NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+	private _getViewType(workingCopy: IWorkingCopyIdentifier) {
+		const notebookType = NotebookWorkingCopyTypeIdentifier.parse(workingCopy.typeId);
+		if (notebookType && notebookType.viewType === notebookType.notebookType) {
+			return notebookType?.viewType;
+		}
+		return undefined;
 	}
 }
 

@@ -308,12 +308,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('watcherInclude', "Configure extra paths to watch for changes inside the workspace. By default, all workspace folders will be watched recursively, except for folders that are symbolic links. You can explicitly add absolute or relative paths to support watching folders that are symbolic links. Relative paths will be resolved to an absolute path using the currently opened workspace."),
 			'scope': ConfigurationScope.RESOURCE
 		},
-		'files.experimentalWatcherNext': { // TODO@bpasero decide on default and experiment enlisting
-			'type': 'boolean',
-			'default': false,
-			'markdownDescription': nls.localize('experimentalWatcherNext', "Enables a newer, experimental version of the file watcher."),
-			scope: ConfigurationScope.MACHINE
-		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',

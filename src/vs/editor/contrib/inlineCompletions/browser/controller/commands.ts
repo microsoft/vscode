@@ -5,8 +5,10 @@
 
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
+import { splitLines } from '../../../../../base/common/strings.js';
 import * as nls from '../../../../../nls.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -138,24 +140,55 @@ export class AcceptInlineCompletion extends EditorAction {
 			id: inlineSuggestCommitId,
 			label: nls.localize('action.inlineSuggest.accept', "Accept Inline Suggestion"),
 			alias: 'Accept Inline Suggestion',
-			precondition: InlineCompletionContextKeys.inlineSuggestionVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
 				title: nls.localize('accept', "Accept"),
 				group: 'primary',
 				order: 1,
+			}, {
+				menuId: MenuId.InlineEditsActions,
+				title: nls.localize('accept', "Accept"),
+				group: 'primary',
+				order: 1,
 			}],
-			kbOpts: {
-				primary: KeyCode.Tab,
-				weight: 200,
-				kbExpr: ContextKeyExpr.and(
-					InlineCompletionContextKeys.inlineSuggestionVisible,
-					EditorContextKeys.tabMovesFocus.toNegated(),
-					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
-					SuggestContext.Visible.toNegated(),
-					EditorContextKeys.hoverFocused.toNegated(),
-				),
-			}
+			kbOpts: [
+				{
+					primary: KeyCode.Tab,
+					weight: 200,
+					kbExpr: ContextKeyExpr.or(
+						ContextKeyExpr.and(
+							InlineCompletionContextKeys.inlineSuggestionVisible,
+							EditorContextKeys.tabMovesFocus.toNegated(),
+							SuggestContext.Visible.toNegated(),
+							EditorContextKeys.hoverFocused.toNegated(),
+
+							InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
+						),
+						ContextKeyExpr.and(
+							InlineCompletionContextKeys.inlineEditVisible,
+							EditorContextKeys.tabMovesFocus.toNegated(),
+							SuggestContext.Visible.toNegated(),
+							EditorContextKeys.hoverFocused.toNegated(),
+
+							//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
+							InlineCompletionContextKeys.hasSelection.toNegated(),
+							InlineCompletionContextKeys.cursorAtInlineEdit,
+						)
+					),
+				},
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: 200,
+					kbExpr: ContextKeyExpr.and(
+						EditorContextKeys.editorTextFocus,
+						InlineCompletionContextKeys.inlineEditVisible,
+						SuggestContext.Visible.toNegated(),
+						EditorContextKeys.hoverFocused.toNegated(),
+						EditorContextKeys.tabMovesFocus.toNegated(),
+					),
+				}
+			],
 		});
 	}
 
@@ -168,6 +201,44 @@ export class AcceptInlineCompletion extends EditorAction {
 	}
 }
 
+export class JumpToNextInlineEdit extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.jump',
+			label: nls.localize('action.inlineSuggest.jump', "Jump to next inline edit"),
+			alias: 'Jump to next inline edit',
+			precondition: InlineCompletionContextKeys.inlineEditVisible,
+			menuOpts: [{
+				menuId: MenuId.InlineEditsActions,
+				title: nls.localize('jump', "Jump"),
+				group: 'primary',
+				order: 2,
+				when: InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
+			}],
+			kbOpts: {
+				primary: KeyCode.Tab,
+				weight: 201,
+				kbExpr: ContextKeyExpr.and(
+					InlineCompletionContextKeys.inlineEditVisible,
+					//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
+					InlineCompletionContextKeys.hasSelection.toNegated(),
+					EditorContextKeys.tabMovesFocus.toNegated(),
+					SuggestContext.Visible.toNegated(),
+					EditorContextKeys.hoverFocused.toNegated(),
+					InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
+				),
+			}
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.get(editor);
+		if (controller) {
+			controller.jump();
+		}
+	}
+}
+
 export class HideInlineCompletion extends EditorAction {
 	public static ID = 'editor.action.inlineSuggest.hide';
 
@@ -176,7 +247,7 @@ export class HideInlineCompletion extends EditorAction {
 			id: HideInlineCompletion.ID,
 			label: nls.localize('action.inlineSuggest.hide', "Hide Inline Suggestion"),
 			alias: 'Hide Inline Suggestion',
-			precondition: InlineCompletionContextKeys.inlineSuggestionVisible,
+			precondition: ContextKeyExpr.or(InlineCompletionContextKeys.inlineSuggestionVisible, InlineCompletionContextKeys.inlineEditVisible),
 			kbOpts: {
 				weight: 100,
 				primary: KeyCode.Escape,
@@ -215,5 +286,35 @@ export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
 		const currentValue = configService.getValue<'always' | 'onHover'>('editor.inlineSuggest.showToolbar');
 		const newValue = currentValue === 'always' ? 'onHover' : 'always';
 		configService.updateValue('editor.inlineSuggest.showToolbar', newValue);
+	}
+}
+
+export class DevExtractReproSample extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.inlineSuggest.dev.extractRepro',
+			label: nls.localize('action.inlineSuggest.dev.extractRepro', "Developer: Extract Inline Suggest State"),
+			alias: 'Developer: Inline Suggest Extract Repro',
+			precondition: InlineCompletionContextKeys.inlineEditVisible,
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
+		const clipboardService = accessor.get(IClipboardService);
+
+		const controller = InlineCompletionsController.get(editor);
+		const m = controller?.model.get();
+		if (!m) { return; }
+		const repro = m.extractReproSample();
+
+		const inlineCompletionLines = splitLines(JSON.stringify({ inlineCompletion: repro.inlineCompletion }, null, 4));
+
+		const json = inlineCompletionLines.map(l => '// ' + l).join('\n');
+
+		const reproStr = `${repro.documentValue}\n\n// <json>\n${json}\n// </json>\n`;
+
+		await clipboardService.writeText(reproStr);
+
+		return { reproCase: reproStr };
 	}
 }

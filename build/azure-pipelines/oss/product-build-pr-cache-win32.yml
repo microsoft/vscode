@@ -49,15 +49,15 @@ steps:
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
-      . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      $env:npm_config_arch="$(VSCODE_ARCH)"
-      $env:CHILD_CONCURRENCY="1"
-      retry { exec { npm ci } }
+      exec { npm ci }
     env:
+      npm_config_arch: $(VSCODE_ARCH)
+      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
