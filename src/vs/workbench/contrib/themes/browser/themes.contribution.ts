@@ -226,7 +226,7 @@ class MarketplaceThemesPicker {
 			disposables.add(this.onDidChange(() => {
 				let items = this.themes;
 				if (this._searchOngoing) {
-					items = items.concat({ label: '$(sync~spin) Searching for themes...', id: undefined, alwaysShow: true });
+					items = items.concat({ label: '$(loading~spin) Searching for themes...', id: undefined, alwaysShow: true });
 				} else if (items.length === 0 && this._searchError) {
 					items = [{ label: `$(error) ${localize('search.error', 'Error while searching for themes: {0}', this._searchError)}`, id: undefined, alwaysShow: true }];
 				}

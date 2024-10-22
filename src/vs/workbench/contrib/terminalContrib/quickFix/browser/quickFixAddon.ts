@@ -76,15 +76,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 	constructor(
 		private readonly _aliases: string[][] | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
-		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@ILabelService private readonly _labelService: ILabelService
+		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);

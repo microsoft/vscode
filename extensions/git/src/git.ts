@@ -8,7 +8,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
-import * as which from 'which';
+import which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
@@ -484,6 +484,17 @@ export class Git {
 		// Keep trailing spaces which are part of the directory name
 		const repositoryRootPath = path.normalize(result.stdout.trimStart().replace(/[\r\n]+$/, ''));
 
+		// Handle symbolic links and UNC paths
+		// Git 2.31 added the `--path-format` flag to rev-parse which
+		// allows us to get the relative path of the repository root
+		if (!pathEquals(pathInsidePossibleRepository, repositoryRootPath) &&
+			!isDescendant(repositoryRootPath, pathInsidePossibleRepository) &&
+			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
+			this.compareGitVersionTo('2.31.0') !== -1) {
+			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
+			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimStart().replace(/[\r\n]+$/, ''));
+		}
+
 		if (isWindows) {
 			// On Git 2.25+ if you call `rev-parse --show-toplevel` on a mapped drive, instead of getting the mapped
 			// drive path back, you get the UNC path for the mapped drive. So we will try to normalize it back to the
@@ -518,17 +529,6 @@ export class Git {
 
 				return path.normalize(pathUri.fsPath);
 			}
-		}
-
-		// Handle symbolic links
-		// Git 2.31 added the `--path-format` flag to rev-parse which
-		// allows us to get the relative path of the repository root
-		if (!pathEquals(pathInsidePossibleRepository, repositoryRootPath) &&
-			!isDescendant(repositoryRootPath, pathInsidePossibleRepository) &&
-			!isDescendant(pathInsidePossibleRepository, repositoryRootPath) &&
-			this.compareGitVersionTo('2.31.0') !== -1) {
-			const relativePathResult = await this.exec(pathInsidePossibleRepository, ['rev-parse', '--path-format=relative', '--show-toplevel',]);
-			return path.resolve(pathInsidePossibleRepository, relativePathResult.stdout.trimStart().replace(/[\r\n]+$/, ''));
 		}
 
 		return repositoryRootPath;
@@ -2106,14 +2106,21 @@ export class Repository {
 			await this.exec(['cherry-pick', commitHash]);
 		} catch (err) {
 			if (/The previous cherry-pick is now empty, possibly due to conflict resolution./.test(err.stderr ?? '')) {
-				// Abort the cherry-pick operation
-				await this.exec(['cherry-pick', '--abort']);
+				// Abort cherry-pick
+				await this.cherryPickAbort();
 
 				err.gitErrorCode = GitErrorCodes.CherryPickEmpty;
+			} else {
+				// Conflict during cherry-pick
+				err.gitErrorCode = GitErrorCodes.CherryPickConflict;
 			}
 
 			throw err;
 		}
+	}
+
+	async cherryPickAbort(): Promise<void> {
+		await this.exec(['cherry-pick', '--abort']);
 	}
 
 	async blame(path: string): Promise<string> {
@@ -2420,7 +2427,7 @@ export class Repository {
 		return result.stdout.trim().split('\n')
 			.map(line => line.trim().split('\0'))
 			.filter(([_, upstream]) => upstream === upstreamBranch)
-			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
+			.map(([ref]): Branch => ({ name: ref, type: RefType.Head }));
 	}
 
 	async getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {

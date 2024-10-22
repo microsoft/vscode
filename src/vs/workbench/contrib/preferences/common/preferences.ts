@@ -7,6 +7,7 @@ import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IExtensionRecommendations } from '../../../../base/common/product.js';
+import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionGalleryService, IGalleryExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -174,3 +175,6 @@ export function compareTwoNullableNumbers(a: number | undefined, b: number | und
 		return 0;
 	}
 }
+
+export const PREVIEW_INDICATOR_DESCRIPTION = localize('previewIndicatorDescription', "This setting controls a feature that is in active development.");
+export const EXPERIMENTAL_INDICATOR_DESCRIPTION = localize('experimentalIndicatorDescription', "This setting controls a feature that may change or be removed in the future. Adjusting this setting may result in instability.");

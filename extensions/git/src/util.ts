@@ -7,7 +7,7 @@ import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef } from 'vs
 import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
-import * as byline from 'byline';
+import byline from 'byline';
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';

@@ -21,7 +21,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatInputPart } from '../../../../chat/browser/chatInputPart.js';
-import { ChatContextAttachments } from '../../../../chat/browser/contrib/chatContextAttachments.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../../../chat/common/chatAgents.js';
@@ -219,13 +218,13 @@ export class SelectAndInsertKernelVariableAction extends Action2 {
 				icon: codiconsLibrary.variable,
 			});
 		} else {
-			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, ...[{
+			widget.attachmentModel.addContext({
 				id: 'vscode.notebook.variable',
 				name: variableName,
 				value: variableName,
 				icon: codiconsLibrary.variable,
 				isDynamic: true
-			}]);
+			});
 		}
 	}
 }

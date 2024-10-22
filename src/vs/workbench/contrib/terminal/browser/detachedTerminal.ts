@@ -52,7 +52,11 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 
 			let contribution: ITerminalContribution;
 			try {
-				contribution = instantiationService.createInstance(desc.ctor, this, options.processInfo, this._widgets);
+				contribution = instantiationService.createInstance(desc.ctor, {
+					instance: this,
+					processManager: options.processInfo,
+					widgetManager: this._widgets
+				});
 				this._contributions.set(desc.id, contribution);
 				this._register(contribution);
 			} catch (err) {

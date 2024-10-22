@@ -53,6 +53,7 @@
 		"--vscode-chat-requestBorder",
 		"--vscode-chat-slashCommandBackground",
 		"--vscode-chat-slashCommandForeground",
+		"--vscode-chat-editedFileForeground",
 		"--vscode-checkbox-background",
 		"--vscode-checkbox-border",
 		"--vscode-checkbox-foreground",
@@ -811,6 +812,7 @@
 	"others": [
 		"--background-dark",
 		"--background-light",
+		"--chat-current-response-min-height",
 		"--dropdown-padding-bottom",
 		"--dropdown-padding-top",
 		"--insert-border-color",

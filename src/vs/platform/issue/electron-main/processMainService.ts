@@ -328,7 +328,7 @@ export class ProcessMainService implements IProcessMainService {
 	}
 
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
-		const window = new BrowserWindow({
+		const browserWindowOptions: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 			fullscreen: false,
 			skipTaskbar: false,
 			resizable: true,
@@ -351,7 +351,8 @@ export class ProcessMainService implements IProcessMainService {
 			},
 			alwaysOnTop: options.alwaysOnTop,
 			experimentalDarkMode: true
-		} as BrowserWindowConstructorOptions & { experimentalDarkMode: boolean });
+		};
+		const window = new BrowserWindow(browserWindowOptions);
 
 		window.setMenuBarVisibility(false);
 

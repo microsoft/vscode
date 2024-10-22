@@ -9,13 +9,12 @@ import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from '../../../../edito
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import * as nls from '../../../../nls.js';
-import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ICommentService } from './commentService.js';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from './simpleCommentEditor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { CommentController, ID } from './commentsController.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -81,7 +80,10 @@ registerAction2(class extends Action2 {
 				value: nls.localize('commentsCategory', "Comments"),
 				original: 'Comments'
 			},
-			f1: true,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}],
 			keybinding: {
 				primary: KeyMod.Alt | KeyCode.F10,
 				weight: KeybindingWeight.EditorContrib,
@@ -115,7 +117,10 @@ registerAction2(class extends Action2 {
 				value: nls.localize('commentsCategory', "Comments"),
 				original: 'Comments'
 			},
-			f1: true,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}],
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F10,
 				weight: KeybindingWeight.EditorContrib,
@@ -137,91 +142,140 @@ registerAction2(class extends Action2 {
 	}
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.NextRange,
-	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.NextRange,
+			title: {
+				value: nls.localize('comments.nextCommentingRange', "Go to Next Commenting Range"),
+				original: 'Go to Next Commenting Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}],
+			keybinding: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
+				weight: KeybindingWeight.EditorContrib,
+				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments))))
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, args?: { range: IRange; fileComment: boolean }): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		const controller = CommentController.get(activeEditor);
 		if (!controller) {
-			return Promise.resolve();
+			return;
 		}
 		controller.nextCommentingRange();
-	},
-	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow),
-	weight: KeybindingWeight.EditorContrib
+	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.NextRange,
-		title: nls.localize('comments.nextCommentingRange', "Go to Next Commenting Range"),
-		category: 'Comments',
-	},
-	when: CommentContextKeys.activeEditorHasCommentingRange
-});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.PreviousRange,
+			title: {
+				value: nls.localize('comments.previousCommentingRange', "Go to Previous Commenting Range"),
+				original: 'Go to Previous Commenting Range'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.activeEditorHasCommentingRange
+			}],
+			keybinding: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
+				weight: KeybindingWeight.EditorContrib,
+				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments))))
+			}
+		});
+	}
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.PreviousRange,
-	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		const controller = CommentController.get(activeEditor);
 		if (!controller) {
-			return Promise.resolve();
+			return;
 		}
 		controller.previousCommentingRange();
-	},
-	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(EditorContextKeys.focus, CommentContextKeys.commentFocused, ContextKeyExpr.and(accessibilityHelpIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Comments)))),
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow),
-	weight: KeybindingWeight.EditorContrib
+	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.PreviousRange,
-		title: nls.localize('comments.previousCommentingRange', "Go to Previous Commenting Range"),
-		category: 'Comments',
-	},
-	when: CommentContextKeys.activeEditorHasCommentingRange
-});
-
-CommandsRegistry.registerCommand({
-	id: CommentCommandId.ToggleCommenting,
-	handler: (accessor) => {
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.ToggleCommenting,
+			title: {
+				value: nls.localize('comments.toggleCommenting', "Toggle Editor Commenting"),
+				original: 'Toggle Editor Commenting'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.WorkspaceHasCommenting
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
 		const commentService = accessor.get(ICommentService);
 		const enable = commentService.isCommentingEnabled;
 		commentService.enableCommenting(!enable);
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.ToggleCommenting,
-		title: nls.localize('comments.toggleCommenting', "Toggle Editor Commenting"),
-		category: 'Comments',
-	},
-	when: CommentContextKeys.WorkspaceHasCommenting
-});
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.Add,
+			title: {
+				value: nls.localize('comments.addCommand', "Add Comment on Current Selection"),
+				original: 'Add Comment on Current Selection'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.activeCursorHasCommentingRange
+			}],
+			keybinding: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC),
+				weight: KeybindingWeight.EditorContrib,
+				when: CommentContextKeys.activeCursorHasCommentingRange
+			}
+		});
+	}
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CommentCommandId.Add,
-	handler: async (accessor, args?: { range: IRange; fileComment: boolean }) => {
+	override async run(accessor: ServicesAccessor, args?: { range: IRange; fileComment: boolean }): Promise<void> {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
-			return Promise.resolve();
+			return;
 		}
 
 		const controller = CommentController.get(activeEditor);
 		if (!controller) {
-			return Promise.resolve();
+			return;
 		}
 
 		const position = args?.range ? new Range(args.range.startLineNumber, args.range.startLineNumber, args.range.endLineNumber, args.range.endColumn)
@@ -230,20 +284,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		try {
 			await controller.addOrToggleCommentAtLine(position, undefined);
 		} catch (e) {
-			notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment")); // TODO: Once we have commands to go to next commenting range they should be included as buttons in the error.
+			notificationService.error(nls.localize('comments.addCommand.error', "The cursor must be within a commenting range to add a comment"));
 		}
-	},
-	weight: KeybindingWeight.EditorContrib,
-	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC),
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.Add,
-		title: nls.localize('comments.addCommand', "Add Comment on Current Selection"),
-		category: 'Comments'
-	},
-	when: CommentContextKeys.activeCursorHasCommentingRange
+	}
 });
 
 registerAction2(class extends Action2 {
@@ -291,52 +334,73 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand({
-	id: CommentCommandId.CollapseAll,
-	handler: (accessor) => {
-		return getActiveController(accessor)?.collapseAll();
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.CollapseAll,
+			title: {
+				value: nls.localize('comments.collapseAll', "Collapse All Comments"),
+				original: 'Collapse All Comments'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.WorkspaceHasCommenting
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		getActiveController(accessor)?.collapseAll();
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.CollapseAll,
-		title: nls.localize('comments.collapseAll', "Collapse All Comments"),
-		category: 'Comments'
-	},
-	when: CommentContextKeys.WorkspaceHasCommenting
-});
-
-CommandsRegistry.registerCommand({
-	id: CommentCommandId.ExpandAll,
-	handler: (accessor) => {
-		return getActiveController(accessor)?.expandAll();
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.ExpandAll,
+			title: {
+				value: nls.localize('comments.expandAll', "Expand All Comments"),
+				original: 'Expand All Comments'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.WorkspaceHasCommenting
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		getActiveController(accessor)?.expandAll();
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.ExpandAll,
-		title: nls.localize('comments.expandAll', "Expand All Comments"),
-		category: 'Comments'
-	},
-	when: CommentContextKeys.WorkspaceHasCommenting
-});
-
-CommandsRegistry.registerCommand({
-	id: CommentCommandId.ExpandUnresolved,
-	handler: (accessor) => {
-		return getActiveController(accessor)?.expandUnresolved();
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CommentCommandId.ExpandUnresolved,
+			title: {
+				value: nls.localize('comments.expandUnresolved', "Expand Unresolved Comments"),
+				original: 'Expand Unresolved Comments'
+			},
+			category: {
+				value: nls.localize('commentsCategory', "Comments"),
+				original: 'Comments'
+			},
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: CommentContextKeys.WorkspaceHasCommenting
+			}]
+		});
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: CommentCommandId.ExpandUnresolved,
-		title: nls.localize('comments.expandUnresolved', "Expand Unresolved Comments"),
-		category: 'Comments'
-	},
-	when: CommentContextKeys.WorkspaceHasCommenting
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		getActiveController(accessor)?.expandUnresolved();
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

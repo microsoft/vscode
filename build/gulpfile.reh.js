@@ -103,29 +103,7 @@ const serverWithWebResources = [
 	...serverWithWebResourceIncludes,
 	...serverWithWebResourceExcludes
 ];
-
-const serverEntryPoints = [
-	{
-		name: 'vs/server/node/server.main',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/server/node/server.cli',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/workbench/api/node/extensionHostProcess',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/platform/files/node/watcher/watcherMain',
-		exclude: ['vs/css']
-	},
-	{
-		name: 'vs/platform/terminal/node/ptyHostMain',
-		exclude: ['vs/css']
-	}
-];
+const serverEntryPoints = buildfile.codeServer;
 
 const webEntryPoints = [
 	buildfile.workerEditor,
@@ -330,7 +308,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, ...{ type: 'module' } })) // TODO@esm this should be configured in the top level package.json
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
 				packageJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -455,9 +433,9 @@ function tweakProductForServerWeb(product) {
 }
 
 ['reh', 'reh-web'].forEach(type => {
-	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
+	const bundleTask = task.define(`bundle-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
-		optimize.optimizeTask(
+		optimize.bundleTask(
 			{
 				out: `out-vscode-${type}`,
 				esm: {
@@ -474,7 +452,7 @@ function tweakProductForServerWeb(product) {
 	));
 
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
-		optimizeTask,
+		bundleTask,
 		util.rimraf(`out-vscode-${type}-min`),
 		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
@@ -500,7 +478,7 @@ function tweakProductForServerWeb(product) {
 				compileBuildTask,
 				compileExtensionsBuildTask,
 				compileExtensionMediaBuildTask,
-				minified ? minifyTask : optimizeTask,
+				minified ? minifyTask : bundleTask,
 				serverTaskCI
 			));
 			gulp.task(serverTask);

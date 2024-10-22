@@ -29,13 +29,15 @@ export const CONTEXT_IN_CHAT_SESSION = new RawContextKey<boolean>('inChat', fals
 export const CONTEXT_CHAT_ENABLED = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
 export const CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED = new RawContextKey<boolean>('chatPanelParticipantRegistered', false, { type: 'boolean', description: localize('chatParticipantRegistered', "True when a default chat participant is registered for the panel.") });
 export const CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED = new RawContextKey<boolean>('chatEditingParticipantRegistered', false, { type: 'boolean', description: localize('chatEditingParticipantRegistered', "True when a default chat participant is registered for editing.") });
+export const CONTEXT_CHAT_EDITING_CAN_UNDO = new RawContextKey<boolean>('chatEditingCanUndo', false, { type: 'boolean', description: localize('chatEditingCanUndo', "True when it is possible to undo an interaction in the editing panel.") });
+export const CONTEXT_CHAT_EDITING_CAN_REDO = new RawContextKey<boolean>('chatEditingCanRedo', false, { type: 'boolean', description: localize('chatEditingCanRedo', "True when it is possible to redo an interaction in the editing panel.") });
 export const CONTEXT_CHAT_EXTENSION_INVALID = new RawContextKey<boolean>('chatExtensionInvalid', false, { type: 'boolean', description: localize('chatExtensionInvalid', "True when the installed chat extension is invalid and needs to be updated.") });
 export const CONTEXT_CHAT_INPUT_CURSOR_AT_TOP = new RawContextKey<boolean>('chatCursorAtTop', false);
 export const CONTEXT_CHAT_INPUT_HAS_AGENT = new RawContextKey<boolean>('chatInputHasAgent', false);
 export const CONTEXT_CHAT_LOCATION = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
 export const CONTEXT_IN_QUICK_CHAT = new RawContextKey<boolean>('quickChatHasFocus', false, { type: 'boolean', description: localize('inQuickChat', "True when the quick chat UI has focus, false otherwise.") });
+export const CONTEXT_CHAT_HAS_FILE_ATTACHMENTS = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 
 export const CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
-export const CONTEXT_PARTICIPANT_SUPPORTS_MODEL_PICKER = new RawContextKey<boolean>('chatParticipantSupportsModelPicker', true, { type: 'boolean', description: localize('chatParticipantSupportsModelPicker', "True when the current chat participant supports picking the model manually.") });
 
-export const CONTEXT_CHAT_EDITING_ENABLED = new RawContextKey<boolean>('chatEditingEnabled', false);
+export const CONTEXT_CHAT_INSTALL_ENTITLED = new RawContextKey<boolean>('chatInstallEntitled', false, { type: 'boolean', description: localize('chatInstallEntitled', "True when the user is entitled for chat installation.") });

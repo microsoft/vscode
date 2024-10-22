@@ -134,6 +134,11 @@ export namespace Schemas {
 	 * Scheme used for output panel resources
 	 */
 	export const outputChannel = 'output';
+
+	/**
+	 * Scheme used for the accessible view
+	 */
+	export const accessibleView = 'accessible-view';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {

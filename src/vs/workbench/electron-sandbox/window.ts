@@ -846,7 +846,7 @@ export class NativeWindow extends BaseWindow {
 			if (portMappingRequest) {
 				const tunnel = await this.openTunnel(portMappingRequest.address, portMappingRequest.port);
 				if (tunnel && (typeof tunnel !== 'string')) {
-					const addressAsUri = URI.parse(tunnel.localAddress);
+					const addressAsUri = URI.parse(tunnel.localAddress).with({ path: uri.path });
 					const resolved = addressAsUri.scheme.startsWith(uri.scheme) ? addressAsUri : uri.with({ authority: tunnel.localAddress });
 					return {
 						resolved,

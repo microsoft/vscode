@@ -171,16 +171,19 @@ export interface INotebookDiffViewModelUpdateEvent {
 	readonly start: number;
 	readonly deleteCount: number;
 	readonly elements: readonly IDiffElementViewModelBase[];
+	readonly firstChangeIndex?: number;
 }
 
 export interface INotebookDiffViewModel extends IDisposable {
 	readonly items: readonly IDiffElementViewModelBase[];
+	/**
+	 * Triggered when ever there's a change in the view model items.
+	 */
 	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
 	/**
 	 * Computes the differences and generates the viewmodel.
-	 * If view models are generated, then the onDidChangeItems is triggered and will have a return value.
-	 * Else returns `undefined`
+	 * If view models are generated, then the onDidChangeItems is triggered.
 	 * @param token
 	 */
-	computeDiff(token: CancellationToken): Promise<{ firstChangeIndex: number } | undefined>;
+	computeDiff(token: CancellationToken): Promise<void>;
 }

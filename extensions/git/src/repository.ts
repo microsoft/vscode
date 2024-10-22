@@ -6,7 +6,7 @@
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as picomatch from 'picomatch';
+import picomatch from 'picomatch';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -790,6 +790,21 @@ export class Repository implements Disposable {
 		return this._mergeInProgress;
 	}
 
+	private _cherryPickInProgress: boolean = false;
+
+	set cherryPickInProgress(value: boolean) {
+		if (this._cherryPickInProgress === value) {
+			return;
+		}
+
+		this._cherryPickInProgress = value;
+		commands.executeCommand('setContext', 'gitCherryPickInProgress', value);
+	}
+
+	get cherryPickInProgress() {
+		return this._cherryPickInProgress;
+	}
+
 	private _operations = new OperationManager(this.logger);
 	get operations(): OperationManager { return this._operations; }
 
@@ -1432,6 +1447,10 @@ export class Repository implements Disposable {
 
 	async cherryPick(commitHash: string): Promise<void> {
 		await this.run(Operation.CherryPick, () => this.repository.cherryPick(commitHash));
+	}
+
+	async cherryPickAbort(): Promise<void> {
+		await this.run(Operation.CherryPick, () => this.repository.cherryPickAbort());
 	}
 
 	async move(from: string, to: string): Promise<void> {
@@ -2171,13 +2190,14 @@ export class Repository implements Disposable {
 				this._updateResourceGroupsState(optimisticResourcesGroups);
 			}
 
-			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, commitTemplate] =
+			const [HEAD, remotes, submodules, rebaseCommit, mergeInProgress, cherryPickInProgress, commitTemplate] =
 				await Promise.all([
 					this.repository.getHEADRef(),
 					this.repository.getRemotes(),
 					this.repository.getSubmodules(),
 					this.getRebaseCommit(),
 					this.isMergeInProgress(),
+					this.isCherryPickInProgress(),
 					this.getInputTemplate()]);
 
 			this._HEAD = HEAD;
@@ -2185,6 +2205,7 @@ export class Repository implements Disposable {
 			this._submodules = submodules!;
 			this.rebaseCommit = rebaseCommit;
 			this.mergeInProgress = mergeInProgress;
+			this.cherryPickInProgress = cherryPickInProgress;
 
 			this._sourceControl.commitTemplate = commitTemplate;
 
@@ -2410,6 +2431,11 @@ export class Repository implements Disposable {
 	private isMergeInProgress(): Promise<boolean> {
 		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
+	}
+
+	private isCherryPickInProgress(): Promise<boolean> {
+		const cherryPickHeadPath = path.join(this.repository.root, '.git', 'CHERRY_PICK_HEAD');
+		return new Promise<boolean>(resolve => fs.exists(cherryPickHeadPath, resolve));
 	}
 
 	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {

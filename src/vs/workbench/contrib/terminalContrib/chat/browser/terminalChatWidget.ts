@@ -24,6 +24,7 @@ const enum Constants {
 	VerticalMargin = 30
 }
 
+const terminalChatPlaceholder = localize('default.placeholder', "Ask how to do something in the terminal");
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
@@ -43,19 +44,19 @@ export class TerminalChatWidget extends Disposable {
 		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(this._contextKeyService);
-		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(this._contextKeyService);
+		this._focusedContextKey = TerminalChatContextKeys.focused.bindTo(contextKeyService);
+		this._visibleContextKey = TerminalChatContextKeys.visible.bindTo(contextKeyService);
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
 		_terminalElement.appendChild(this._container);
 
-		this._inlineChatWidget = this._instantiationService.createInstance(
+		this._inlineChatWidget = instantiationService.createInstance(
 			InlineChatWidget,
 			{
 				location: ChatAgentLocation.Terminal,
@@ -86,7 +87,7 @@ export class TerminalChatWidget extends Disposable {
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
 					}
 				}
-			}
+			},
 		);
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
@@ -148,7 +149,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _reset() {
-		this._inlineChatWidget.placeholder = localize('default.placeholder', "Ask how to do something in the terminal");
+		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
 		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 	}
 
@@ -156,6 +157,7 @@ export class TerminalChatWidget extends Disposable {
 		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
+		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
 		this._inlineChatWidget.focus();
 		this._instance.scrollToBottom();
 	}

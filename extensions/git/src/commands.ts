@@ -3318,6 +3318,11 @@ export class CommandCenter {
 		await repository.cherryPick(historyItem.id);
 	}
 
+	@command('git.cherryPickAbort', { repository: true })
+	async cherryPickAbort(repository: Repository): Promise<void> {
+		await repository.cherryPickAbort();
+	}
+
 	@command('git.pushTo', { repository: true })
 	async pushTo(repository: Repository, remote?: string, refspec?: string, setUpstream?: boolean): Promise<void> {
 		await this._push(repository, { pushType: PushType.PushTo, pushTo: { remote: remote, refspec: refspec, setUpstream: setUpstream } });
@@ -4407,6 +4412,12 @@ export class CommandCenter {
 						message = l10n.t('The changes are already present in the current branch.');
 						choices.clear();
 						type = 'information';
+						options.modal = false;
+						break;
+					case GitErrorCodes.CherryPickConflict:
+						message = l10n.t('There were merge conflicts while cherry picking the changes. Resolve the conflicts before committing them.');
+						type = 'warning';
+						choices.set(l10n.t('Show Changes'), () => commands.executeCommand('workbench.view.scm'));
 						options.modal = false;
 						break;
 					default: {

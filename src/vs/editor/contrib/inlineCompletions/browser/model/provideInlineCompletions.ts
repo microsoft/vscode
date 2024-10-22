@@ -4,34 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../../../../base/common/assert.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { SetMap } from '../../../../../base/common/map.js';
+import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { SetMap } from '../../../../../base/common/map.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
+import { OffsetRange } from '../../../../common/core/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
+import { SingleTextEdit } from '../../../../common/core/textEdit.js';
 import { LanguageFeatureRegistry } from '../../../../common/languageFeatureRegistry.js';
-import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionProviderGroupId, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
-import { getReadonlyEmptyArray } from '../utils.js';
-import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
+import { TextModelText } from '../../../../common/model/textModelText.js';
 import { LineEditWithAdditionalLines } from '../../../../common/tokenizationTextModelPart.js';
-import { OffsetRange } from '../../../../common/core/offsetRange.js';
+import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
+import { getReadonlyEmptyArray } from '../utils.js';
 
 export async function provideInlineCompletions(
 	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
 	positionOrRange: Position | Range,
 	model: ITextModel,
 	context: InlineCompletionContext,
-	token: CancellationToken = CancellationToken.None,
+	baseToken: CancellationToken = CancellationToken.None,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): Promise<InlineCompletionProviderResult> {
-	// Important: Don't use position after the await calls, as the model could have been changed in the meantime!
+	const tokenSource = new CancellationTokenSource(baseToken);
+	const token = tokenSource.token;
+
 	const defaultReplaceRange = positionOrRange instanceof Position ? getDefaultRange(positionOrRange, model) : positionOrRange;
 	const providers = registry.all(model);
 
@@ -54,11 +57,14 @@ export async function provideInlineCompletions(
 		return result;
 	}
 
-	type Result = Promise<InlineCompletions<InlineCompletion> | null | undefined>;
-	const states = new Map<InlineCompletionsProvider<InlineCompletions<InlineCompletion>>, Result>();
+	type Result = Promise<InlineCompletionList | undefined>;
+	const states = new Map<InlineCompletionsProvider, Result>();
 
-	const seen = new Set<InlineCompletionsProvider<InlineCompletions<InlineCompletion>>>();
-	function findPreferredProviderCircle(provider: InlineCompletionsProvider<any>, stack: InlineCompletionsProvider[]): InlineCompletionsProvider[] | undefined {
+	const seen = new Set<InlineCompletionsProvider>();
+	function findPreferredProviderCircle(
+		provider: InlineCompletionsProvider<any>,
+		stack: InlineCompletionsProvider[]
+	): InlineCompletionsProvider[] | undefined {
 		stack = [...stack, provider];
 		if (seen.has(provider)) { return stack; }
 
@@ -75,70 +81,121 @@ export async function provideInlineCompletions(
 		return undefined;
 	}
 
-	function processProvider(provider: InlineCompletionsProvider<InlineCompletions>): Result {
+	function queryProviderOrPreferredProvider(provider: InlineCompletionsProvider<InlineCompletions>): Result {
 		const state = states.get(provider);
-		if (state) {
-			return state;
-		}
+		if (state) { return state; }
 
 		const circle = findPreferredProviderCircle(provider, []);
 		if (circle) {
-			onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected. Path: ${circle.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
+			onUnexpectedExternalError(new Error(`Inline completions: cyclic yield-to dependency detected.`
+				+ ` Path: ${circle.map(s => s.toString ? s.toString() : ('' + s)).join(' -> ')}`));
 		}
 
-		const deferredPromise = new DeferredPromise<InlineCompletions<InlineCompletion> | null | undefined>();
+		const deferredPromise = new DeferredPromise<InlineCompletionList | undefined>();
 		states.set(provider, deferredPromise.p);
 
 		(async () => {
 			if (!circle) {
 				const preferred = getPreferredProviders(provider);
 				for (const p of preferred) {
-					const result = await processProvider(p);
-					if (result && result.items.length > 0) {
+					const result = await queryProviderOrPreferredProvider(p);
+					if (result && result.inlineCompletions.items.length > 0) {
 						// Skip provider
 						return undefined;
 					}
 				}
 			}
 
-			try {
-				if (positionOrRange instanceof Position) {
-					const completions = await provider.provideInlineCompletions(model, positionOrRange, context, token);
-					return completions;
-				} else {
-					const completions = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
-					return completions;
-				}
-			} catch (e) {
-				onUnexpectedExternalError(e);
-				return undefined;
-			}
+			return query(provider);
 		})().then(c => deferredPromise.complete(c), e => deferredPromise.error(e));
 
 		return deferredPromise.p;
 	}
 
-	const providerResults = await Promise.all(providers.map(async provider => ({ provider, completions: await processProvider(provider) })));
-
-	const itemsByHash = new Map<string, InlineCompletionItem>();
-	const lists: InlineCompletionList[] = [];
-	for (const result of providerResults) {
-		const completions = result.completions;
-		if (!completions) {
-			continue;
+	async function query(provider: InlineCompletionsProvider): Promise<InlineCompletionList | undefined> {
+		let result: InlineCompletions | null | undefined;
+		try {
+			if (positionOrRange instanceof Position) {
+				result = await provider.provideInlineCompletions(model, positionOrRange, context, token);
+			} else {
+				result = await provider.provideInlineEditsForRange?.(model, positionOrRange, context, token);
+			}
+		} catch (e) {
+			onUnexpectedExternalError(e);
+			return undefined;
 		}
-		const list = new InlineCompletionList(completions, result.provider);
-		lists.push(list);
 
-		for (const item of completions.items) {
+		if (!result) { return undefined; }
+		const list = new InlineCompletionList(result, provider);
+
+		runWhenCancelled(token, () => list.removeRef());
+		return list;
+	}
+
+	const inlineCompletionLists = AsyncIterableObject.fromPromisesResolveOrder(providers.map(queryProviderOrPreferredProvider));
+
+	if (token.isCancellationRequested) {
+		tokenSource.dispose(true);
+		// result has been disposed before we could call addRef! So we have to discard everything.
+		return new InlineCompletionProviderResult([], new Set(), []);
+	}
+
+	const result = await addRefAndCreateResult(context, inlineCompletionLists, defaultReplaceRange, model, languageConfigurationService);
+	tokenSource.dispose(true); // This disposes results that are not referenced.
+	return result;
+}
+
+/** If the token does not leak, this will not leak either. */
+function runWhenCancelled(token: CancellationToken, callback: () => void): IDisposable {
+	if (token.isCancellationRequested) {
+		callback();
+		return Disposable.None;
+	} else {
+		const listener = token.onCancellationRequested(() => {
+			listener.dispose();
+			callback();
+		});
+		return { dispose: () => listener.dispose() };
+	}
+}
+
+// TODO: check cancellation token!
+async function addRefAndCreateResult(
+	context: InlineCompletionContext,
+	inlineCompletionLists: AsyncIterable<(InlineCompletionList | undefined)>,
+	defaultReplaceRange: Range,
+	model: ITextModel,
+	languageConfigurationService: ILanguageConfigurationService | undefined
+): Promise<InlineCompletionProviderResult> {
+	// for deduplication
+	const itemsByHash = new Map<string, InlineCompletionItem>();
+
+	let shouldStop = false;
+	const lists: InlineCompletionList[] = [];
+	for await (const completions of inlineCompletionLists) {
+		if (!completions) { continue; }
+		completions.addRef();
+		lists.push(completions);
+		for (const item of completions.inlineCompletions.items) {
 			const inlineCompletionItem = InlineCompletionItem.from(
 				item,
-				list,
+				completions,
 				defaultReplaceRange,
 				model,
 				languageConfigurationService
 			);
 			itemsByHash.set(inlineCompletionItem.hash(), inlineCompletionItem);
+
+			if (context.triggerKind === InlineCompletionTriggerKind.Automatic) {
+				const minifiedEdit = inlineCompletionItem.toSingleTextEdit().removeCommonPrefix(new TextModelText(model));
+				if (!minifiedEdit.isEmpty) {
+					shouldStop = true;
+				}
+			}
+		}
+
+		if (shouldStop) {
+			break;
 		}
 	}
 

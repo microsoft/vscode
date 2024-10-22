@@ -58,12 +58,6 @@ const terminalShellTypeContextKey = {
 	get: () => undefined
 };
 
-const terminalInRunCommandPicker = {
-	set: () => { },
-	reset: () => { },
-	get: () => undefined
-};
-
 class TestTerminalChildProcess extends Disposable implements ITerminalChildProcess {
 	id: number = 0;
 	get capabilities() { return []; }
@@ -150,7 +144,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
-			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, terminalInRunCommandPicker, {}));
+			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
 			// //Wait for the teminalInstance._xtermReadyPromise to resolve
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });

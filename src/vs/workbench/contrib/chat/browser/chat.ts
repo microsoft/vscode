@@ -12,16 +12,17 @@ import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ChatViewPane } from './chatViewPane.js';
-import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
-import { ICodeBlockActionContext } from './codeBlockPart.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
+import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatInputPart } from './chatInputPart.js';
+import { ChatViewPane } from './chatViewPane.js';
+import { IChatViewState, IChatWidgetContrib } from './chatWidget.js';
+import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
@@ -33,6 +34,10 @@ export interface IChatWidgetService {
 	 * Returns the most recently focused widget if any.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
+
+	readonly onDidAddWidget: Event<IChatWidget>;
+
+	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
 
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
@@ -88,6 +93,7 @@ export interface IChatCodeBlockInfo {
 	readonly element: ChatTreeItem;
 	readonly uri: URI | undefined;
 	codemapperUri: URI | undefined;
+	readonly isStreaming: boolean;
 	focus(): void;
 	getContent(): string;
 }
@@ -105,10 +111,12 @@ export interface IChatListItemRendererOptions {
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
+	readonly renderCodeBlockPills?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 }
 
 export interface IChatWidgetViewOptions {
+	autoScroll?: boolean;
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
@@ -132,6 +140,7 @@ export interface IChatWidgetViewOptions {
 	};
 	defaultElementHeight?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
+	enableImplicitContext?: boolean;
 }
 
 export interface IChatViewViewContext {
@@ -144,6 +153,11 @@ export interface IChatResourceViewContext {
 
 export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewContext | {};
 
+export interface IChatAcceptInputOptions {
+	noCommandDetection?: boolean;
+	isVoiceInput?: boolean;
+}
+
 export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
@@ -151,7 +165,6 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
-	readonly onDidChangeContext: Event<{ removed?: IChatRequestVariableEntry[]; added?: IChatRequestVariableEntry[] }>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -161,6 +174,7 @@ export interface IChatWidget {
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
+	readonly attachmentModel: ChatAttachmentModel;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
 	reveal(item: ChatTreeItem): void;
@@ -170,7 +184,7 @@ export interface IChatWidget {
 	setInput(query?: string): void;
 	getInput(): string;
 	logInputHistory(): void;
-	acceptInput(query?: string, isVoiceInput?: boolean): Promise<IChatResponseModel | undefined>;
+	acceptInput(query?: string, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
@@ -181,7 +195,6 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	setContext(overwrite: boolean, ...context: IChatRequestVariableEntry[]): void;
 	clear(): void;
 	getViewState(): IChatViewState;
 }

@@ -106,7 +106,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IChatService, new MockChatService());
 
-		chatAgentService = instantiationService.createInstance(ChatAgentService);
+		chatAgentService = testDisposables.add(instantiationService.createInstance(ChatAgentService));
 		instantiationService.stub(IChatAgentService, chatAgentService);
 
 		const agent: IChatAgentImplementation = {

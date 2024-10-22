@@ -394,13 +394,6 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'inlineCompletionsAdditions'
 	},
 	{
-		key: 'editor/inlineEdit/actions',
-		id: MenuId.InlineEditActions,
-		description: localize('inlineEdit.actions', "The actions shown when hovering on an inline edit"),
-		supportsSubmenus: false,
-		proposed: 'inlineEdit'
-	},
-	{
 		key: 'editor/content',
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
@@ -1043,12 +1036,28 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		const menus = manifest.contributes?.menus || {};
 
+		// Add to commandPalette array any commands not explicitly contributed to it
+		const implicitlyOnCommandPalette = index(commands, c => c.id);
+		for (const command of menus['commandPalette']) {
+			delete implicitlyOnCommandPalette[command.command];
+		}
+		for (const command in implicitlyOnCommandPalette) {
+			menus['commandPalette'].push({ command });
+		}
+
 		for (const context in menus) {
 			for (const menu of menus[context]) {
+
+				// This typically happens for the commandPalette context
+				if (menu.when === 'false') {
+					continue;
+				}
 				if (menu.command) {
 					let command = byId[menu.command];
 					if (command) {
-						command.menus.push(context);
+						if (!command.menus.includes(context)) {
+							command.menus.push(context);
+						}
 					} else {
 						command = { id: menu.command, title: '', keybindings: [], menus: [context] };
 						byId[command.id] = command;
@@ -1095,7 +1104,7 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 					new MarkdownString().appendMarkdown(`\`${command.id}\``),
 					typeof command.title === 'string' ? command.title : command.title.value,
 					command.keybindings,
-					new MarkdownString().appendMarkdown(`${command.menus.map(menu => `\`${menu}\``).join('&nbsp;')}`),
+					new MarkdownString().appendMarkdown(`${command.menus.sort((a, b) => a.localeCompare(b)).map(menu => `\`${menu}\``).join('&nbsp;')}`),
 				];
 			});
 

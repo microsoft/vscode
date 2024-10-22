@@ -13,7 +13,7 @@ import { EditorLayoutInfo, EditorOption } from '../../../../editor/common/config
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
-import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
+import { IOptions, ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -25,6 +25,19 @@ import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CT
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
+
+	private static readonly _options: IOptions = {
+		showFrame: true,
+		frameWidth: 1,
+		// frameColor: 'var(--vscode-inlineChat-border)',
+		// isResizeable: true,
+		showArrow: false,
+		isAccessible: true,
+		className: 'inline-chat-widget',
+		keepEditorSelection: true,
+		showInHiddenAreas: true,
+		ordinal: 50000,
+	};
 
 	readonly widget: EditorBasedInlineChatWidget;
 
@@ -40,7 +53,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 50000 });
+		super(editor, InlineChatZoneWidget._options);
 
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
 
@@ -63,6 +76,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				}
 			},
 			secondaryMenuId: MENU_INLINE_CHAT_WIDGET_SECONDARY,
+			inZoneWidget: true,
 			chatWidgetViewOptions: {
 				menus: {
 					telemetrySource: 'interactiveEditorWidget-toolbar',
@@ -123,6 +137,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	protected override _fillContainer(container: HTMLElement): void {
+
+		container.style.setProperty('--vscode-inlineChat-background', 'var(--vscode-editor-background)');
+
 		container.appendChild(this.widget.domNode);
 	}
 
@@ -140,7 +157,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const chatContentHeight = this.widget.contentHeight;
 		const editorHeight = this.editor.getLayoutInfo().height;
 
-		const contentHeight = Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
+		const contentHeight = this._decoratingElementsHeight() + Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
 		return { linesValue: heightInLines, pixelsValue: contentHeight };
 	}
@@ -155,8 +172,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		assertType(this.container);
 
 		const info = this.editor.getLayoutInfo();
-		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
-		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
+		const marginWithoutIndentation = info.glyphMarginWidth + info.lineNumbersWidth;
+		this.container.style.paddingLeft = `${marginWithoutIndentation}px`;
 
 		const revealZone = this._createZoneAndScrollRestoreFn(position);
 		super.show(position, this._computeHeight().linesValue);

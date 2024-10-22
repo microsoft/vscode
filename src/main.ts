@@ -6,8 +6,9 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import * as os from 'os';
+import { performance } from 'perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
-import { load } from './bootstrap-esm.js';
+import { bootstrapESM } from './bootstrap-esm.js';
 import { fileURLToPath } from 'url';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
 import minimist from 'minimist';
@@ -23,6 +24,14 @@ import { NativeParsedArgs } from './vs/platform/environment/common/argv.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 perf.mark('code/didStartMain');
+
+perf.mark('code/willLoadMainBundle', {
+	// When built, the main bundle is a single JS file with all
+	// dependencies inlined. As such, we mark `willLoadMainBundle`
+	// as the start of the main bundle loading process.
+	startTime: Math.floor(performance.timeOrigin)
+});
+perf.mark('code/didLoadMainBundle');
 
 // Enable portable support
 const portable = configurePortable(product);
@@ -173,9 +182,12 @@ async function startup(codeCachePath: string | undefined, nlsConfig: INLSConfigu
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
-	perf.mark('code/willLoadMainBundle');
-	await load('vs/code/electron-main/main');
-	perf.mark('code/didLoadMainBundle');
+	// Bootstrap ESM
+	await bootstrapESM();
+
+	// Load Main
+	await import('./vs/code/electron-main/main.js');
+	perf.mark('code/didRunMainBundle');
 }
 
 function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
@@ -639,7 +651,7 @@ async function resolveNlsConfiguration(): Promise<INLSConfiguration> {
 }
 
 /**
- * Language tags are case insensitive however an amd loader is case sensitive
+ * Language tags are case insensitive however an ESM loader is case sensitive
  * To make this work on case preserving & insensitive FS we do the following:
  * the language bundles have lower case language tags and we always lower case
  * the locale we receive from the user or OS.

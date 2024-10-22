@@ -203,7 +203,7 @@ export class IssueMainService implements IIssueMainService {
 	}
 
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
-		const window = new BrowserWindow({
+		const windowOptions: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 			fullscreen: false,
 			skipTaskbar: false,
 			resizable: true,
@@ -226,7 +226,8 @@ export class IssueMainService implements IIssueMainService {
 			},
 			alwaysOnTop: options.alwaysOnTop,
 			experimentalDarkMode: true
-		} as BrowserWindowConstructorOptions & { experimentalDarkMode: boolean });
+		};
+		const window = new BrowserWindow(windowOptions);
 
 		window.setMenuBarVisibility(false);
 

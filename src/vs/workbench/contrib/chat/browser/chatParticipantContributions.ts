@@ -5,7 +5,9 @@
 
 import { coalesce, isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -148,10 +150,6 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						}
 					}
 				},
-				supportsToolReferences: {
-					description: localize('chatParticipantSupportsToolReferences', "Whether this participant supports {0}.", 'ChatRequest#toolReferences'),
-					type: 'boolean'
-				}
 			}
 		}
 	},
@@ -204,7 +202,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						continue;
 					}
 
-					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations || providerDescriptor.supportsModelPicker) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
+					if ((providerDescriptor.defaultImplicitVariables || providerDescriptor.locations) && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
 					}
@@ -220,54 +218,54 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						examples: string[];
 					}[] = [];
 
-					if (isProposedApiEnabled(extension.description, 'contribChatParticipantDetection')) {
-						if (providerDescriptor.disambiguation?.length) {
-							participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
-								...d, category: d.category ?? d.categoryName
-							})));
-						}
-						if (providerDescriptor.commands) {
-							for (const command of providerDescriptor.commands) {
-								if (command.disambiguation?.length) {
-									participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
-										...d, category: d.category ?? d.categoryName
-									})));
-								}
+					if (providerDescriptor.disambiguation?.length) {
+						participantsAndCommandsDisambiguation.push(...providerDescriptor.disambiguation.map((d) => ({
+							...d, category: d.category ?? d.categoryName
+						})));
+					}
+					if (providerDescriptor.commands) {
+						for (const command of providerDescriptor.commands) {
+							if (command.disambiguation?.length) {
+								participantsAndCommandsDisambiguation.push(...command.disambiguation.map((d) => ({
+									...d, category: d.category ?? d.categoryName
+								})));
 							}
 						}
 					}
 
-					const store = new DisposableStore();
-					store.add(this._chatAgentService.registerAgent(
-						providerDescriptor.id,
-						{
-							extensionId: extension.description.identifier,
-							publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
-							extensionPublisherId: extension.description.publisher,
-							extensionDisplayName: extension.description.displayName ?? extension.description.name,
-							id: providerDescriptor.id,
-							description: providerDescriptor.description,
-							supportsModelPicker: providerDescriptor.supportsModelPicker,
-							when: providerDescriptor.when,
-							metadata: {
-								isSticky: providerDescriptor.isSticky,
-								sampleRequest: providerDescriptor.sampleRequest,
-							},
-							name: providerDescriptor.name,
-							fullName: providerDescriptor.fullName,
-							isDefault: providerDescriptor.isDefault,
-							locations: isNonEmptyArray(providerDescriptor.locations) ?
-								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
-								[ChatAgentLocation.Panel],
-							slashCommands: providerDescriptor.commands ?? [],
-							disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
-							supportsToolReferences: providerDescriptor.supportsToolReferences,
-						} satisfies IChatAgentData));
+					try {
+						const store = new DisposableStore();
+						store.add(this._chatAgentService.registerAgent(
+							providerDescriptor.id,
+							{
+								extensionId: extension.description.identifier,
+								publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
+								extensionPublisherId: extension.description.publisher,
+								extensionDisplayName: extension.description.displayName ?? extension.description.name,
+								id: providerDescriptor.id,
+								description: providerDescriptor.description,
+								when: providerDescriptor.when,
+								metadata: {
+									isSticky: providerDescriptor.isSticky,
+									sampleRequest: providerDescriptor.sampleRequest,
+								},
+								name: providerDescriptor.name,
+								fullName: providerDescriptor.fullName,
+								isDefault: providerDescriptor.isDefault,
+								locations: isNonEmptyArray(providerDescriptor.locations) ?
+									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
+									[ChatAgentLocation.Panel],
+								slashCommands: providerDescriptor.commands ?? [],
+								disambiguation: coalesce(participantsAndCommandsDisambiguation.flat()),
+							} satisfies IChatAgentData));
 
-					this._participantRegistrationDisposables.set(
-						getParticipantKey(extension.description.identifier, providerDescriptor.id),
-						store
-					);
+						this._participantRegistrationDisposables.set(
+							getParticipantKey(extension.description.identifier, providerDescriptor.id),
+							store
+						);
+					} catch (e) {
+						this.logService.error(`Failed to register participant ${providerDescriptor.id}: ${toErrorMessage(e, true)}`);
+					}
 				}
 			}
 
@@ -292,6 +290,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			storageId: viewContainerId,
 			hideIfEmpty: true,
 			order: 100,
+			openCommandActionDescriptor: {
+				id: viewContainerId,
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+					}
+				},
+				order: 100
+			},
 		}, ViewContainerLocation.Sidebar);
 
 		return viewContainer;
@@ -308,7 +316,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: name, original: name },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
 			when: ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
@@ -320,7 +328,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	private registerChatEditingView(): IDisposable {
 		const title = localize2('chatEditing.viewContainer.label', "Copilot Edits");
-		const icon = Codicon.requestChanges;
+		const icon = Codicon.editSession;
 		const viewContainerId = CHAT_EDITING_SIDEBAR_PANEL_ID;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
@@ -341,7 +349,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: title.value, original: title.value },
 			canToggleVisibility: false,
 			canMoveView: true,
-			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ id, title: title.value }, { location: ChatAgentLocation.EditingSession }]),
+			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
 			when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
