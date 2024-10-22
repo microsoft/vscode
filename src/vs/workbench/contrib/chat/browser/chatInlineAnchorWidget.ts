@@ -302,11 +302,14 @@ registerAction2(class CopyResourceAction extends Action2 {
 		const clipboardService = accessor.get(IClipboardService);
 
 		const anchor = chatWidgetService.lastFocusedAnchor;
-		if (!anchor || anchor.data.kind === 'symbol') {
+		if (!anchor) {
 			return;
 		}
 
-		clipboardService.writeResources([anchor.data.uri]);
+		// TODO: we should also write out the standard mime types so that external programs can use them
+		// like how `fillEditorsDragData` works but without having an event to work with.
+		const resource = anchor.data.kind === 'symbol' ? anchor.data.symbol.location.uri : anchor.data.uri;
+		clipboardService.writeResources([resource]);
 	}
 });
 
