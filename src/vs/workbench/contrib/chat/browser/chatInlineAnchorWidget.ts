@@ -85,6 +85,8 @@ export class InlineAnchorWidget extends Disposable {
 	) {
 		super();
 
+		// TODO: Make sure we handle updates from an inlineReference being `resolved` late
+
 		this.data = 'uri' in inlineReference.inlineReference
 			? inlineReference.inlineReference
 			: 'name' in inlineReference.inlineReference
@@ -189,8 +191,8 @@ export class InlineAnchorWidget extends Disposable {
 		iconEl.classList.add(...iconClasses);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
-		const fragment = location.range ? `${location.range.startLineNumber}` : '';
-		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
+		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
+		element.setAttribute('data-href', (fragment ? location.uri.with({ fragment }) : location.uri).toString());
 
 		// Context menu
 		this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
