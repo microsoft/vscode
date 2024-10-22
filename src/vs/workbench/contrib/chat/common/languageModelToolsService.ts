@@ -44,7 +44,6 @@ export interface IToolResult {
 
 export interface IToolResultPromptTsxPart {
 	kind: 'promptTsx';
-	mime: string;
 	value: unknown;
 }
 

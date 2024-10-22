@@ -619,6 +619,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: 16px;
 	padding: 0px;
 	border-radius: 2px;
+	display: inline-flex;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {

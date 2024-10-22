@@ -17,7 +17,7 @@ import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { Command } from '../../../../../editor/common/languages.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -227,40 +227,40 @@ export class AttachContextAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.attachContext';
 
 	// used to enable/disable the keybinding and defined menu containment
-	private static _cdt = ContextKeyExpr.or(
+	protected static _cdt = ContextKeyExpr.or(
 		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel)),
 		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor)),
 		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Notebook)),
 		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal)),
 	);
 
-	constructor() {
-		super({
-			id: AttachContextAction.ID,
-			title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
-			icon: Codicon.attach,
-			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
-			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyMod.CtrlCmd | KeyCode.Slash,
-				weight: KeybindingWeight.EditorContrib
+	constructor(desc: Readonly<IAction2Options> = {
+		id: AttachContextAction.ID,
+		title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
+		icon: Codicon.attach,
+		category: CHAT_CATEGORY,
+		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
+		keybinding: {
+			when: CONTEXT_IN_CHAT_INPUT,
+			primary: KeyMod.CtrlCmd | KeyCode.Slash,
+			weight: KeybindingWeight.EditorContrib
+		},
+		menu: [
+			{
+				when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 2
 			},
-			menu: [
-				{
-					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
-					id: MenuId.ChatInput,
-					group: 'navigation',
-					order: 2
-				},
-				{
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
-					id: MenuId.ChatExecute,
-					group: 'navigation',
-					order: 1
-				},
-			]
-		});
+			{
+				when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 1
+			},
+		]
+	}) {
+		super(desc);
 	}
 
 	private _getFileContextId(item: { resource: URI } | { uri: URI; range: IRange }) {
@@ -648,3 +648,21 @@ export class AttachContextAction extends Action2 {
 		});
 	}
 }
+
+registerAction2(class AttachFilesAction extends AttachContextAction {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.editing.attachFiles',
+			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Working Set"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context = args[0];
+		const attachFilesContext = { ...context, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') };
+		return super.run(accessor, attachFilesContext);
+	}
+});
