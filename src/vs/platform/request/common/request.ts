@@ -201,7 +201,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				tags: ['experimental'],
 				default: false,
-				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
+				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implementation."),
 				restricted: true
 			},
 			'http.electronFetch': {

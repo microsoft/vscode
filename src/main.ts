@@ -298,13 +298,6 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
-	// Following features are enabled from the runtime:
-	// `DeferSpeculativeRFHCreation` - Defer the creation of the speculative RFH when the navigation
-	//	starts. This allows unnecessary RFH swap on startup when coi is enabled.
-	const featuresToEnable =
-		`DeferSpeculativeRFHCreation,${app.commandLine.getSwitchValue('enable-features')}`;
-	app.commandLine.appendSwitch('enable-features', featuresToEnable);
-
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {

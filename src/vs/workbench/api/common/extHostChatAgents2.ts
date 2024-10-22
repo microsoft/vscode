@@ -369,10 +369,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return undefined;
 		}
 
-		const extRequest = typeConvert.ChatAgentRequest.to(request, location);
-		if (request.userSelectedModelId && isProposedApiEnabled(detector.extension, 'chatParticipantAdditions')) {
-			extRequest.userSelectedModel = await this._languageModels.getLanguageModelByIdentifier(detector.extension, request.userSelectedModelId);
-		}
+		const model = await this.getModelForRequest(request, detector.extension);
+		const extRequest = typeConvert.ChatAgentRequest.to(request, location, model);
 
 		return detector.provider.provideParticipantDetection(
 			extRequest,
@@ -405,6 +403,21 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return { request, location, history: convertedHistory };
 	}
 
+	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
+		let model: vscode.LanguageModelChat | undefined;
+		if (request.userSelectedModelId) {
+			model = await this._languageModels.getLanguageModelByIdentifier(extension, request.userSelectedModelId);
+		}
+		if (!model) {
+			model = await this._languageModels.getDefaultLanguageModel(extension);
+			if (!model) {
+				throw new Error('Language model unavailable');
+			}
+		}
+
+		return model;
+	}
+
 	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -425,10 +438,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
-			const extRequest = typeConvert.ChatAgentRequest.to(request, location);
-			if (request.userSelectedModelId && isProposedApiEnabled(agent.extension, 'chatParticipantAdditions')) {
-				extRequest.userSelectedModel = await this._languageModels.getLanguageModelByIdentifier(agent.extension, request.userSelectedModelId);
-			}
+			const model = await this.getModelForRequest(request, agent.extension);
+			const extRequest = typeConvert.ChatAgentRequest.to(request, location, model);
 
 			const task = agent.invoke(
 				extRequest,
@@ -490,8 +501,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			const toolReferences = h.request.variables.variables
 				.filter(v => v.isTool)
 				.map(typeConvert.ChatLanguageModelToolReference.to);
-			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId);
-			turn.toolReferences = toolReferences;
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences);
 			res.push(turn);
 
 			// RESPONSE turn

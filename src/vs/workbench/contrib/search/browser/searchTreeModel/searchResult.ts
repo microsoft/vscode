@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IProgress, IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
-import { IFileMatch, ISearchComplete, ITextQuery } from '../../../../services/search/common/search.js';
+import { IAITextQuery, IFileMatch, ISearchComplete, ITextQuery, QueryType } from '../../../../services/search/common/search.js';
 import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
@@ -27,8 +27,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
-	private _plainTextSearchResult: IPlainTextSearchHeading;
-	private _aiTextSearchResult: ITextSearchHeading;
+	private _plainTextSearchResult: PlainTextSearchHeadingImpl;
+	private _aiTextSearchResult: AITextSearchHeadingImpl;
 
 	private readonly _id: string;
 	constructor(
@@ -141,7 +141,13 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 
 	set query(query: ITextQuery | null) {
 		this._plainTextSearchResult.query = query;
-		this._aiTextSearchResult.query = query;
+	}
+
+	setAIQueryUsingTextQuery(query?: ITextQuery | null) {
+		if (!query) {
+			query = this.query;
+		}
+		this.aiTextSearchResult.query = aiTextQueryFromTextQuery(query);
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -279,4 +285,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 		this._onDidChangeModelListener?.dispose();
 		super.dispose();
 	}
+}
+
+function aiTextQueryFromTextQuery(query: ITextQuery | null): IAITextQuery | null {
+	return query === null ? null : { ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText };
 }

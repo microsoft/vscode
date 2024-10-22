@@ -22,7 +22,7 @@ import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, isChatRequestCheckpointed, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, isChatRequestCheckpointed, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -192,7 +192,7 @@ export class ChatEditingAcceptAllAction extends Action2 {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))))
 				}
 			]
 		});
@@ -229,7 +229,7 @@ export class ChatEditingDiscardAllAction extends Action2 {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 2,
-					when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)
+					when: ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), hasUndecidedChatEditingResourceContextKey))
 				}
 			],
 		});
@@ -247,8 +247,8 @@ export class ChatEditingDiscardAllAction extends Action2 {
 registerAction2(ChatEditingDiscardAllAction);
 
 export class ChatEditingShowChangesAction extends Action2 {
-	static readonly ID = 'chatEditing.openDiffs';
-	static readonly LABEL = localize('chatEditing.openDiffs', 'Open Diffs');
+	static readonly ID = 'chatEditing.viewChanges';
+	static readonly LABEL = localize('chatEditing.viewChanges', 'View Changes');
 
 	constructor() {
 		super({
@@ -262,7 +262,7 @@ export class ChatEditingShowChangesAction extends Action2 {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)))
 				}
 			],
 		});
@@ -282,11 +282,11 @@ registerAction2(ChatEditingShowChangesAction);
 registerAction2(class AddFilesToWorkingSetAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.addFilesToWorkingSet',
-			title: localize2('workbench.action.chat.addFilesToWorkingSet.label', "Add Files to Working Set"),
+			id: 'workbench.action.chat.addSelectedFilesToWorkingSet',
+			title: localize2('workbench.action.chat.addSelectedFilesToWorkingSet.label', "Add Selected Files to Working Set"),
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
-			precondition: inChatEditingSessionContextKey,
+			precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession),
 			f1: true
 		});
 	}
@@ -328,14 +328,14 @@ registerAction2(class RestoreWorkingSetAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.restoreFile',
-			title: localize2('chat.restoreFile.label', 'Restore Previous File State'),
+			title: localize2('chat.restoreSnapshot.label', 'Restore File Snapshot'),
 			f1: false,
 			icon: Codicon.target,
-			shortTitle: localize2('chat.restoreFile.shortTitle', 'Restore Previous File State'),
+			shortTitle: localize2('chat.restoreSnapshot.shortTitle', 'Restore Snapshot'),
 			toggled: {
 				condition: isChatRequestCheckpointed,
-				title: localize2('chat.restoreFile.title', 'Using Previous File State').value,
-				tooltip: localize('chat.restoreFile.tooltip', 'Toggle to use the previous state of an edited file in your next request')
+				title: localize2('chat.restoreSnapshot.title', 'Using Snapshot').value,
+				tooltip: localize('chat.restoreSnapshot.tooltip', 'Toggle to use a previous snapshot of an edited file in your next request')
 			},
 			precondition: ContextKeyExpr.and(applyingChatEditsContextKey.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			menu: {
@@ -487,11 +487,11 @@ registerAction2(class RemoveAction extends Action2 {
 
 registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 
-	static readonly id = 'chat.openWorkingSetHistory';
+	static readonly id = 'chat.openFileSnapshot';
 	constructor() {
 		super({
 			id: OpenWorkingSetHistoryAction.id,
-			title: localize('chat.openWorkingSetHistory.label', "Open File Checkpoint"),
+			title: localize('chat.openSnapshot.label', "Open File Snapshot"),
 			menu: [{
 				id: MenuId.ChatEditingCodeBlockContext,
 				group: 'navigation',
@@ -524,7 +524,7 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		if (snapshotRequestId) {
 			const snapshot = chatEditingService.getSnapshotUri(snapshotRequestId, context.uri);
 			if (snapshot) {
-				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.checkpoint', '{0} (Checkpoint {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+				const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot {1})', basename(context.uri), snapshotRequestIndex - 1), options: { transient: true, activation: EditorActivation.ACTIVATE } });
 				if (isCodeEditor(editor)) {
 					editor.updateOptions({ readOnly: true });
 				}

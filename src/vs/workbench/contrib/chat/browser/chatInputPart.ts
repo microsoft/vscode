@@ -1033,7 +1033,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
 		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.chat.attachContext', { widget: chatWidget, showFilesOnly: true, placeholder: localize('chatAttachFiles', 'Search for files to add to your working set') });
+			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget });
 		}));
 		dom.append(addFilesElement, button.element);
 	}

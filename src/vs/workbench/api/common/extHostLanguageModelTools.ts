@@ -43,7 +43,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const callId = generateUuid();
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
