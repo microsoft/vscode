@@ -465,7 +465,7 @@ registerAction2(class GoToReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
+		return runGoToCommand(accessor, 'editor.action.goToReferences', location);
 	}
 });
 
