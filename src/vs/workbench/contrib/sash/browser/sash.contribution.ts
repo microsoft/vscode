@@ -35,5 +35,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				maximum: 2000,
 				description: localize('sashHoverDelay', "Controls the hover feedback delay in milliseconds of the dragging area in between views/editors.")
 			},
+			'workbench.experimental.hoverDelay': {
+				type: 'number',
+				default: 150,
+				minimum: 0,
+				maximum: 2000,
+				description: localize('experimentalSashHoverDelay', "Controls the hover feedback delay in milliseconds of the dragging area in between views/editors for experimental settings.")
+			},
 		}
 	});

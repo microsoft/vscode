@@ -29,6 +29,10 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 		const onDidChangeHoverDelay = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sash.hoverDelay'));
 		onDidChangeHoverDelay(this.onDidChangeHoverDelay, this, this.disposables);
 		this.onDidChangeHoverDelay();
+
+		const onDidChangeExperimentalHoverDelay = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.experimental.hoverDelay'));
+		onDidChangeExperimentalHoverDelay(this.onDidChangeExperimentalHoverDelay, this, this.disposables);
+		this.onDidChangeExperimentalHoverDelay();
 	}
 
 	private onDidChangeSize(): void {
@@ -43,6 +47,10 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 
 	private onDidChangeHoverDelay(): void {
 		setGlobalHoverDelay(this.configurationService.getValue<number>('workbench.sash.hoverDelay'));
+	}
+
+	private onDidChangeExperimentalHoverDelay(): void {
+		setGlobalHoverDelay(this.configurationService.getValue<number>('workbench.experimental.hoverDelay'));
 	}
 
 	dispose(): void {
