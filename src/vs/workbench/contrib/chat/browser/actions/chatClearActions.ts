@@ -96,11 +96,8 @@ export function registerNewChatActions() {
 				// Is running from f1 or keybinding
 				const viewsService = accessor.get(IViewsService);
 
-				let widget = widgetService.lastFocusedWidget;
-				if (!widget) {
-					const chatView = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-					widget = chatView.widget;
-				}
+				const chatView = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
+				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
@@ -148,12 +145,8 @@ export function registerNewChatActions() {
 			} else {
 				// Is running from f1 or keybinding
 				const viewsService = accessor.get(IViewsService);
-
-				let widget = widgetService.lastFocusedWidget;
-				if (!widget || widget.location !== ChatAgentLocation.EditingSession) {
-					const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
-					widget = chatView.widget;
-				}
+				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
@@ -197,11 +190,8 @@ export function registerNewChatActions() {
 				// Is running from f1 or keybinding
 				const viewsService = accessor.get(IViewsService);
 
-				let widget = widgetService.lastFocusedWidget;
-				if (!widget || widget.location !== ChatAgentLocation.EditingSession) {
-					const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
-					widget = chatView.widget;
-				}
+				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
+				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
