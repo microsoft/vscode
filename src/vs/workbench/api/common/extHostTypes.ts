@@ -5,11 +5,13 @@
 
 /* eslint-disable local/code-no-native-private */
 
+import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
 import { illegalArgument } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes, normalizeMimeType } from '../../../base/common/mime.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
@@ -18,9 +20,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
-import { IRelativePatternDto } from './extHost.protocol.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
-import type * as vscode from 'vscode';
+import { IRelativePatternDto } from './extHost.protocol.js';
 
 /**
  * @deprecated
@@ -4607,12 +4608,31 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
-	content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+
+	// Temp to avoid breaking changes
+	content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined;
+
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
+		// Temp for back-compat
+		if (this.content2) {
+			return this.content2.map(part => {
+				if (typeof part === 'string') {
+					return new LanguageModelTextPart(part);
+				}
+
+				return part;
+			});
+		}
+
+		return this._content;
+	}
+
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
-		this.content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
+		this._content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
 		this.name = name;
 	}
 }
@@ -4635,15 +4655,27 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	constructor(value: string) {
 		this.value = value;
 	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelTextPart,
+			value: this.value,
+		};
+	}
 }
 
 export class LanguageModelPromptTsxPart {
 	value: unknown;
-	mime: string;
 
-	constructor(value: unknown, mime: string) {
+	constructor(value: unknown) {
 		this.value = value;
-		this.mime = mime;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelPromptTsxPart,
+			value: this.value,
+		};
 	}
 }
 
@@ -4710,6 +4742,13 @@ export class LanguageModelError extends Error {
 
 export class LanguageModelToolResult {
 	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelToolResult,
+			content: this.content,
+		};
+	}
 }
 
 export enum LanguageModelChatToolMode {

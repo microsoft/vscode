@@ -56,6 +56,7 @@ import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { IChatResponseTextPart, IChatResponsePromptTsxPart } from '../../contrib/chat/common/languageModels.js';
 import { LanguageModelTextPart, LanguageModelPromptTsxPart } from './extHostTypes.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 
 export namespace Command {
 
@@ -2355,7 +2356,7 @@ export namespace LanguageModelChatMessage {
 					if (part.type === 'text') {
 						return new types.LanguageModelTextPart(part.value);
 					} else {
-						return new types.LanguageModelPromptTsxPart(part.value, part.mime);
+						return new types.LanguageModelPromptTsxPart(part.value);
 					}
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
@@ -2393,7 +2394,6 @@ export namespace LanguageModelChatMessage {
 							return {
 								type: 'prompt_tsx',
 								value: part.value,
-								mime: part.mime
 							} satisfies IChatResponsePromptTsxPart;
 						} else {
 							// Strip unknown parts
@@ -2868,7 +2868,7 @@ export namespace ChatAgentResult {
 	export function to(result: IChatAgentResult): vscode.ChatResult {
 		return {
 			errorDetails: result.errorDetails,
-			metadata: result.metadata,
+			metadata: reviveMetadata(result.metadata),
 			nextQuestion: result.nextQuestion,
 		};
 	}
@@ -2878,6 +2878,20 @@ export namespace ChatAgentResult {
 			metadata: result.metadata,
 			nextQuestion: result.nextQuestion,
 		};
+	}
+
+	function reviveMetadata(metadata: IChatAgentResult['metadata']) {
+		return cloneAndChange(metadata, value => {
+			if (value.$mid === MarshalledId.LanguageModelToolResult) {
+				return new types.LanguageModelToolResult(cloneAndChange(value.content, reviveMetadata));
+			} else if (value.$mid === MarshalledId.LanguageModelTextPart) {
+				return new types.LanguageModelTextPart(value.value);
+			} else if (value.$mid === MarshalledId.LanguageModelPromptTsxPart) {
+				return new types.LanguageModelPromptTsxPart(value.value);
+			}
+
+			return undefined;
+		});
 	}
 }
 
@@ -2975,7 +2989,7 @@ export namespace LanguageModelToolResult {
 			if (item.kind === 'text') {
 				return new types.LanguageModelTextPart(item.value);
 			} else {
-				return new types.LanguageModelPromptTsxPart(item.value, item.mime);
+				return new types.LanguageModelPromptTsxPart(item.value);
 			}
 		}));
 	}
@@ -2992,7 +3006,6 @@ export namespace LanguageModelToolResult {
 					return {
 						kind: 'promptTsx',
 						value: item.value,
-						mime: item.mime
 					};
 				} else {
 					throw new Error('Unknown LanguageModelToolResult part type');

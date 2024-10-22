@@ -19842,16 +19842,10 @@ declare module 'vscode' {
 		value: unknown;
 
 		/**
-		 * The mimeType of this part, exported from the `@vscode/prompt-tsx` library.
-		 */
-		mime: string;
-
-		/**
 		 * Construct a prompt-tsx part with the given content.
 		 * @param value The value of the part, the result of `renderPromptElementJSON` from `@vscode/prompt-tsx`.
-		 * @param mime The mimeType of the part, exported from `@vscode/prompt-tsx` as `contentType`.
 		 */
-		constructor(value: unknown, mime: string);
+		constructor(value: unknown);
 	}
 
 	/**
