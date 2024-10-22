@@ -52,7 +52,6 @@ export interface IChatResponseTextPart {
 export interface IChatResponsePromptTsxPart {
 	type: 'prompt_tsx';
 	value: unknown;
-	mime: string;
 }
 
 export interface IChatResponseToolUsePart {
