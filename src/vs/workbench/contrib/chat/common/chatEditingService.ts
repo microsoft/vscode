@@ -19,6 +19,7 @@ import { IChatResponseModel } from './chatModel.js';
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
 export interface IChatEditingService {
+
 	_serviceBrand: undefined;
 
 	readonly onDidCreateEditingSession: Event<IChatEditingSession>;
@@ -46,6 +47,7 @@ export interface IChatEditingSession {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	readonly hiddenRequestIds: IObservable<readonly string[]>;
 	readonly workingSet: ResourceMap<WorkingSetEntryState>;
 	readonly isVisible: boolean;
 	addFileToWorkingSet(uri: URI): void;
@@ -57,6 +59,9 @@ export interface IChatEditingSession {
 	 * Will lead to this object getting disposed
 	 */
 	stop(): Promise<void>;
+
+	undoInteraction(): Promise<void>;
+	redoInteraction(): Promise<void>;
 }
 
 export const enum WorkingSetEntryState {
@@ -100,3 +105,4 @@ export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefi
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
 export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);
 export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
+export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);

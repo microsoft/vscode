@@ -61,10 +61,11 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		const extensions = await this.extensionManagementService.getInstalled();
 
 		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
+		this.updateExtensionInstalled(installed ? true : false);
 		if (!installed) {
 			this.registerListeners();
 		} else {
-			this.disableEntitlement(true);
+			this.disableEntitlement();
 		}
 	}
 
@@ -72,7 +73,8 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		this.listeners.add(this.extensionService.onDidChangeExtensions(result => {
 			for (const extension of result.added) {
 				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement?.extensionId, extension.identifier)) {
-					this.disableEntitlement(true);
+					this.updateExtensionInstalled(true);
+					this.disableEntitlement();
 					return;
 				}
 			}
@@ -82,7 +84,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 			if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.added?.length) {
 				await this.resolveEntitlement(e.event.added[0]);
 			} else if (e.providerId === this.productService.gitHubEntitlement?.providerId && e.event.removed?.length) {
-				this.disableEntitlement(false);
+				this.disableEntitlement();
 			}
 		}));
 
@@ -100,8 +102,9 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const installed = installedExtensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
+		this.updateExtensionInstalled(installed ? true : false);
 		if (installed) {
-			this.disableEntitlement(true);
+			this.disableEntitlement();
 			return;
 		}
 
@@ -149,12 +152,13 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		return entitled;
 	}
 
-	private disableEntitlement(isExtensionInstalled: boolean): void {
-		if (isExtensionInstalled) {
-			this.storageService.store(ChatInstallEntitlementContribution.CHAT_EXTENSION_INSTALLED_KEY, true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
+	private disableEntitlement(): void {
 		this.chatInstallEntitledContextKey.set(false);
 		this.listeners.dispose();
+	}
+
+	private updateExtensionInstalled(isExtensionInstalled: boolean): void {
+		this.storageService.store(ChatInstallEntitlementContribution.CHAT_EXTENSION_INSTALLED_KEY, isExtensionInstalled, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 }
 

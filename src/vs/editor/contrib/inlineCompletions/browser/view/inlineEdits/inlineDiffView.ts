@@ -8,11 +8,12 @@ import { autorunWithStore, derived, IObservable } from '../../../../../../base/c
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { rangeIsSingleLine } from '../../../../../browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.js';
-import { diffLineDeleteDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineAddDecorationBackground, diffWholeLineDeleteDecoration, diffWholeLineAddDecoration, diffAddDecorationEmpty, diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
+import { diffLineDeleteDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackground, diffLineAddDecorationBackgroundWithIndicator, diffLineAddDecorationBackground, diffWholeLineAddDecoration, diffAddDecorationEmpty, diffAddDecoration } from '../../../../../browser/widget/diffEditor/registrations.contribution.js';
 import { Range } from '../../../../../common/core/range.js';
 import { AbstractText } from '../../../../../common/core/textEdit.js';
 import { DetailedLineRangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { IModelDeltaDecoration } from '../../../../../common/model.js';
+import { ModelDecorationOptions } from '../../../../../common/model/textModel.js';
 import { classNames } from './inlineEditsView.js';
 
 export interface IOriginalEditorInlineDiffViewState {
@@ -70,6 +71,12 @@ export class OriginalEditorInlineDiffView extends Disposable {
 
 			if (m.modified.isEmpty || m.original.isEmpty) {
 				if (!m.original.isEmpty) {
+					const diffWholeLineDeleteDecoration = ModelDecorationOptions.register({
+						className: 'char-delete',
+						description: 'char-delete',
+						isWholeLine: false,
+					});
+
 					originalDecorations.push({ range: m.original.toInclusiveRange()!, options: diffWholeLineDeleteDecoration });
 				}
 				if (!m.modified.isEmpty) {

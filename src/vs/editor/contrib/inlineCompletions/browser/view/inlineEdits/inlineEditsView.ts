@@ -8,9 +8,8 @@ import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedDisposable, derivedWithCancellationToken, IObservable, observableFromEvent, ObservablePromise } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedDisposable, derivedOpts, derivedWithCancellationToken, IObservable, observableFromEvent, ObservablePromise } from '../../../../../../base/common/observable.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
-import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
@@ -35,6 +34,15 @@ import './inlineEditsView.css';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineDiffView.js';
 import { applyEditToModifiedRangeMappings, maxLeftInRange, Point, StatusBarViewItem, UniqueUriGenerator } from './utils.js';
 import { IInlineEditsIndicatorState, InlineEditsIndicator } from './inlineEditsIndicatorView.js';
+import { darken, lighten, registerColor, transparent } from '../../../../../../platform/theme/common/colorUtils.js';
+import { diffInserted, diffRemoved } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
+import { Command } from '../../../../../common/languages.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
+import { IAction } from '../../../../../../base/common/actions.js';
+import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
+import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
@@ -82,7 +90,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 			));
 			const diffEdits = new TextEdit(edits);
 
-			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, true); //inlineEdit.showInlineIfPossible);
+			return new InlineEditWithChanges(text, diffEdits, inlineEdit.isCollapsed, true, inlineEdit.commands); //inlineEdit.showInlineIfPossible);
 		});
 	});
 
@@ -97,7 +105,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 	) {
 		super();
 
-		this._register(new InlineEditsView(this._editor, this._inlineEdit, this._instantiationService));
+		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit));
 	}
 }
 
@@ -112,9 +120,34 @@ export class InlineEditWithChanges {
 		public readonly edit: TextEdit,
 		public readonly isCollapsed: boolean,
 		public readonly showInlineIfPossible: boolean,
+		public readonly commands: readonly Command[],
 	) {
 	}
 }
+
+export const originalBackgroundColor = registerColor(
+	'inlineEdit.originalBackground',
+	transparent(diffRemoved, 0.4),
+	'',
+	true
+);
+export const modifiedBackgroundColor = registerColor(
+	'inlineEdit.modifiedBackground',
+	transparent(diffInserted, 0.4),
+	'',
+	true
+);
+
+export const border = registerColor(
+	'inlineEdit.border',
+	{
+		light: darken(editorLineHighlightBorder, 0.15),
+		dark: lighten(editorLineHighlightBorder, 0.50),
+		hcDark: editorLineHighlightBorder,
+		hcLight: editorLineHighlightBorder
+	},
+	''
+);
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs = observableCodeEditor(this._editor);
@@ -132,10 +165,8 @@ export class InlineEditsView extends Disposable {
 			h('div.preview@editor', { style: {} }),
 			h('div.toolbar@toolbar', { style: {} }),
 		]),
-		svgElem('svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, [
-			svgElem('path@path', {
-				d: ''
-			}),
+		svgElem('svg@svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, [
+
 		]),
 	]);
 
@@ -143,6 +174,7 @@ export class InlineEditsView extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -166,30 +198,53 @@ export class InlineEditsView extends Disposable {
 		this._register(autorun(reader => {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 			if (!layoutInfo) {
-				this._elements.path.style.visibility = 'hidden';
+				this._elements.svg.replaceChildren();
 				return;
 			}
-			this._elements.path.style.visibility = '';
 
 			const topEdit = layoutInfo.edit1;
 			const editHeight = layoutInfo.editHeight;
 
 			const width = this._previewEditorWidth.read(reader) + 10;
 
-			const pathBuilder = new PathBuilder();
-			pathBuilder.moveTo(layoutInfo.code1.deltaX(-5));
-			pathBuilder.lineTo(layoutInfo.code1);
-			pathBuilder.lineTo(layoutInfo.edit1);
-			pathBuilder.lineTo(layoutInfo.edit1.deltaX(width));
-			pathBuilder.lineTo(layoutInfo.edit2.deltaX(width));
-			pathBuilder.lineTo(layoutInfo.edit2);
-			pathBuilder.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
-			pathBuilder.lineTo(layoutInfo.code2.deltaX(-5));
+			const pathBuilder1 = new PathBuilder();
+			pathBuilder1.moveTo(layoutInfo.code2);
+			pathBuilder1.lineTo(layoutInfo.codeStart2);
+			pathBuilder1.lineTo(layoutInfo.codeStart1);
+			pathBuilder1.lineTo(layoutInfo.code1);
 
-			this._elements.path.setAttribute('d', pathBuilder.build());
-			this._elements.path.style.fill = 'none';
-			this._elements.path.style.stroke = 'var(--vscode-activityBarBadge-background)';
-			this._elements.path.style.strokeWidth = '1px';
+
+			const pathBuilder2 = new PathBuilder();
+			pathBuilder2.moveTo(layoutInfo.code1);
+			pathBuilder2.lineTo(layoutInfo.edit1);
+			pathBuilder2.lineTo(layoutInfo.edit1.deltaX(width));
+			pathBuilder2.lineTo(layoutInfo.edit2.deltaX(width));
+			pathBuilder2.lineTo(layoutInfo.edit2);
+			pathBuilder2.curveTo2(layoutInfo.edit2.deltaX(-20), layoutInfo.code2.deltaX(20), layoutInfo.code2.deltaX(0));
+			pathBuilder2.lineTo(layoutInfo.code2);
+
+			const pathBuilder3 = new PathBuilder();
+			pathBuilder3.moveTo(layoutInfo.code1);
+			pathBuilder3.lineTo(layoutInfo.code2);
+
+			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path1.setAttribute('d', pathBuilder1.build());
+			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
+			path1.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path1.style.strokeWidth = '1px';
+
+			const path2 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path2.setAttribute('d', pathBuilder2.build());
+			path2.style.fill = 'var(--vscode-inlineEdit-modifiedBackground, transparent)';
+			path2.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path2.style.strokeWidth = '1px';
+
+			const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path3.setAttribute('d', pathBuilder3.build());
+			path3.style.stroke = 'var(--vscode-inlineEdit-border)';
+			path3.style.strokeWidth = '1px';
+
+			this._elements.svg.replaceChildren(path1, path2, path3);
 
 			this._elements.editorContainer.style.top = `${topEdit.y}px`;
 			this._elements.editorContainer.style.left = `${topEdit.x}px`;
@@ -240,7 +295,7 @@ export class InlineEditsView extends Disposable {
 		};
 	});
 
-	protected readonly _toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar, MenuId.InlineEditsActions, {
+	protected readonly _toolbar = this._register(this._instantiationService.createInstance(CustomizedMenuWorkbenchToolBar, this._elements.toolbar, MenuId.InlineEditsActions, {
 		menuOptions: { renderShortTitle: true },
 		toolbarOptions: {
 			primaryGroup: g => g.startsWith('primary'),
@@ -249,8 +304,44 @@ export class InlineEditsView extends Disposable {
 			if (action instanceof MenuItemAction) {
 				return this._instantiationService.createInstance(StatusBarViewItem, action, undefined);
 			}
+			if (action.class === undefined) {
+				return this._instantiationService.createInstance(ActionViewItem, {}, action, { icon: false });
+			}
 			return undefined;
 		},
+		telemetrySource: 'inlineEditsToolbar'
+	}));
+
+	private readonly _extraCommands = derivedOpts<readonly Command[]>({ owner: this, equalsFn: structuralEquals }, reader => {
+		return this._uiState.read(reader)?.edit.commands ?? [];
+	});
+
+	protected readonly _updateToolbarAutorun = this._register(autorun(reader => {
+		/** @description extra commands */
+		const extraCommands = this._extraCommands.read(reader);
+		const primaryExtraActions: IAction[] = [];
+		const secondaryExtraActions: IAction[] = [];
+		for (const c of extraCommands) {
+			const action: IAction = {
+				class: undefined,
+				id: c.id,
+				enabled: true,
+				tooltip: c.tooltip || '',
+				label: c.title,
+				run: (event) => {
+					return this._commandService.executeCommand(c.id, ...(c.arguments ?? []));
+				},
+			};
+			// TODO this is a hack just to make the feedback action more visible.
+			if (c.title.toLowerCase().indexOf('feedback') !== -1) {
+				primaryExtraActions.push(action);
+			} else {
+				secondaryExtraActions.push(action);
+			}
+		}
+
+		this._toolbar.setAdditionalPrimaryActions(primaryExtraActions);
+		this._toolbar.setAdditionalSecondaryActions(secondaryExtraActions);
 	}));
 
 	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
@@ -337,6 +428,9 @@ export class InlineEditsView extends Disposable {
 		return { left: contentLeft + maxLeft };
 	});
 
+	/**
+	 * ![test](./layout.dio.svg)
+	*/
 	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) { return null; }
@@ -355,7 +449,7 @@ export class InlineEditsView extends Disposable {
 		const code1 = new Point(left, selectionTop);
 		const codeStart1 = new Point(codeLeft, selectionTop);
 		const code2 = new Point(left, selectionBottom);
-		const codeStart2 = new Point(0, selectionBottom);
+		const codeStart2 = new Point(codeLeft, selectionBottom);
 		const codeHeight = selectionBottom - selectionTop;
 
 		const codeEditDist = 60;

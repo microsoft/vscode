@@ -292,7 +292,11 @@ export class InlineCompletionsModel extends Disposable {
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
-			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed, true), inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
+
+			const commands = item.inlineEditCompletion.inlineCompletion.source.inlineCompletions.commands;
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, false, commands ?? []);
+
+			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
 
 		const suggestItem = this.selectedSuggestItem.read(reader);

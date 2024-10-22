@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.95.0",
-  "distro": "4b1ba53b921844f0c151c43a9d16048ea833ce23",
+  "distro": "ea2aa52906709ffc52c962907e7511b6ba31a6d0",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -210,7 +210,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^5.7.0-dev.20241007",
+    "typescript": "^5.7.0-dev.20241021",
     "typescript-eslint": "^8.8.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",

@@ -118,7 +118,14 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	},
 	order: 3,
 	group: 'navigation',
-	when: ContextKeyExpr.and(CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE, ContextKeyExpr.or(ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, 'panel'), ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.EditingSession))),
+	when: ContextKeyExpr.and(
+		CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE,
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.Panel),
+			ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.EditingSession),
+			ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.Editor)
+		)
+	),
 });
 
 export class ChatSubmitSecondaryAgentAction extends Action2 {
