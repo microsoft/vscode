@@ -19826,6 +19826,30 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The result of a tool call. This is the counterpart of a {@link LanguageModelToolCallPart tool call} and
+	 * it can only be included in the content of a User message
+	 */
+	export class LanguageModelToolResultPart {
+		/**
+		 * The ID of the tool call.
+		 *
+		 * *Note* that this should match the {@link LanguageModelToolCallPart.callId callId} of a tool call part.
+		 */
+		callId: string;
+
+		/**
+		 * The value of the tool result.
+		 */
+		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+
+		/**
+		 * @param callId The ID of the tool call.
+		 * @param content The content of the tool result.
+		 */
+		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
+	}
+
+	/**
 	 * A language model response part containing a piece of text, returned from a {@link LanguageModelChatResponse}.
 	 */
 	export class LanguageModelTextPart {
@@ -19856,30 +19880,6 @@ declare module 'vscode' {
 		 * @param value The value of the part, the result of `renderPromptElementJSON` from `@vscode/prompt-tsx`.
 		 */
 		constructor(value: unknown);
-	}
-
-	/**
-	 * The result of a tool call. This is the counterpart of a {@link LanguageModelToolCallPart tool call} and
-	 * it can only be included in the content of a User message
-	 */
-	export class LanguageModelToolResultPart {
-		/**
-		 * The ID of the tool call.
-		 *
-		 * *Note* that this should match the {@link LanguageModelToolCallPart.callId callId} of a tool call part.
-		 */
-		callId: string;
-
-		/**
-		 * The value of the tool result.
-		 */
-		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
-
-		/**
-		 * @param callId The ID of the tool call.
-		 * @param content The content of the tool result.
-		 */
-		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 	}
 
 	/**
