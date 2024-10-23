@@ -18,6 +18,8 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -77,6 +79,14 @@ export function registerMoveActions() {
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
+
+				keybinding: [
+					{
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+						mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI },
+						weight: KeybindingWeight.WorkbenchContrib
+					}
+				],
 				menu: [{
 					id: MenuId.EditorTitle,
 					order: 0,
