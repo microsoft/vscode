@@ -43,6 +43,7 @@ import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
@@ -99,13 +100,14 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEdit | undefined>,
+		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
 
-		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit));
+		this._register(this._instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEdit, this._model));
 	}
 }
 
@@ -172,6 +174,7 @@ export class InlineEditsView extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
+		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
@@ -491,6 +494,7 @@ export class InlineEditsView extends Disposable {
 			if (!edit1 || !state) { return undefined; }
 			return { editTopLeft: edit1, showAlways: state.state === 'collapsed' };
 		}),
+		this._model,
 	));
 }
 
