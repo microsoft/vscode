@@ -819,7 +819,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
-	background: var(--vscode-button-secondaryHoverBackground);
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {

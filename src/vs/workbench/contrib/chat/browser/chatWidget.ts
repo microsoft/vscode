@@ -29,7 +29,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { buttonSecondaryBackground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TerminalChatController } from '../../terminal/terminalContribChatExports.js';
@@ -416,6 +416,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const scrollDownButton = this._register(new Button(this.listContainer, {
 			supportIcons: true,
 			buttonBackground: asCssVariable(buttonSecondaryBackground),
+			buttonForeground: asCssVariable(buttonSecondaryForeground),
 			buttonHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
 		}));
 		scrollDownButton.element.classList.add('chat-scroll-down');

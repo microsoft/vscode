@@ -207,8 +207,8 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 	}
 
 	clear(): void {
-		this._aiTextSearchResult.clear();
 		this._plainTextSearchResult.clear();
+		this._aiTextSearchResult.clear();
 	}
 
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai = false): void {

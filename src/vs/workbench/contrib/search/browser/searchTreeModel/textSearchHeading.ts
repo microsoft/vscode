@@ -250,11 +250,11 @@ export abstract class TextSearchHeadingImpl<QueryType extends ITextSearchQuery> 
 	}
 
 	clear(): void {
+		this.cachedSearchComplete = undefined;
 		this.folderMatches().forEach((folderMatch) => folderMatch.clear(true));
 		this.disposeMatches();
 		this._folderMatches = [];
 		this._otherFilesMatch = null;
-		this.cachedSearchComplete = undefined;
 	}
 
 	override async dispose(): Promise<void> {
