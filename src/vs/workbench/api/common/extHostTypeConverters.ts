@@ -2361,7 +2361,7 @@ export namespace LanguageModelChatMessage {
 				});
 				return new types.LanguageModelToolResultPart(c.toolCallId, content, c.isError);
 			} else {
-				return new types.LanguageModelToolCallPart(c.name, c.toolCallId, c.parameters);
+				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
 		});
 		const role = LanguageModelChatMessageRole.to(message.role);
@@ -2788,7 +2788,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }),
+			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
 			model
 		};
 	}
