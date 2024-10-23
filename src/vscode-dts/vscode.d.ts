@@ -19801,14 +19801,14 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolCallPart {
 		/**
-		 * The name of the tool to call.
-		 */
-		name: string;
-
-		/**
 		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
 		 */
 		callId: string;
+
+		/**
+		 * The name of the tool to call.
+		 */
+		name: string;
 
 		/**
 		 * The parameters with which to call the tool.
@@ -19817,8 +19817,12 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new LanguageModelToolCallPart.
+		 *
+		 * @param callId The ID of the tool call.
+		 * @param name The name of the tool to call.
+		 * @param parameters The parameters with which to call the tool.
 		 */
-		constructor(name: string, callId: string, parameters: object);
+		constructor(callId: string, name: string, parameters: object);
 	}
 
 	/**
@@ -19855,11 +19859,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The result of a tool call. Can only be included in the content of a User message.
+	 * The result of a tool call. This is the counterpart of a {@link LanguageModelToolCallPart tool call} and
+	 * it can only be included in the content of a User message
 	 */
 	export class LanguageModelToolResultPart {
 		/**
 		 * The ID of the tool call.
+		 *
+		 * *Note* that this should match the {@link LanguageModelToolCallPart.callId callId} of a tool call part.
 		 */
 		callId: string;
 

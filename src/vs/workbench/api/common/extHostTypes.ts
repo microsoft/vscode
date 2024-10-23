@@ -4641,13 +4641,13 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 }
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
-	name: string;
 	callId: string;
+	name: string;
 	parameters: any;
 
-	constructor(name: string, toolCallId: string, parameters: any) {
+	constructor(callId: string, name: string, parameters: any) {
+		this.callId = callId;
 		this.name = name;
-		this.callId = toolCallId;
 		this.parameters = parameters;
 	}
 }
