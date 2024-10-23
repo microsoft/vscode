@@ -5,119 +5,161 @@
 
 type DOMString = string;
 
-interface EditContext extends EventTarget {
+class EditContext extends EventTarget {
+    private _text: DOMString;
+    private _selectionStart: number;
+    private _selectionEnd: number;
+    private _characterBounds: DOMRect[] = [];
 
-	updateText(rangeStart: number, rangeEnd: number, text: DOMString): void;
-	updateSelection(start: number, end: number): void;
-	updateControlBounds(controlBounds: DOMRect): void;
-	updateSelectionBounds(selectionBounds: DOMRect): void;
-	updateCharacterBounds(rangeStart: number, characterBounds: DOMRect[]): void;
+    constructor(init: EditContextInit) {
+        super();
+        this._text = init.text;
+        this._selectionStart = init.selectionStart;
+        this._selectionEnd = init.selectionEnd;
+    }
 
-	attachedElements(): HTMLElement[];
+    updateText(rangeStart: number, rangeEnd: number, text: DOMString): void {
+        this._text = this._text.slice(0, rangeStart) + text + this._text.slice(rangeEnd);
+    }
 
-	get text(): DOMString;
-	get selectionStart(): number;
-	get selectionEnd(): number;
-	get characterBoundsRangeStart(): number;
-	characterBounds(): DOMRect[];
+    updateSelection(start: number, end: number): void {
+        this._selectionStart = start;
+        this._selectionEnd = end;
+    }
 
-	get ontextupdate(): EventHandler<TextUpdateEvent> | null;
-	set ontextupdate(value: EventHandler | null);
+    updateControlBounds(controlBounds: DOMRect): void {
+        // Update control bounds logic
+    }
 
-	get ontextformatupdate(): EventHandler | null;
-	set ontextformatupdate(value: EventHandler | null);
+    updateSelectionBounds(selectionBounds: DOMRect): void {
+        // Update selection bounds logic
+    }
 
-	get oncharacterboundsupdate(): EventHandler | null;
-	set oncharacterboundsupdate(value: EventHandler | null);
+    updateCharacterBounds(rangeStart: number, characterBounds: DOMRect[]): void {
+        this._characterBounds = characterBounds;
+    }
 
-	get oncompositionstart(): EventHandler | null;
-	set oncompositionstart(value: EventHandler | null);
+    attachedElements(): HTMLElement[] {
+        return Array.from(document.querySelectorAll(`[editContext]`)) as HTMLElement[];
+    }
 
-	get oncompositionend(): EventHandler | null;
-	set oncompositionend(value: EventHandler | null);
+    get text(): DOMString {
+        return this._text;
+    }
 
-	addEventListener<K extends keyof EditContextEventHandlersEventMap>(type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;
-	addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
-	removeEventListener<K extends keyof EditContextEventHandlersEventMap>(type: K, listener: (this: GlobalEventHandlers, ev: EditContextEventHandlersEventMap[K]) => any, options?: boolean | EventListenerOptions): void;
-	removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
+    get selectionStart(): number {
+        return this._selectionStart;
+    }
+
+    get selectionEnd(): number {
+        return this._selectionEnd;
+    }
+
+    get characterBoundsRangeStart(): number {
+        return 0; // Placeholder for the actual value
+    }
+
+    characterBounds(): DOMRect[] {
+        return this._characterBounds;
+    }
+
+    ontextupdate?: EventHandler<TextUpdateEvent>;
+    ontextformatupdate?: EventHandler<TextFormatUpdateEvent>;
+    oncharacterboundsupdate?: EventHandler<CharacterBoundsUpdateEvent>;
+    oncompositionstart?: EventHandler<Event>;
+    oncompositionend?: EventHandler<Event>;
 }
 
 interface EditContextInit {
-	text: DOMString;
-	selectionStart: number;
-	selectionEnd: number;
-}
-
-interface EditContextEventHandlersEventMap {
-	textupdate: TextUpdateEvent;
-	textformatupdate: TextFormatUpdateEvent;
-	characterboundsupdate: CharacterBoundsUpdateEvent;
-	compositionstart: Event;
-	compositionend: Event;
+    text: DOMString;
+    selectionStart: number;
+    selectionEnd: number;
 }
 
 type EventHandler<TEvent extends Event = Event> = (event: TEvent) => void;
 
-interface TextUpdateEvent extends Event {
-	new(type: DOMString, options?: TextUpdateEventInit): TextUpdateEvent;
+class TextUpdateEvent extends Event {
+    readonly updateRangeStart: number;
+    readonly updateRangeEnd: number;
+    readonly text: DOMString;
+    readonly selectionStart: number;
+    readonly selectionEnd: number;
 
-	readonly updateRangeStart: number;
-	readonly updateRangeEnd: number;
-	readonly text: DOMString;
-	readonly selectionStart: number;
-	readonly selectionEnd: number;
+    constructor(type: DOMString, options: TextUpdateEventInit) {
+        super(type);
+        this.updateRangeStart = options.updateRangeStart;
+        this.updateRangeEnd = options.updateRangeEnd;
+        this.text = options.text;
+        this.selectionStart = options.selectionStart;
+        this.selectionEnd = options.selectionEnd;
+    }
 }
 
 interface TextUpdateEventInit extends EventInit {
-	updateRangeStart: number;
-	updateRangeEnd: number;
-	text: DOMString;
-	selectionStart: number;
-	selectionEnd: number;
-	compositionStart: number;
-	compositionEnd: number;
+    updateRangeStart: number;
+    updateRangeEnd: number;
+    text: DOMString;
+    selectionStart: number;
+    selectionEnd: number;
 }
 
-interface TextFormat {
-	new(options?: TextFormatInit): TextFormat;
+class TextFormat {
+    readonly rangeStart: number;
+    readonly rangeEnd: number;
+    readonly underlineStyle: UnderlineStyle;
+    readonly underlineThickness: UnderlineThickness;
 
-	readonly rangeStart: number;
-	readonly rangeEnd: number;
-	readonly underlineStyle: UnderlineStyle;
-	readonly underlineThickness: UnderlineThickness;
+    constructor(options: TextFormatInit) {
+        this.rangeStart = options.rangeStart;
+        this.rangeEnd = options.rangeEnd;
+        this.underlineStyle = options.underlineStyle;
+        this.underlineThickness = options.underlineThickness;
+    }
 }
 
 interface TextFormatInit {
-	rangeStart: number;
-	rangeEnd: number;
-	underlineStyle: UnderlineStyle;
-	underlineThickness: UnderlineThickness;
+    rangeStart: number;
+    rangeEnd: number;
+    underlineStyle: UnderlineStyle;
+    underlineThickness: UnderlineThickness;
 }
 
 type UnderlineStyle = 'none' | 'solid' | 'dotted' | 'dashed' | 'wavy';
 type UnderlineThickness = 'none' | 'thin' | 'thick';
 
-interface TextFormatUpdateEvent extends Event {
-	new(type: DOMString, options?: TextFormatUpdateEventInit): TextFormatUpdateEvent;
-	getTextFormats(): TextFormat[];
+class TextFormatUpdateEvent extends Event {
+    readonly textFormats: TextFormat[];
+
+    constructor(type: DOMString, options: TextFormatUpdateEventInit) {
+        super(type);
+        this.textFormats = options.textFormats;
+    }
+
+    getTextFormats(): TextFormat[] {
+        return this.textFormats;
+    }
 }
 
 interface TextFormatUpdateEventInit extends EventInit {
-	textFormats: TextFormat[];
+    textFormats: TextFormat[];
 }
 
-interface CharacterBoundsUpdateEvent extends Event {
-	new(type: DOMString, options?: CharacterBoundsUpdateEventInit): CharacterBoundsUpdateEvent;
+class CharacterBoundsUpdateEvent extends Event {
+    readonly rangeStart: number;
+    readonly rangeEnd: number;
 
-	readonly rangeStart: number;
-	readonly rangeEnd: number;
+    constructor(type: DOMString, options: CharacterBoundsUpdateEventInit) {
+        super(type);
+        this.rangeStart = options.rangeStart;
+        this.rangeEnd = options.rangeEnd;
+    }
 }
 
 interface CharacterBoundsUpdateEventInit extends EventInit {
-	rangeStart: number;
-	rangeEnd: number;
+    rangeStart: number;
+    rangeEnd: number;
 }
 
 interface HTMLElement {
-	editContext?: EditContext;
+    editContext?: EditContext;
 }
