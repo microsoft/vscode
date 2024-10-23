@@ -117,6 +117,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	constructor(
 		public readonly chatSessionId: string,
 		private editorPane: MultiDiffEditor | undefined,
+		private editingSessionFileLimitPromise: Promise<number>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -511,7 +512,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return;
 		}
 
-		if (!this._workspaceContextService.getWorkspaceFolder(resource) && !this._fileService.exists(resource)) {
+		if (!this._entriesObs.get().find(e => e.resource.toString() === resource.toString()) && this._entriesObs.get().length >= (await this.editingSessionFileLimitPromise)) {
+			// Do not create files in a single editing session that would be in excess of our limit
+			return;
+		}
+
+		if (!this._workspaceContextService.getWorkspaceFolder(resource) && !(await this._fileService.exists(resource))) {
 			// if the file doesn't exist yet and is outside the workspace, prompt the user for a location to save it to
 			const saveLocation = await this._dialogService.showSaveDialog({ title: localize('chatEditing.fileSave', '{0} wants to create a file. Choose where it should be saved.', this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? 'Chat') });
 			if (!saveLocation) {
