@@ -81,7 +81,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -90,12 +90,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		// Some participant in extHostChatAgents calls invokeTool, goes to extHostLMTools
-		// mainThreadLMTools invokes the tool, which calls back to extHostLMTools
-		// The tool requests permission
-		// The tool in extHostLMTools calls for permission back to mainThreadLMTools
-		// And back to extHostLMTools, and back to the participant in extHostChatAgents
-		// Is there a tool call ID to identify the call?
 		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token)), token);
 		if (!extensionResult) {
 			throw new CancellationError();
