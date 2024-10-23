@@ -6,17 +6,18 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
-import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService } from '../../common/chatEditingService.js';
+import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -106,7 +107,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class GlobalClearEditsAction extends Action2 {
+	registerAction2(class NewEditSessionAction extends Action2 {
 		constructor() {
 			super({
 				id: ACTION_ID_NEW_EDIT_SESSION,
@@ -129,15 +130,71 @@ export function registerNewChatActions() {
 			});
 		}
 
+		/**
+		 *
+		 * @returns false if the user had edits and did not action the dialog to take action on them, true otherwise
+		 */
+		private async _handleCurrentEditingSession(chatEditingService: IChatEditingService, dialogService: IDialogService): Promise<boolean> {
+			const currentEditingSession = chatEditingService.currentEditingSessionObs.get();
+			const currentEdits = currentEditingSession?.entries.get();
+			const currentEditCount = currentEdits?.length;
+
+			if (currentEditingSession && currentEditCount) {
+				const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === WorkingSetEntryState.Modified);
+				if (undecidedEdits.length) {
+					const { result } = await dialogService.prompt({
+						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+						message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
+						type: 'info',
+						buttons: [
+							{
+								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
+								run: async () => {
+									await currentEditingSession.reject();
+									return true;
+								}
+							},
+							{
+								label: localize('chat.startEditing.confirmation.acceptEdits', "Accept & Continue"),
+								run: async () => {
+									await currentEditingSession.accept();
+									return true;
+								}
+							}
+						],
+					});
+
+					return Boolean(result);
+				} else {
+					const result = await dialogService.confirm({
+						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
+						message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+						type: 'info',
+						primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
+					});
+
+					return result.confirmed;
+				}
+			}
+
+			return true;
+		}
+
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const widgetService = accessor.get(IChatWidgetService);
+			const chatEditingService = accessor.get(IChatEditingService);
+			const dialogService = accessor.get(IDialogService);
+			if (!(await this._handleCurrentEditingSession(chatEditingService, dialogService))) {
+				return;
+			}
 			if (isChatViewTitleActionContext(context)) {
 				// Is running in the Chat view title
 				announceChatCleared(accessibilitySignalService);
 				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				if (widget) {
+					chatEditingService.currentEditingSessionObs.get()?.stop();
 					widget.clear();
 					widget.attachmentModel.clear();
 					widget.focusInput();
@@ -149,6 +206,7 @@ export function registerNewChatActions() {
 				const widget = chatView.widget;
 
 				announceChatCleared(accessibilitySignalService);
+				chatEditingService.currentEditingSessionObs.get()?.stop();
 				widget.clear();
 				widget.attachmentModel.clear();
 				widget.focusInput();
@@ -265,7 +323,7 @@ export function registerNewChatActions() {
 		}
 	});
 
-	registerAction2(class GlobalClearEditsAction extends Action2 {
+	registerAction2(class GlobalOpenEditsAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openEditSession',
