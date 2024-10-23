@@ -285,14 +285,18 @@ export class InlineCompletionsModel extends Disposable {
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
 			const cursorPos = this._primaryPosition.read(reader);
-			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).contains(cursorPos.lineNumber);
+			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
 			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
 			const currentItemIsCollapsed = !disableCollapsing && (cursorDist > 1 && this._collapsedInlineEditId.read(reader) === item.inlineEditCompletion.semanticId);
-			return { kind: 'inlineEdit', inlineEdit: new InlineEdit(edit, currentItemIsCollapsed, true), inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
+
+			const commands = item.inlineEditCompletion.inlineCompletion.source.inlineCompletions.commands;
+			const inlineEdit = new InlineEdit(edit, currentItemIsCollapsed, false, commands ?? []);
+
+			return { kind: 'inlineEdit', inlineEdit, inlineCompletion: item.inlineEditCompletion, edits: [edit], cursorAtInlineEdit };
 		}
 
 		const suggestItem = this.selectedSuggestItem.read(reader);

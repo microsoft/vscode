@@ -140,6 +140,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _allLanguageModelData = new Map<string, { metadata: ILanguageModelChatMetadata; apiObjects: ExtensionIdentifierMap<vscode.LanguageModelChat> }>(); // these are ALL models, not just the one in this EH
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -204,7 +205,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			let part: IChatResponsePart | undefined;
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
-				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.parameters, toolCallId: fragment.part.toolCallId };
+				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.parameters, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
 			}
@@ -289,6 +290,15 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		data.added?.forEach(added => this._fakeAuthPopulate(added.metadata));
 
 		this._onDidChangeProviders.fire(undefined);
+	}
+
+	async getDefaultLanguageModel(extension: IExtensionDescription): Promise<vscode.LanguageModelChat | undefined> {
+		const defaultModelId = Iterable.find(this._allLanguageModelData.entries(), ([, value]) => !!value.metadata.isDefault)?.[0];
+		if (!defaultModelId) {
+			return;
+		}
+
+		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
 	async getLanguageModelByIdentifier(extension: IExtensionDescription, identifier: string): Promise<vscode.LanguageModelChat | undefined> {
@@ -405,9 +415,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		for (const message of messages) {
 			if (message.role as number === extHostTypes.LanguageModelChatMessageRole.System) {
 				checkProposedApiEnabled(extension, 'languageModelSystem');
-			}
-			if (message.content2.some(part => part instanceof extHostTypes.LanguageModelToolResultPart)) {
-				checkProposedApiEnabled(extension, 'lmTools');
 			}
 			internalMessages.push(typeConvert.LanguageModelChatMessage.from(message));
 		}
@@ -563,5 +570,32 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return list.has(metadata.extension);
 			}
 		};
+	}
+
+	fileIsIgnored(extension: IExtensionDescription, uri: vscode.Uri, token: vscode.CancellationToken): Promise<boolean> {
+		checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+
+		return this._proxy.$fileIsIgnored(uri, token);
+	}
+
+	async $isFileIgnored(handle: number, uri: vscode.Uri, token: CancellationToken): Promise<boolean> {
+		const provider = this._ignoredFileProviders.get(handle);
+		if (!provider) {
+			throw new Error('Unknown LanguageModelIgnoredFileProvider');
+		}
+
+		return (await provider.provideFileIgnored(uri, token)) ?? false;
+	}
+
+	registerIgnoredFileProvider(extension: IExtensionDescription, provider: vscode.LanguageModelIgnoredFileProvider): vscode.Disposable {
+		checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+
+		const handle = ExtHostLanguageModels._idPool++;
+		this._proxy.$registerFileIgnoreProvider(handle);
+		this._ignoredFileProviders.set(handle, provider);
+		return toDisposable(() => {
+			this._proxy.$unregisterFileIgnoreProvider(handle);
+			this._ignoredFileProviders.delete(handle);
+		});
 	}
 }

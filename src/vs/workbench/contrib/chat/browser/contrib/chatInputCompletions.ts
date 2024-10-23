@@ -467,6 +467,8 @@ class BuiltinDynamicCompletions extends Disposable {
 				command: {
 					id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
 						id: 'vscode.file',
+						prefix: 'file',
+						isFile: true,
 						range: { startLineNumber: info.replace.startLineNumber, startColumn: info.replace.startColumn, endLineNumber: info.replace.endLineNumber, endColumn: info.replace.startColumn + text.length },
 						data: resource
 					})]
@@ -604,18 +606,8 @@ class VariableCompletions extends Disposable {
 			_debugDisplayName: 'chatVariables',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
-				const locations = new Set<ChatAgentLocation>();
-				locations.add(ChatAgentLocation.Panel);
-				locations.add(ChatAgentLocation.EditingSession);
-
-				for (const value of Object.values(ChatAgentLocation)) {
-					if (typeof value === 'string' && configService.getValue<boolean>(`chat.experimental.variables.${value}`)) {
-						locations.add(value);
-					}
-				}
-
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !locations.has(widget.location)) {
+				if (!widget) {
 					return null;
 				}
 

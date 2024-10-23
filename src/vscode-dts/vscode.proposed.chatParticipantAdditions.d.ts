@@ -223,8 +223,6 @@ declare module 'vscode' {
 		 * The `data` for any confirmations that were rejected
 		 */
 		rejectedConfirmationData?: any[];
-
-		userSelectedModel?: LanguageModelChat;
 	}
 
 	// TODO@API fit this into the stream
@@ -385,5 +383,9 @@ declare module 'vscode' {
 
 	export interface ChatResultFeedback {
 		readonly unhelpfulReason?: string;
+	}
+
+	export namespace lm {
+		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
 	}
 }
