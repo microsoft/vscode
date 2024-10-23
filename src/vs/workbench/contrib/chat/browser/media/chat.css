@@ -614,6 +614,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: 100%;
 }
 
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary.disabled {
+	cursor: initial;
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary .codicon {
 	font-size: 12px;
 	margin-left: 4px;
