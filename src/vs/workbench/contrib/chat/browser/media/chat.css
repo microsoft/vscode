@@ -295,10 +295,18 @@
 	margin: 16px 0 8px 0;
 }
 
+.interactive-item-container.editing-session .value .rendered-markdown p {
+	margin: 0;
+}
+
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
-	font-size: 14px;
-	font-weight: 600;
-	margin: 8px 0 8px 0;
+	font-size: 13px;
+	margin: 0 0 8px 0;
+	font-weight: unset;
+}
+
+.interactive-item-container.editing-session .value .rendered-markdown [data-code] {
+	margin: 8px 0 16px 0;
 }
 
 .interactive-item-container .value .rendered-markdown p {
