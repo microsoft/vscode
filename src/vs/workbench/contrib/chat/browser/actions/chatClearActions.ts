@@ -262,8 +262,8 @@ export function registerNewChatActions() {
 	registerAction2(class UndoChatEditInteractionAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.undoEditInteraction',
-				title: localize2('chat.undoEditInteraction.label', "Undo Interaction"),
+				id: 'workbench.action.chat.undoEdit',
+				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
@@ -294,8 +294,8 @@ export function registerNewChatActions() {
 	registerAction2(class RedoChatEditInteractionAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.redoEditInteraction',
-				title: localize2('chat.redoEditInteraction.label', "Redo Interaction"),
+				id: 'workbench.action.chat.redoEdit',
+				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
