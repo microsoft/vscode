@@ -36,7 +36,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 	private readonly chatInstallEntitledContextKey = CONTEXT_CHAT_INSTALL_ENTITLED.bindTo(this.contextService);
 	private readonly listeners = this._register(new DisposableStore());
 
-	private didResolveEntitlement = false;
+	private resolvedEntitlement: boolean | undefined = undefined;
 
 	constructor(
 		@IContextKeyService private readonly contextService: IContextKeyService,
@@ -95,7 +95,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		}));
 	}
 
-	private async resolveEntitlement(session: AuthenticationSession | undefined) {
+	private async resolveEntitlement(session: AuthenticationSession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
@@ -113,8 +113,8 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 	}
 
 	private async doResolveEntitlement(session: AuthenticationSession): Promise<boolean> {
-		if (this.didResolveEntitlement) {
-			return false;
+		if (typeof this.resolvedEntitlement === 'boolean') {
+			return this.resolvedEntitlement;
 		}
 
 		const cts = new CancellationTokenSource();
@@ -144,12 +144,10 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 			return false; //ignore
 		}
 
-		this.didResolveEntitlement = true;
+		this.resolvedEntitlement = Boolean(parsedResult[this.productService.gitHubEntitlement!.enablementKey]);
+		this.telemetryService.publicLog2<ChatInstallEntitlementEnablementEvent, ChatInstallEntitlementEnablementClassification>('chatInstallEntitlement', { entitled: this.resolvedEntitlement });
 
-		const entitled = Boolean(parsedResult[this.productService.gitHubEntitlement!.enablementKey]);
-		this.telemetryService.publicLog2<ChatInstallEntitlementEnablementEvent, ChatInstallEntitlementEnablementClassification>('chatInstallEntitlement', { entitled });
-
-		return entitled;
+		return this.resolvedEntitlement;
 	}
 
 	private disableEntitlement(): void {
