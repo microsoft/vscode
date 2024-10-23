@@ -27,6 +27,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../../chat/common/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -335,11 +336,21 @@ export class RerunAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 		const model = ctrl.chatWidget.viewModel?.model;
+		if (!model) {
+			return;
+		}
 
-		const lastRequest = model?.getRequests().at(-1);
+		const lastRequest = model.getRequests().at(-1);
 		if (lastRequest) {
-			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location });
+			const widget = chatWidgetService.getWidgetBySessionId(model.sessionId);
+			await chatService.resendRequest(lastRequest, {
+				noCommandDetection: false,
+				attempt: lastRequest.attempt + 1,
+				location: ctrl.chatWidget.location,
+				userSelectedModelId: widget?.input.currentLanguageModel
+			});
 		}
 	}
 }
