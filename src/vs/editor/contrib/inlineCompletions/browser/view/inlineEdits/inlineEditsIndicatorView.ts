@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, h } from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, constObservable, autorun } from '../../../../../../base/common/observable.js';
 import { ObservableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { OffsetRange } from '../../../../../common/core/offsetRange.js';
+import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { Point } from './utils.js';
 
 export interface IInlineEditsIndicatorState {
@@ -22,6 +23,7 @@ export class InlineEditsIndicator extends Disposable {
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
+			cursor: 'pointer',
 		},
 	}, [
 		h('div.icon', {}, [
@@ -34,9 +36,14 @@ export class InlineEditsIndicator extends Disposable {
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
-		private readonly _state: IObservable<IInlineEditsIndicatorState | undefined>
+		private readonly _state: IObservable<IInlineEditsIndicatorState | undefined>,
+		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
 	) {
 		super();
+
+		this._register(addDisposableListener(this._indicator.root, 'click', () => {
+			this._model.get()?.jump();
+		}));
 
 		this._register(this._editorObs.createOverlayWidget({
 			domNode: this._indicator.root,
