@@ -48,6 +48,8 @@ import { clearChatEditor } from './chatClear.js';
 import product from '../../../../../platform/product/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -538,14 +540,42 @@ abstract class BaseInstallChatAction extends Action2 {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 		const productService = accessor.get(IProductService);
+		const telemetryService = accessor.get(ITelemetryService);
 
-		await extensionsWorkbenchService.install(defaultChat.extensionId, {
-			justification: this.getJustification(),
-			enable: true,
-			installPreReleaseVersion: productService.quality !== 'stable'
-		}, ProgressLocation.Notification);
+		type InstallChatClassification = {
+			owner: 'bpasero';
+			comment: 'Provides insight into chat installation.';
+			installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
+			hasJustification: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of window error to understand the nature of the error better.' };
+		};
+		type InstallChatEvent = {
+			hasJustification: boolean;
+			installResult: 'installed' | 'cancelled' | 'failed';
+		};
 
-		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		const justification = this.getJustification();
+
+		let installResult: 'installed' | 'cancelled' | 'failed';
+		try {
+			await extensionsWorkbenchService.install(defaultChat.extensionId, {
+				justification,
+				enable: true,
+				installPreReleaseVersion: productService.quality !== 'stable'
+			}, ProgressLocation.Notification);
+
+			installResult = 'installed';
+		} catch (error) {
+			installResult = isCancellationError(error) ? 'cancelled' : 'failed';
+		}
+
+		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
+			installResult,
+			hasJustification: !!justification
+		});
+
+		if (installResult === 'installed') {
+			await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		}
 	}
 }
 
