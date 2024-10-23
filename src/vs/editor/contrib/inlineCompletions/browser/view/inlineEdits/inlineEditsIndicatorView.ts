@@ -16,6 +16,7 @@ import { Point } from './utils.js';
 export interface IInlineEditsIndicatorState {
 	editTopLeft: Point;
 	showAlways: boolean;
+	action: 'tabToJump' | 'tabToAccept' | undefined;
 }
 
 export class InlineEditsIndicator extends Disposable {
@@ -29,7 +30,7 @@ export class InlineEditsIndicator extends Disposable {
 		h('div.icon', {}, [
 			renderIcon(Codicon.arrowLeft),
 		]),
-		h('div.label', {}, [
+		h('div.label@label', {}, [
 			' inline edit'
 		])
 	]);
@@ -42,7 +43,29 @@ export class InlineEditsIndicator extends Disposable {
 		super();
 
 		this._register(addDisposableListener(this._indicator.root, 'click', () => {
-			this._model.get()?.jump();
+			const s = this._state.get();
+			if (!s) { return; }
+			const m = this._model.get();
+			if (s.action === 'tabToJump') {
+				m?.jump();
+			} else if (s.action === 'tabToAccept') {
+				m?.accept(m?.editor);
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const s = this._state.read(reader);
+			function getText() {
+				if (!s) { return ''; }
+				if (s.action === 'tabToJump') {
+					return 'Tab to jump';
+				} else if (s.action === 'tabToAccept') {
+					return 'Tab to accept';
+				} else {
+					return 'Inline Edit';
+				}
+			}
+			this._indicator.label.textContent = getText();
 		}));
 
 		this._register(this._editorObs.createOverlayWidget({

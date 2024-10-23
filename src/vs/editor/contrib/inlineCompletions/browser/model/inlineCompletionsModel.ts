@@ -61,7 +61,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _enabled: IObservable<boolean>,
 		private readonly _inlineEditsEnabled: IObservable<boolean>,
 		private readonly _shouldHideInlineEdit: IObservable<boolean>,
-		private readonly _editor: ICodeEditor,
+		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -604,9 +604,9 @@ export class InlineCompletionsModel extends Disposable {
 
 		transaction(tx => {
 			this.dontRefetchSignal.trigger(tx);
-			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
-			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
-			this._editor.focus();
+			this.editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
+			this.editor.revealLine(s.inlineEdit.range.startLineNumber);
+			this.editor.focus();
 		});
 	}
 }

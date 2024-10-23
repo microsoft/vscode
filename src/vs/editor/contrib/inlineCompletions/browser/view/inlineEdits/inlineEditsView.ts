@@ -492,7 +492,14 @@ export class InlineEditsView extends Disposable {
 			const state = this._uiState.read(reader);
 			const edit1 = this._previewEditorLayoutInfo.read(reader)?.edit1;
 			if (!edit1 || !state) { return undefined; }
-			return { editTopLeft: edit1, showAlways: state.state === 'collapsed' };
+
+			const cursorAtInlineEdit = this._model.get()?.inlineEditState.read(reader)?.cursorAtInlineEdit;
+			return {
+				editTopLeft: edit1,
+				showAlways: state.state === 'collapsed',
+				// TODO derive this from how the keybinding service!
+				action: cursorAtInlineEdit ? 'tabToAccept' : 'tabToJump',
+			};
 		}),
 		this._model,
 	));
