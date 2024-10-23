@@ -8,14 +8,16 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME } from '../common/chatContextKeys.js';
@@ -39,7 +41,8 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -54,16 +57,8 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		this.updateContextKey();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
-
-		// Testing only
-		this.clearHiddenViewMark();
 	}
 
-
-	private clearHiddenViewMark(): void {
-		this.storageService.remove(hideMovedChatWelcomeViewStorageKey, StorageScope.PROFILE);
-		this.updateContextKey();
-	}
 
 	private markViewToHide(): void {
 		this.storageService.store(hideMovedChatWelcomeViewStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
@@ -71,7 +66,9 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private async hideViewIfCopilotIsNotInstalled(): Promise<void> {
-		if (await this.extensionService.getExtension('github.copilot-chat') === undefined) {
+		const extensions = await this.extensionManagementService.getInstalled();
+		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
+		if (!installed) {
 			this.markViewToHide();
 		}
 	}
