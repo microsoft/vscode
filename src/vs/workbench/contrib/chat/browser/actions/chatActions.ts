@@ -532,7 +532,7 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 abstract class BaseInstallChatAction extends Action2 {
 
-	protected abstract getJustification(): string | undefined;
+	protected abstract getJustification(productService: IProductService): string | undefined;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
@@ -540,7 +540,7 @@ abstract class BaseInstallChatAction extends Action2 {
 		const productService = accessor.get(IProductService);
 
 		await extensionsWorkbenchService.install(defaultChat.extensionId, {
-			justification: this.getJustification(),
+			justification: this.getJustification(productService),
 			enable: true,
 			installPreReleaseVersion: productService.quality !== 'stable'
 		}, ProgressLocation.Notification);
@@ -563,8 +563,8 @@ class InstallChatWithPromptAction extends BaseInstallChatAction {
 		});
 	}
 
-	protected getJustification(): string {
-		return localize('installChatGlobalAction.justification', "AI support requires this extension.");
+	protected getJustification(productService: IProductService): string {
+		return localize('installChatGlobalAction.justification', "AI features in {0} require this extension.", productService.nameShort);
 	}
 }
 
