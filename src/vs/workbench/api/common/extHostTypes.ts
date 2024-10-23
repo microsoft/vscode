@@ -4660,8 +4660,15 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	parameters: any;
 
 	constructor(callId: string, name: string, parameters: any) {
-		this.callId = callId;
-		this.name = name;
+		// TODO TEMP- swapped the order of these two arguments, trying to preserve the behavior for a build or two
+		if (name.startsWith('call_')) {
+			this.name = callId;
+			this.callId = name;
+		} else {
+			this.callId = callId;
+			this.name = name;
+		}
+
 		this.parameters = parameters;
 	}
 }
