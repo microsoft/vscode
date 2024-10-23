@@ -337,6 +337,11 @@ export function registerNewChatActions() {
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
 					group: 'navigation',
 					order: 1
+				}, {
+					id: MenuId.ChatCommandCenter,
+					when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED,
+					group: 'a_chatEdit',
+					order: 1
 				}]
 			});
 		}
