@@ -195,9 +195,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		const diff = this._diffInfo.get();
 		const edits: IIdentifiedSingleEditOperation[] = [];
 
+		let isOverlapping = false;
+
 		for (const edit of event.changes) {
 
-			let isOverlapping = false;
 			let changeDelta = 0;
 
 			for (const change of diff.changes) {
@@ -220,8 +221,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			}
 
 			if (isOverlapping) {
-				// change overlapping with AI change aren't mirrored
-				continue;
+				// change overlapping with AI change isn't mirrored
+				break;
 			}
 
 			const offset = edit.rangeOffset - changeDelta;
@@ -230,7 +231,10 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			edits.push(EditOperation.replace(Range.fromPositions(start, end), edit.text));
 		}
 
-		this.docSnapshot.applyEdits(edits);
+		if (!isOverlapping) {
+			this.docSnapshot.applyEdits(edits);
+		}
+		this._updateDiffInfoSeq(true);
 	}
 
 	acceptAgentEdits(textEdits: TextEdit[]): void {
@@ -270,15 +274,21 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		// trigger diff computation but only at first, when done, or when last
+		this._updateDiffInfoSeq(false);
+	}
+
+	private _updateDiffInfoSeq(fast: boolean) {
 		const myDiffOperationId = ++this._diffOperationIds;
 		Promise.resolve(this._diffOperation).then(() => {
 			if (this._diffOperationIds === myDiffOperationId) {
-				this._diffOperation = this._updateDiffInfo();
+				this._diffOperation = this._updateDiffInfo(fast);
 			}
 		});
 	}
 
-	private async _updateDiffInfo(): Promise<void> {
+	private async _updateDiffInfo(fast: boolean): Promise<void> {
+
+		const versionIdNow = this.doc.getVersionId();
 
 		const [diff] = await Promise.all([
 			this._editorWorkerService.computeDiff(
@@ -287,10 +297,13 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				{ computeMoves: true, ignoreTrimWhitespace: false, maxComputationTimeMs: 3000 },
 				'advanced'
 			),
-			timeout(800) // DON't diff too fast
+			timeout(fast ? 50 : 800) // DON't diff too fast
 		]);
 
-		this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
+		// only update the diff if the document didn't change in the meantime
+		if (this.doc.getVersionId() === versionIdNow) {
+			this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
+		}
 	}
 
 	async accept(transaction: ITransaction | undefined): Promise<void> {
