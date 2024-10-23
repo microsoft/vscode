@@ -285,7 +285,7 @@ export class InlineCompletionsModel extends Disposable {
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
 			const cursorPos = this._primaryPosition.read(reader);
-			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).contains(cursorPos.lineNumber);
+			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
 			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
