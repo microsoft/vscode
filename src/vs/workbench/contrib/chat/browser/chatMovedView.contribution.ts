@@ -54,6 +54,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 
 	private async initialize(): Promise<void> {
 		await this.hideViewIfCopilotIsNotInstalled();
+		this.hideViewIfOldViewIsInSecondarySidebar();
 		this.updateContextKey();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
@@ -69,6 +70,18 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		const extensions = await this.extensionManagementService.getInstalled();
 		const installed = extensions.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement?.extensionId));
 		if (!installed) {
+			this.markViewToHide();
+		}
+	}
+
+	private hideViewIfOldViewIsInSecondarySidebar(): void {
+		const oldViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
+		if (!oldViewContainer) {
+			return;
+		}
+
+		const oldLocation = this.viewDescriptorService.getViewContainerLocation(oldViewContainer);
+		if (oldLocation === ViewContainerLocation.AuxiliaryBar) {
 			this.markViewToHide();
 		}
 	}
