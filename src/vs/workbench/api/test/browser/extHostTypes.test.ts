@@ -791,4 +791,12 @@ suite('ExtHostTypes', function () {
 		assert.equal(m.content2?.length, 1);
 		assert.ok(typeof m.content2[0] === 'string');
 	});
+
+	test('runtime stable, type-def changed', function () {
+		// see https://github.com/microsoft/vscode/issues/231938
+		const m = new types.LanguageModelChatMessage(types.LanguageModelChatMessageRole.User, []);
+		assert.deepStrictEqual(m.content, []);
+		m.content = 'Hello';
+		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
+	});
 });
