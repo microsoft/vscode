@@ -11,7 +11,7 @@
 	.inline-edits-view-indicator {
 		display: flex;
 
-		z-index: 1000000;
+		z-index: 34; /* Below the find widget */
 		height: 20px;
 
 		color: var(--vscode-editorHoverWidget-foreground);
