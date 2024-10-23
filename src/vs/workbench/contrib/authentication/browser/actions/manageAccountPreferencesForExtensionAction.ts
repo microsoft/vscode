@@ -7,6 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -47,6 +48,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 	constructor(
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IAuthenticationUsageService private readonly _authenticationUsageService: IAuthenticationUsageService,
 		@IAuthenticationExtensionsService private readonly _authenticationExtensionsService: IAuthenticationExtensionsService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -97,6 +99,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		}
 
 		if (!chosenProviderId) {
+			await this._dialogService.info(localize('noAccountUsage', "This extension has not used any accounts yet."));
 			return;
 		}
 
