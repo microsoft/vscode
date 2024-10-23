@@ -158,7 +158,6 @@ export class InlineEditsView extends Disposable {
 			overflow: 'visible',
 			top: '0px',
 			left: '0px',
-			zIndex: '100', // over minimap
 		},
 	}, [
 		h('div.editorContainer@editorContainer', { style: { position: 'absolute' } }, [
