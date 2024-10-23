@@ -1095,7 +1095,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const lastItem = this.viewModel?.getItems().at(-1);
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && !lastResponseIsRendering) {
+		if (lastElementVisible && (!lastResponseIsRendering || this.viewOptions.autoScroll)) {
 			revealLastElement(this.tree);
 		}
 
