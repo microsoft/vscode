@@ -492,7 +492,7 @@ export class InlineEditsView extends Disposable {
 			const state = this._uiState.read(reader);
 			const edit1 = this._previewEditorLayoutInfo.read(reader)?.edit1;
 			if (!edit1 || !state) { return undefined; }
-			return { editTopLeft: edit1, showAlways: state.state === 'collapsed' };
+			return { editTopLeft: edit1, showAlways: state.state === 'collapsed' || state.state === 'inline' };
 		}),
 		this._model,
 	));
