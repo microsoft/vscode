@@ -186,6 +186,7 @@ export function registerNewChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const dialogService = accessor.get(IDialogService);
+			const viewsService = accessor.get(IViewsService);
 			if (!(await this._handleCurrentEditingSession(chatEditingService, dialogService))) {
 				return;
 			}
@@ -201,7 +202,6 @@ export function registerNewChatActions() {
 				}
 			} else {
 				// Is running from f1 or keybinding
-				const viewsService = accessor.get(IViewsService);
 				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
 				const widget = chatView.widget;
 
