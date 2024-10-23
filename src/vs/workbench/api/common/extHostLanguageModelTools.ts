@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
@@ -48,6 +48,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
 		}
+
+		if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
+			throw new Error(`Invalid tool invocation token`);
+		}
+
 		try {
 			// Making the round trip here because not all tools were necessarily registered in this EH
 			const result = await this._proxy.$invokeTool({
