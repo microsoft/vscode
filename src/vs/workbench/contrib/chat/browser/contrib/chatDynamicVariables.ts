@@ -74,9 +74,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 						}
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
-						// Determine if the change is before, after, or overlaps with the variable's range.
+						// Determine if the change is before, after, or overlaps with the variable range.
 						if (changeIsBeforeVariable(c.range, ref.range)) {
-							// Change is before the variable; adjust the variable's range.
 
 							// Calculate line delta
 							const linesInserted = c.text.split('\n').length - 1;
@@ -86,29 +85,27 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 							// Initialize column delta
 							let columnDelta = 0;
 
-							// Check if change is on the same line as the variable's start
+							// Check if change is on the same line as the variable start
 							if (c.range.endLineNumber === ref.range.startLineNumber) {
 								// Change is on the same line
 								if (c.range.endColumn <= ref.range.startColumn) {
-									// Change occurs before the variable's start column
+									// Change occurs before the variable start column
 									if (linesInserted === 0) {
 										// Single-line change
 										const charsInserted = c.text.length;
 										const charsRemoved = c.rangeLength;
 										columnDelta = charsInserted - charsRemoved;
 									} else {
-										// Multi-line change (e.g., newline inserted)
-										// Adjust columns accordingly
+										// Multi-line change (newline inserted)
 										columnDelta = - (c.range.endColumn - 1);
-										// The variable's column should be adjusted to account for the reset after newline
+										// The variable column should be adjusted to account for the reset after newline
 									}
 								} else {
-									// Change occurs after the variable's start column
-									// Variable is unaffected
+									// Change occurs after the variable start column
 									columnDelta = 0;
 								}
 							} else if (c.range.endLineNumber < ref.range.startLineNumber) {
-								// Change is on lines before the variable's line
+								// Change is on lines before the variable line
 								columnDelta = 0;
 							}
 
@@ -122,10 +119,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 								}
 							};
 						} else if (changeIsAfterVariable(c.range, ref.range)) {
-							// Change is after the variable; no adjustment needed.
+							// Change is after the variable no adjustment needed.
 							return ref;
 						} else {
-							// Change overlaps with the variable; the variable is broken.
+							// Change overlaps with the variable the variable is broken.
 							return null;
 						}
 					}
