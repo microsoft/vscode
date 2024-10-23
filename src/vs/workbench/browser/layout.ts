@@ -264,6 +264,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private auxiliaryBarPartView!: ISerializableView;
 	private editorPartView!: ISerializableView;
 	private statusBarPartView!: ISerializableView;
+	private pearOverlayPartView!: ISerializableView;
 
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -1483,6 +1484,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const auxiliaryBarPart = this.getPart(Parts.AUXILIARYBAR_PART);
 		const sideBar = this.getPart(Parts.SIDEBAR_PART);
 		const statusBar = this.getPart(Parts.STATUSBAR_PART);
+		const pearOverlayPart = this.getPart(Parts.PEAROVERLAY_PART);
 
 		// View references for all parts
 		this.titleBarPartView = titleBar;
@@ -1493,6 +1495,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.panelPartView = panelPart;
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
+		this.pearOverlayPartView = pearOverlayPart;
+
+		// Create a new container for PearOverlayPart
+		const pearOverlayPartContainer = document.createElement("div");
+		pearOverlayPartContainer.style.position = "absolute";
+		pearOverlayPartContainer.style.top = "0";
+		pearOverlayPartContainer.style.left = "0";
+		pearOverlayPartContainer.style.right = "0";
+		pearOverlayPartContainer.style.bottom = "0";
+		pearOverlayPartContainer.style.zIndex = "-10";
+		pearOverlayPartContainer.style.display = "absolute";
+		pearOverlayPartContainer.classList.add("pearoverlay-part-container");
+		pearOverlayPartContainer.style.backgroundColor = 'var(--vscode-editor-background)';
+
+		this.mainContainer.appendChild(pearOverlayPartContainer);
+		pearOverlayPart.create(pearOverlayPartContainer);
 
 		const viewMap = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
@@ -1502,7 +1520,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.PANEL_PART]: this.panelPartView,
 			[Parts.SIDEBAR_PART]: this.sideBarPartView,
 			[Parts.STATUSBAR_PART]: this.statusBarPartView,
-			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
+			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView,
+			[Parts.PEAROVERLAY_PART]: this.pearOverlayPartView,
 		};
 
 		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
@@ -1571,6 +1590,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Layout the grid widget
 			this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
+			this.pearOverlayPartView.layout(this._mainContainerDimension.width, this._mainContainerDimension.height, 0, 0);
 			this.initialized = true;
 
 			// Emit as event
