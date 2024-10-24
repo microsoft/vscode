@@ -1,5 +1,4 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V0 0.0.9 BLOCK --> 
-0.0.2
+<!-- BEGIN MICROSOFT SECURITY.MD V0 1.0.9 BLOCK --> v1 1.0.0
 ## Security
 4.0.0
 Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/Microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet) and [Xamarin](https://github.com/xamarin).
