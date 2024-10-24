@@ -173,14 +173,13 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 });
 
 export class ChatEditingAcceptAllAction extends Action2 {
-	static readonly ID = 'chatEditing.acceptAllFiles';
-	static readonly LABEL = localize('acceptAllEdits', 'Accept All Edits');
 
 	constructor() {
 		super({
-			id: ChatEditingAcceptAllAction.ID,
+			id: 'chatEditing.acceptAllFiles',
 			title: localize('accept', 'Accept'),
-			tooltip: ChatEditingAcceptAllAction.LABEL,
+			icon: Codicon.check,
+			tooltip: localize('acceptAllEdits', 'Accept All Edits'),
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
 				{
@@ -211,20 +210,19 @@ export class ChatEditingAcceptAllAction extends Action2 {
 registerAction2(ChatEditingAcceptAllAction);
 
 export class ChatEditingDiscardAllAction extends Action2 {
-	static readonly ID = 'chatEditing.discardAllFiles';
-	static readonly LABEL = localize('discardAllEdits', 'Discard All Edits');
 
 	constructor() {
 		super({
-			id: ChatEditingDiscardAllAction.ID,
+			id: 'chatEditing.discardAllFiles',
 			title: localize('discard', 'Discard'),
-			tooltip: ChatEditingDiscardAllAction.LABEL,
+			icon: Codicon.discard,
+			tooltip: localize('discardAllEdits', 'Discard All Edits'),
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
 				{
 					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
 					id: MenuId.EditorTitle,
-					order: 2,
+					order: 1,
 					group: 'navigation',
 				},
 				{
