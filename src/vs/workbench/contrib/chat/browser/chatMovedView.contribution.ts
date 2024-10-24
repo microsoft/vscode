@@ -67,7 +67,6 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
 		this.hideViewIfOldViewIsMovedFromDefaultLocation();
-		this.storageService.store(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, false, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 	private markViewToHide(): void {
