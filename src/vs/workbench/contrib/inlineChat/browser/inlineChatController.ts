@@ -1149,7 +1149,7 @@ export class InlineChatController implements IEditorContribution {
 		return this._currentRun;
 	}
 
-	async reviewEdits(anchor: IRange, stream: AsyncIterable<TextEdit>, token: CancellationToken) {
+	async reviewEdits(anchor: IRange, stream: AsyncIterable<TextEdit[]>, token: CancellationToken) {
 		if (!this._editor.hasModel()) {
 			return false;
 		}
@@ -1168,7 +1168,7 @@ export class InlineChatController implements IEditorContribution {
 		await Event.toPromise(Event.filter(this._onDidEnterState.event, candidate => candidate === State.SHOW_REQUEST));
 
 		for await (const chunk of stream) {
-			session.chatModel.acceptResponseProgress(request, { kind: 'textEdit', uri: this._editor.getModel()!.uri, edits: [chunk] });
+			session.chatModel.acceptResponseProgress(request, { kind: 'textEdit', uri: this._editor.getModel()!.uri, edits: chunk });
 		}
 
 		if (token.isCancellationRequested) {
@@ -1176,6 +1176,8 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			session.chatModel.completeResponse(request);
 		}
+
+		await Event.toPromise(Event.filter(this._onDidEnterState.event, candidate => candidate === State.WAIT_FOR_INPUT));
 
 		if (session.hunkData.pending === 0) {
 			// no real changes, just cancel
