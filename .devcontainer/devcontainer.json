@@ -33,7 +33,8 @@
 				"GitHub.vscode-pull-request-github",
 				"ms-vscode.vscode-github-issue-notebooks",
 				"ms-vscode.vscode-selfhost-test-provider",
-				"mutantdino.resourcemonitor"
+				"mutantdino.resourcemonitor",
+				"ms-vscode.vscode-typescript-language-features"
 			]
 		}
 	},
