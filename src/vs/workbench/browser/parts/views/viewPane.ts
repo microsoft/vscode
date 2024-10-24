@@ -236,7 +236,8 @@ class ViewWelcomeController {
 			return;
 		}
 
-		for (const { content, precondition } of contents) {
+		let buttonsCount = 0;
+		for (const { content, precondition, renderSecondaryButtons } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -251,13 +252,14 @@ class ViewWelcomeController {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.element!, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: renderSecondaryButtons && buttonsCount > 0 ? true : false, ...defaultButtonStyles, });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, this.renderDisposables);
 					this.renderDisposables.add(button);
+					buttonsCount++;
 
 					if (precondition) {
 						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);

@@ -366,6 +366,11 @@ export enum ViewContentGroups {
 
 export interface IViewContentDescriptor {
 	readonly content: string;
+	/**
+	 * Whether to render all but the first button as secondary
+	 * if there are buttons in the `content` property.
+	 */
+	readonly renderSecondaryButtons?: boolean;
 	readonly when?: ContextKeyExpression | 'default';
 	readonly group?: string;
 	readonly order?: number;

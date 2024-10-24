@@ -460,6 +460,11 @@ export class PaneCompositeBar extends Disposable {
 			.map(v => v.id);
 	}
 
+	getPaneCompositeIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
+			.map(v => v.id);
+	}
+
 	getContextMenuActions(): IAction[] {
 		return this.compositeBar.getContextMenuActions();
 	}

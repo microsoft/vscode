@@ -300,7 +300,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 				},
 				order: 100
 			},
-		}, ViewContainerLocation.Sidebar);
+		}, ViewContainerLocation.AuxiliaryBar);
 
 		return viewContainer;
 	}

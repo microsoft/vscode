@@ -41,3 +41,5 @@ export const CONTEXT_CHAT_HAS_FILE_ATTACHMENTS = new RawContextKey<boolean>('cha
 export const CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 export const CONTEXT_CHAT_INSTALL_ENTITLED = new RawContextKey<boolean>('chatInstallEntitled', false, { type: 'boolean', description: localize('chatInstallEntitled', "True when the user is entitled for chat installation.") });
+
+export const CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME = new RawContextKey<boolean>('chatShouldShowMovedViewWelcome', false, { type: 'boolean', description: localize('chatShouldShowMovedViewWelcome', "True when the user should be shown the moved view welcome view.") });
