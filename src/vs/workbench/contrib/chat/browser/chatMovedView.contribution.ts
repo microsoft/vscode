@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -46,6 +47,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 
 		this.showWelcomeViewCtx = CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME.bindTo(contextKeyService);
@@ -147,7 +149,9 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		};
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
-		const welcomeViewMainMessage = localize('chatMovedMainMessage', "Chat has been moved to the Secondary Side Bar. You can quickly access Copilot Chat from the Copilot icon in the title bar.");
+		const welcomeViewMainMessage = this.hasCommandCenterChat() ?
+			localize('chatMovedMainMessage1', "Chat has been moved to the [Secondary Side Bar](command:workbench.action.focusAuxiliaryBar). You can quickly access Chat from the new Copilot icon in the title bar.") :
+			localize('chatMovedMainMessage2', "Chat has been moved to the [Secondary Side Bar](command:workbench.action.focusAuxiliaryBar).");
 
 		const showChatLabel = localize('showNewChatView', "Show Chat");
 		const showViewCommandButton = `[${showChatLabel}](command:${CHAT_SIDEBAR_PANEL_ID})`;
@@ -163,6 +167,17 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 			content: [welcomeViewMainMessage, showViewCommandButton, moveBackCommandButton, dismissCommandButton].join('\n\n'),
 			when: ContextKeyExpr.and(CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME, ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID))
 		});
+	}
+
+	private hasCommandCenterChat(): boolean {
+		if (
+			this.configurationService.getValue('chat.commandCenter.enabled') === false ||
+			this.configurationService.getValue('window.commandCenter') === false
+		) {
+			return false;
+		}
+
+		return true;
 	}
 }
 
