@@ -65,7 +65,7 @@ import { ITestProfileService, canUseProfileWithTest } from '../common/testProfil
 import { LiveTestResult, TestResultItemChangeReason } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from '../common/testService.js';
-import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemExpandState, TestResultState, TestRunProfileBitset, testResultStateToContextValues } from '../common/testTypes.js';
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
@@ -1500,14 +1500,14 @@ class TestItemRenderer extends Disposable
 	public renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, _depth: number, data: ITestElementTemplateData): void {
 		data.elementDisposable.clear();
 		data.current = node.element;
-		this.fillActionBar(node.element, data);
-
 
 		data.elementDisposable.add(node.element.onChange(() => this._renderElement(node, data)));
 		this._renderElement(node, data);
 	}
 
 	public _renderElement(node: ITreeNode<TestItemTreeElement, FuzzyScore>, data: ITestElementTemplateData): void {
+		this.fillActionBar(node.element, data);
+
 		const testHidden = this.testService.excluded.contains(node.element.test);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
@@ -1583,6 +1583,12 @@ const getActionableElementActions = (
 		], [
 			TestingContextKeys.supportsContinuousRun.key,
 			supportsCr,
+		], [
+			TestingContextKeys.testResultOutdated.key,
+			element.retired,
+		], [
+			TestingContextKeys.testResultState.key,
+			testResultStateToContextValues[element.state],
 		]);
 	}
 
