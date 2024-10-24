@@ -69,7 +69,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private markViewToHide(): void {
-		this.storageService.store(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 		this.updateContextKey();
 	}
 
