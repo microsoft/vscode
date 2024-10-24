@@ -60,8 +60,10 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly data: ReadonlyArray<IChatCollapsibleListItem>;
+
 	constructor(
-		private readonly data: ReadonlyArray<IChatCollapsibleListItem>,
+		data: ReadonlyArray<IChatCollapsibleListItem>,
 		labelOverride: string | undefined,
 		element: IChatResponseViewModel,
 		contentReferencesListPool: CollapsibleListPool,
@@ -71,6 +73,11 @@ export class ChatCollapsibleListContentPart extends Disposable implements IChatC
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
+
+		// Hold onto copy of array in case it is mutated externally
+		this.data = [...data];
+
+		console.log('ChatCollapsibleListContentPart', data.length);
 
 		const referencesLabel = labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
