@@ -208,6 +208,8 @@ export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTru
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
 
 	const defaultTrustedDomains = [
+		// MEMBRANE: add membrane.io to the list of trusted domains to skip confirmation dialog
+		'https://membrane.io',
 		...productService.linkProtectionTrustedDomains ?? [],
 		...environmentService.options?.additionalTrustedDomains ?? []
 	];

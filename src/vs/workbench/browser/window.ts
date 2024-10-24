@@ -297,6 +297,12 @@ export class BrowserWindow extends BaseWindow {
 					}
 				}
 
+				// MEMBRANE: special case for logout
+				if (href === 'https://membrane.io/?logout=true') {
+					mainWindow.location.href = '/?logout=true';
+					return true;
+				}
+
 				// HTTP(s): open in new window and deal with potential popup blockers
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					if (isSafari) {
