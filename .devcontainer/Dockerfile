@@ -12,3 +12,9 @@ RUN echo 'export DISPLAY="${DISPLAY:-:1}"' | tee -a ~/.bashrc >> ~/.zshrc
 
 USER root
 CMD chown node:node /vscode-dev && sudo -u node mkdir -p /vscode-dev/npm-cache && sleep inf
+
+# Add a new command to open VSCode in the devcontainer
+RUN code-insiders --install-extension ms-vscode-remote.remote-containers
+
+# Add a new command to use the `./.devcontainer/post-create.sh` script
+RUN chmod +x /vscode/.devcontainer/post-create.sh

@@ -24,7 +24,8 @@
 		"vscode": {
 			"settings": {
 				"resmon.show.battery": false,
-				"resmon.show.cpufreq": false
+				"resmon.show.cpufreq": false,
+				"dev.containers.openInDevContainer": true // Added setting to open VSCode in the devcontainer
 			},
 			"extensions": [
 				"dbaeumer.vscode-eslint",

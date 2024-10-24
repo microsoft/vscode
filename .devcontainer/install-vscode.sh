@@ -10,3 +10,9 @@ rm -f packages.microsoft.gpg
 
 apt update
 apt install -y code-insiders libsecret-1-dev libxkbfile-dev libkrb5-dev
+
+# Add a new command to open VSCode in the devcontainer
+code-insiders --install-extension ms-vscode-remote.remote-containers
+
+# Add a new command to use the `./.devcontainer/post-create.sh` script
+chmod +x /vscode/.devcontainer/post-create.sh
