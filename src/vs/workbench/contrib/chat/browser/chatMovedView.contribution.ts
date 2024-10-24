@@ -37,13 +37,11 @@ export class MovedChatViewPane extends ViewPane {
 	}
 }
 
-const hideMovedChatWelcomeViewStorageKey = 'workbench.chat.hideMovedChatWelcomeView';
-const dismissAndHideMovedChatWelcomeView = 'workbench.chat.dismissAndHideMovedChatWelcomeView';
-const moveChatBackToOldLocation = 'workbench.chat.moveChatBackToOldLocation';
-
 export class MoveChatViewContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatMovedViewWelcomeView';
+
+	private static readonly hideMovedChatWelcomeViewStorageKey = 'workbench.chat.hideMovedChatWelcomeView';
 
 	private showWelcomeViewCtx: IContextKey<boolean>;
 
@@ -71,7 +69,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private markViewToHide(): void {
-		this.storageService.store(hideMovedChatWelcomeViewStorageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.storageService.store(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.updateContextKey();
 	}
 
@@ -96,36 +94,61 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private updateContextKey(): void {
-		const hidden = this.storageService.getBoolean(hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
+		const hidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
 		this.showWelcomeViewCtx.set(!hidden);
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand(dismissAndHideMovedChatWelcomeView, () => {
-			this.markViewToHide();
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
+			weight: KeybindingWeight.WorkbenchContrib,
+			when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
+			primary: 0,
+			handler: accessor => showChatView(accessor.get(IViewsService))
 		});
 
-		CommandsRegistry.registerCommand(moveChatBackToOldLocation, () => {
-			const oldViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
-			const newViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_PANEL_ID);
-			if (!oldViewContainer || !newViewContainer) {
-				return;
+		CommandsRegistry.registerCommand({
+			id: '_chatMovedViewWelcomeView.ok',
+			handler: async (accessor: ServicesAccessor) => {
+				showChatView(accessor.get(IViewsService));
+				this.markViewToHide();
 			}
+		});
 
-			const oldLocation = this.viewDescriptorService.getViewContainerLocation(oldViewContainer);
-			const newLocation = this.viewDescriptorService.getViewContainerLocation(newViewContainer);
+		CommandsRegistry.registerCommand({
+			id: '_chatMovedViewWelcomeView.restore',
+			handler: async () => {
+				const oldViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
+				const newViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_PANEL_ID);
+				if (!oldViewContainer || !newViewContainer) {
+					this.markViewToHide();
+					return;
+				}
 
-			if (oldLocation === newLocation || oldLocation === null || newLocation === null) {
-				return;
+				const oldLocation = this.viewDescriptorService.getViewContainerLocation(oldViewContainer);
+				const newLocation = this.viewDescriptorService.getViewContainerLocation(newViewContainer);
+
+				if (oldLocation === newLocation || oldLocation === null || newLocation === null) {
+					this.markViewToHide();
+					return;
+				}
+
+				const viewContainerIds = this.paneCompositePartService.getPaneCompositeIds(oldLocation);
+				const targetIndex = viewContainerIds.indexOf(oldViewContainer.id);
+
+				this.viewDescriptorService.moveViewContainerToLocation(newViewContainer, oldLocation, targetIndex);
+				this.viewsService.openViewContainer(newViewContainer.id, true);
+
+				this.markViewToHide();
 			}
+		});
 
-			const viewContainerIds = this.paneCompositePartService.getPaneCompositeIds(oldLocation);
-			const targetIndex = viewContainerIds.indexOf(oldViewContainer.id);
-
-			this.viewDescriptorService.moveViewContainerToLocation(newViewContainer, oldLocation, targetIndex);
-			this.viewsService.openViewContainer(newViewContainer.id, true);
-
-			this.markViewToHide();
+		CommandsRegistry.registerCommand({
+			id: '_chatMovedViewWelcomeView.learnMore',
+			handler: async (accessor: ServicesAccessor) => {
+				const openerService = accessor.get(IOpenerService);
+				openerService.open(URI.parse('https://aka.ms/vscode-secondary-sidebar'));
+			}
 		});
 	}
 
@@ -166,17 +189,15 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 				localize('chatMovedMainMessage2Left', "Chat has been moved to the Secondary Side Bar on the left.") :
 				localize('chatMovedMainMessage2Right', "Chat has been moved to the Secondary Side Bar on the right."));
 
-		const showChatLabel = localize('showNewChatView', "Show Chat");
-		const showViewCommandButton = `[${showChatLabel}](command:${CHAT_SIDEBAR_PANEL_ID})`;
+		const okButton = `[${localize('ok', "OK")}](command:_chatMovedViewWelcomeView.ok)`;
+		const restoreButton = `[${localize('restore', "Restore Old Location")}](command:_chatMovedViewWelcomeView.restore)`;
 
-		const moveBackLabel = localize('moveBack', "Move Chat Back");
-		const moveBackCommandButton = `[${moveBackLabel}](command:${moveChatBackToOldLocation})`;
-
-		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "[Learn more](command:_learnMoreSecondarySidebar) about the Secondary Sidebar.");
+		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "[Learn more](command:_chatMovedViewWelcomeView.learnMore) about the Secondary Sidebar.");
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
-			content: [welcomeViewMainMessage, showViewCommandButton, moveBackCommandButton, welcomeViewFooterMessage].join('\n\n'),
+			content: [welcomeViewMainMessage, okButton, restoreButton, welcomeViewFooterMessage].join('\n\n'),
+			renderSecondaryButtons: true,
 			when: ContextKeyExpr.and(CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME, ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID))
 		});
 	}
@@ -192,21 +213,5 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		return true;
 	}
 }
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
-	primary: 0,
-	handler: accessor => showChatView(accessor.get(IViewsService))
-});
-
-CommandsRegistry.registerCommand({
-	id: '_learnMoreSecondarySidebar',
-	handler: async (accessor: ServicesAccessor) => {
-		const openerService = accessor.get(IOpenerService);
-		openerService.open(URI.parse('https://aka.ms/vscode-secondary-sidebar'));
-	}
-});
 
 registerWorkbenchContribution2(MoveChatViewContribution.ID, MoveChatViewContribution, WorkbenchPhase.BlockStartup);
