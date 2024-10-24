@@ -11,11 +11,13 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { chatViewsWelcomeRegistry, IChatViewsWelcomeDescriptor } from './chatViewsWelcome.js';
 
 const $ = dom.$;
@@ -35,6 +37,7 @@ export class ChatViewWelcomeController extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IViewWelcomeDelegate,
+		private readonly location: ChatAgentLocation,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) {
@@ -85,7 +88,7 @@ export class ChatViewWelcomeController extends Disposable {
 				title: enabledDescriptor.title,
 				message: enabledDescriptor.content,
 			};
-			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true }));
+			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
 			this.container.classList.toggle('chat-view-welcome-visible', true);
 		} else {
@@ -103,6 +106,7 @@ export interface IChatViewWelcomeContent {
 
 export interface IChatViewWelcomeRenderOptions {
 	firstLinkToButton?: boolean;
+	location: ChatAgentLocation;
 }
 
 export class ChatViewWelcomePart extends Disposable {
@@ -121,6 +125,11 @@ export class ChatViewWelcomePart extends Disposable {
 		try {
 			const icon = dom.append(this.element!, $('.chat-welcome-view-icon'));
 			const title = dom.append(this.element!, $('.chat-welcome-view-title'));
+
+			if (options?.location === ChatAgentLocation.EditingSession) {
+				const featureIndicator = dom.append(this.element!, $('.chat-welcome-view-indicator'));
+				featureIndicator.textContent = localize('preview', 'PREVIEW');
+			}
 			const message = dom.append(this.element!, $('.chat-welcome-view-message'));
 
 			if (content.icon) {
