@@ -12,6 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -22,7 +23,10 @@ import { IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IView
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME } from '../common/chatContextKeys.js';
+import { showChatView } from './chat.js';
 import { CHAT_SIDEBAR_OLD_VIEW_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+
+// TODO@bpasero TODO@sbatten remove after a few months
 
 export class MovedChatViewPane extends ViewPane {
 	override shouldShowWelcome(): boolean {
@@ -180,5 +184,13 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		return true;
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
+	primary: 0,
+	handler: accessor => showChatView(accessor.get(IViewsService))
+});
 
 registerWorkbenchContribution2(MoveChatViewContribution.ID, MoveChatViewContribution, WorkbenchPhase.BlockStartup);
