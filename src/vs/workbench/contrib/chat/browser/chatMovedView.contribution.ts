@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -61,6 +61,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	private async initialize(): Promise<void> {
 		await this.hideViewIfCopilotIsNotInstalled();
 		this.updateContextKey();
+		this.registerListeners();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
 		this.hideViewIfOldViewIsInSecondarySidebar();
@@ -94,6 +95,10 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	private updateContextKey(): void {
 		const hidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
 		this.showWelcomeViewCtx.set(!hidden);
+	}
+
+	private registerListeners(): void {
+		this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, new DisposableStore())(() => this.updateContextKey());
 	}
 
 	private registerCommands(): void {
