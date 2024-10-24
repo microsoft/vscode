@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append } from 'vs/base/browser/dom';
-import { format } from 'vs/base/common/strings';
-import 'vs/css!./countBadge';
+import { $, append } from '../../dom.js';
+import { format } from '../../../common/strings.js';
+import './countBadge.css';
 
 export interface ICountBadgeOptions {
 	readonly count?: number;

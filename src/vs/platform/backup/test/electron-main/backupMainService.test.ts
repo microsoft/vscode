@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
-import { Schemas } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
-import { ISerializedBackupWorkspaces, ISerializedWorkspaceBackupInfo } from 'vs/platform/backup/node/backup';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { ConsoleMainLogger } from 'vs/platform/log/common/log';
-import product from 'vs/platform/product/common/product';
-import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { InMemoryTestStateMainService } from 'vs/platform/test/electron-main/workbenchTestServices';
-import { LogService } from 'vs/platform/log/common/logService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Schemas } from '../../../../base/common/network.js';
+import * as path from '../../../../base/common/path.js';
+import * as platform from '../../../../base/common/platform.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Promises } from '../../../../base/node/pfs.js';
+import { flakySuite, getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import { BackupMainService } from '../../electron-main/backupMainService.js';
+import { ISerializedBackupWorkspaces, ISerializedWorkspaceBackupInfo } from '../../node/backup.js';
+import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
+import { EnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
+import { OPTIONS, parseArgs } from '../../../environment/node/argv.js';
+import { HotExitConfiguration } from '../../../files/common/files.js';
+import { ConsoleMainLogger } from '../../../log/common/log.js';
+import product from '../../../product/common/product.js';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from '../../common/backup.js';
+import { IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
+import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
+import { LogService } from '../../../log/common/logService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 flakySuite('BackupMainService', () => {
 
@@ -37,7 +37,7 @@ flakySuite('BackupMainService', () => {
 
 	function toWorkspace(path: string): IWorkspaceIdentifier {
 		return {
-			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+			id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 			configPath: URI.file(path)
 		};
 	}
@@ -45,7 +45,7 @@ flakySuite('BackupMainService', () => {
 	function toWorkspaceBackupInfo(path: string, remoteAuthority?: string): IWorkspaceBackupInfo {
 		return {
 			workspace: {
-				id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+				id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 				configPath: URI.file(path)
 			},
 			remoteAuthority
@@ -131,7 +131,7 @@ flakySuite('BackupMainService', () => {
 
 		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
 
-		await Promises.mkdir(backupHome, { recursive: true });
+		await fs.promises.mkdir(backupHome, { recursive: true });
 
 		configService = new TestConfigurationService();
 		stateMainService = new InMemoryTestStateMainService();
@@ -584,8 +584,8 @@ flakySuite('BackupMainService', () => {
 			assert.strictEqual(((await service.getDirtyWorkspaces()).length), 0);
 
 			try {
-				await Promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
-				await Promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
+				await fs.promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
+				await fs.promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
 			} catch (error) {
 				// ignore - folder might exist already
 			}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
+import { Iterable } from './iterator.js';
 
 const unset = Symbol('unset');
 
@@ -32,6 +32,11 @@ export class WellDefinedPrefixTree<V> {
 		return this.root.children?.values() || Iterable.empty();
 	}
 
+	/** Gets the top-level nodes of the tree */
+	public get entries(): Iterable<[string, IPrefixTreeNode<V>]> {
+		return this.root.children?.entries() || Iterable.empty();
+	}
+
 	/**
 	 * Inserts a new value in the prefix tree.
 	 * @param onNode - called for each node as we descend to the insertion point,
@@ -44,6 +49,11 @@ export class WellDefinedPrefixTree<V> {
 	/** Mutates a value in the prefix tree. */
 	mutate(key: Iterable<string>, mutate: (value?: V) => V): void {
 		this.opNode(key, n => n._value = mutate(n._value === unset ? undefined : n._value));
+	}
+
+	/** Mutates nodes along the path in the prefix tree. */
+	mutatePath(key: Iterable<string>, mutate: (node: IPrefixTreeNode<V>) => void): void {
+		this.opNode(key, () => { }, n => mutate(n));
 	}
 
 	/** Deletes a node from the prefix tree, returning the value it contained. */

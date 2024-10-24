@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
-import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
+import * as arrays from '../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from './extHost.protocol.js';
+import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
+import { ExtHostTextEditor, TextEditorDecorationType } from './extHostTextEditor.js';
+import * as TypeConverters from './extHostTypeConverters.js';
+import { TextEditorSelectionChangeKind } from './extHostTypes.js';
 import * as vscode from 'vscode';
 
-export class ExtHostEditors implements ExtHostEditorsShape {
+export class ExtHostEditors extends Disposable implements ExtHostEditorsShape {
 
 	private readonly _onDidChangeTextEditorSelection = new Emitter<vscode.TextEditorSelectionChangeEvent>();
 	private readonly _onDidChangeTextEditorOptions = new Emitter<vscode.TextEditorOptionsChangeEvent>();
@@ -35,11 +36,11 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		mainContext: IMainContext,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
+		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
 
-
-		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));
-		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
+		this._register(this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e)));
+		this._register(this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e)));
 	}
 
 	getActiveTextEditor(): vscode.TextEditor | undefined {

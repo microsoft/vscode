@@ -19,7 +19,7 @@ steps:
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../cli/cli-apply-patches.yml
+    - template: ../cli/cli-apply-patches.yml@self
 
   - task: Npm@1
     displayName: Download openssl prebuilt
@@ -35,7 +35,7 @@ steps:
       tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
-  - template: ../cli/install-rust-win32.yml
+  - template: ../cli/install-rust-win32.yml@self
     parameters:
       targets:
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
@@ -44,7 +44,7 @@ steps:
           - aarch64-pc-windows-msvc
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-    - template: ../cli/cli-compile.yml
+    - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
@@ -56,7 +56,7 @@ steps:
           RUSTFLAGS: "-C target-feature=+crt-static"
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-    - template: ../cli/cli-compile.yml
+    - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
@@ -67,14 +67,23 @@ steps:
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static/include
           RUSTFLAGS: "-C target-feature=+crt-static"
 
-  - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-    - template: ../cli/cli-publish.yml
-      parameters:
-        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+  - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+    - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_arm64_cli.zip
+          artifactName: unsigned_vscode_cli_win32_arm64_cli
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          sbomPackageName: "VS Code Windows arm64 CLI (unsigned)"
+          sbomPackageVersion: $(Build.SourceVersion)
+        displayName: Publish unsigned_vscode_cli_win32_arm64_cli artifact
 
-  - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-    - template: ../cli/cli-publish.yml
-      parameters:
-        VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
-        VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+    - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+      - task: 1ES.PublishPipelineArtifact@1
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_x64_cli.zip
+          artifactName: unsigned_vscode_cli_win32_x64_cli
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+          sbomPackageName: "VS Code Windows x64 CLI (unsigned)"
+          sbomPackageVersion: $(Build.SourceVersion)
+        displayName: Publish unsigned_vscode_cli_win32_x64_cli artifact

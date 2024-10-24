@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { DEFAULT_LOG_LEVEL, LogLevel } from 'vs/platform/log/common/log';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { TestTelemetryLoggerService } from 'vs/platform/telemetry/test/common/telemetryLogAppender.test';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostTelemetry, ExtHostTelemetryLogger } from 'vs/workbench/api/common/extHostTelemetry';
-import { IEnvironment } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { mock } from 'vs/workbench/test/common/workbenchTestServices';
+import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../platform/extensions/common/extensions.js';
+import { DEFAULT_LOG_LEVEL, LogLevel } from '../../../../platform/log/common/log.js';
+import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
+import { TestTelemetryLoggerService } from '../../../../platform/telemetry/test/common/telemetryLogAppender.test.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { ExtHostTelemetry, ExtHostTelemetryLogger } from '../../common/extHostTelemetry.js';
+import { IEnvironment } from '../../../services/extensions/common/extensionHostProtocol.js';
+import { mock } from '../../../test/common/workbenchTestServices.js';
 import type { TelemetryLoggerOptions, TelemetrySender } from 'vscode';
 
 interface TelemetryLoggerSpy {
@@ -44,7 +44,8 @@ suite('ExtHostTelemetry', function () {
 		firstSessionDate: '2020-01-01T00:00:00.000Z',
 		sessionId: 'test',
 		machineId: 'test',
-		sqmId: 'test'
+		sqmId: 'test',
+		devDeviceId: 'test'
 	};
 
 	const mockRemote = {
@@ -63,7 +64,8 @@ suite('ExtHostTelemetry', function () {
 		publisher: 'vscode',
 		version: '1.0.0',
 		engines: { vscode: '*' },
-		extensionLocation: URI.parse('fake')
+		extensionLocation: URI.parse('fake'),
+		enabledApiProposals: undefined,
 	};
 
 	const createExtHostTelemetry = () => {

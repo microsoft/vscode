@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { distinct } from 'vs/base/common/arrays';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { isString } from 'vs/base/common/types';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
+import { adoptToGalleryExtensionId, areSameExtensions, getExtensionId } from './extensionManagementUtil.js';
+import { IProductService } from '../../product/common/productService.js';
+import { distinct } from '../../../base/common/arrays.js';
+import { ILogService } from '../../log/common/log.js';
+import { IExtension } from '../../extensions/common/extensions.js';
+import { isString } from '../../../base/common/types.js';
+import { IStringDictionary } from '../../../base/common/collections.js';
+import { IExtensionManagementService, IGalleryExtension } from './extensionManagement.js';
 
 export interface IExtensionIdWithVersion {
 	id: string;

@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.main = exports.Temp = void 0;
+exports.Temp = void 0;
+exports.main = main;
 const cp = require("child_process");
 const fs = require("fs");
 const crypto = require("crypto");
@@ -164,7 +165,6 @@ function main([esrpCliPath, type, cert, username, password, folderPath, pattern]
         process.exit(1);
     }
 }
-exports.main = main;
 if (require.main === module) {
     main(process.argv.slice(2));
     process.exit(0);

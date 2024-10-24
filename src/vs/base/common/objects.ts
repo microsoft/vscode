@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isTypedArray, isObject, isUndefinedOrNull } from './types.js';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -177,6 +177,9 @@ export function safeStringify(obj: any): string {
 				seen.add(value);
 			}
 		}
+		if (typeof value === 'bigint') {
+			return `[BigInt ${value.toString()}]`;
+		}
 		return value;
 	});
 }
@@ -212,7 +215,7 @@ export function distinct(base: obj, target: obj): obj {
 	return result;
 }
 
-export function getCaseInsensitive(target: obj, key: string): any {
+export function getCaseInsensitive(target: obj, key: string): unknown {
 	const lowercaseKey = key.toLowerCase();
 	const equivalentKey = Object.keys(target).find(k => k.toLowerCase() === lowercaseKey);
 	return equivalentKey ? target[equivalentKey] : target[key];
@@ -255,9 +258,18 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		};
 	};
 
+	// eslint-disable-next-line local/code-no-dangerous-type-assertions
 	const result = {} as T;
 	for (const methodName of methodNames) {
 		(<any>result)[methodName] = createProxyMethod(methodName);
 	}
 	return result;
+}
+
+export function mapValues<T extends {}, R>(obj: T, fn: (value: T[keyof T], key: string) => R): { [K in keyof T]: R } {
+	const result: { [key: string]: R } = {};
+	for (const [key, value] of Object.entries(obj)) {
+		result[key] = fn(<T[keyof T]>value, key);
+	}
+	return result as { [K in keyof T]: R };
 }

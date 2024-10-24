@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Disposable } from 'vs/base/common/lifecycle';
-import * as objects from 'vs/base/common/objects';
+import * as dom from '../../dom.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { IHoverDelegate } from '../hover/hoverDelegate.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { renderLabelWithIcons } from '../iconLabel/iconLabels.js';
+import { Disposable } from '../../../common/lifecycle.js';
+import * as objects from '../../../common/objects.js';
 
 /**
  * A range to be highlighted.
@@ -42,7 +43,7 @@ export class HighlightedLabel extends Disposable {
 	private highlights: readonly IHighlight[] = [];
 	private supportIcons: boolean;
 	private didEverRender: boolean = false;
-	private customHover: ICustomHover | undefined;
+	private customHover: IManagedHover | undefined;
 
 	/**
 	 * Create a new {@link HighlightedLabel}.
@@ -140,7 +141,7 @@ export class HighlightedLabel extends Disposable {
 		} else {
 			if (!this.customHover && this.title !== '') {
 				const hoverDelegate = this.options?.hoverDelegate ?? getDefaultHoverDelegate('mouse');
-				this.customHover = this._register(setupCustomHover(hoverDelegate, this.domNode, this.title));
+				this.customHover = this._register(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.domNode, this.title));
 			} else if (this.customHover) {
 				this.customHover.update(this.title);
 			}

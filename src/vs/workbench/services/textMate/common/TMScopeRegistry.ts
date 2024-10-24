@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as resources from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { LanguageId, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import * as resources from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { LanguageId, StandardTokenType } from '../../../../editor/common/encodedTokenAttributes.js';
 
 export interface IValidGrammarDefinition {
 	location: URI;

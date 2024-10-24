@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/typeHierarchy';
-import { Dimension, isKeyboardEvent } from 'vs/base/browser/dom';
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ITreeNode, TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
-import { IAction } from 'vs/base/common/actions';
-import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, TrackedRangeStickiness, IModelDeltaDecoration, OverviewRulerLane } from 'vs/editor/common/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import * as peekView from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IColorTheme, IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import * as typeHTree from 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchyTree';
-import { TypeHierarchyDirection, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import './media/typeHierarchy.css';
+import { Dimension, isKeyboardEvent } from '../../../../base/browser/dom.js';
+import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
+import { IAsyncDataTreeViewState } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ITreeNode, TreeMouseEventTarget } from '../../../../base/browser/ui/tree/tree.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { Color } from '../../../../base/common/color.js';
+import { Event } from '../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../base/common/filters.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
+import { IPosition } from '../../../../editor/common/core/position.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { IModelDecorationOptions, TrackedRangeStickiness, IModelDeltaDecoration, OverviewRulerLane } from '../../../../editor/common/model.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import * as peekView from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { localize } from '../../../../nls.js';
+import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IColorTheme, IThemeService, themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import * as typeHTree from './typeHierarchyTree.js';
+import { TypeHierarchyDirection, TypeHierarchyModel } from '../common/typeHierarchy.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 // Todo: copied from call hierarchy, to extract
 const enum State {

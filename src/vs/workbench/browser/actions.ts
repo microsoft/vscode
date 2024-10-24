@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction } from 'vs/base/common/actions';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IAction } from '../../base/common/actions.js';
+import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../base/common/event.js';
+import { MenuId, IMenuService, IMenu, SubmenuItemAction, IMenuActionOptions } from '../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { createAndFillInActionBarActions } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 
 class MenuActions extends Disposable {
 
@@ -23,7 +23,7 @@ class MenuActions extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private disposables = this._register(new DisposableStore());
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		menuId: MenuId,
@@ -96,9 +96,8 @@ export class CompositeMenuActions extends Disposable {
 		const actions: IAction[] = [];
 
 		if (this.contextMenuId) {
-			const menu = this.menuService.createMenu(this.contextMenuId, this.contextKeyService);
-			createAndFillInActionBarActions(menu, this.options, { primary: [], secondary: actions });
-			menu.dispose();
+			const menu = this.menuService.getMenuActions(this.contextMenuId, this.contextKeyService, this.options);
+			createAndFillInActionBarActions(menu, { primary: [], secondary: actions });
 		}
 
 		return actions;

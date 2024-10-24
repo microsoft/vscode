@@ -3,21 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 /**
  * Mime type used by the output editor.
  */
 export const OUTPUT_MIME = 'text/x-code-output';
-
-/**
- * Output resource scheme.
- */
-export const OUTPUT_SCHEME = 'output';
 
 /**
  * Id used by the output editor.
@@ -42,6 +37,12 @@ export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
 export const CONTEXT_ACTIVE_FILE_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE = new RawContextKey<boolean>('activeLogOutput.levelSettable', false);
+
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL = new RawContextKey<string>('activeLogOutput.level', '');
+
+export const CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT = new RawContextKey<boolean>('activeLogOutput.levelIsDefault', false);
 
 export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
 

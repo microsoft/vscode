@@ -23,7 +23,6 @@ export class Notebook {
 
 		await this.code.waitForElement(activeRowSelector);
 		await this.focusFirstCell();
-		await this.waitForActiveCellEditorContents('code()');
 	}
 
 	async focusNextCell() {

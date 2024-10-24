@@ -116,11 +116,12 @@ prepend_dir XDG_DATA_DIRS "$SNAP/data-dir"
 prepend_dir XDG_DATA_DIRS "$SNAP_USER_DATA"
 
 # Set XDG_DATA_HOME to local path
-ensure_dir_exists "$SNAP_USER_DATA/.local/share"
+export XDG_DATA_HOME="$SNAP_USER_DATA/.local/share"
+ensure_dir_exists "$XDG_DATA_HOME"
 
 # Workaround for GLib < 2.53.2 not searching for schemas in $XDG_DATA_HOME:
 #   https://bugzilla.gnome.org/show_bug.cgi?id=741335
-prepend_dir XDG_DATA_DIRS "$SNAP_USER_DATA/.local/share"
+prepend_dir XDG_DATA_DIRS "$XDG_DATA_HOME"
 
 # Set cache folder to local path
 if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$SNAP_USER_COMMON/.cache" ]]; then
@@ -166,16 +167,17 @@ fi
 # Keep an array of data dirs, for looping through them
 IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
 
-# Build mime.cache
-# needed for gtk and qt icon
+# Build mime.cache needed for gtk and qt icon
+# TODO(deepak1556): Re-enable this once we move to core22
+# Refs https://github.com/microsoft/vscode/issues/230454#issuecomment-2418352959
 if [ "$needs_update" = true ]; then
-  rm -rf "$SNAP_USER_DATA/.local/share/mime"
-  if [ ! -f "$SNAP/usr/share/mime/mime.cache" ]; then
-    if command -v update-mime-database >/dev/null; then
-      cp --preserve=timestamps -dR "$SNAP/usr/share/mime" "$SNAP_USER_DATA/.local/share"
-      async_exec update-mime-database "$SNAP_USER_DATA/.local/share/mime"
-    fi
-  fi
+  rm -rf "$XDG_DATA_HOME/mime"
+#  if [ ! -f "$SNAP/usr/share/mime/mime.cache" ]; then
+#    if command -v $SNAP/usr/bin/update-mime-database >/dev/null; then
+#      cp --preserve=timestamps -dR "$SNAP/usr/share/mime" "$XDG_DATA_HOME"
+#      async_exec $SNAP/usr/bin/update-mime-database "$XDG_DATA_HOME/mime"
+#    fi
+#  fi
 fi
 
 # Gio modules and cache (including gsettings module)

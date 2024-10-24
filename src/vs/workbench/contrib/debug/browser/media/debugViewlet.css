@@ -174,10 +174,6 @@
 	min-width: fit-content;
 }
 
-.debug-pane .debug-call-stack .stack-frame.subtle {
-	font-style: italic;
-}
-
 .debug-pane .debug-call-stack .stack-frame.label > .file {
 	display: none;
 }
@@ -230,6 +226,7 @@
 }
 
 .debug-pane .monaco-list-row .expression .value {
+	height: 22px;
 	overflow: hidden;
 	white-space: pre;
 	text-overflow: ellipsis;

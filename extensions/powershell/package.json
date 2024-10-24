@@ -24,7 +24,8 @@
           "PowerShell",
           "powershell",
           "ps",
-          "ps1"
+          "ps1",
+          "pwsh"
         ],
         "firstLine": "^#!\\s*/.*\\bpwsh\\b",
         "configuration": "./language-configuration.json"

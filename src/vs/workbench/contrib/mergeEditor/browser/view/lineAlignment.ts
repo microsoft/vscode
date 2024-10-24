@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy } from 'vs/base/common/arrays';
-import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { isDefined } from 'vs/base/common/types';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
-import { RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { ModifiedBaseRange } from 'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange';
-import { addLength, lengthBetweenPositions, lengthOfRange } from 'vs/workbench/contrib/mergeEditor/browser/model/rangeUtils';
+import { compareBy } from '../../../../../base/common/arrays.js';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
+import { isDefined } from '../../../../../base/common/types.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { TextLength } from '../../../../../editor/common/core/textLength.js';
+import { RangeMapping } from '../model/mapping.js';
+import { ModifiedBaseRange } from '../model/modifiedBaseRange.js';
+import { addLength, lengthBetweenPositions, lengthOfRange } from '../model/rangeUtils.js';
 
 export type LineAlignment = [input1LineNumber: number | undefined, baseLineNumber: number, input2LineNumber: number | undefined];
 
@@ -49,7 +49,7 @@ export function getAlignments(m: ModifiedBaseRange): LineAlignment[] {
 		if (shouldAdd) {
 			result.push(lineAlignment);
 		} else {
-			if (m.length.isGreaterThan(new LengthObj(1, 0))) {
+			if (m.length.isGreaterThan(new TextLength(1, 0))) {
 				result.push([
 					m.output1Pos ? m.output1Pos.lineNumber + 1 : undefined,
 					m.inputPos.lineNumber + 1,
@@ -75,7 +75,7 @@ interface CommonRangeMapping {
 	output1Pos: Position | undefined;
 	output2Pos: Position | undefined;
 	inputPos: Position;
-	length: LengthObj;
+	length: TextLength;
 }
 
 function toEqualRangeMappings(diffs: RangeMapping[], inputRange: Range, outputRange: Range): RangeMapping[] {

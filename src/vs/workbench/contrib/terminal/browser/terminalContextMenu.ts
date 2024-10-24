@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { asArray } from 'vs/base/common/arrays';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { SingleOrMany } from 'vs/base/common/types';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { asArray } from '../../../../base/common/arrays.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { SingleOrMany } from '../../../../base/common/types.js';
+import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenu } from '../../../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ITerminalInstance } from './terminal.js';
+import { ISerializedTerminalInstanceContext } from '../common/terminal.js';
 
 /**
  * A context that is passed to actions as arguments to represent the terminal instance(s) being

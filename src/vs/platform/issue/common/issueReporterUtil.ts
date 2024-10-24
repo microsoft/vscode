@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { rtrim } from 'vs/base/common/strings';
+import { rtrim } from '../../../base/common/strings.js';
 
 export function normalizeGitHubUrl(url: string): string {
 	// If the url has a .git suffix, remove it

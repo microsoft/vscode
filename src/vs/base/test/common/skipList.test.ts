@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { binarySearch } from 'vs/base/common/arrays';
-import { SkipList } from 'vs/base/common/skipList';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { binarySearch } from '../../common/arrays.js';
+import { SkipList } from '../../common/skipList.js';
+import { StopWatch } from '../../common/stopwatch.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 
 suite('SkipList', function () {

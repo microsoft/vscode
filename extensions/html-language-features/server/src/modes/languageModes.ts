@@ -138,8 +138,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			return undefined;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
-			return documentRegions.get(document).getLanguageRanges(range).map(r => {
-				return <LanguageModeRange>{
+			return documentRegions.get(document).getLanguageRanges(range).map((r): LanguageModeRange => {
+				return {
 					start: r.start,
 					end: r.end,
 					mode: r.languageId && modes[r.languageId],

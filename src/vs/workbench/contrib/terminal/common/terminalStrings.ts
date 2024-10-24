@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
+import { localize, localize2 } from '../../../../nls.js';
 
 /**
  * An object holding strings shared by multiple parts of the terminal
@@ -39,7 +39,6 @@ export const terminalStrings = {
 	sendSequence: localize2('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
 	newWithCwd: localize2('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
 	renameWithArgs: localize2('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
-	stickyScroll: localize2('stickyScroll', "Sticky Scroll"),
 	scrollToPreviousCommand: localize2('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"),
 	scrollToNextCommand: localize2('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command")
 };

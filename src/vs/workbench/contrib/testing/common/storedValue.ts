@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export interface IStoredValueSerialization<T> {
 	deserialize(data: string): T;

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
-import { ExtHostChatVariablesShape, ExtHostContext, IChatVariableResolverProgressDto, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { DisposableMap } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
+import { ExtHostChatVariablesShape, ExtHostContext, IChatVariableResolverProgressDto, MainContext, MainThreadChatVariablesShape } from '../common/extHost.protocol.js';
+import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress, IChatVariablesService } from '../../contrib/chat/common/chatVariables.js';
+import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatVariables)
 export class MainThreadChatVariables implements MainThreadChatVariablesShape {
@@ -31,10 +31,10 @@ export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 		const registration = this._chatVariablesService.registerVariable(data, async (messageText, _arg, model, progress, token) => {
 			const varRequestId = `${model.sessionId}-${handle}`;
 			this._pendingProgress.set(varRequestId, progress);
-			const result = revive<IChatRequestVariableValue[]>(await this._proxy.$resolveVariable(handle, varRequestId, messageText, token));
+			const result = revive<IChatRequestVariableValue>(await this._proxy.$resolveVariable(handle, varRequestId, messageText, token));
 
 			this._pendingProgress.delete(varRequestId);
-			return result;
+			return result as any; // 'revive' type signature doesn't like this type for some reason
 		});
 		this._variables.set(handle, registration);
 	}

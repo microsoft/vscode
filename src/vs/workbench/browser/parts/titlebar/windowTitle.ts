@@ -3,30 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties, ITitleVariable } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { isWindows, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { trim } from 'vs/base/common/strings';
-import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { template } from 'vs/base/common/labels';
-import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
-import { Emitter } from 'vs/base/common/event';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { Schemas } from 'vs/base/common/network';
-import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { localize } from '../../../../nls.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { ITitleProperties, ITitleVariable } from './titlebarPart.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { EditorResourceAccessor, Verbosity, SideBySideEditor } from '../../../common/editor.js';
+import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { trim } from '../../../../base/common/strings.js';
+import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
+import { template } from '../../../../base/common/labels.js';
+import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { getVirtualWorkspaceLocation } from '../../../../platform/workspace/common/virtualWorkspace.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { CodeWindow } from '../../../../base/browser/window.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -79,8 +81,10 @@ export class WindowTitle extends Disposable {
 
 	private readonly editorService: IEditorService;
 
+	private readonly windowId: number;
+
 	constructor(
-		private readonly targetWindow: Window,
+		targetWindow: CodeWindow,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -95,6 +99,7 @@ export class WindowTitle extends Disposable {
 		super();
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.windowId = targetWindow.vscodeWindowId;
 
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
@@ -177,7 +182,8 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 
-			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+			const window = getWindowById(this.windowId, true).window;
+			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -185,10 +191,10 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
 
-			this.targetWindow.document.title = nativeTitle;
+			window.document.title = nativeTitle;
 			this.title = title;
 
 			this.onDidChangeEmitter.fire();

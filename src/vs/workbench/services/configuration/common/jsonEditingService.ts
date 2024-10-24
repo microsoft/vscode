@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as json from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Queue } from 'vs/base/common/async';
-import { Edit } from 'vs/base/common/jsonFormatter';
-import { IReference } from 'vs/base/common/lifecycle';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { ITextModel } from 'vs/editor/common/model';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as json from '../../../../base/common/json.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { Queue } from '../../../../base/common/async.js';
+import { Edit } from '../../../../base/common/jsonFormatter.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { ITextModelService, IResolvedTextEditorModel } from '../../../../editor/common/services/resolverService.js';
+import { IJSONEditingService, IJSONValue, JSONEditingError, JSONEditingErrorCode } from './jsonEditing.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class JSONEditingService implements IJSONEditingService {
 

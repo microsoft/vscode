@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
-import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
-import { Range } from 'vs/editor/common/core/range';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as nls from 'vs/nls';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ReplaceCommand } from '../../../common/commands/replaceCommand.js';
+import { MoveOperations } from '../../../common/cursor/cursorMoveOperations.js';
+import { Range } from '../../../common/core/range.js';
+import { ICommand } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import * as nls from '../../../../nls.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 class TransposeLettersAction extends EditorAction {
 

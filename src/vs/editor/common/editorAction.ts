@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorAction } from 'vs/editor/common/editorCommon';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorAction } from './editorCommon.js';
+import { ICommandMetadata } from '../../platform/commands/common/commands.js';
+import { ContextKeyExpression, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 
 export class InternalEditorAction implements IEditorAction {
 
