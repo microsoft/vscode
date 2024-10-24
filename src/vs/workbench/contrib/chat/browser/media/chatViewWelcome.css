@@ -45,6 +45,15 @@ div.chat-welcome-view {
 		font-weight: 500;
 	}
 
+	& > .chat-welcome-view-indicator {
+		color: var(--vscode-badge-foreground);
+		background: var(--vscode-badge-background);
+		padding: 1px 8px;
+		border-radius: 14px;
+		margin-top: 10px;
+		font-size: 11px;
+	}
+
 	& > .chat-welcome-view-message {
 		color: var(--vscode-descriptionForeground);
 		text-align: center;
