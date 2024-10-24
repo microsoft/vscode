@@ -214,6 +214,7 @@ class WordHighlighter {
 	private readonly textModelService: ITextModelService;
 	private readonly codeEditorService: ICodeEditorService;
 	private readonly configurationService: IConfigurationService;
+	private readonly contextKeyService: IContextKeyService;
 	private readonly logService: ILogService;
 
 	private occurrencesHighlightEnablement: string;
@@ -252,6 +253,7 @@ class WordHighlighter {
 		this.codeEditorService = codeEditorService;
 		this.textModelService = textModelService;
 		this.configurationService = configurationService;
+		this.contextKeyService = contextKeyService;
 		this.logService = logService;
 
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
@@ -633,8 +635,11 @@ class WordHighlighter {
 
 	private async _run(multiFileConfigChange?: boolean, noDelay?: boolean): Promise<void> {
 
-		const hasTextFocus = this.editor.hasTextFocus();
+		if (this.contextKeyService.getContextKeyValue('accessibleViewIsShown')) {
+			return;
+		}
 
+		const hasTextFocus = this.editor.hasTextFocus();
 		if (!hasTextFocus) { // new nb cell scrolled in, didChangeModel fires
 			if (!WordHighlighter.query) { // no previous query, nothing to highlight off of
 				this._stopAll();
