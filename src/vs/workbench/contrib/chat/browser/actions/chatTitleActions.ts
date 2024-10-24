@@ -330,7 +330,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: localize2('chat.remove.label', "Remove Request and Response"),
+				title: localize2('chat.removeRequest.label', "Remove Request"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
