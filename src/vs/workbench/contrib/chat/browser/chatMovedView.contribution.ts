@@ -54,12 +54,11 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 
 	private async initialize(): Promise<void> {
 		await this.hideViewIfCopilotIsNotInstalled();
-		this.hideViewIfOldViewIsInSecondarySidebar();
 		this.updateContextKey();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
+		this.hideViewIfOldViewIsInSecondarySidebar();
 	}
-
 
 	private markViewToHide(): void {
 		this.storageService.store(hideMovedChatWelcomeViewStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
@@ -168,5 +167,3 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 }
 
 registerWorkbenchContribution2(MoveChatViewContribution.ID, MoveChatViewContribution, WorkbenchPhase.BlockStartup);
-
-
