@@ -61,6 +61,7 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _enabled: IObservable<boolean>,
 		private readonly _inlineEditsEnabled: IObservable<boolean>,
 		private readonly _shouldHideInlineEdit: IObservable<boolean>,
+		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -285,7 +286,7 @@ export class InlineCompletionsModel extends Disposable {
 			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
 			const cursorPos = this._primaryPosition.read(reader);
-			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).contains(cursorPos.lineNumber);
+			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
 			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
@@ -595,6 +596,18 @@ export class InlineCompletionsModel extends Disposable {
 			documentValue: value,
 			inlineCompletion: item?.sourceInlineCompletion,
 		};
+	}
+
+	public jump(): void {
+		const s = this.inlineEditState.get();
+		if (!s) { return; }
+
+		transaction(tx => {
+			this.dontRefetchSignal.trigger(tx);
+			this._editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
+			this._editor.revealLine(s.inlineEdit.range.startLineNumber);
+			this._editor.focus();
+		});
 	}
 }
 

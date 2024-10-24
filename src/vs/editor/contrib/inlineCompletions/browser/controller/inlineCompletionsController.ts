@@ -118,6 +118,7 @@ export class InlineCompletionsController extends Disposable {
 			this._enabled,
 			this.optionInlineEditsEnabled,
 			this._shouldHideInlineEdit,
+			this.editor,
 		);
 		return model;
 	}).recomputeInitiallyAndOnChange(this._store);
@@ -148,7 +149,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader));
 	protected readonly _inlineEditWidget = derivedDisposable(reader => {
 		if (!this._everHadInlineEdit.read(reader)) { return undefined; }
-		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this.editor, this._inlineEdit);
+		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this.editor, this._inlineEdit, this.model);
 	})
 		.recomputeInitiallyAndOnChange(this._store);
 
@@ -339,14 +340,6 @@ export class InlineCompletionsController extends Disposable {
 
 	public jump(): void {
 		const m = this.model.get();
-		const s = m?.inlineEditState.get();
-		if (!s) { return; }
-
-		transaction(tx => {
-			m!.dontRefetchSignal.trigger(tx);
-			this.editor.setPosition(s.inlineEdit.range.getStartPosition(), 'inlineCompletions.jump');
-			this.editor.revealLine(s.inlineEdit.range.startLineNumber);
-			this.editor.focus();
-		});
+		m?.jump();
 	}
 }
