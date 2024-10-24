@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -12,7 +13,9 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -163,12 +166,11 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		const moveBackLabel = localize('moveBack', "Move Chat Back");
 		const moveBackCommandButton = `[${moveBackLabel}](command:${moveChatBackToOldLocation})`;
 
-		const dismissLabel = localize('dismiss', "Dismiss");
-		const dismissCommandButton = `[${dismissLabel}](command:${dismissAndHideMovedChatWelcomeView})`;
+		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "You can [dismiss](command:workbench.chat.dismissAndHideMovedChatWelcomeView) this view or [learn more](command:_learnMoreSecondarySidebar) about the Secondary Sidebar.");
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
-			content: [welcomeViewMainMessage, showViewCommandButton, moveBackCommandButton, dismissCommandButton].join('\n\n'),
+			content: [welcomeViewMainMessage, showViewCommandButton, moveBackCommandButton, welcomeViewFooterMessage].join('\n\n'),
 			when: ContextKeyExpr.and(CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME, ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID))
 		});
 	}
@@ -191,6 +193,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
 	primary: 0,
 	handler: accessor => showChatView(accessor.get(IViewsService))
+});
+
+CommandsRegistry.registerCommand({
+	id: '_learnMoreSecondarySidebar',
+	handler: async (accessor: ServicesAccessor) => {
+		const openerService = accessor.get(IOpenerService);
+		openerService.open(URI.parse('https://aka.ms/vscode-secondary-sidebar'));
+	}
 });
 
 registerWorkbenchContribution2(MoveChatViewContribution.ID, MoveChatViewContribution, WorkbenchPhase.BlockStartup);
