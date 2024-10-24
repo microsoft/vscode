@@ -203,7 +203,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 				{
 					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
 					id: MenuId.EditorTitle,
-					order: 1,
+					order: 2,
 					group: 'navigation',
 				},
 				{
