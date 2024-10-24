@@ -241,6 +241,7 @@ export class HitTestContext {
 	public readonly lineHeight: number;
 	public readonly stickyTabStops: boolean;
 	public readonly typicalHalfwidthCharacterWidth: number;
+	public readonly spaceWidth: number;
 	public readonly lastRenderData: PointerHandlerLastRenderData;
 
 	private readonly _context: ViewContext;
@@ -254,6 +255,7 @@ export class HitTestContext {
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stickyTabStops = options.get(EditorOption.stickyTabStops);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+		this.spaceWidth = options.get(EditorOption.fontInfo).spaceWidth;
 		this.lastRenderData = lastRenderData;
 		this._context = context;
 		this._viewHelper = viewHelper;
@@ -741,17 +743,21 @@ export class MouseTargetFactory {
 		// See https://github.com/microsoft/vscode/issues/46942
 		if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 			const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+			const lineWidth = ctx.visibleRangeForPosition(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber))?.originalLeft || 0;
+			const pxBehind = request.mouseContentHorizontalOffset - lineWidth;
+			const spaceWidth = ctx.spaceWidth;
+			const colsBehind = Math.floor(pxBehind / spaceWidth);
+
 			if (ctx.viewModel.getLineLength(lineNumber) === 0) {
-				const lineWidth = ctx.getLineWidth(lineNumber);
-				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-				return request.fulfillContentEmpty(new Position(lineNumber, 1), detail);
+				const detail = createEmptyContentDataInLines(pxBehind);
+				const pos = new Position(lineNumber, 1 + colsBehind);
+				return request.fulfillContentEmpty(pos, detail);
 			}
 
-			const lineWidth = ctx.getLineWidth(lineNumber);
 			if (request.mouseContentHorizontalOffset >= lineWidth) {
 				// TODO: This is wrong for RTL
-				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber));
+				const detail = createEmptyContentDataInLines(pxBehind);
+				const pos = new Position(lineNumber, ctx.viewModel.getLineMaxColumn(lineNumber) + colsBehind);
 				return request.fulfillContentEmpty(pos, detail);
 			}
 		}

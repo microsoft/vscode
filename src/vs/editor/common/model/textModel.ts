@@ -191,6 +191,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 		largeFileOptimizations: EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
 		bracketPairColorizationOptions: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions,
+		virtualSpace: EDITOR_MODEL_DEFAULTS.virtualSpace,
 	};
 
 	public static resolveOptions(textBuffer: model.ITextBuffer, options: model.ITextModelCreationOptions): model.TextModelResolvedOptions {
@@ -203,6 +204,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL,
 				bracketPairColorizationOptions: options.bracketPairColorizationOptions,
+				virtualSpace: options.virtualSpace,
 			});
 		}
 
@@ -653,6 +655,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		const trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 		const bracketPairColorizationOptions = (typeof _newOpts.bracketColorizationOptions !== 'undefined') ? _newOpts.bracketColorizationOptions : this._options.bracketPairColorizationOptions;
+		const virtualSpace = (typeof _newOpts.virtualSpace !== 'undefined') ? _newOpts.virtualSpace : this._options.virtualSpace;
 
 		const newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
@@ -661,6 +664,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,
 			bracketPairColorizationOptions,
+			virtualSpace,
 		});
 
 		if (this._options.equals(newOpts)) {
@@ -971,11 +975,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		const maxColumn = this.getLineMaxColumn(lineNumber);
 		if (column > maxColumn) {
-			return false;
+			return this._options.virtualSpace;
 		}
 
 		if (validationType === StringOffsetValidationType.SurrogatePairs) {
-			// !!At this point, column > 1
+			// !!At this point, column > 1 && column <= maxColumn
 			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
 			if (strings.isHighSurrogate(charCodeBefore)) {
 				return false;
@@ -1010,7 +1014,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		if (validationType === StringOffsetValidationType.SurrogatePairs) {
 			// If the position would end up in the middle of a high-low surrogate pair,
 			// we move it to before the pair
-			// !!At this point, column > 1
+			// !!At this point, column > 1 && column < maxColumn
 			const charCodeBefore = this._buffer.getLineCharCode(lineNumber, column - 2);
 			if (strings.isHighSurrogate(charCodeBefore)) {
 				return new Position(lineNumber, column - 1);
