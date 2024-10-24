@@ -524,6 +524,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
 	display: none;
+	padding-right: 12px;
 }
 
 .interactive-session .chat-editing-session .monaco-list-row:hover .chat-collapsible-list-action-bar,
@@ -879,6 +880,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-item-container.interactive-item-compact.interactive-request .chat-attached-context {
 	margin-top: -4px;
+}
+
+.interactive-session .interactive-item-container.editing-session.interactive-request .chat-attached-context {
+	margin-top: 0px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {

@@ -64,7 +64,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IOpenerService, type OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ResourceLabels } from '../../../browser/labels.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
@@ -1026,7 +1026,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const diffInfo = entry?.diffInfo.get();
 					const range = diffInfo?.changes.at(0)?.modified.toExclusiveRange();
 
-					this.editorService.openEditor({ resource: modifiedFileUri, options: { selection: range, preserveFocus: true, revealIfOpened: true } });
+					this.editorService.openEditor({
+						resource: modifiedFileUri,
+						options: {
+							...e.editorOptions,
+							selection: range,
+						}
+					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				}
 			}));
 			this._chatEditsDisposables.add(addDisposableListener(list.getHTMLElement(), 'click', e => {
