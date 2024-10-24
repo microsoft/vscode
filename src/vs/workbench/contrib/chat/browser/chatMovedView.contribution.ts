@@ -156,9 +156,14 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		};
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
+		const secondarySideBarLeft = this.configurationService.getValue('workbench.sideBar.location') !== 'left';
 		const welcomeViewMainMessage = this.hasCommandCenterChat() ?
-			localize('chatMovedMainMessage1', "Chat has been moved to the [Secondary Side Bar](command:workbench.action.focusAuxiliaryBar). You can quickly access Chat from the new Copilot icon in the title bar.") :
-			localize('chatMovedMainMessage2', "Chat has been moved to the [Secondary Side Bar](command:workbench.action.focusAuxiliaryBar).");
+			(secondarySideBarLeft ?
+				localize('chatMovedMainMessage1Left', "Chat has been moved to the Secondary Side Bar on the left. You can quickly access Chat from the new Copilot icon in the title bar.") :
+				localize('chatMovedMainMessage1Right', "Chat has been moved to the Secondary Side Bar on the right. You can quickly access Chat from the new Copilot icon in the title bar.")) :
+			(secondarySideBarLeft ?
+				localize('chatMovedMainMessage2Left', "Chat has been moved to the Secondary Side Bar on the left.") :
+				localize('chatMovedMainMessage2Right', "Chat has been moved to the Secondary Side Bar on the right."));
 
 		const showChatLabel = localize('showNewChatView', "Show Chat");
 		const showViewCommandButton = `[${showChatLabel}](command:${CHAT_SIDEBAR_PANEL_ID})`;
@@ -166,7 +171,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		const moveBackLabel = localize('moveBack', "Move Chat Back");
 		const moveBackCommandButton = `[${moveBackLabel}](command:${moveChatBackToOldLocation})`;
 
-		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "You can [dismiss](command:workbench.chat.dismissAndHideMovedChatWelcomeView) this view or [learn more](command:_learnMoreSecondarySidebar) about the Secondary Sidebar.");
+		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "[Learn more](command:_learnMoreSecondarySidebar) about the Secondary Sidebar.");
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
