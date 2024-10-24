@@ -111,3 +111,8 @@ export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefin
 
 export const chatEditingMaxFileAssignmentName = 'chatEditingSessionFileLimit';
 export const defaultChatEditingMaxFileLimit = 10;
+
+export const enum ChatEditKind {
+	Created,
+	Modified,
+}
