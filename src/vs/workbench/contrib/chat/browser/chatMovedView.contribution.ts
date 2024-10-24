@@ -81,20 +81,21 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private hideViewIfOldViewIsMovedFromDefaultLocation(): void {
-		const oldViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
-		if (!oldViewContainer) {
-			return;
-		}
-
+		// If the chat view is not actually moved to the new view container, then we should hide the welcome view.
 		const newViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_PANEL_ID);
 		if (!newViewContainer) {
 			return;
 		}
 
-		// If the chat view is not actually moved to the new view container, then we should hide the welcome view.
 		const currentChatViewContainer = this.viewDescriptorService.getViewContainerByViewId(CHAT_VIEW_ID);
 		if (currentChatViewContainer !== newViewContainer) {
 			this.markViewToHide();
+			return;
+		}
+
+		// If the chat view is in the new location, but the old view container was in the auxiliary bar anyway, then we should hide the welcome view.
+		const oldViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
+		if (!oldViewContainer) {
 			return;
 		}
 
