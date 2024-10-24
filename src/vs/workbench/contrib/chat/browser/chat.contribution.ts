@@ -75,7 +75,7 @@ import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.j
 import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeContributions.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
-
+import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -112,7 +112,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
-			tags: ['experimental', 'onExP'],
+			tags: ['preview'],
 			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for chat actions (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
@@ -297,7 +297,7 @@ registerWorkbenchContribution2(ChatCommandCenterRendering.ID, ChatCommandCenterR
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatEditorSaving.ID, ChatEditorSaving, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
-
+registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();
