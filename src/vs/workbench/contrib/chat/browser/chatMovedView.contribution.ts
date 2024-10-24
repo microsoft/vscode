@@ -204,8 +204,8 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 
 
 		let welcomeViewMainMessage = secondarySideBarLeft ?
-			localize('chatMovedMainMessage1Left', "Chat has been moved to the Secondary Side Bar on the left, for a more integrated AI experience in your editor.") :
-			localize('chatMovedMainMessage1Right', "Chat has been moved to the Secondary Side Bar on the right, for a more integrated AI experience in your editor.");
+			localize('chatMovedMainMessage1Left', "Chat has been moved to the Secondary Side Bar on the left for a more integrated AI experience in your editor.") :
+			localize('chatMovedMainMessage1Right', "Chat has been moved to the Secondary Side Bar on the right for a more integrated AI experience in your editor.");
 
 		const chatViewKeybinding = this.keybindingService.lookupKeybinding(CHAT_SIDEBAR_PANEL_ID)?.getLabel();
 		let quicklyAccessMessage = undefined;
