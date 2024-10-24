@@ -295,6 +295,20 @@
 	margin: 16px 0 8px 0;
 }
 
+.interactive-item-container.editing-session .value .rendered-markdown p {
+	margin: 0;
+}
+
+.interactive-item-container.editing-session .value .rendered-markdown h3 {
+	font-size: 13px;
+	margin: 0 0 8px 0;
+	font-weight: unset;
+}
+
+.interactive-item-container.editing-session .value .rendered-markdown [data-code] {
+	margin: 8px 0 16px 0;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
@@ -518,12 +532,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inherit;
 }
 
-.interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar.modified::after {
-	content: "E";
-	padding-right: 4px;
-	color: var(--vscode-chat-editedFileForeground);
-}
-
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
 }
@@ -604,6 +612,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	justify-content: start;
 	width: 100%;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary.disabled {
+	cursor: initial;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button.secondary .codicon {
@@ -819,7 +831,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
-	background: var(--vscode-button-secondaryHoverBackground);
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
@@ -863,6 +875,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context {
 	margin-top: -8px;
+}
+
+.interactive-session .interactive-item-container.interactive-item-compact.interactive-request .chat-attached-context {
+	margin-top: -4px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment.implicit {

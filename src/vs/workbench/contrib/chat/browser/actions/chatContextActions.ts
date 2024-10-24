@@ -26,11 +26,13 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../../../platform/quickinput/common/quickAccess.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickItemWithResource, IQuickPickSeparator, QuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
@@ -320,15 +322,16 @@ export class AttachContextAction extends Action2 {
 					isDynamic: true
 				});
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
-				for (const editor of editorService.editors) {
-					if (editor.resource) {
+				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput)) {
+					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
+					if (uri) {
 						if (chatEditingService) {
-							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(editor.resource);
+							chatEditingService.currentEditingSessionObs.get()?.addFileToWorkingSet(uri);
 						} else {
 							toAttach.push({
-								id: this._getFileContextId({ resource: editor.resource }),
-								value: editor.resource,
-								name: labelService.getUriBasenameLabel(editor.resource),
+								id: this._getFileContextId({ resource: uri }),
+								value: uri,
+								name: labelService.getUriBasenameLabel(uri),
 								isFile: true,
 								isDynamic: true
 							});
@@ -542,7 +545,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 		} else if (context.showFilesOnly) {
-			if (editorService.count > 0) {
+			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput).length > 0) {
 				quickPickItems.push({
 					kind: 'open-editors',
 					id: 'open-editors',
@@ -603,7 +606,7 @@ export class AttachContextAction extends Action2 {
 				}
 
 				if (isIOpenEditorsQuickPickItem(item)) {
-					for (const editor of editorService.editors) {
+					for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput)) {
 						// There is an open editor that hasn't yet been attached to the chat
 						if (editor.resource && !attachedContext.has(this._getFileContextId({ resource: editor.resource }))) {
 							return true;

@@ -367,7 +367,7 @@ export class InlineChatController implements IEditorContribution {
 				break;
 			case EditMode.Live:
 			default:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value, session.headless || this._configurationService.getValue<boolean>(InlineChatConfigKeys.ZoneToolbar));
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._ui.value, session.headless);
 				break;
 		}
 
