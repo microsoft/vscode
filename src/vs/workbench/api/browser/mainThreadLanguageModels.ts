@@ -8,18 +8,18 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
+import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
 import { ILanguageModelStatsService } from '../../contrib/chat/common/languageModelStats.js';
-import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector, ILanguageModelChatResponse } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
-import { URI } from '../../../base/common/uri.js';
-import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
+import { ExtHostContext, ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModels)
 export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
@@ -189,8 +189,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		return disposables;
 	}
 
-	$fileIsIgnored(uri: URI, token: CancellationToken): Promise<boolean> {
-		return this._ignoredFilesService.fileIsIgnored(uri, token);
+	$fileIsIgnored(uri: UriComponents, token: CancellationToken): Promise<boolean> {
+		return this._ignoredFilesService.fileIsIgnored(URI.revive(uri), token);
 	}
 
 	$registerFileIgnoreProvider(handle: number): void {

@@ -42,7 +42,7 @@ import { ColorScheme } from '../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
-import { IChatAgentMetadata } from '../common/chatAgents.js';
+import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../common/chatContextKeys.js';
 import { isChatRequestCheckpointed } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
@@ -52,7 +52,7 @@ import { IChatCodeCitations, IChatReferences, IChatRendererContent, IChatRequest
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
-import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from './chat.js';
+import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
 import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitationContentPart.js';
@@ -153,6 +153,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -385,6 +386,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		CONTEXT_RESPONSE_FILTERED.bindTo(templateData.contextKeyService).set(isFiltered);
 
+		templateData.rowContainer.classList.toggle('editing-session', this.chatWidgetService.getWidgetBySessionId(element.sessionId)?.location === ChatAgentLocation.EditingSession);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
@@ -400,6 +402,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.disabledOverlay.classList.toggle('disabled', element.isDisabled);
 		templateData.rowContainer.classList.toggle('disabled', element.isDisabled);
+		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 
 		if (isRequestVM(element) && element.confirmation) {
 			this.renderConfirmationAction(element, templateData);
@@ -412,7 +415,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
-			templateData.rowContainer.classList.toggle(mostRecentResponseClassName, true);
 
 			const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
@@ -429,7 +431,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
 			runProgressiveRender(true);
 		} else {
-			templateData.rowContainer.classList.toggle(mostRecentResponseClassName, false);
 			if (isResponseVM(element)) {
 				this.basicRenderElement(element, index, templateData);
 			} else if (isRequestVM(element)) {

@@ -215,7 +215,7 @@ export interface IChatAgentService {
 	invokeAgent(agent: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
-	getAgent(id: string): IChatAgentData | undefined;
+	getAgent(id: string, includeDisabled?: boolean): IChatAgentData | undefined;
 	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined;
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
@@ -394,8 +394,8 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return Iterable.find(this._agents.values(), a => !!a.data.metadata.isSecondary)?.data;
 	}
 
-	getAgent(id: string): IChatAgentData | undefined {
-		if (!this._agentIsEnabled(id)) {
+	getAgent(id: string, includeDisabled = false): IChatAgentData | undefined {
+		if (!this._agentIsEnabled(id) && !includeDisabled) {
 			return;
 		}
 

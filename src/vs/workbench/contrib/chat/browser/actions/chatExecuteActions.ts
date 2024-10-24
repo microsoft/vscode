@@ -88,7 +88,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel))),
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: [
@@ -140,7 +140,12 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3
-			}
+			},
+			keybinding: {
+				when: CONTEXT_IN_CHAT_INPUT,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
 		});
 	}
 

@@ -186,6 +186,7 @@ export function registerNewChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const dialogService = accessor.get(IDialogService);
+			const viewsService = accessor.get(IViewsService);
 			if (!(await this._handleCurrentEditingSession(chatEditingService, dialogService))) {
 				return;
 			}
@@ -201,7 +202,6 @@ export function registerNewChatActions() {
 				}
 			} else {
 				// Is running from f1 or keybinding
-				const viewsService = accessor.get(IViewsService);
 				const chatView = await viewsService.openView(EDITS_VIEW_ID) as ChatViewPane;
 				const widget = chatView.widget;
 
@@ -262,8 +262,8 @@ export function registerNewChatActions() {
 	registerAction2(class UndoChatEditInteractionAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.undoEditInteraction',
-				title: localize2('chat.undoEditInteraction.label', "Undo Interaction"),
+				id: 'workbench.action.chat.undoEdit',
+				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
@@ -294,8 +294,8 @@ export function registerNewChatActions() {
 	registerAction2(class RedoChatEditInteractionAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.redoEditInteraction',
-				title: localize2('chat.redoEditInteraction.label', "Redo Interaction"),
+				id: 'workbench.action.chat.redoEdit',
+				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
@@ -336,6 +336,11 @@ export function registerNewChatActions() {
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
 					group: 'navigation',
+					order: 1
+				}, {
+					id: MenuId.ChatCommandCenter,
+					when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED,
+					group: 'a_chatEdit',
 					order: 1
 				}]
 			});

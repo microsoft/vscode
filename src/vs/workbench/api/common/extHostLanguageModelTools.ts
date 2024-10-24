@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
@@ -48,6 +48,11 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
 		}
+
+		if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
+			throw new Error(`Invalid tool invocation token`);
+		}
+
 		try {
 			// Making the round trip here because not all tools were necessarily registered in this EH
 			const result = await this._proxy.$invokeTool({
@@ -81,7 +86,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context };
+		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -90,12 +95,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
-		// Some participant in extHostChatAgents calls invokeTool, goes to extHostLMTools
-		// mainThreadLMTools invokes the tool, which calls back to extHostLMTools
-		// The tool requests permission
-		// The tool in extHostLMTools calls for permission back to mainThreadLMTools
-		// And back to extHostLMTools, and back to the participant in extHostChatAgents
-		// Is there a tool call ID to identify the call?
 		const extensionResult = await raceCancellation(Promise.resolve(item.tool.invoke(options, token)), token);
 		if (!extensionResult) {
 			throw new CancellationError();

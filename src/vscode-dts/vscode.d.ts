@@ -19801,14 +19801,14 @@ declare module 'vscode' {
 	 */
 	export class LanguageModelToolCallPart {
 		/**
-		 * The name of the tool to call.
-		 */
-		name: string;
-
-		/**
 		 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
 		 */
 		callId: string;
+
+		/**
+		 * The name of the tool to call.
+		 */
+		name: string;
 
 		/**
 		 * The parameters with which to call the tool.
@@ -19817,8 +19817,36 @@ declare module 'vscode' {
 
 		/**
 		 * Create a new LanguageModelToolCallPart.
+		 *
+		 * @param callId The ID of the tool call.
+		 * @param name The name of the tool to call.
+		 * @param parameters The parameters with which to call the tool.
 		 */
-		constructor(name: string, callId: string, parameters: object);
+		constructor(callId: string, name: string, parameters: object);
+	}
+
+	/**
+	 * The result of a tool call. This is the counterpart of a {@link LanguageModelToolCallPart tool call} and
+	 * it can only be included in the content of a User message
+	 */
+	export class LanguageModelToolResultPart {
+		/**
+		 * The ID of the tool call.
+		 *
+		 * *Note* that this should match the {@link LanguageModelToolCallPart.callId callId} of a tool call part.
+		 */
+		callId: string;
+
+		/**
+		 * The value of the tool result.
+		 */
+		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+
+		/**
+		 * @param callId The ID of the tool call.
+		 * @param content The content of the tool result.
+		 */
+		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 	}
 
 	/**
@@ -19855,27 +19883,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The result of a tool call. Can only be included in the content of a User message.
-	 */
-	export class LanguageModelToolResultPart {
-		/**
-		 * The ID of the tool call.
-		 */
-		callId: string;
-
-		/**
-		 * The value of the tool result.
-		 */
-		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
-
-		/**
-		 * @param callId The ID of the tool call.
-		 * @param content The content of the tool result.
-		 */
-		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
-	}
-
-	/**
 	 * A result returned from a tool invocation. If using `@vscode/prompt-tsx`, this result may be rendered using a `ToolResult`.
 	 */
 	export class LanguageModelToolResult {
@@ -19896,19 +19903,23 @@ declare module 'vscode' {
 	/**
 	 * A token that can be passed to {@link lm.invokeTool} when invoking a tool inside the context of handling a chat request.
 	 */
-	export type ChatParticipantToolToken = unknown;
+	export type ChatParticipantToolToken = never;
 
 	/**
 	 * Options provided for tool invocation.
 	 */
 	export interface LanguageModelToolInvocationOptions<T> {
 		/**
-		 * When this tool is being invoked by a {@link ChatParticipant} within the context of a chat request, this token should be
-		 * passed from {@link ChatRequest.toolInvocationToken}. In that case, a progress bar will be automatically shown for the
-		 * tool invocation in the chat response view, and if the tool requires user confirmation, it will show up inline in the
-		 * chat view. If the tool is being invoked outside of a chat request, `undefined` should be passed instead.
+		 * An opaque object that ties a tool invocation to a chat request from a {@link ChatParticipant chat participant}.
 		 *
-		 * If a tool invokes another tool during its invocation, it can pass along the `toolInvocationToken` that it received.
+		 * The _only_ way to get a valid tool invocation token is using the provided {@link ChatRequest.toolInvocationToken toolInvocationToken}
+		 * from a chat request. In that case, a progress bar will be automatically shown for the tool invocation in the chat response view, and if
+		 * the tool requires user confirmation, it will show up inline in the chat view.
+		 *
+		 * If the tool is being invoked outside of a chat request, `undefined` should be passed instead, and no special UI except for
+		 * confirmations will be shown.
+		 *
+		 * *Note* that a tool that invokes another tool during its invocation, can pass along the `toolInvocationToken` that it received.
 		 */
 		toolInvocationToken: ChatParticipantToolToken | undefined;
 

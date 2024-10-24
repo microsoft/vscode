@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -10,20 +11,20 @@ import { CancellationError, SerializedError, transformErrorForSerialization, tra
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
+import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
-import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import type * as vscode from 'vscode';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -104,7 +105,7 @@ class LanguageModelResponse {
 		if (fragment.part.type === 'text') {
 			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
 		} else {
-			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.name, fragment.part.toolCallId, fragment.part.parameters);
+			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 		}
 		res.stream.emitOne(out);
 	}
@@ -578,13 +579,13 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._proxy.$fileIsIgnored(uri, token);
 	}
 
-	async $isFileIgnored(handle: number, uri: vscode.Uri, token: CancellationToken): Promise<boolean> {
+	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
 		const provider = this._ignoredFileProviders.get(handle);
 		if (!provider) {
 			throw new Error('Unknown LanguageModelIgnoredFileProvider');
 		}
 
-		return (await provider.provideFileIgnored(uri, token)) ?? false;
+		return (await provider.provideFileIgnored(URI.revive(uri), token)) ?? false;
 	}
 
 	registerIgnoredFileProvider(extension: IExtensionDescription, provider: vscode.LanguageModelIgnoredFileProvider): vscode.Disposable {

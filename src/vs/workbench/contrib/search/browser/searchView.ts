@@ -1646,8 +1646,6 @@ export class SearchView extends ViewPane {
 			await this.refreshAndUpdateCount();
 		}
 
-		await this.expandIfSingularResult();
-
 		const hasResults = !this.viewModel.searchResult.isEmpty();
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
 			return;

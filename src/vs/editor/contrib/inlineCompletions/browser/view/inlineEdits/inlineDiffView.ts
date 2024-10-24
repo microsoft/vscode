@@ -93,7 +93,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'char-delete',
-									(i.originalRange.isEmpty() && showEmptyDecorations) && 'diff-range-empty'
+									(i.originalRange.isEmpty() && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
 								inlineClassName: useInlineDiff ? 'strike-through' : null,
 								zIndex: 1
