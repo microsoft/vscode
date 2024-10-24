@@ -18,7 +18,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -538,7 +537,6 @@ abstract class BaseInstallChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const commandService = accessor.get(ICommandService);
 		const productService = accessor.get(IProductService);
 		const telemetryService = accessor.get(ITelemetryService);
 
@@ -572,10 +570,6 @@ abstract class BaseInstallChatAction extends Action2 {
 			installResult,
 			hasJustification: !!justification
 		});
-
-		if (installResult === 'installed') {
-			await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
-		}
 	}
 }
 
