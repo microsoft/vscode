@@ -146,6 +146,7 @@ export function registerNewChatActions() {
 						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
 						message: localize('chat.startEditing.confirmation.pending.message', "Starting a new editing session will end your current session. Do you want to discard pending edits to {0} files?", undecidedEdits.length),
 						type: 'info',
+						cancelButton: true,
 						buttons: [
 							{
 								label: localize('chat.startEditing.confirmation.discardEdits', "Discard & Continue"),
