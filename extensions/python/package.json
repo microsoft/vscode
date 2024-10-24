@@ -54,7 +54,14 @@
     }
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json",
+    "run-blood-cancer-detection": "python ./src/blood_cancer_detection.py"
+  },
+  "dependencies": {
+    "numpy": "^1.21.0",
+    "pandas": "^1.3.0",
+    "scikit-learn": "^0.24.2",
+    "tensorflow": "^2.5.0"
   },
   "repository": {
     "type": "git",
