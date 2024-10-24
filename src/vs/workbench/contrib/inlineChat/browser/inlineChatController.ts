@@ -1176,6 +1176,12 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			session.chatModel.completeResponse(request);
 		}
+
+		if (session.hunkData.pending === 0) {
+			// no real changes, just cancel
+			this.cancelSession();
+		}
+
 		await run;
 		return true;
 	}
