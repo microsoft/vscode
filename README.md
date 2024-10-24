@@ -1,7 +1,7 @@
 # Visual Studio Code - Open Source ("Code - OSS")
 
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
+[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+is%3Aissue+label%3Abug)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
 
 ## The Repository
@@ -67,6 +67,25 @@ This repository includes a Visual Studio Code Dev Containers / GitHub Codespaces
 * For Codespaces, install the [GitHub Codespaces](https://marketplace.visualstudio.com/items?itemName=GitHub.codespaces) extension in VS Code, and use the **Codespaces: Create New Codespace** command.
 
 Docker / the Codespace should have at least **4 Cores and 6 GB of RAM (8 GB recommended)** to run full build. See the [development container README](.devcontainer/README.md) for more information.
+
+### Opening VSCode in the Devcontainer
+
+To open VSCode in the devcontainer, follow these steps:
+
+1. Open the command palette in VSCode by pressing `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS).
+2. Type `Dev Containers: Reopen in Container` and select it from the list.
+3. Wait for the container to build and start. This may take a few minutes.
+4. Once the container is running, VSCode will automatically open in the devcontainer.
+
+### Using the `./.devcontainer/post-create.sh` Script
+
+The `./.devcontainer/post-create.sh` script is used to install npm dependencies and run the Electron build. To use this script, follow these steps:
+
+1. Open a terminal in VSCode.
+2. Navigate to the `.devcontainer` directory by running `cd .devcontainer`.
+3. Run the `post-create.sh` script by executing `./post-create.sh`.
+4. Wait for the script to complete. This may take a few minutes.
+5. Once the script has finished, you can start working with Code - OSS in the devcontainer.
 
 ## Code of Conduct
 

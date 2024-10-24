@@ -109,4 +109,23 @@ Enjoy!
 
 The container comes with VS Code Insiders installed. To run it from an Integrated Terminal use `VSCODE_IPC_HOOK_CLI= /usr/bin/code-insiders .`.
 
+### Opening VSCode in the Devcontainer
+
+To open VSCode in the devcontainer, follow these steps:
+
+1. Open the command palette in VSCode by pressing `Ctrl+Shift+P` (Windows/Linux) or `Cmd+Shift+P` (macOS).
+2. Type `Dev Containers: Reopen in Container` and select it from the list.
+3. Wait for the container to build and start. This may take a few minutes.
+4. Once the container is running, VSCode will automatically open in the devcontainer.
+
+### Using the `./.devcontainer/post-create.sh` Script
+
+The `./.devcontainer/post-create.sh` script is used to install npm dependencies and run the Electron build. To use this script, follow these steps:
+
+1. Open a terminal in VSCode.
+2. Navigate to the `.devcontainer` directory by running `cd .devcontainer`.
+3. Run the `post-create.sh` script by executing `./post-create.sh`.
+4. Wait for the script to complete. This may take a few minutes.
+5. Once the script has finished, you can start working with Code - OSS in the devcontainer.
+
 [def]: https://www.realvnc.com/en/connect/download/viewer/
