@@ -52,7 +52,18 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 			const fixedPath = this.fixPathPrefixes(inspect.workspaceValue);
 			if (!path.isAbsolute(fixedPath)) {
 				const workspacePath = RelativeWorkspacePathResolver.asAbsoluteWorkspacePath(fixedPath);
-				return workspacePath || null;
+
+				if (workspacePath) {
+					return workspacePath;
+				}
+
+				// if path is relative assume it is relative to the workspace folder
+				if (vscode.workspace.workspaceFolders?.length === 1) {
+					const root = vscode.workspace.workspaceFolders[0];
+					return path.join(root.uri.fsPath, fixedPath);
+				}
+
+				return null;
 			}
 			return fixedPath;
 		}
