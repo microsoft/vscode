@@ -210,11 +210,11 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		const chatViewKeybinding = this.keybindingService.lookupKeybinding(CHAT_SIDEBAR_PANEL_ID)?.getLabel();
 		let quicklyAccessMessage = undefined;
 		if (this.hasCommandCenterChat() && chatViewKeybinding) {
-			quicklyAccessMessage = localize('chatMovedCommandCenterAndKeybind', "You can also quickly access Chat via the new Copilot icon in the editor title bar or with {0}.", chatViewKeybinding);
+			quicklyAccessMessage = localize('chatMovedCommandCenterAndKeybind', "You can quickly access Chat via the new Copilot icon in the editor title bar or with the keyboard shortcut {0}.", chatViewKeybinding);
 		} else if (this.hasCommandCenterChat()) {
-			quicklyAccessMessage = localize('chatMovedCommandCenter', "You can also quickly access Chat via the new Copilot icon in the editor title bar");
+			quicklyAccessMessage = localize('chatMovedCommandCenter', "You can quickly access Chat via the new Copilot icon in the editor title bar.");
 		} else if (chatViewKeybinding) {
-			quicklyAccessMessage = localize('chatMovedKeybind', "You can also quickly access Chat with {0}.", chatViewKeybinding);
+			quicklyAccessMessage = localize('chatMovedKeybind', "You can quickly access Chat with the keyboard shortcut {0}.", chatViewKeybinding);
 		}
 
 		if (quicklyAccessMessage) {
