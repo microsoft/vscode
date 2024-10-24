@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
@@ -24,10 +25,11 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
-import { IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IModifiedFileEntry, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
@@ -39,6 +41,11 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	public readonly docSnapshot: ITextModel;
 	private readonly doc: ITextModel;
+
+	private readonly _onDidDelete = this._register(new Emitter<void>());
+	public get onDidDelete() {
+		return this._onDidDelete.event;
+	}
 
 	get originalURI(): URI {
 		return this.docSnapshot.uri;
@@ -95,6 +102,8 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		return this._telemetryInfo;
 	}
 
+	readonly createdInRequestId: string | undefined;
+
 	get lastModifyingRequestId() {
 		return this._telemetryInfo.requestId;
 	}
@@ -104,15 +113,20 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		resourceRef: IReference<IResolvedTextEditorModel>,
 		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		private _telemetryInfo: IModifiedEntryTelemetryInfo,
+		kind: ChatEditKind,
 		@IModelService modelService: IModelService,
 		@ITextModelService textModelService: ITextModelService,
 		@ILanguageService languageService: ILanguageService,
 		@IBulkEditService public readonly bulkEditService: IBulkEditService,
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
+		if (kind === ChatEditKind.Created) {
+			this.createdInRequestId = this._telemetryInfo.requestId;
+		}
 		this.doc = resourceRef.object.textEditorModel;
 		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
@@ -316,11 +330,16 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			return;
 		}
 
-		this._setDocValue(this.docSnapshot.getValue());
-
 		this._stateObs.set(WorkingSetEntryState.Rejected, transaction);
-		await this.collapse(transaction);
 		this._notifyAction('rejected');
+		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+			await this._fileService.del(this.resource);
+			this._onDidDelete.fire();
+			this.dispose();
+		} else {
+			this._setDocValue(this.docSnapshot.getValue());
+			await this.collapse(transaction);
+		}
 	}
 
 	private _setDocValue(value: string): void {
