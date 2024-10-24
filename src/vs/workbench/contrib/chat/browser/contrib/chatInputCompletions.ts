@@ -293,6 +293,8 @@ class AgentCompletions extends Disposable {
 					suggestions: agents.flatMap(agent => agent.slashCommands.map((c, i) => {
 						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const withSlash = `${chatSubcommandLeader}${c.name}`;
+						const extraSortText = agent.id === 'github.copilot.terminalPanel' ? `z` : ``;
+						const sortText = `${chatSubcommandLeader}${extraSortText}${agent.name}${c.name}`;
 						const item: CompletionItem = {
 							label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
 							commitCharacters: [' '],
@@ -300,7 +302,7 @@ class AgentCompletions extends Disposable {
 							detail: `(${agentLabel}) ${c.description ?? ''}`,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
-							sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+							sortText,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 						};
 
