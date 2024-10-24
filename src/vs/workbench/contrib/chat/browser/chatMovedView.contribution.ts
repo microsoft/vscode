@@ -26,7 +26,7 @@ import { IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IView
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CONTEXT_CHAT_EXTENSION_INVALID, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME } from '../common/chatContextKeys.js';
-import { showChatView } from './chat.js';
+import { CHAT_VIEW_ID, showChatView } from './chat.js';
 import { CHAT_SIDEBAR_OLD_VIEW_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 
 // TODO@bpasero TODO@sbatten remove after a few months
@@ -64,7 +64,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		this.registerListeners();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
-		this.hideViewIfOldViewIsInSecondarySidebar();
+		this.hideViewIfOldViewIsMovedFromDefaultLocation();
 	}
 
 	private markViewToHide(): void {
@@ -80,9 +80,21 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private hideViewIfOldViewIsInSecondarySidebar(): void {
+	private hideViewIfOldViewIsMovedFromDefaultLocation(): void {
 		const oldViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
 		if (!oldViewContainer) {
+			return;
+		}
+
+		const newViewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_PANEL_ID);
+		if (!newViewContainer) {
+			return;
+		}
+
+		// If the chat view is not actually moved to the new view container, then we should hide the welcome view.
+		const currentChatViewContainer = this.viewDescriptorService.getViewContainerByViewId(CHAT_VIEW_ID);
+		if (currentChatViewContainer !== newViewContainer) {
+			this.markViewToHide();
 			return;
 		}
 
