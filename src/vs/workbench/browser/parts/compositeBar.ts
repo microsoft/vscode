@@ -443,7 +443,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Case: we closed the default composite
 		// Solv: we open the next visible composite from top
 		else {
-			this.options.openComposite(this.visibleComposites.filter(cid => cid !== compositeId)[0]);
+			const visibleComposite = this.visibleComposites.find(cid => cid !== compositeId);
+			if (visibleComposite) {
+				this.options.openComposite(visibleComposite);
+			}
 		}
 	}
 
