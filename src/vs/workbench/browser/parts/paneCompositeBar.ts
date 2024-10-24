@@ -380,6 +380,12 @@ export class PaneCompositeBar extends Disposable {
 			this.hideComposite(viewContainer.id);
 		} else {
 			this.addComposite(viewContainer);
+
+			// Activate if this is the active pane composite
+			const activePaneComposite = this.paneCompositePart.getActivePaneComposite();
+			if (activePaneComposite?.getId() === viewContainer.id) {
+				this.compositeBar.activateComposite(viewContainer.id);
+			}
 		}
 	}
 
