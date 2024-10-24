@@ -142,7 +142,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 			storageId: viewContainerId,
 			hideIfEmpty: true,
 			order: 100,
-		}, ViewContainerLocation.Sidebar);
+		}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 		const viewId = 'workbench.chat.movedView.welcomeView';
 		const viewDescriptor: IViewDescriptor = {
