@@ -291,7 +291,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			hideIfEmpty: true,
 			order: 100,
 			openCommandActionDescriptor: {
-				id: CHAT_SIDEBAR_PANEL_ID,
+				id: viewContainerId,
 				keybindings: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
 					mac: {
