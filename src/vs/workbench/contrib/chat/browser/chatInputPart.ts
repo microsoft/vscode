@@ -15,6 +15,7 @@ import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/ho
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ProgressBar } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { Promises } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -69,7 +70,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_HAS_FILE_ATTACHMENTS, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
-import { ChatEditingSessionState, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
+import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
@@ -82,6 +83,7 @@ import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatEditingShowChangesAction } from './chatEditing/chatEditingActions.js';
+import { ChatEditingSaveAllAction } from './chatEditorSaving.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
@@ -221,6 +223,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		return edits;
 	}
+	private _combinedChatEditWorkingSetEntries: URI[] = [];
+	public get chatEditWorkingSetFiles() {
+		return this._combinedChatEditWorkingSetEntries;
+	}
 
 	private readonly getInputState: () => IChatInputState;
 
@@ -243,6 +249,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 	) {
 		super();
 
@@ -897,6 +904,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatEditingSessionWidgetContainer);
 			this._chatEditsDisposables.clear();
 			this._chatEditList = undefined;
+			this._combinedChatEditWorkingSetEntries = [];
 			this._chatEditsProgress?.dispose();
 			return;
 		}
@@ -909,7 +917,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
 		const modifiedFiles = new ResourceSet();
-		const entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
+		let entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
 			modifiedFiles.add(entry.modifiedURI);
 			return {
 				reference: entry.modifiedURI,
@@ -945,16 +953,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 			return 0;
 		});
+		let remainingFileEntriesBudget = this.chatEditingService.editingSessionFileLimit;
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
-		if (entries.length !== this._chatEditList?.object.length) {
-			const overviewText = overviewRegion.querySelector('span') ?? dom.append(overviewRegion, $('span'));
-			overviewText.textContent = localize('chatEditingSession.workingSet', 'Working Set');
+		const overviewText = overviewRegion.querySelector('span') ?? dom.append(overviewRegion, $('span'));
+		overviewText.textContent = localize('chatEditingSession.workingSet', 'Working Set');
 
-			if (entries.length === 1) {
-				overviewText.textContent += ' ' + localize('chatEditingSession.oneFile', '(1 file)');
-			} else if (entries.length > 1) {
-				overviewText.textContent += ' ' + localize('chatEditingSession.manyFiles', '({0} files)', entries.length);
+		if (entries.length === 1) {
+			overviewText.textContent += ' ' + localize('chatEditingSession.oneFile', '(1 file)');
+		} else if (entries.length >= remainingFileEntriesBudget) {
+			// The user tried to attach too many files, we have to drop anything after the limit
+			const entriesToPreserve: IChatCollapsibleListItem[] = [];
+			const newEntries: IChatCollapsibleListItem[] = [];
+			for (let i = 0; i < entries.length; i += 1) {
+				const entry = entries[i];
+				// If this entry was here earlier and is still here, we should prioritize preserving it
+				// so that nothing existing gets evicted
+				const currentEntryUri = entry.kind === 'reference' && URI.isUri(entry.reference) ? entry.reference : undefined;
+				if (this._combinedChatEditWorkingSetEntries.find((e) => e.toString() === currentEntryUri?.toString()) && remainingFileEntriesBudget > 0) {
+					entriesToPreserve.push(entry);
+					remainingFileEntriesBudget -= 1;
+				} else {
+					newEntries.push(entry);
+				}
 			}
+
+			const newEntriesThatFit = newEntries.slice(0, remainingFileEntriesBudget);
+			entries = [...entriesToPreserve, ...newEntriesThatFit];
+			remainingFileEntriesBudget -= newEntriesThatFit.length;
+		}
+		if (entries.length > 1) {
+			overviewText.textContent += ' ' + localize('chatEditingSession.manyFiles', '({0} files)', entries.length);
 		}
 
 		// Clear out the previous actions (if any)
@@ -966,7 +994,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsActionsDisposables.add(this.instantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			buttonConfigProvider: (action) => {
-				if (action.id === ChatEditingShowChangesAction.ID) {
+				if (action.id === ChatEditingShowChangesAction.ID || action.id === ChatEditingSaveAllAction.ID) {
 					return { showIcon: true, showLabel: false, isSecondary: true };
 				}
 				return undefined;
@@ -1016,6 +1044,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, entries);
+		this._combinedChatEditWorkingSetEntries = coalesce(entries.map((e) => e.kind === 'reference' && URI.isUri(e.reference) ? e.reference : undefined));
 
 		const addFilesElement = innerContainer.querySelector('.chat-editing-session-toolbar-actions') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-toolbar-actions'));
 
@@ -1023,7 +1052,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			supportIcons: true,
 			secondary: true
 		}));
+		button.enabled = remainingFileEntriesBudget > 0;
 		button.label = localize('chatAddFiles', '{0} Add Files...', '$(add)');
+		button.setTitle(button.enabled ? localize('addFiles.label', 'Add files to your working set') : localize('addFilesDisabled.label', 'You have reached the maximum number of files that can be added to the working set.'));
 		this._chatEditsActionsDisposables.add(button.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.chat.editing.attachFiles', { widget: chatWidget });
 		}));

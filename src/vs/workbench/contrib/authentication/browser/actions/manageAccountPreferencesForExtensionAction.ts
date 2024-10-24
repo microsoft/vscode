@@ -127,7 +127,7 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		}
 
 		const disposables = new DisposableStore();
-		const picker = this._createQuickPick(disposables, extensionId, extension.displayName ?? extension.name);
+		const picker = this._createQuickPick(disposables, extensionId, extension.displayName ?? extension.name, provider.label);
 		if (items.length === 0) {
 			// We would only get here if we went through the Command Palette
 			disposables.add(this._handleNoAccounts(picker));
@@ -137,12 +137,12 @@ class ManageAccountPreferenceForExtensionActionImpl {
 		picker.show();
 	}
 
-	private _createQuickPick(disposableStore: DisposableStore, extensionId: string, extensionLabel: string) {
+	private _createQuickPick(disposableStore: DisposableStore, extensionId: string, extensionLabel: string, providerLabel: string) {
 		const picker = disposableStore.add(this._quickInputService.createQuickPick<AccountPreferenceQuickPickItem>({ useSeparators: true }));
 		disposableStore.add(picker.onDidHide(() => {
 			disposableStore.dispose();
 		}));
-		picker.placeholder = localize('placeholder', "Manage '{0}' account preferences...", extensionLabel);
+		picker.placeholder = localize('placeholder v2', "Manage '{0}' account preferences for {1}...", extensionLabel, providerLabel);
 		picker.title = localize('title', "'{0}' Account Preferences For This Workspace", extensionLabel);
 		picker.sortByLabel = false;
 		disposableStore.add(picker.onDidAccept(async () => {

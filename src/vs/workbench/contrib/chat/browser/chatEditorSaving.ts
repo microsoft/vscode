@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -195,7 +196,9 @@ export class ChatEditingSaveAllAction extends Action2 {
 		super({
 			id: ChatEditingSaveAllAction.ID,
 			title: ChatEditingSaveAllAction.LABEL,
+			tooltip: ChatEditingSaveAllAction.LABEL,
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
+			icon: Codicon.saveAll,
 			menu: [
 				{
 					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
@@ -206,7 +209,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
-					order: 1,
+					order: 2,
 					// Show the option to save without accepting if the user has autosave
 					// and also hasn't configured the setting to always save with generated changes
 					when: ContextKeyExpr.and(

@@ -174,12 +174,13 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 
 export class ChatEditingAcceptAllAction extends Action2 {
 	static readonly ID = 'chatEditing.acceptAllFiles';
-	static readonly LABEL = localize('accept.allFiles', 'Accept All');
+	static readonly LABEL = localize('acceptAllEdits', 'Accept All Edits');
 
 	constructor() {
 		super({
 			id: ChatEditingAcceptAllAction.ID,
-			title: ChatEditingAcceptAllAction.LABEL,
+			title: localize('accept', 'Accept'),
+			tooltip: ChatEditingAcceptAllAction.LABEL,
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
 				{
@@ -211,12 +212,13 @@ registerAction2(ChatEditingAcceptAllAction);
 
 export class ChatEditingDiscardAllAction extends Action2 {
 	static readonly ID = 'chatEditing.discardAllFiles';
-	static readonly LABEL = localize('discard.allFiles', 'Discard All');
+	static readonly LABEL = localize('discardAllEdits', 'Discard All Edits');
 
 	constructor() {
 		super({
 			id: ChatEditingDiscardAllAction.ID,
-			title: ChatEditingDiscardAllAction.LABEL,
+			title: localize('discard', 'Discard'),
+			tooltip: ChatEditingDiscardAllAction.LABEL,
 			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
 				{
@@ -228,7 +230,7 @@ export class ChatEditingDiscardAllAction extends Action2 {
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
-					order: 2,
+					order: 1,
 					when: ContextKeyExpr.or(hasAppliedChatEditsContextKey.negate(), ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), hasUndecidedChatEditingResourceContextKey))
 				}
 			],
@@ -248,12 +250,13 @@ registerAction2(ChatEditingDiscardAllAction);
 
 export class ChatEditingShowChangesAction extends Action2 {
 	static readonly ID = 'chatEditing.viewChanges';
-	static readonly LABEL = localize('chatEditing.viewChanges', 'View Changes');
+	static readonly LABEL = localize('chatEditing.viewChanges', 'View All Edits');
 
 	constructor() {
 		super({
 			id: ChatEditingShowChangesAction.ID,
 			title: ChatEditingShowChangesAction.LABEL,
+			tooltip: ChatEditingShowChangesAction.LABEL,
 			f1: false,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey,
