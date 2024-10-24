@@ -78,6 +78,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
+				if ((!text || (text.startsWith('<vscode_codeblock_uri>') && !text.includes('\n'))) && !isCodeBlockComplete && rendererOptions.renderCodeBlockPills) {
+					const hideEmptyCodeblock = $('div');
+					hideEmptyCodeblock.style.display = 'none';
+					return hideEmptyCodeblock;
+				}
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
@@ -94,15 +99,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				} else {
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
+					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, index, { text, languageId });
 					vulns = modelEntry.vulns;
-					codemapperUri = modelEntry.codemapperUri;
+					codemapperUri = fastUpdateModelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest) {
+				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codemapperUri) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
@@ -151,7 +157,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly codeBlockIndex = index;
 						readonly element = element;
 						readonly isStreaming = isStreaming;
-						codemapperUri = undefined; // will be set async
+						readonly codemapperUri = codemapperUri;
 						public get uri() {
 							return undefined;
 						}

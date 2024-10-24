@@ -87,6 +87,21 @@ export class CodeBlockModelCollection extends Disposable {
 		this._models.clear();
 	}
 
+	updateSync(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: { text: string; languageId?: string }) {
+		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
+
+		const extractedVulns = extractVulnerabilitiesFromText(content.text);
+		const newText = fixCodeText(extractedVulns.newText, content.languageId);
+		this.setVulns(sessionId, chat, codeBlockIndex, extractedVulns.vulnerabilities);
+
+		const codeblockUri = extractCodeblockUrisFromText(newText);
+		if (codeblockUri) {
+			this.setCodemapperUri(sessionId, chat, codeBlockIndex, codeblockUri.uri);
+		}
+
+		return this.get(sessionId, chat, codeBlockIndex) ?? entry;
+	}
+
 	async update(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: { text: string; languageId?: string }) {
 		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
 
