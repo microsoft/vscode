@@ -36,7 +36,7 @@ interface IViewPaneState extends IChatViewState {
 }
 
 export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
-export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatAuxiliaryBar';
+export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
 export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
