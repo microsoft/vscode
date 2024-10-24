@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -43,10 +43,10 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 
 	private static readonly hideMovedChatWelcomeViewStorageKey = 'workbench.chat.hideMovedChatWelcomeView';
 
-	private showWelcomeViewCtx: IContextKey<boolean>;
+	private readonly showWelcomeViewCtx = CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME.bindTo(this.contextKeyService);
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IProductService private readonly productService: IProductService,
@@ -55,8 +55,6 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-
-		this.showWelcomeViewCtx = CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME.bindTo(contextKeyService);
 		this.initialize();
 	}
 
