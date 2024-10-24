@@ -42,6 +42,7 @@ const dismissAndHideMovedChatWelcomeView = 'workbench.chat.dismissAndHideMovedCh
 const moveChatBackToOldLocation = 'workbench.chat.moveChatBackToOldLocation';
 
 export class MoveChatViewContribution implements IWorkbenchContribution {
+
 	static readonly ID = 'workbench.contrib.chatMovedViewWelcomeView';
 
 	private showWelcomeViewCtx: IContextKey<boolean>;
@@ -70,7 +71,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private markViewToHide(): void {
-		this.storageService.store(hideMovedChatWelcomeViewStorageKey, true, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(hideMovedChatWelcomeViewStorageKey, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		this.updateContextKey();
 	}
 
@@ -95,7 +96,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private updateContextKey(): void {
-		const hidden = this.storageService.getBoolean(hideMovedChatWelcomeViewStorageKey, StorageScope.PROFILE, false);
+		const hidden = this.storageService.getBoolean(hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
 		this.showWelcomeViewCtx.set(!hidden);
 	}
 
