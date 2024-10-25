@@ -1,5 +1,4 @@
-{
-	"registrations": [
+{ "registrations": [
 		{
 			"component": {
 				"type": "git",
