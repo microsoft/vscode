@@ -59,6 +59,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			// ... on a different composite bar
 			else {
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before), 'dnd');
+				this.openComposite(currentContainer.id, true);
 			}
 		}
 
