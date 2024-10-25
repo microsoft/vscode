@@ -54,6 +54,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from '../../../common/theme.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -274,7 +275,7 @@ class ViewWelcomeController {
 
 					for (const node of linkedText.nodes) {
 						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
+							append(p, ...renderLabelWithIcons(node));
 						} else {
 							const link = this.renderDisposables.add(this.instantiationService.createInstance(Link, p, node, {}));
 
