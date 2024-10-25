@@ -620,11 +620,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const command = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 		cwd = cwd ? await this._configurationResolverService.resolveAsync(workspaceFolder, cwd) : undefined;
 		const paths = envPath ? await Promise.all(envPath.split(path.delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
-		let foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
-		if (!foundExecutable) {
-			foundExecutable = path.join(cwd ?? '', command);
+		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
+		if (foundExecutable) {
+			return foundExecutable;
 		}
-		return foundExecutable;
+		if (path.isAbsolute(command)) {
+			return command;
+		}
+		return path.join(cwd ?? '', command);
 	}
 
 	private _findUnresolvedVariables(variables: Set<string>, alreadyResolved: Map<string, string>): Set<string> {
