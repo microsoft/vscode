@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext } from '../../common/files.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -275,6 +275,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private parentReadonlyContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private availableEditorIdsContext: IContextKey<string>;
 
@@ -332,6 +333,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
+		this.parentReadonlyContext = ExplorerResourceParentReadOnlyContext.bindTo(contextKeyService);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
@@ -701,13 +703,21 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.storageService.store(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
+	private checkReadOnly(stat: ExplorerItem | null | undefined): boolean {
+		if (stat === null || stat === undefined) { return false; }
+		if (stat.isReadonly) { return true; }
+		return this.checkReadOnly(stat.parent);
+	}
+
 	private setContextKeys(stat: ExplorerItem | null | undefined): void {
 		const folders = this.contextService.getWorkspace().folders;
 		const resource = stat ? stat.resource : folders[folders.length - 1].uri;
 		stat = stat || this.explorerService.findClosest(resource);
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
-		this.readonlyContext.set(!!stat && !!stat.isReadonly);
+		this.readonlyContext.set(this.checkReadOnly(stat));
+		this.parentReadonlyContext.set(this.checkReadOnly(stat?.parent));
+
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
@@ -1090,6 +1100,11 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
+const isCreateClickable = ContextKeyExpr.or(
+	ContextKeyExpr.and(ExplorerResourceNotReadonlyContext, ExplorerFolderContext),
+	ContextKeyExpr.and(ExplorerResourceParentReadOnlyContext.toNegated(), ExplorerFolderContext.toNegated())
+);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1097,7 +1112,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: isCreateClickable,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1113,6 +1128,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1120,7 +1136,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: isCreateClickable,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
