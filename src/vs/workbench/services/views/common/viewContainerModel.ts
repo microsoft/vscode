@@ -7,7 +7,7 @@ import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExten
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -88,7 +88,7 @@ class ViewDescriptorsState extends Disposable {
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.globalViewsStateStorageId, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.globalViewsStateStorageId, this._store)(() => this.onDidStorageChange()));
 
 		this.state = this.initialize();
 
