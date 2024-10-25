@@ -14,7 +14,6 @@ import { IExtensionManagementService } from '../../../../platform/extensionManag
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -54,8 +53,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		@IViewsService private readonly viewsService: IViewsService,
 		@IPaneCompositePartService private readonly paneCompositePartService: IPaneCompositePartService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -200,34 +198,19 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		};
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([viewDescriptor], viewContainer);
-
-
 		const secondarySideBarLeft = this.configurationService.getValue('workbench.sideBar.location') !== 'left';
+		const welcomeViewMainMessage = this.hasCommandCenterChat() ?
+			(secondarySideBarLeft ?
+				localize('chatMovedMainMessage1Left', "Chat has been moved to the Secondary Side Bar on the left. You can quickly access Chat from the new Copilot icon in the title bar.") :
+				localize('chatMovedMainMessage1Right', "Chat has been moved to the Secondary Side Bar on the right. You can quickly access Chat from the new Copilot icon in the title bar.")) :
+			(secondarySideBarLeft ?
+				localize('chatMovedMainMessage2Left', "Chat has been moved to the Secondary Side Bar on the left.") :
+				localize('chatMovedMainMessage2Right', "Chat has been moved to the Secondary Side Bar on the right."));
 
-
-		let welcomeViewMainMessage = secondarySideBarLeft ?
-			localize('chatMovedMainMessage1Left', "Chat has been moved to the Secondary Side Bar on the left for a more integrated AI experience in your editor.") :
-			localize('chatMovedMainMessage1Right', "Chat has been moved to the Secondary Side Bar on the right for a more integrated AI experience in your editor.");
-
-		const chatViewKeybinding = this.keybindingService.lookupKeybinding(CHAT_SIDEBAR_PANEL_ID)?.getLabel();
-		const copilotIcon = `$(${this.productService.defaultChatAgent?.icon ?? 'comment-discussion'})`;
-		let quicklyAccessMessage = undefined;
-		if (this.hasCommandCenterChat() && chatViewKeybinding) {
-			quicklyAccessMessage = localize('chatMovedCommandCenterAndKeybind', "You can quickly access Chat via the new Copilot icon ({0}) in the editor title bar or with the keyboard shortcut {1}.", copilotIcon, chatViewKeybinding);
-		} else if (this.hasCommandCenterChat()) {
-			quicklyAccessMessage = localize('chatMovedCommandCenter', "You can quickly access Chat via the new Copilot icon ({0}) in the editor title bar.", copilotIcon);
-		} else if (chatViewKeybinding) {
-			quicklyAccessMessage = localize('chatMovedKeybind', "You can quickly access Chat with the keyboard shortcut {0}.", chatViewKeybinding);
-		}
-
-		if (quicklyAccessMessage) {
-			welcomeViewMainMessage = `${welcomeViewMainMessage}\n\n${quicklyAccessMessage}`;
-		}
-
-		const okButton = `[${localize('ok', "Got it")}](command:_chatMovedViewWelcomeView.ok)`;
+		const okButton = `[${localize('ok', "OK")}](command:_chatMovedViewWelcomeView.ok)`;
 		const restoreButton = `[${localize('restore', "Restore Old Location")}](command:_chatMovedViewWelcomeView.restore)`;
 
-		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "[Learn more](command:_chatMovedViewWelcomeView.learnMore) about the Secondary Side Bar.");
+		const welcomeViewFooterMessage = localize('chatMovedFooterMessage', "[Learn more](command:_chatMovedViewWelcomeView.learnMore) about the Secondary Sidebar.");
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
