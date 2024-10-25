@@ -32,9 +32,13 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 				activeEditorDisposables.clear();
 				const codeEditor = codeEditorService.getActiveCodeEditor();
 				if (codeEditor) {
-					activeEditorDisposables.add(codeEditor.onDidChangeModel(() => this.updateImplicitContext()));
-					activeEditorDisposables.add(Event.debounce(codeEditor.onDidChangeCursorSelection, () => undefined, 500)(() => this.updateImplicitContext()));
-					activeEditorDisposables.add(Event.debounce(codeEditor.onDidScrollChange, () => undefined, 500)(() => this.updateImplicitContext()));
+					activeEditorDisposables.add(Event.debounce(
+						Event.any(
+							codeEditor.onDidChangeModel,
+							codeEditor.onDidChangeCursorSelection,
+							codeEditor.onDidScrollChange),
+						() => undefined,
+						500)(() => this.updateImplicitContext()));
 				}
 
 				this.updateImplicitContext();
