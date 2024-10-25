@@ -35,6 +35,11 @@ ArchitecturesAllowed={#ArchitecturesAllowed}
 ArchitecturesInstallIn64BitMode={#ArchitecturesInstallIn64BitMode}
 WizardStyle=modern
 
+// We've seen an uptick on broken installations from updates which were unable
+// to shutdown VS Code. We rely on the fact that the update signals
+// that VS Code is ready to be shutdown, so we're good to use `force` here.
+CloseApplications=force
+
 #ifdef Sign
 SignTool=esrp
 #endif
