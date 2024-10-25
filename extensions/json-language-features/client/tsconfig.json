@@ -4,7 +4,8 @@
 		"outDir": "./out",
 		"lib": [
 			"webworker"
-		]
+		],
+		"module": "Node16",
 	},
 	"include": [
 		"src/**/*",

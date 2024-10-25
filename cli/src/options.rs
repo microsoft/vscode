@@ -70,8 +70,7 @@ impl TryFrom<&str> for Quality {
 			"insiders" | "insider" => Ok(Quality::Insiders),
 			"exploration" => Ok(Quality::Exploration),
 			_ => Err(format!(
-				"Unknown quality: {}. Must be one of stable, insiders, or exploration.",
-				s
+				"Unknown quality: {s}. Must be one of stable, insiders, or exploration."
 			)),
 		}
 	}

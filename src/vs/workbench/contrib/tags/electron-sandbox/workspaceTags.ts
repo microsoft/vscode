@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sha1Hex } from '../../../../base/browser/hash.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService, IFileStat } from '../../../../platform/files/common/files.js';
@@ -18,9 +17,10 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { AllowedSecondLevelDomains, getDomainsOfRemotes } from '../../../../platform/extensionManagement/common/configRemotes.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { hashAsync } from '../../../../base/common/hash.js';
 
 export async function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): Promise<string[]> {
-	return baseGetHashedRemotesFromConfig(text, stripEndingDotGit, remote => sha1Hex(remote));
+	return baseGetHashedRemotesFromConfig(text, stripEndingDotGit, hashAsync);
 }
 
 export class WorkspaceTags implements IWorkbenchContribution {

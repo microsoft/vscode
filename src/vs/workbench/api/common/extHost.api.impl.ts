@@ -212,7 +212,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostLanguageModels));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -302,7 +302,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return !!(await extHostAuthentication.getSession(extension, providerId, scopes, { silent: true } as any));
 			},
 			get onDidChangeSessions(): vscode.Event<vscode.AuthenticationSessionsChangeEvent> {
-				return _asExtensionEvent(extHostAuthentication.onDidChangeSessions);
+				return _asExtensionEvent(extHostAuthentication.getExtensionScopedSessionsEvent(extension.identifier.value));
 			},
 			registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
 				return extHostAuthentication.registerAuthenticationProvider(id, label, provider, options);
@@ -1458,7 +1458,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.registerChatParticipantDetectionProvider(provider);
+				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
 		};
 
@@ -1495,18 +1495,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
 			},
-			registerTool(toolId: string, tool: vscode.LanguageModelTool) {
-				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
+			registerTool<T>(name: string, tool: vscode.LanguageModelTool<T>) {
+				return extHostLanguageModelTools.registerTool(extension, name, tool);
 			},
-			invokeTool(toolId: string, parameters: vscode.LanguageModelToolInvocationOptions, token: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
+			invokeTool<T>(name: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token?: vscode.CancellationToken) {
+				return extHostLanguageModelTools.invokeTool(name, parameters, token);
 			},
 			get tools() {
-				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.tools;
 			},
+			fileIsIgnored(uri: vscode.Uri, token: vscode.CancellationToken) {
+				return extHostLanguageModels.fileIsIgnored(extension, uri, token);
+			},
+			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
+				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
+			}
 		};
 
 		// namespace: speech
@@ -1517,6 +1520,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
@@ -1747,6 +1751,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
+			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,
 			DebugThread: extHostTypes.DebugThread,
@@ -1777,12 +1782,16 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
+			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
-			LanguageModelChatMessageToolResultPart: extHostTypes.LanguageModelToolResultPart,
-			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
-			LanguageModelChatResponseToolCallPart: extHostTypes.LanguageModelToolCallPart,
+			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
+			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
+			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
+			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,
+			LanguageModelPromptTsxPart: extHostTypes.LanguageModelPromptTsxPart,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,

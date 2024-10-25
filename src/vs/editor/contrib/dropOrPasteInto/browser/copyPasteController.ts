@@ -255,8 +255,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const dataTransfer = toExternalVSDataTransfer(e.clipboardData);
 		dataTransfer.delete(vscodeClipboardMime);
 
+		const fileTypes = Array.from(e.clipboardData.files).map(file => file.type);
+
 		const allPotentialMimeTypes = [
 			...e.clipboardData.types,
+			...fileTypes,
 			...metadata?.providerCopyMimeTypes ?? [],
 			// TODO: always adds `uri-list` because this get set if there are resources in the system clipboard.
 			// However we can only check the system clipboard async. For this early check, just add it in.

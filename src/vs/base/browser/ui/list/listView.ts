@@ -173,7 +173,7 @@ export class NativeDragAndDropData implements IDragAndDropData {
 		}
 	}
 
-	getData(): any {
+	getData() {
 		return {
 			types: this.types,
 			files: this.files

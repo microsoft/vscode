@@ -21,6 +21,7 @@ import { CellUri, INotebookDiffEditorModel, INotebookDiffResult } from '../../co
 import { INotebookService } from '../../common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../common/services/notebookWorkerService.js';
 import { IDiffEditorHeightCalculatorService } from './editorHeightCalculator.js';
+import { raceCancellation } from '../../../../../base/common/async.js';
 
 export class NotebookDiffViewModel extends Disposable implements INotebookDiffViewModel, IValueWithChangeEvent<readonly MultiDiffEditorItem[]> {
 	private readonly placeholderAndRelatedCells = new Map<DiffElementPlaceholderViewModel, DiffElementCellViewModelBase[]>();
@@ -130,9 +131,9 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this._items.splice(0, this._items.length);
 	}
 
-	async computeDiff(token: CancellationToken): Promise<{ firstChangeIndex: number } | undefined> {
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(this.model.original.resource, this.model.modified.resource);
-		if (token.isCancellationRequested) {
+	async computeDiff(token: CancellationToken): Promise<void> {
+		const diffResult = await raceCancellation(this.notebookEditorWorkerService.computeDiff(this.model.original.resource, this.model.modified.resource), token);
+		if (!diffResult || token.isCancellationRequested) {
 			// after await the editor might be disposed.
 			return;
 		}
@@ -143,9 +144,11 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		if (isEqual(cellDiffInfo, this.originalCellViewModels, this.model)) {
 			return;
 		} else {
-			await this.updateViewModels(cellDiffInfo, diffResult.metadataChanged);
+			await raceCancellation(this.updateViewModels(cellDiffInfo, diffResult.metadataChanged, firstChangeIndex), token);
+			if (token.isCancellationRequested) {
+				return;
+			}
 			this.updateDiffEditorItems();
-			return { firstChangeIndex };
 		}
 	}
 
@@ -218,7 +221,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 		this._onDidChange.fire();
 	}
 
-	private async updateViewModels(cellDiffInfo: CellDiffInfo[], metadataChanged: boolean) {
+	private async updateViewModels(cellDiffInfo: CellDiffInfo[], metadataChanged: boolean, firstChangeIndex: number) {
 		const cellViewModels = await this.createDiffViewModels(cellDiffInfo, metadataChanged);
 		const oldLength = this._items.length;
 		this.clear();
@@ -265,7 +268,7 @@ export class NotebookDiffViewModel extends Disposable implements INotebookDiffVi
 
 		// Note, ensure all of the height calculations are done before firing the event.
 		// This is to ensure that the diff editor is not resized multiple times, thereby avoiding flickering.
-		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items });
+		this._onDidChangeItems.fire({ start: 0, deleteCount: oldLength, elements: this._items, firstChangeIndex });
 	}
 	private async createDiffViewModels(computedCellDiffs: CellDiffInfo[], metadataChanged: boolean) {
 		const originalModel = this.model.original.notebook;

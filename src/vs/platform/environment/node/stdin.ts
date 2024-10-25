@@ -41,12 +41,12 @@ export function getStdinFilePath(): string {
 export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?: Function): Promise<void> {
 
 	let [encoding, iconv] = await Promise.all([
-		resolveTerminalEncoding(verbose),	// respect terminal encoding when piping into file
-		import('@vscode/iconv-lite-umd'),	// lazy load encoding module for usage
-		fs.promises.appendFile(targetPath, '') // make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
+		resolveTerminalEncoding(verbose),		// respect terminal encoding when piping into file
+		import('@vscode/iconv-lite-umd'),		// lazy load encoding module for usage
+		fs.promises.appendFile(targetPath, '') 	// make sure file exists right away (https://github.com/microsoft/vscode/issues/155341)
 	]);
 
-	if (!iconv.encodingExists(encoding)) {
+	if (!iconv.default.encodingExists(encoding)) {
 		console.log(`Unsupported terminal encoding: ${encoding}, falling back to UTF-8.`);
 		encoding = 'utf8';
 	}
@@ -59,7 +59,7 @@ export async function readFromStdin(targetPath: string, verbose: boolean, onEnd?
 
 	const appendFileQueue = new Queue();
 
-	const decoder = iconv.getDecoder(encoding);
+	const decoder = iconv.default.getDecoder(encoding);
 
 	process.stdin.on('data', chunk => {
 		const chunkStr = decoder.write(chunk);

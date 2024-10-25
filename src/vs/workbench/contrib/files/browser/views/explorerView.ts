@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext } from '../../common/files.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -36,8 +36,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IAsyncDataTreeViewState } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
-import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResult } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { fuzzyScore, FuzzyScore } from '../../../../../base/common/filters.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IFileService, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -53,8 +53,12 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { EditorOpenSource } from '../../../../../platform/editor/common/editor.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
-import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { AbstractTreePart, contiguousFuzzyScore, ITreeFindToggleContribution } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { basename, relativePath } from '../../../../../base/common/resources.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { getExcludes, ISearchComplete, ISearchConfiguration, ISearchService, QueryType } from '../../../../services/search/common/search.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -150,6 +154,119 @@ export interface IExplorerViewPaneOptions extends IViewPaneOptions {
 	delegate: IExplorerViewContainerDelegate;
 }
 
+const explorerFuzzyMatch = {
+	id: 'fuzzyMatch',
+	title: 'Fuzzy Match',
+	icon: Codicon.searchFuzzy,
+	isChecked: false
+};
+
+class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
+
+	readonly toggles: ITreeFindToggleContribution[] = [explorerFuzzyMatch];
+	readonly placeholder: string = nls.localize('type to search files', "Type to search files");
+
+	constructor(
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IFileService private readonly fileService: IFileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
+		@IProgressService private readonly progressService: IProgressService,
+		@IExplorerService private readonly explorerService: IExplorerService,
+	) { }
+
+	async *getFindResults(pattern: string, sessionId: number, token: CancellationToken, toggleStates: ITreeFindToggleContribution[]): AsyncIterable<IAsyncFindResult<ExplorerItem>> {
+		const isFuzzyMatch = toggleStates.find(t => t.id === explorerFuzzyMatch.id)?.isChecked!!;
+
+		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
+		const folderPromises = Promise.all(workspaceFolders.map(async folder => {
+			// Get exclude settings used for search
+			const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: folder.uri })) || {};
+
+			const result = await this.searchService.fileSearch({
+				folderQueries: [{ folder: folder.uri }],
+				type: QueryType.File,
+				shouldGlobMatchFilePattern: !isFuzzyMatch,
+				filePattern: isFuzzyMatch ? pattern : `**/*${pattern}*`,
+				maxResults: 512,
+				sortByScore: true,
+				cacheKey: `explorerfindprovider:${folder.index}:${sessionId}`,
+				excludePattern: searchExcludePattern,
+			}, token);
+
+			return { folder: folder.uri, result };
+		}));
+
+		const folderResults = await this.progressService.withProgress({
+			location: ProgressLocation.Explorer,
+			delay: 1000,
+		}, _progress => folderPromises);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		yield* this.createResultItems(folderResults, pattern, isFuzzyMatch);
+	}
+
+	private async *createResultItems(folderResults: { folder: URI; result: ISearchComplete }[], pattern: string, isFuzzyMatch: boolean): AsyncIterable<IAsyncFindResult<ExplorerItem>> {
+		const lowercasePattern = pattern.toLowerCase();
+
+		for (const { folder, result } of folderResults) {
+			const folderRoot = new ExplorerItem(folder, this.fileService, this.configurationService, this.filesConfigService, undefined);
+
+			for (const file of result.results) {
+				const baseName = basename(file.resource);
+
+				let filterdata;
+				if (isFuzzyMatch) {
+					filterdata = fuzzyScore(pattern, lowercasePattern, 0, baseName, baseName.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
+				} else {
+					filterdata = contiguousFuzzyScore(lowercasePattern, baseName.toLowerCase());
+				}
+
+				if (!filterdata) {
+					continue;
+				}
+
+				const item = this.createItem(file.resource, folderRoot);
+				if (item) {
+					yield { element: item, filterdata };
+				}
+			}
+		}
+	}
+
+	private createItem(resource: URI, root: ExplorerItem): ExplorerItem | undefined {
+		const relativePathToRoot = relativePath(root.resource, resource);
+		if (!relativePathToRoot) {
+			return undefined;
+		}
+
+		let currentItem = root;
+		let currentResource = root.resource;
+		const pathSegments = relativePathToRoot.split('/');
+		for (const stat of pathSegments) {
+			currentResource = currentResource.with({ path: `${currentResource.path}/${stat}` });
+
+			let child = currentItem.children.get(stat);
+			if (!child) {
+				const isDirectory = pathSegments[pathSegments.length - 1] !== stat;
+				child = new ExplorerItem(currentResource, this.fileService, this.configurationService, this.filesConfigService, currentItem, isDirectory);
+			}
+
+			currentItem = child;
+		}
+
+		return currentItem;
+	}
+
+	revealResultInTree(findElement: ExplorerItem): void {
+		this.explorerService.select(findElement.resource, true);
+	}
+}
+
 export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -158,6 +275,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private parentReadonlyContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private availableEditorIdsContext: IContextKey<string>;
 
@@ -215,6 +333,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
+		this.parentReadonlyContext = ExplorerResourceParentReadOnlyContext.bindTo(contextKeyService);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
@@ -488,7 +607,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				return false;
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			findResultsProvider: this.instantiationService.createInstance(ExplorerFindProvider),
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
@@ -590,6 +710,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && !!stat.isReadonly);
+		this.parentReadonlyContext.set(Boolean(stat?.parent?.isReadonly));
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
@@ -972,6 +1093,13 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
+const CanCreateContext = ContextKeyExpr.or(
+	// Folder: can create unless readonly
+	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceNotReadonlyContext),
+	// File: can create unless parent is readonly
+	ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceParentReadOnlyContext.toNegated())
+);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -979,7 +1107,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1002,7 +1130,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',

@@ -694,7 +694,7 @@ export class TernarySearchTree<K, V> {
 		return this._findSuperstrOrElement(key, true) !== undefined;
 	}
 
-	forEach(callback: (value: V, index: K) => any): void {
+	forEach(callback: (value: V, index: K) => unknown): void {
 		for (const [key, value] of this) {
 			callback(value, key);
 		}

@@ -20,6 +20,8 @@ import { IBrowserWorkbenchEnvironmentService } from '../../../services/environme
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from '../../../services/extensionManagement/common/extensionFeatures.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ManageTrustedExtensionsForAccountAction } from './actions/manageTrustedExtensionsForAccountAction.js';
+import { ManageAccountPreferencesForExtensionAction } from './actions/manageAccountPreferencesForExtensionAction.js';
+import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 
 const codeExchangeProxyCommand = CommandsRegistry.registerCommand('workbench.getCodeExchangeProxyEndpoints', function (accessor, _) {
 	const environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);
@@ -104,7 +106,7 @@ const extensionFeature = Registry.as<IExtensionFeaturesRegistry>(Extensions.Exte
 	renderer: new SyncDescriptor(AuthenticationDataRenderer),
 });
 
-export class AuthenticationContribution extends Disposable implements IWorkbenchContribution {
+class AuthenticationContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'workbench.contrib.authentication';
 
 	private _placeholderMenuItem: IDisposable | undefined = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
@@ -115,10 +117,7 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 		},
 	});
 
-	constructor(
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@IBrowserWorkbenchEnvironmentService private readonly _environmentService: IBrowserWorkbenchEnvironmentService
-	) {
+	constructor(@IAuthenticationService private readonly _authenticationService: IAuthenticationService) {
 		super();
 		this._register(codeExchangeProxyCommand);
 		this._register(extensionFeature);
@@ -129,7 +128,6 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 		}
 		this._registerHandlers();
 		this._registerAuthenticationExtentionPointHandler();
-		this._registerEnvContributedAuthenticationProviders();
 		this._registerActions();
 	}
 
@@ -165,15 +163,6 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 		});
 	}
 
-	private _registerEnvContributedAuthenticationProviders(): void {
-		if (!this._environmentService.options?.authenticationProviders?.length) {
-			return;
-		}
-		for (const provider of this._environmentService.options.authenticationProviders) {
-			this._authenticationService.registerAuthenticationProvider(provider.id, provider);
-		}
-	}
-
 	private _registerHandlers(): void {
 		this._register(this._authenticationService.onDidRegisterAuthenticationProvider(_e => {
 			this._clearPlaceholderMenuItem();
@@ -194,6 +183,7 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 	private _registerActions(): void {
 		this._register(registerAction2(SignOutOfAccountAction));
 		this._register(registerAction2(ManageTrustedExtensionsForAccountAction));
+		this._register(registerAction2(ManageAccountPreferencesForExtensionAction));
 	}
 
 	private _clearPlaceholderMenuItem(): void {
@@ -202,4 +192,19 @@ export class AuthenticationContribution extends Disposable implements IWorkbench
 	}
 }
 
+class AuthenticationUsageContribution implements IWorkbenchContribution {
+	static ID = 'workbench.contrib.authenticationUsage';
+
+	constructor(
+		@IAuthenticationUsageService private readonly _authenticationUsageService: IAuthenticationUsageService,
+	) {
+		this._initializeExtensionUsageCache();
+	}
+
+	private async _initializeExtensionUsageCache() {
+		await this._authenticationUsageService.initializeExtensionUsageCache();
+	}
+}
+
 registerWorkbenchContribution2(AuthenticationContribution.ID, AuthenticationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AuthenticationUsageContribution.ID, AuthenticationUsageContribution, WorkbenchPhase.Eventually);

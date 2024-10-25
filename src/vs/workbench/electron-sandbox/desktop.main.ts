@@ -307,10 +307,6 @@ export class DesktopMain extends Disposable {
 			})
 		]);
 
-		if (configurationService.getValue<boolean>('files.experimentalWatcherNext') === true) {
-			diskFileSystemProvider.setUseNextWatcher();
-		}
-
 		// Workspace Trust Service
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
@@ -399,6 +395,10 @@ export class DesktopMain extends Disposable {
 			return keyboardLayoutService;
 		}
 	}
+}
+
+export interface IDesktopMain {
+	main(configuration: INativeWindowConfiguration): Promise<void>;
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {

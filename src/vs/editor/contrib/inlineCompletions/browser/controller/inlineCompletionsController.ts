@@ -7,7 +7,7 @@ import { createStyleSheetFromObservable } from '../../../../../base/browser/domO
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
-import { readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
+import { createHotClass, readHotReloadableExport } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITransaction, autorun, constObservable, derived, derivedDisposable, derivedObservableWithCache, mapObservableArrayCached, observableFromEvent, observableSignal, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isUndefined } from '../../../../../base/common/types.js';
@@ -19,6 +19,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { hotClassGetOriginalInstance } from '../../../../../platform/observable/common/wrapInHotClass.js';
 import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
@@ -31,16 +32,19 @@ import { ILanguageFeaturesService } from '../../../../common/services/languageFe
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from '../hintsWidget/inlineCompletionsHintsWidget.js';
 import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
-import { convertItemsToStableObservables } from '../utils.js';
-import { GhostTextView } from '../view/ghostTextView.js';
+import { convertItemsToStableObservables, ObservableContextKeyService } from '../utils.js';
+import { GhostTextView } from '../view/ghostText/ghostTextView.js';
+import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsView.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 
 export class InlineCompletionsController extends Disposable {
+	public static hot = createHotClass(InlineCompletionsController);
+
 	static ID = 'editor.contrib.inlineCompletionsController';
 
 	public static get(editor: ICodeEditor): InlineCompletionsController | null {
-		return editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID);
+		return hotClassGetOriginalInstance(editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID));
 	}
 
 	private readonly _editorObs = observableCodeEditor(this.editor);
@@ -77,6 +81,25 @@ export class InlineCompletionsController extends Disposable {
 		{ min: 50, max: 50 }
 	);
 
+	private readonly _cursorIsInIndentation = derived(this, reader => {
+		const cursorPos = this._editorObs.cursorPosition.read(reader);
+		if (cursorPos === null) { return false; }
+		const model = this._editorObs.model.read(reader);
+		if (!model) { return false; }
+		this._editorObs.versionId.read(reader);
+		const indentMaxColumn = model.getLineIndentColumn(cursorPos.lineNumber);
+		return cursorPos.column <= indentMaxColumn;
+	});
+
+	private readonly _shouldHideInlineEdit = derived(this, reader => {
+		return this._cursorIsInIndentation.read(reader);
+	});
+
+	private readonly optionPreview = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
+	private readonly optionPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
+	private readonly optionMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
+	private readonly optionInlineEditsEnabled = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => !!v.edits.experimental?.enabled);
+
 	public readonly model = derivedDisposable<InlineCompletionsModel | undefined>(this, reader => {
 		if (this._editorObs.isReadonly.read(reader)) { return undefined; }
 		const textModel = this._editorObs.model.read(reader);
@@ -89,10 +112,13 @@ export class InlineCompletionsController extends Disposable {
 			this._editorObs.versionId,
 			this._positions,
 			this._debounceValue,
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.suggest).preview),
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.suggest).previewMode),
-			observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).mode),
+			this.optionPreview,
+			this.optionPreviewMode,
+			this.optionMode,
 			this._enabled,
+			this.optionInlineEditsEnabled,
+			this._shouldHideInlineEdit,
+			this.editor,
 		);
 		return model;
 	}).recomputeInitiallyAndOnChange(this._store);
@@ -113,9 +139,24 @@ export class InlineCompletionsController extends Disposable {
 		).recomputeInitiallyAndOnChange(store)
 	).recomputeInitiallyAndOnChange(this._store);
 
+	private readonly _inlineEdit = derived(this, reader => {
+		const s = this.model.read(reader)?.state.read(reader);
+		if (s?.kind === 'inlineEdit') {
+			return s.inlineEdit;
+		}
+		return undefined;
+	});
+	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, last) => last || !!this._inlineEdit.read(reader));
+	protected readonly _inlineEditWidget = derivedDisposable(reader => {
+		if (!this._everHadInlineEdit.read(reader)) { return undefined; }
+		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer.hot.read(reader), this.editor, this._inlineEdit, this.model);
+	})
+		.recomputeInitiallyAndOnChange(this._store);
+
 	private readonly _playAccessibilitySignal = observableSignal(this);
 
-	private readonly _fontFamily = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
+	private readonly _fontFamily = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => val.fontFamily);
+	private readonly _hideInlineEditOnSelectionChange = this._editorObs.getOption(EditorOption.inlineSuggest).map(val => true);
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -158,7 +199,16 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(runOnChange(this._editorObs.selections, (_value, _, changes) => {
 			if (changes.some(e => e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
-				this.model.get()?.stop();
+				if (!this._hideInlineEditOnSelectionChange.get() && this.model.get()?.state.get()?.kind === 'inlineEdit') {
+					return;
+				}
+				const m = this.model.get();
+				if (!m) { return; }
+				if (m.inlineCompletionState.get()?.primaryGhostText) {
+					this.model.get()?.stop();
+				} else if (m.state.get()?.inlineCompletion) {
+					this.model.get()?.collapseInlineEdit();
+				}
 			}
 		}));
 
@@ -171,6 +221,11 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
+			if (this.model.get()?.inlineEditAvailable.get()) {
+				// dont hide inline edits on blur
+				return;
+			}
+
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
 				this.model.get()?.stop(tx);
@@ -179,7 +234,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			/** @description InlineCompletionsController.forceRenderingAbove */
-			const state = this.model.read(reader)?.state.read(reader);
+			const state = this.model.read(reader)?.inlineCompletionState.read(reader);
 			if (state?.suggestItem) {
 				if (state.primaryGhostText.lineCount >= 2) {
 					this._suggestWidgetAdaptor.forceRenderingAbove();
@@ -194,7 +249,7 @@ export class InlineCompletionsController extends Disposable {
 
 		const currentInlineCompletionBySemanticId = derivedObservableWithCache<string | undefined>(this, (reader, last) => {
 			const model = this.model.read(reader);
-			const state = model?.state.read(reader);
+			const state = model?.inlineCompletionState.read(reader);
 			if (this._suggestWidgetSelectedItem.get()) {
 				return last;
 			}
@@ -207,7 +262,7 @@ export class InlineCompletionsController extends Disposable {
 		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
 			const model = this.model.get();
-			const state = model?.state.get();
+			const state = model?.inlineCompletionState.get();
 			if (!state || !model) { return; }
 			const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
 
@@ -240,6 +295,15 @@ export class InlineCompletionsController extends Disposable {
 			}
 		}));
 		this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.inlineCompletions') });
+
+		const contextKeySvcObs = new ObservableContextKeyService(this._contextKeyService);
+
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorInIndentation, this._cursorIsInIndentation));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.hasSelection, reader => !this._editorObs.cursorSelection.read(reader)?.isEmpty()));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.cursorAtInlineEdit, this.model.map((m, reader) => {
+			const s = m?.state?.read(reader);
+			return s?.kind === 'inlineEdit' && s.cursorAtInlineEdit;
+		})));
 	}
 
 	public playAccessibilitySignal(tx: ITransaction) {
@@ -272,5 +336,10 @@ export class InlineCompletionsController extends Disposable {
 		transaction(tx => {
 			this.model.get()?.stop(tx);
 		});
+	}
+
+	public jump(): void {
+		const m = this.model.get();
+		m?.jump();
 	}
 }

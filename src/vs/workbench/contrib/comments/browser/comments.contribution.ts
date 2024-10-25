@@ -28,7 +28,7 @@ import { MarshalledCommentThreadInternal } from '../../../common/comments.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CommentsAccessibleView } from './commentsAccessibleView.js';
+import { CommentsAccessibleView, CommentThreadAccessibleView } from './commentsAccessibleView.js';
 import { CommentsAccessibilityHelp } from './commentsAccessibility.js';
 
 registerAction2(class Collapse extends ViewAction<CommentsPanel> {
@@ -193,4 +193,5 @@ export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchCon
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);
 
 AccessibleViewRegistry.register(new CommentsAccessibleView());
+AccessibleViewRegistry.register(new CommentThreadAccessibleView());
 AccessibleViewRegistry.register(new CommentsAccessibilityHelp());

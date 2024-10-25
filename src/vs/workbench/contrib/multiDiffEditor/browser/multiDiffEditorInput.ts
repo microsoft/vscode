@@ -313,7 +313,7 @@ class FastEventDispatcher<T, TKey> {
 	) {
 	}
 
-	public filteredEvent(filter: TKey): (listener: (e: T) => any) => IDisposable {
+	public filteredEvent(filter: TKey): (listener: (e: T) => unknown) => IDisposable {
 		return listener => {
 			const key = this._keyToString(filter);
 			let bucket = this._buckets.get(key);

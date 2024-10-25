@@ -422,7 +422,8 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 	if (!model.isDisposed()) {
 		visit(model.getValue(), visitor);
 	}
-	return settings.length > 0 ? [<ISettingsGroup>{
+	return settings.length > 0 ? [{
+		id: model.isDisposed() ? '' : model.id,
 		sections: [
 			{
 				settings
@@ -431,7 +432,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		title: '',
 		titleRange: nullRange,
 		range
-	}] : [];
+	} satisfies ISettingsGroup] : [];
 }
 
 export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
@@ -844,7 +845,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		const metadata = this.collectMetadata(resultGroups);
 		return resultGroups.length ?
-			<IFilterResult>{
+			{
 				allGroups: this.settingsGroups,
 				filteredGroups,
 				matches,
@@ -894,9 +895,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		filterMatches = filterMatches
 			.map(filteredMatch => {
 				// Fix match ranges to offset from setting start line
-				return <ISettingMatch>{
+				return {
 					setting: filteredMatch.setting,
 					score: filteredMatch.score,
+					matchType: filteredMatch.matchType,
 					matches: filteredMatch.matches && filteredMatch.matches.map(match => {
 						return new Range(
 							match.startLineNumber - filteredMatch.setting.range.startLineNumber,
@@ -965,7 +967,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private getGroup(resultGroup: ISearchResultGroup): ISettingsGroup {
-		return <ISettingsGroup>{
+		return {
 			id: resultGroup.id,
 			range: nullRange,
 			title: resultGroup.label,

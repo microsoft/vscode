@@ -26,7 +26,7 @@ export interface IChatVariableData {
 	canTakeArgument?: boolean;
 }
 
-export type IChatRequestVariableValue = string | URI | Location | unknown;
+export type IChatRequestVariableValue = string | URI | Location | unknown | Uint8Array;
 
 export type IChatVariableResolverProgress =
 	| IChatContentReference
@@ -61,5 +61,6 @@ export interface IDynamicVariable {
 	icon?: ThemeIcon;
 	prefix?: string;
 	modelDescription?: string;
+	isFile?: boolean;
 	data: IChatRequestVariableValue;
 }

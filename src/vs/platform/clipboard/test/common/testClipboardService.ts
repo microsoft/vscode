@@ -7,6 +7,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { IClipboardService } from '../../common/clipboardService.js';
 
 export class TestClipboardService implements IClipboardService {
+	readImage(): Promise<Uint8Array> {
+		throw new Error('Method not implemented.');
+	}
 
 	_serviceBrand: undefined;
 

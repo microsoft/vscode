@@ -36,7 +36,7 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 
 	if args.check {
 		ctx.log
-			.result(format!("Update to {} is available", current_version));
+			.result(format!("Update to {current_version} is available"));
 		return Ok(0);
 	}
 
@@ -46,7 +46,7 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 		.do_update(&current_version, ProgressBarReporter::from(pb))
 		.await?;
 	ctx.log
-		.result(format!("Successfully updated to {}", current_version));
+		.result(format!("Successfully updated to {current_version}"));
 
 	Ok(0)
 }
