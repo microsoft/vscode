@@ -61,9 +61,18 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private async initialize(): Promise<void> {
+		const hidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
+
+		// If the view is already hidden, then we just want to register keybindings.
+		if (hidden) {
+			this.registerKeybindings();
+			return;
+		}
+
 		await this.hideViewIfCopilotIsNotInstalled();
 		this.updateContextKey();
 		this.registerListeners();
+		this.registerKeybindings();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
 		this.hideViewIfOldViewIsMovedFromDefaultLocation();
@@ -116,7 +125,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, new DisposableStore())(() => this.updateContextKey());
 	}
 
-	private registerCommands(): void {
+	private registerKeybindings(): void {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -124,7 +133,9 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 			primary: 0,
 			handler: accessor => showChatView(accessor.get(IViewsService))
 		});
+	}
 
+	private registerCommands(): void {
 		CommandsRegistry.registerCommand({
 			id: '_chatMovedViewWelcomeView.ok',
 			handler: async (accessor: ServicesAccessor) => {
