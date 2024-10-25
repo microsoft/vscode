@@ -492,7 +492,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	private readonly _contentReferences: IChatContentReference[] = [];
 	public get contentReferences(): ReadonlyArray<IChatContentReference> {
-		return Array.from(this._contentReferences);
+		return this._contentReferences;
 	}
 
 	private readonly _codeCitations: IChatCodeCitation[] = [];
