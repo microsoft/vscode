@@ -625,7 +625,7 @@ export class AttachContextAction extends Action2 {
 				}
 
 				if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
-					return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
+					return [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(item.resource.scheme)
 						&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
 				}
 
