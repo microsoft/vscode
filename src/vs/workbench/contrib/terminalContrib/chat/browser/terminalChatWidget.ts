@@ -25,7 +25,6 @@ import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/cha
 import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
 import { IChatService, IChatProgress } from '../../../chat/common/chatService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { ChatInputPart } from '../../../chat/browser/chatInputPart.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -290,9 +289,6 @@ export class TerminalChatWidget extends Disposable {
 	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
-	}
-	get input(): ChatInputPart {
-		return this._inlineChatWidget.chatWidget.input;
 	}
 
 	setValue(value?: string) {
