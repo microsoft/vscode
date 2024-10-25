@@ -273,7 +273,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
-		this._handleCompletionModel(model);
+		this._showCompletions(model);
 	}
 
 	setContainerWithOverflow(container: HTMLElement): void {
@@ -507,7 +507,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
-		this._handleCompletionModel(model);
+		this._showCompletions(model);
 	}
 
 	// TODO: These aren't persisted across reloads
@@ -604,7 +604,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 		}
-		this._handleCompletionModel(model);
+		this._showCompletions(model);
 	}
 
 	private _getTerminalDimensions(): { width: number; height: number } {
@@ -615,7 +615,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 	}
 
-	private _handleCompletionModel(model: SimpleCompletionModel): void {
+	private _showCompletions(model: SimpleCompletionModel): void {
 		if (!this._terminal?.element) {
 			return;
 		}
