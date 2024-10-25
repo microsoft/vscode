@@ -474,7 +474,9 @@ export function registerChatTitleActions() {
 					} else {
 						const result = await dialogService.confirm({
 							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-							message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+							message: currentEditCount
+								? localize('chat.startEditing.confirmation.message.one', "Starting a new editing session will end your current editing session containing {0} file. Do you wish to proceed?", currentEditCount)
+								: localize('chat.startEditing.confirmation.message.many', "Starting a new editing session will end your current editing session containing {0} files. Do you wish to proceed?", currentEditCount),
 							type: 'info',
 							primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
 						});

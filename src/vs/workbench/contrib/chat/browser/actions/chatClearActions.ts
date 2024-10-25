@@ -166,15 +166,6 @@ export function registerNewChatActions() {
 					});
 
 					return Boolean(result);
-				} else {
-					const result = await dialogService.confirm({
-						title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-						message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
-						type: 'info',
-						primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
-					});
-
-					return result.confirmed;
 				}
 			}
 
