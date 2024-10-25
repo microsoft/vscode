@@ -547,11 +547,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	justify-content: space-between;
 	gap: 6px;
 	padding: 0 4px;
+	overflow: hidden;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview > span {
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
@@ -562,7 +566,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .chat-editing-session-actions {
 	display: flex;
 	flex-direction: row;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	gap: 6px;
 	align-items: center;
 }
