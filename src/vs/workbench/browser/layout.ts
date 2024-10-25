@@ -1477,6 +1477,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.setViewVisible(this.statusBarPartView, !hidden);
 	}
 
+	resetBottomPane(): void { }
+
 	protected createWorkbenchLayout(): void {
 		const titleBar = this.getPart(Parts.TITLEBAR_PART);
 		const bannerPart = this.getPart(Parts.BANNER_PART);
