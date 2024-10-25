@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -38,7 +38,7 @@ export class MovedChatViewPane extends ViewPane {
 	}
 }
 
-export class MoveChatViewContribution implements IWorkbenchContribution {
+export class MoveChatViewContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatMovedViewWelcomeView';
 
@@ -57,6 +57,8 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
+		super();
+
 		this.initialize();
 	}
 
@@ -113,7 +115,7 @@ export class MoveChatViewContribution implements IWorkbenchContribution {
 	}
 
 	private registerListeners(): void {
-		this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, new DisposableStore())(() => this.updateContextKey());
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, this._store)(() => this.updateContextKey()));
 	}
 
 	private registerCommands(): void {

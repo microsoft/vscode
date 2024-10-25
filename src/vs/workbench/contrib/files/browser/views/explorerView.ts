@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from '../../common/files.js';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext, ExplorerResourceParentReadOnlyContext } from '../../common/files.js';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
@@ -275,6 +275,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private parentReadonlyContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
 	private availableEditorIdsContext: IContextKey<string>;
 
@@ -332,6 +333,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
+		this.parentReadonlyContext = ExplorerResourceParentReadOnlyContext.bindTo(contextKeyService);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
@@ -708,6 +710,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && !!stat.isReadonly);
+		this.parentReadonlyContext.set(Boolean(stat?.parent?.isReadonly));
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
@@ -1090,6 +1093,13 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
+const CanCreateContext = ContextKeyExpr.or(
+	// Folder: can create unless readonly
+	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceNotReadonlyContext),
+	// File: can create unless parent is readonly
+	ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceParentReadOnlyContext.toNegated())
+);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1097,7 +1107,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1120,7 +1130,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
-			precondition: ExplorerResourceNotReadonlyContext,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',

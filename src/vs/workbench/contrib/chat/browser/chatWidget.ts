@@ -1012,6 +1012,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 				workingSet = [...uniqueWorkingSetEntries.values()];
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				for (const file of workingSet) {
+					// Make sure that any files that we sent are part of the working set
+					currentEditingSession?.addFileToWorkingSet(file);
+				}
 				attachedContext = editingSessionAttachedContext;
 			}
 
