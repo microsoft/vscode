@@ -64,7 +64,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
-	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
+	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. When {0} is set to `afterDelay`, Code Actions will only be run when the file is saved explicitly. Example: `"source.organizeImports": "explicit" `', '`#files.autoSave#`'),
 	type: ['object', 'array'],
 	additionalProperties: {
 		type: 'string',
@@ -94,7 +94,7 @@ const notebookCodeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
-	markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
+	markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified and the editor must not be shutting down. When {0} is set to `afterDelay`, Code Actions will only be run when the file is saved explicitly. Example: `"notebook.source.organizeImports": "explicit"`', '`#files.autoSave#`'),
 	type: 'object',
 	additionalProperties: {
 		type: ['string', 'boolean'],

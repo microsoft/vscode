@@ -30,12 +30,13 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEditor.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatEditingSessionState, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionState, ChatEditKind, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingMultiDiffSourceResolver } from './chatEditingService.js';
 import { ChatEditingModifiedFileEntry, IModifiedEntryTelemetryInfo, ISnapshotEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class ChatEditingSession extends Disposable implements IChatEditingSession {
 	private readonly _state = observableValue<ChatEditingSessionState>(this, ChatEditingSessionState.Initial);
@@ -517,7 +518,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			return;
 		}
 
-		if (!this._workspaceContextService.getWorkspaceFolder(resource) && !(await this._fileService.exists(resource))) {
+		if (resource.scheme !== Schemas.untitled && !this._workspaceContextService.getWorkspaceFolder(resource) && !(await this._fileService.exists(resource))) {
 			// if the file doesn't exist yet and is outside the workspace, prompt the user for a location to save it to
 			const saveLocation = await this._dialogService.showSaveDialog({ title: localize('chatEditing.fileSave', '{0} wants to create a file. Choose where it should be saved.', this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditingSession)?.fullName ?? 'Chat') });
 			if (!saveLocation) {
@@ -565,6 +566,15 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		if (!this._initialFileContents.has(resource)) {
 			this._initialFileContents.set(resource, entry.modifiedModel.getValue());
 		}
+		// If an entry is deleted e.g. reverting a created file,
+		// remove it from the entries and don't show it in the working set anymore
+		// so that it can be recreated e.g. through retry
+		this._register(entry.onDidDelete(() => {
+			const newEntries = this._entriesObs.get().filter(e => e.modifiedURI.toString() !== entry.modifiedURI.toString());
+			this._entriesObs.set(newEntries, undefined);
+			this._workingSet.delete(entry.modifiedURI);
+			this._onDidChange.fire();
+		}));
 		const entriesArr = [...this._entriesObs.get(), entry];
 		this._entriesObs.set(entriesArr, undefined);
 		this._onDidChange.fire();
@@ -575,7 +585,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	private async _createModifiedFileEntry(resource: URI, responseModel: IModifiedEntryTelemetryInfo, mustExist = false): Promise<ChatEditingModifiedFileEntry> {
 		try {
 			const ref = await this._textModelService.createModelReference(resource);
-			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, resource, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel);
+
+			return this._instantiationService.createInstance(ChatEditingModifiedFileEntry, resource, ref, { collapse: (transaction: ITransaction | undefined) => this._collapse(resource, transaction) }, responseModel, mustExist ? ChatEditKind.Created : ChatEditKind.Modified);
 		} catch (err) {
 			if (mustExist) {
 				throw err;

@@ -1351,17 +1351,26 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
 			icon: Codicon.mic,
 			precondition: InstallingSpeechProvider.negate(),
-			menu: [{
-				id: MenuId.ChatInput,
-				when: ContextKeyExpr.and(HasSpeechProvider.negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal).negate()),
-				group: 'navigation',
-				order: 3
-			}, {
-				id: TerminalChatExecute,
-				when: HasSpeechProvider.negate(),
-				group: 'navigation',
-				order: -1
-			}]
+			menu: [
+				{
+					id: MenuId.ChatInput,
+					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
+					group: 'navigation',
+					order: 3
+				},
+				{
+					id: MenuId.ChatExecute,
+					when: ContextKeyExpr.and(HasSpeechProvider.negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession).negate()),
+					group: 'navigation',
+					order: 2
+				},
+				{
+					id: TerminalChatExecute,
+					when: HasSpeechProvider.negate(),
+					group: 'navigation',
+					order: -1
+				}
+			]
 		});
 	}
 

@@ -18,7 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
@@ -33,7 +33,7 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO } from '../../common/chatContextKeys.js';
-import { applyingChatEditsContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { applyingChatEditsContextKey, applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingMaxFileAssignmentName, chatEditingResourceContextKey, ChatEditingSessionState, decidedChatEditingResourceContextKey, defaultChatEditingMaxFileLimit, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatEditingSessionStream, inChatEditingSessionContextKey, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingSession } from './chatEditingSession.js';
@@ -73,6 +73,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return this._editingSessionFileLimit ?? defaultChatEditingMaxFileLimit;
 	}
 
+	private _applyingChatEditsFailedContextKey: IContextKey<boolean | undefined>;
+
 	constructor(
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -87,6 +89,8 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService
 	) {
 		super();
+		this._applyingChatEditsFailedContextKey = applyingChatEditsFailedContextKey.bindTo(contextKeyService);
+		this._applyingChatEditsFailedContextKey.set(false);
 		this._register(decorationsService.registerDecorationsProvider(new ChatDecorationsProvider(this._currentSessionObs)));
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this._currentSessionObs)));
 		textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider, this._currentSessionObs));
@@ -241,7 +245,11 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		const editsSeen = new ResourceMap<{ seen: number }>();
 
 		const onResponseComplete = (responseModel: IChatResponseModel) => {
-			if (responseModel.result?.metadata?.autoApplyEdits) {
+			if (responseModel.result?.errorDetails) {
+				// Roll back everything
+				this.restoreSnapshot(responseModel.requestId);
+				this._applyingChatEditsFailedContextKey.set(true);
+			} else if (responseModel.result?.metadata?.autoApplyEdits) {
 				this.triggerEditComputation(responseModel);
 			}
 
@@ -290,6 +298,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		observerDisposables.add(chatModel.onDidChange(e => {
 			if (e.kind === 'addRequest') {
+				this._applyingChatEditsFailedContextKey.set(false);
 				const responseModel = e.request.response;
 				if (responseModel) {
 					if (responseModel.isComplete) {
