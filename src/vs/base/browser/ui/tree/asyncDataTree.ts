@@ -1227,6 +1227,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	private async refreshAndRenderNode(node: IAsyncDataTreeNode<TInput, T>, recursive: boolean, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
+		if (this.disposables.isDisposed) {
+			return; // tree disposed during refresh, again (#228211)
+		}
 		await this.refreshNode(node, recursive, viewStateContext);
 		if (this.disposables.isDisposed) {
 			return; // tree disposed during refresh (#199264)
