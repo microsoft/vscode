@@ -55,7 +55,6 @@ declare module 'vscode' {
 	}
 
 	export interface TerminalCompletionContext {
-		shellType: string;
 		commandLine: string;
 	}
 

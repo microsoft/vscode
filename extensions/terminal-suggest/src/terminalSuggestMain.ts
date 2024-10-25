@@ -45,7 +45,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 					console.warn(`No default export found in ${file} ${JSON.stringify(module)}`);
 				}
 			} catch (e) {
-				console.warn('Error importing completion spec:', file, e);
+				console.warn('Error importing completion spec:', file);
 				continue;
 			}
 		}
@@ -57,14 +57,10 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 }
 
 (vscode as any).window.registerTerminalCompletionProvider({
-	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { shellType: string; commandLine: string }, token: vscode.CancellationToken) {
+	id: 'terminal-suggest',
+	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string }, token: vscode.CancellationToken) {
 		// Early cancellation check
 		if (token.isCancellationRequested) {
-			return;
-		}
-
-		// Skip PowerShell / python terminals
-		if (terminalContext.shellType === 'pwsh' || terminalContext.shellType === 'python') {
 			return;
 		}
 
@@ -93,6 +89,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 				console.warn('No name found in completion spec:', spec);
 			}
 		}
+		console.log(result.length);
 		// Return the completion results or undefined if no results
 		return result.length ? result : undefined;
 	}

@@ -47,13 +47,13 @@ export enum TerminalCompletionItemKind {
 }
 
 export interface ITerminalCompletionProvider {
-	provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(value: string): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
-	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string): Promise<ITerminalCompletion[] | undefined>;
 }
 
 export class TerminalSuggestionService extends Disposable implements ITerminalCompletionService {
@@ -74,11 +74,11 @@ export class TerminalSuggestionService extends Disposable implements ITerminalCo
 		return toDisposable(() => this._providers.delete(id));
 	}
 
-	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(value: string): Promise<ITerminalCompletion[] | undefined> {
 		const result: ITerminalCompletion[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {
-				const completions = await provider.provideCompletions(value, shellType);
+				const completions = await provider.provideCompletions(value);
 				if (completions) {
 					result.push(...completions);
 				}

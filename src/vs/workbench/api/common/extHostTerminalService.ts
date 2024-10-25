@@ -10,7 +10,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, CompletionItemLabel, TerminalCompletionItemKind } from './extHostTypes.js';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, CompletionItemLabel } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { NotSupportedError } from '../../../base/common/errors.js';
@@ -771,7 +771,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalCompletions(id: string, options: { shellType: string; commandLine: string }): Promise<ITerminalCompletion[] | undefined> {
+	public async $provideTerminalCompletions(id: string, options: { commandLine: string }): Promise<ITerminalCompletion[] | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
 			return [];
@@ -1280,7 +1280,7 @@ export interface ITerminalCompletion {
 	 * The kind of this completion item. Based on the kind,
 	 * an icon is chosen.
 	 */
-	kind: TerminalCompletionItemKind;
+	kind: vscode.TerminalCompletionItemKind;
 
 	/**
 	 * A human-readable string with additional information

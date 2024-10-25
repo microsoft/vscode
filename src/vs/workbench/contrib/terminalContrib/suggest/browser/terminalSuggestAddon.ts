@@ -222,7 +222,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._shellType);
+		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value);
 		if (!providedCompletions?.length) {
 			return;
 		}
