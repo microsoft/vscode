@@ -10,6 +10,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { CHAT_OPEN_ACTION_ID } from './chatActions.js';
+import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
@@ -20,6 +21,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
 		super();
 
@@ -32,16 +34,16 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 	private registerListeners() {
 
-		this._register(this.extensionService.onDidChangeExtensions((result) => {
-			for (const ext of result.added) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, ext.identifier)) {
+		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
+			for (const e of result) {
+				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, e.identifier.id)) {
 					this.recentlyInstalled = true;
 					return;
 				}
 			}
 		}));
 
-		this.extensionService.onDidChangeExtensionsStatus(async (event) => {
+		this._register(this.extensionService.onDidChangeExtensionsStatus(async (event) => {
 			for (const ext of event) {
 				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, ext.value)) {
 					const extensionStatus = this.extensionService.getExtensionsStatus();
@@ -52,6 +54,6 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 					}
 				}
 			}
-		});
+		}));
 	}
 }
