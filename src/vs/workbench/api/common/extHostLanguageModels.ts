@@ -206,7 +206,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			let part: IChatResponsePart | undefined;
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
-				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.parameters, toolCallId: fragment.part.callId };
+				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input ?? fragment.part.parameters, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
 			}
@@ -380,6 +380,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (!success || !this._modelAccessList.get(from)?.has(metadata.extension)) {
 				throw extHostTypes.LanguageModelError.NoPermissions(`Language model '${languageModelId}' cannot be used by '${from.value}'.`);
 			}
+		}
+
+		if (options.tools) {
+			// TODO@API backwards compat, remove
+			// when getting tools passed massage them to have inputSchema set
+			type OldChatTool = vscode.LanguageModelChatTool & { parametersSchema?: object };
+			options.tools = options.tools.map((tool: OldChatTool) => {
+				return {
+					...tool,
+					inputSchema: tool.inputSchema ?? tool.parametersSchema,
+					parametersSchema: tool.inputSchema ?? tool.parametersSchema,
+				};
+			});
 		}
 
 		try {
