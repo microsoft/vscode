@@ -217,6 +217,16 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.updateInfo(localize('welcome.1', "AI-generated commands may be incorrect"));
 	}
 
+	async reveal(): Promise<void> {
+		await this._createSession();
+		this._doLayout(this._inlineChatWidget.contentHeight);
+		this._container.classList.remove('hide');
+		this._visibleContextKey.set(true);
+		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
+		this._inlineChatWidget.focus();
+		this._instance.scrollToBottom();
+	}
+
 	private _getTop(): number | undefined {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
@@ -275,6 +285,9 @@ export class TerminalChatWidget extends Disposable {
 			TerminalStickyScrollContribution.get(this._instance)?.hideLock();
 		}
 	}
+	focus(): void {
+		this.inlineChatWidget.focus();
+	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
 	}
@@ -284,6 +297,16 @@ export class TerminalChatWidget extends Disposable {
 
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
+	}
+
+	async acceptCommand(shouldExecute: boolean): Promise<void> {
+		const code = await this.inlineChatWidget.getCodeBlockInfo(0);
+		if (!code) {
+			return;
+		}
+		const value = code.textEditorModel.getValue();
+		this._instance.runCommand(value, shouldExecute);
+		this.hide();
 	}
 
 	public get focusTracker(): IFocusTracker {
@@ -433,30 +456,6 @@ export class TerminalChatWidget extends Disposable {
 			return;
 		}
 		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
-	}
-
-	async acceptCommand(shouldExecute: boolean): Promise<void> {
-		const code = await this.inlineChatWidget.getCodeBlockInfo(0);
-		if (!code) {
-			return;
-		}
-		const value = code.textEditorModel.getValue();
-		this._instance.runCommand(value, shouldExecute);
-		this.hide();
-	}
-
-	async reveal(): Promise<void> {
-		await this._createSession();
-		this._doLayout(this._inlineChatWidget.contentHeight);
-		this._container.classList.remove('hide');
-		this._visibleContextKey.set(true);
-		this.inlineChatWidget.placeholder = terminalChatPlaceholder;
-		this._inlineChatWidget.focus();
-		this._instance.scrollToBottom();
-	}
-
-	focus(): void {
-		this.inlineChatWidget.focus();
 	}
 
 	async viewInChat(): Promise<void> {
