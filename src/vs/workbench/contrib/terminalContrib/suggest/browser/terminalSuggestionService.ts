@@ -6,7 +6,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CompletionItemLabel } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
