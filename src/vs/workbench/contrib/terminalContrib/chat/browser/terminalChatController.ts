@@ -8,7 +8,7 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatCodeBlockContextProviderService, IChatWidget, showChatView } from '../../../chat/browser/chat.js';
+import { IChatCodeBlockContextProviderService, showChatView } from '../../../chat/browser/chat.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
@@ -39,12 +39,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	 * terminal is still initializing). This wraps the inline chat widget.
 	 */
 	get terminalChatWidget(): TerminalChatWidget | undefined { return this._terminalChatWidget?.value; }
-
-	/**
-	 * The base chat widget for the controller, this will be undefined if xterm is not ready yet (ie. the
-	 * terminal is still initializing).
-	 */
-	get chatWidget(): IChatWidget | undefined { return this._terminalChatWidget?.value.inlineChatWidget?.chatWidget; }
 
 	private _lastResponseContent: string | undefined;
 	get lastResponseContent(): string | undefined {
