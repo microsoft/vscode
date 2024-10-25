@@ -328,7 +328,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openEditSession',
-				title: localize2('chat.openEdits.label', "Open Edit Session"),
+				title: localize2('chat.openEdits.label', "Open {0}", 'Copilot Edits'),
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
 				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
@@ -343,7 +343,12 @@ export function registerNewChatActions() {
 					when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED,
 					group: 'a_chatEdit',
 					order: 1
-				}]
+				}],
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
+					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', EDITS_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED)
+				}
 			});
 		}
 
