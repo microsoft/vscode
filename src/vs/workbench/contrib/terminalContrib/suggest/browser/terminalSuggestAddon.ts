@@ -193,8 +193,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	}
 
 	private async _handleExtensionProviders(terminal?: Terminal): Promise<void> {
-		this._onDidReceiveCompletions.fire();
-
 		// Nothing to handle if the terminal is not attached
 		if (!terminal?.element || !this._enableWidget || !this._promptInputModel) {
 			return;
@@ -226,6 +224,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!providedCompletions?.length) {
 			return;
 		}
+		this._onDidReceiveCompletions.fire();
 
 		const completions: SimpleCompletionItem[] = [];
 		for (const c of providedCompletions) {
