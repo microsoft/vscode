@@ -15,6 +15,16 @@ import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToo
 import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import * as typeConvert from './extHostTypeConverters.js';
 
+/**
+ * @deprecated
+ */
+type CompatLanguageModelToolInvocationOptions<T = any> = vscode.LanguageModelToolInvocationOptions<T> & { parameters?: any };
+
+/**
+ * @deprecated
+ */
+type CompactLanguageModelToolInvocationPrepareOptions<T> = vscode.LanguageModelToolInvocationPrepareOptions<T> & { parameters: any };
+
 export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
 	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool<Object> }>();
@@ -43,7 +53,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		return await fn(input, token);
 	}
 
-	async invokeTool(toolId: string, options: vscode.LanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
+	async invokeTool(toolId: string, options: CompatLanguageModelToolInvocationOptions<any>, token?: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const callId = generateUuid();
 		if (options.tokenizationOptions) {
 			this._tokenCountFuncs.set(callId, options.tokenizationOptions.countTokens);
@@ -58,7 +68,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			const result = await this._proxy.$invokeTool({
 				toolId,
 				callId,
-				parameters: options.parameters,
+				parameters: options.input ?? options.parameters,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
 				context: options.toolInvocationToken as IToolInvocationContext | undefined,
 			}, token);
@@ -86,7 +96,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
-		const options: vscode.LanguageModelToolInvocationOptions<Object> = { parameters: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
+		const options: CompatLanguageModelToolInvocationOptions<Object> = { input: dto.parameters, parameters: dto.parameters, toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined };
 		if (dto.tokenBudget !== undefined) {
 			options.tokenizationOptions = {
 				tokenBudget: dto.tokenBudget,
@@ -113,7 +123,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
-		const result = await item.tool.prepareInvocation({ parameters }, token);
+		const options: CompactLanguageModelToolInvocationPrepareOptions<any> = { parameters, input: parameters };
+		const result = await item.tool.prepareInvocation(options, token);
 		if (!result) {
 			return undefined;
 		}
