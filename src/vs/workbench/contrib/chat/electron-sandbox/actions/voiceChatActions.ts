@@ -46,8 +46,7 @@ import { InlineChatController } from '../../../inlineChat/browser/inlineChatCont
 import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from '../../../speech/common/speechService.js';
-import { ITerminalService } from '../../../terminal/browser/terminal.js';
-import { TerminalChatContextKeys, TerminalChatController } from '../../../terminal/terminalContribChatExports.js';
+import { TerminalChatContextKeys } from '../../../terminal/terminalContribChatExports.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -106,12 +105,11 @@ class VoiceChatSessionControllerFactory {
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorService = accessor.get(IEditorService);
-		const terminalService = accessor.get(ITerminalService);
 		const viewsService = accessor.get(IViewsService);
 
 		switch (context) {
 			case 'focused': {
-				const controller = VoiceChatSessionControllerFactory.doCreateForFocusedChat(terminalService, chatWidgetService, layoutService);
+				const controller = VoiceChatSessionControllerFactory.doCreateForFocusedChat(chatWidgetService, layoutService);
 				return controller ?? VoiceChatSessionControllerFactory.create(accessor, 'view'); // fallback to 'view'
 			}
 			case 'view': {
@@ -143,18 +141,7 @@ class VoiceChatSessionControllerFactory {
 		return undefined;
 	}
 
-	private static doCreateForFocusedChat(terminalService: ITerminalService, chatWidgetService: IChatWidgetService, layoutService: IWorkbenchLayoutService): IVoiceChatSessionController | undefined {
-
-		// 1.) probe terminal chat which is not part of chat widget service
-		const activeInstance = terminalService.activeInstance;
-		if (activeInstance) {
-			const terminalChat = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-			if (terminalChat?.hasFocus()) {
-				return VoiceChatSessionControllerFactory.doCreateForTerminalChat(terminalChat);
-			}
-		}
-
-		// 2.) otherwise go via chat widget service
+	private static doCreateForFocusedChat(chatWidgetService: IChatWidgetService, layoutService: IWorkbenchLayoutService): IVoiceChatSessionController | undefined {
 		const chatWidget = chatWidgetService.lastFocusedWidget;
 		if (chatWidget?.hasInputFocus()) {
 
@@ -215,23 +202,6 @@ class VoiceChatSessionControllerFactory {
 			setInputPlaceholder: text => chatWidget.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatWidget.resetInputPlaceholder(),
 			updateState: VoiceChatSessionControllerFactory.createChatContextKeyController(chatWidget.scopedContextKeyService, context)
-		};
-	}
-
-	private static doCreateForTerminalChat(terminalChat: TerminalChatController): IVoiceChatSessionController {
-		const context = 'terminal';
-		return {
-			context,
-			scopedContextKeyService: terminalChat.scopedContextKeyService,
-			onDidAcceptInput: terminalChat.onDidAcceptInput,
-			onDidHideInput: terminalChat.onDidHide,
-			focusInput: () => terminalChat.focus(),
-			acceptInput: () => terminalChat.acceptInput(true),
-			updateInput: text => terminalChat.updateInput(text, false),
-			getInput: () => terminalChat.getInput(),
-			setInputPlaceholder: text => terminalChat.setPlaceholder(text),
-			clearInputPlaceholder: () => terminalChat.resetPlaceholder(),
-			updateState: VoiceChatSessionControllerFactory.createChatContextKeyController(terminalChat.scopedContextKeyService, context)
 		};
 	}
 }
@@ -742,22 +712,6 @@ class ChatSynthesizerSessionController {
 	private static doCreateForFocusedChat(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
-		const terminalService = accessor.get(ITerminalService);
-
-		// 1.) probe terminal chat which is not part of chat widget service
-		const activeInstance = terminalService.activeInstance;
-		if (activeInstance) {
-			const terminalChat = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-			if (terminalChat?.hasFocus()) {
-				return {
-					onDidHideChat: terminalChat.onDidHide,
-					contextKeyService: terminalChat.scopedContextKeyService,
-					response
-				};
-			}
-		}
-
-		// 2.) otherwise go via chat widget service
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
 		if (chatWidget?.location === ChatAgentLocation.Editor) {
 			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785

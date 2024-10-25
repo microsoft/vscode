@@ -44,13 +44,13 @@ registerActiveXtermAction({
 			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
 				contr?.updateInput(opts.query, false);
 				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
-					contr?.acceptInput();
+					contr?.terminalChatWidget?.acceptInput();
 				}
 			}
 
 		}
 
-		contr?.reveal();
+		contr?.terminalChatWidget?.reveal();
 	}
 });
 
@@ -78,7 +78,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.clear();
+		contr?.terminalChatWidget?.clear();
 	}
 });
 
@@ -106,7 +106,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.clear();
+		contr?.terminalChatWidget?.clear();
 	}
 });
 
@@ -138,7 +138,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(true);
+		contr?.terminalChatWidget?.acceptCommand(undefined, true);
 	}
 });
 
@@ -168,7 +168,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(true);
+		contr?.terminalChatWidget?.acceptCommand(undefined, true);
 	}
 });
 
@@ -200,7 +200,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(false);
+		contr?.terminalChatWidget?.acceptCommand(undefined, false);
 	}
 });
 
@@ -230,7 +230,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptCommand(false);
+		contr?.terminalChatWidget?.acceptCommand(undefined, false);
 	}
 });
 
@@ -288,7 +288,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.acceptInput();
+		contr?.terminalChatWidget?.acceptInput();
 	}
 });
 
@@ -309,7 +309,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.cancel();
+		contr?.terminalChatWidget?.cancel();
 	}
 });
 
@@ -328,7 +328,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.populateHistory(true);
+		contr?.terminalChatWidget?.populateHistory(true);
 	}
 });
 
@@ -347,6 +347,6 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.populateHistory(false);
+		contr?.terminalChatWidget?.populateHistory(false);
 	}
 });
