@@ -593,6 +593,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			}
 			// this file does not exist yet, create it and try again
 			await this._bulkEditService.apply({ edits: [{ newResource: resource }] });
+			this._editorService.openEditor({ resource, options: { inactive: true, preserveFocus: true, pinned: true } });
 			return this._createModifiedFileEntry(resource, responseModel, true);
 		}
 	}
