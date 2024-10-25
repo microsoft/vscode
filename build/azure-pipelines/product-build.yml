@@ -171,6 +171,8 @@ resources:
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
+    featureFlags:
+      EnableDefenderForLinux: true
     sdl:
       tsa:
         enabled: true
