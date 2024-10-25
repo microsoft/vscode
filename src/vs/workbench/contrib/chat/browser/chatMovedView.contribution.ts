@@ -63,9 +63,18 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async initialize(): Promise<void> {
+		const hidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
+
+		// If the view is already hidden, then we just want to register keybindings.
+		if (hidden) {
+			this.registerKeybindings();
+			return;
+		}
+
 		await this.hideViewIfCopilotIsNotInstalled();
 		this.updateContextKey();
 		this.registerListeners();
+		this.registerKeybindings();
 		this.registerCommands();
 		this.registerMovedChatWelcomeView();
 		this.hideViewIfOldViewIsMovedFromDefaultLocation();
@@ -116,21 +125,9 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 
 	private registerListeners(): void {
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, this._store)(() => this.updateContextKey()));
-
-		// If the view container gets shown but it's supposed to be hidden, go hide it.
-		this._register(this.viewsService.onDidChangeViewContainerVisibility(e => {
-			const supposedToBeHidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
-			if (supposedToBeHidden && e.visible && e.id === CHAT_SIDEBAR_OLD_VIEW_PANEL_ID) {
-				const viewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
-
-				if (viewContainer) {
-					Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
-				}
-			}
-		}));
 	}
 
-	private registerCommands(): void {
+	private registerKeybindings(): void {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -138,7 +135,9 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 			primary: 0,
 			handler: accessor => showChatView(accessor.get(IViewsService))
 		});
+	}
 
+	private registerCommands(): void {
 		CommandsRegistry.registerCommand({
 			id: '_chatMovedViewWelcomeView.ok',
 			handler: async (accessor: ServicesAccessor) => {
