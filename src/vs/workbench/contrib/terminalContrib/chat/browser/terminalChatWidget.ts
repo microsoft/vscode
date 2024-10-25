@@ -435,17 +435,14 @@ export class TerminalChatWidget extends Disposable {
 		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
 	}
 
-	async acceptCommand(code: string | undefined, shouldExecute: boolean): Promise<void> {
-		if (code) {
-			this._instance.runCommand(code, shouldExecute);
-			this.hide();
+	async acceptCommand(shouldExecute: boolean): Promise<void> {
+		const code = await this.inlineChatWidget.getCodeBlockInfo(0);
+		if (!code) {
 			return;
 		}
-		const codeBlock = await this._inlineChatWidget.getCodeBlockInfo(0);
-		if (!codeBlock) {
-			return;
-		}
-		this.acceptCommand(codeBlock.textEditorModel.getValue(), shouldExecute);
+		const value = code.textEditorModel.getValue();
+		this._instance.runCommand(value, shouldExecute);
+		this.hide();
 	}
 
 	async reveal(): Promise<void> {

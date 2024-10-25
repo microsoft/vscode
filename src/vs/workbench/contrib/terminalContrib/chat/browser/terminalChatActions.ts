@@ -138,7 +138,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.acceptCommand(undefined, true);
+		contr?.terminalChatWidget?.acceptCommand(true);
 	}
 });
 
@@ -168,7 +168,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.acceptCommand(undefined, true);
+		contr?.terminalChatWidget?.acceptCommand(true);
 	}
 });
 
@@ -200,7 +200,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.acceptCommand(undefined, false);
+		contr?.terminalChatWidget?.acceptCommand(false);
 	}
 });
 
@@ -230,7 +230,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.acceptCommand(undefined, false);
+		contr?.terminalChatWidget?.acceptCommand(false);
 	}
 });
 
