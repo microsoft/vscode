@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -45,14 +45,18 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			// this step is in progress, communicate it to SR users
 			alert(progress.content.value);
 		}
-		const codicon = icon ? icon.id : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
-		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
+		const codicon = icon ? icon : this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check;
+		const markdown = new MarkdownString(progress.content.value, {
 			supportThemeIcons: true
 		});
 		const result = this._register(renderer.render(markdown));
 		result.element.classList.add('progress-step');
 
-		this.domNode = result.element;
+		this.domNode = $('.progress-container');
+		const iconElement = $('div');
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(codicon));
+		append(this.domNode, iconElement);
+		append(this.domNode, result.element);
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
