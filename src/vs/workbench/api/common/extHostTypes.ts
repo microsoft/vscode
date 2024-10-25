@@ -4770,7 +4770,7 @@ export class LanguageModelError extends Error {
 }
 
 export class LanguageModelToolResult {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
 
 	toJSON() {
 		return {
