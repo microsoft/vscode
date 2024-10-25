@@ -46,8 +46,10 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 	) {
 		super();
 		this._register(this._editor.onDidChangeModel(() => this._update()));
-		this._register(this._editor.onDidLayoutChange((e) => {
-			this._update();
+		this._register(this._editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.lineHeight)) {
+				this._update();
+			}
 		}));
 		this._register(this._chatEditingService.onDidChangeEditingSession(() => this._updateSessionDecorations()));
 		this._register(toDisposable(() => this._clearRendering()));
