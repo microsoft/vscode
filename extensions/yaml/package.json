@@ -44,7 +44,8 @@
           ".cff",
           ".yaml-tmlanguage",
           ".yaml-tmpreferences",
-          ".yaml-tmtheme"
+          ".yaml-tmtheme",
+          ".winget"
         ],
         "firstLine": "^#cloud-config",
         "configuration": "./language-configuration.json"
