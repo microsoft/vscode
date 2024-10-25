@@ -2407,7 +2407,7 @@ export namespace LanguageModelChatMessage {
 					type: 'tool_use',
 					toolCallId: c.callId,
 					name: c.name,
-					parameters: c.parameters
+					parameters: c.input ?? c.parameters
 				};
 			} else if (c instanceof types.LanguageModelTextPart) {
 				return {
@@ -2973,12 +2973,13 @@ export namespace DebugTreeItem {
 }
 
 export namespace LanguageModelToolDescription {
-	export function to(item: IToolData): vscode.LanguageModelToolInformation {
+	export function to(item: IToolData): vscode.LanguageModelToolInformation & { parametersSchema: any } {
 		return {
 			// Note- the reason this is a unique 'name' is just to avoid confusion with the toolCallId
 			name: item.id,
 			description: item.modelDescription,
-			parametersSchema: item.parametersSchema,
+			inputSchema: item.inputSchema,
+			parametersSchema: item.inputSchema, // TODO@API backwards compat, remove
 			tags: item.tags ?? [],
 		};
 	}
