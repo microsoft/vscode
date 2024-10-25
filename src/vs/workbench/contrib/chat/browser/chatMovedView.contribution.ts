@@ -121,7 +121,11 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		this._register(this.viewsService.onDidChangeViewContainerVisibility(e => {
 			const supposedToBeHidden = this.storageService.getBoolean(MoveChatViewContribution.hideMovedChatWelcomeViewStorageKey, StorageScope.APPLICATION, false);
 			if (supposedToBeHidden && e.visible && e.id === CHAT_SIDEBAR_OLD_VIEW_PANEL_ID) {
-				this.updateContextKey();
+				const viewContainer = this.viewDescriptorService.getViewContainerById(CHAT_SIDEBAR_OLD_VIEW_PANEL_ID);
+
+				if (viewContainer) {
+					Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
+				}
 			}
 		}));
 	}
