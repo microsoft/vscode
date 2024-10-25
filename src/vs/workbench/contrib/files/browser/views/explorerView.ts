@@ -710,12 +710,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.resourceContext.set(resource);
 		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && !!stat.isReadonly);
-
-		{
-			const parentStat = stat?.parent;
-			this.parentReadonlyContext.set(!!parentStat && !!parentStat.isReadonly);
-		}
-
+		this.parentReadonlyContext.set(Boolean(stat?.parent?.isReadonly));
 		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
@@ -1098,8 +1093,10 @@ export function createFileIconThemableTreeContainerScope(container: HTMLElement,
 	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
-const isCreateClickable = ContextKeyExpr.or(
+const CanCreateContext = ContextKeyExpr.or(
+	// Folder: can create unless readonly
 	ContextKeyExpr.and(ExplorerFolderContext, ExplorerResourceNotReadonlyContext),
+	// File: can create unless parent is readonly
 	ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceParentReadOnlyContext.toNegated())
 );
 
@@ -1110,7 +1107,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File..."),
 			f1: false,
 			icon: Codicon.newFile,
-			precondition: isCreateClickable,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -1126,7 +1123,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -1134,7 +1130,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder..."),
 			f1: false,
 			icon: Codicon.newFolder,
-			precondition: isCreateClickable,
+			precondition: CanCreateContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
