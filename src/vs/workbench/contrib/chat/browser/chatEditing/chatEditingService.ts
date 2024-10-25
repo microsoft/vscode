@@ -20,6 +20,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize, localize2 } from '../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
@@ -86,6 +87,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		@ICodeMapperService private readonly _codeMapperService: ICodeMapperService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IDecorationsService decorationsService: IDecorationsService,
+		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchAssignmentService private readonly _workbenchAssignmentService: IWorkbenchAssignmentService
 	) {
 		super();
@@ -243,6 +245,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		let editsSource: AsyncIterableSource<IChatTextEditGroup> | undefined;
 		const editsSeen = new ResourceMap<{ seen: number }>();
+		const editedFilesExist = new ResourceMap<Promise<boolean>>();
 
 		const onResponseComplete = (responseModel: IChatResponseModel) => {
 			if (responseModel.result?.errorDetails) {
@@ -256,6 +259,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			editsSource?.resolve();
 			editsSource = undefined;
 			editsSeen.clear();
+			editedFilesExist.clear();
 		};
 
 
@@ -263,7 +267,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			for (const part of responseModel.response.value) {
 				if (part.kind === 'codeblockUri' || part.kind === 'textEditGroup') {
 					// ensure editor is open asap
-					this._editorService.openEditor({ resource: part.uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+					if (!editedFilesExist.get(part.uri)) {
+						editedFilesExist.set(part.uri, this._fileService.exists(part.uri).then((e) => {
+							if (e) {
+								this._editorService.openEditor({ resource: part.uri, options: { inactive: true, preserveFocus: true, pinned: true } });
+							}
+							return e;
+						}));
+					}
 
 					// get new edits and start editing session
 					const first = editsSeen.size === 0;
