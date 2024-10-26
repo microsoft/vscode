@@ -475,7 +475,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID) {
+		if (
+			(target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID)
+			|| this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)
+		) {
 			// mouse moved on top of debug hover widget
 
 			const sticky = this.editorHoverOptions?.sticky ?? true;
