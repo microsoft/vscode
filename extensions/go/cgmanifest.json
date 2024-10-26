@@ -6,12 +6,12 @@
 				"git": {
 					"name": "go-syntax",
 					"repositoryUrl": "https://github.com/worlpaker/go-syntax",
-					"commitHash": "ce0d1d19653dc264d8e53f97cb45cc8d1689f221"
+					"commitHash": "32bbaebcf218fa552e8f0397401e12f6e94fa3c5"
 				}
 			},
 			"license": "MIT",
 			"description": "The file syntaxes/go.tmLanguage.json is from https://github.com/worlpaker/go-syntax, which in turn was derived from https://github.com/jeff-hykin/better-go-syntax.",
-			"version": "0.7.7"
+			"version": "0.7.8"
 		}
 	],
 	"version": 1
