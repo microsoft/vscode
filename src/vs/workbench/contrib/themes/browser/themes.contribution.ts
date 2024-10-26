@@ -754,6 +754,26 @@ registerAction2(class extends Action2 {
 				themeService.setColorTheme(theme.id, 'auto');
 			}
 		}
+
+		let newIconThemeSettingId: string = ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME;
+		switch (currentTheme.type) {
+			case ColorScheme.LIGHT:
+			case ColorScheme.HIGH_CONTRAST_LIGHT:
+				newIconThemeSettingId = ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME;
+				break;
+			case ColorScheme.DARK:
+			case ColorScheme.HIGH_CONTRAST_DARK:
+				newIconThemeSettingId = ThemeSettings.PREFERRED_LIGHT_FILE_ICON_THEME;
+				break;
+		}
+
+		const fileIconThemeSettingId: string = configurationService.getValue(newIconThemeSettingId);
+		if (fileIconThemeSettingId && typeof fileIconThemeSettingId === 'string') {
+			const theme = (await themeService.getFileIconThemes()).find(t => t.settingsId === fileIconThemeSettingId);
+			if (theme) {
+				themeService.setFileIconTheme(theme.id, 'auto');
+			}
+		}
 	}
 });
 

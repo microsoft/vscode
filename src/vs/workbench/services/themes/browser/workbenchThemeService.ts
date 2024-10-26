@@ -260,7 +260,13 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			) {
 				this.restoreColorTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
+			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
+				|| e.affectsConfiguration(ThemeSettings.DETECT_HC)
+				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME)
+				|| e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_FILE_ICON_THEME)
+			) {
 				this.restoreFileIconTheme();
 			}
 			if (e.affectsConfiguration(ThemeSettings.PRODUCT_ICON_THEME)) {
@@ -363,6 +369,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this._register(this.hostColorService.onDidChangeColorScheme(() => {
 			if (this.settings.isDetectingColorScheme()) {
 				this.restoreColorTheme();
+				this.restoreFileIconTheme();
 			}
 		}));
 	}

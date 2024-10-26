@@ -25,6 +25,7 @@ const colorThemeSettingEnum: string[] = [];
 const colorThemeSettingEnumItemLabels: string[] = [];
 const colorThemeSettingEnumDescriptions: string[] = [];
 
+
 export function formatSettingAsLink(str: string) {
 	return `\`#${str}#\``;
 }
@@ -81,13 +82,13 @@ const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
+
 const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	markdownDescription: nls.localize({ key: 'detectColorScheme', comment: ['{0} and {1} will become links to other settings.'] }, 'If enabled, will automatically select a color theme based on the system color mode. If the system color mode is dark, {0} is used, else {1}.', formatSettingAsLink(ThemeSettings.PREFERRED_DARK_THEME), formatSettingAsLink(ThemeSettings.PREFERRED_LIGHT_THEME)),
 	default: false,
 	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
 };
-
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
@@ -98,14 +99,37 @@ const colorCustomizationsSchema: IConfigurationPropertySchema = {
 		}
 	}]
 };
+
+const fileIconThemeSettingsEnum: (string | null)[] = [null];
+const fileIconThemeSettingsEnumItemLabels: string[] = [nls.localize('noIconThemeLabel', 'None')];
+const fileIconThemeSettingsEnumDescriptions: string[] = [nls.localize('noIconThemeDesc', 'No file icons')];
+
 const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: ThemeSettingDefaults.FILE_ICON_THEME,
 	description: nls.localize('iconTheme', "Specifies the file icon theme used in the workbench or 'null' to not show any file icons."),
-	enum: [null],
-	enumItemLabels: [nls.localize('noIconThemeLabel', 'None')],
-	enumDescriptions: [nls.localize('noIconThemeDesc', 'No file icons')],
+	enum: fileIconThemeSettingsEnum,
+	enumItemLabels: fileIconThemeSettingsEnumItemLabels,
+	enumDescriptions: fileIconThemeSettingsEnumDescriptions,
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
+};
+const preferredDarkFileIconThemeSchema: IConfigurationPropertySchema = {
+	type: 'string',
+	markdownDescription: nls.localize({ key: 'preferredDarkFileIconTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the file icon theme when system color mode is dark and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
+	enum: fileIconThemeSettingsEnum,
+	enumDescriptions: fileIconThemeSettingsEnumItemLabels,
+	enumItemLabels: fileIconThemeSettingsEnumDescriptions,
+	errorMessage: nls.localize('fileIconThemeError', "File icon theme is unknown or not installed."),
+};
+const preferredLightFileIconThemeSchema: IConfigurationPropertySchema = {
+	type: 'string',
+	markdownDescription: nls.localize({ key: 'preferredLightFileIconTheme', comment: ['{0} will become a link to another setting.'] }, 'Specifies the file icon theme when system color mode is light and {0} is enabled.', formatSettingAsLink(ThemeSettings.DETECT_COLOR_SCHEME)),
+	tags: [COLOR_THEME_CONFIGURATION_SETTINGS_TAG],
+	enum: fileIconThemeSettingsEnum,
+	enumDescriptions: fileIconThemeSettingsEnumItemLabels,
+	enumItemLabels: fileIconThemeSettingsEnumDescriptions,
+	errorMessage: nls.localize('fileIconThemeError', "File icon theme is unknown or not installed."),
 };
 const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
@@ -136,6 +160,8 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.PREFERRED_HC_DARK_THEME]: preferredHCDarkThemeSettingSchema,
 		[ThemeSettings.PREFERRED_HC_LIGHT_THEME]: preferredHCLightThemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
+		[ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME]: preferredDarkFileIconThemeSchema,
+		[ThemeSettings.PREFERRED_LIGHT_FILE_ICON_THEME]: preferredLightFileIconThemeSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
@@ -259,9 +285,9 @@ export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorThem
 }
 
 export function updateFileIconThemeConfigurationSchemas(themes: IWorkbenchFileIconTheme[]) {
-	fileIconThemeSettingSchema.enum!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.settingsId));
-	fileIconThemeSettingSchema.enumItemLabels!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.label));
-	fileIconThemeSettingSchema.enumDescriptions!.splice(1, Number.MAX_VALUE, ...themes.map(t => t.description || ''));
+	fileIconThemeSettingsEnum.splice(1, Number.MAX_VALUE, ...themes.map(t => t.settingsId));
+	fileIconThemeSettingsEnumItemLabels.splice(1, Number.MAX_VALUE, ...themes.map(t => t.label));
+	fileIconThemeSettingsEnumDescriptions.splice(1, Number.MAX_VALUE, ...themes.map(t => t.description || ''));
 
 	configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 }
@@ -281,6 +307,13 @@ const colorSchemeToPreferred = {
 	[ColorScheme.HIGH_CONTRAST_LIGHT]: ThemeSettings.PREFERRED_HC_LIGHT_THEME
 };
 
+const colorSchemeToIconPreferred = {
+	[ColorScheme.DARK]: ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME,
+	[ColorScheme.LIGHT]: ThemeSettings.PREFERRED_LIGHT_FILE_ICON_THEME,
+	[ColorScheme.HIGH_CONTRAST_DARK]: ThemeSettings.PREFERRED_DARK_FILE_ICON_THEME,
+	[ColorScheme.HIGH_CONTRAST_LIGHT]: ThemeSettings.PREFERRED_LIGHT_FILE_ICON_THEME,
+};
+
 export class ThemeConfiguration {
 	constructor(private configurationService: IConfigurationService, private hostColorService: IHostColorSchemeService) {
 	}
@@ -290,7 +323,7 @@ export class ThemeConfiguration {
 	}
 
 	public get fileIconTheme(): string | null {
-		return this.configurationService.getValue<string | null>(ThemeSettings.FILE_ICON_THEME);
+		return this.configurationService.getValue<string | null>(this.getFileIconThemeSettingsId());
 	}
 
 	public get productIconTheme(): string {
@@ -326,6 +359,11 @@ export class ThemeConfiguration {
 	public getColorThemeSettingId(): ThemeSettings {
 		const preferredScheme = this.getPreferredColorScheme();
 		return preferredScheme ? colorSchemeToPreferred[preferredScheme] : ThemeSettings.COLOR_THEME;
+	}
+
+	public getFileIconThemeSettingsId(): ThemeSettings {
+		const preferredScheme = this.getPreferredColorScheme();
+		return (preferredScheme && colorSchemeToIconPreferred[preferredScheme]) ?? ThemeSettings.FILE_ICON_THEME;
 	}
 
 	public async setColorTheme(theme: IWorkbenchColorTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchColorTheme> {

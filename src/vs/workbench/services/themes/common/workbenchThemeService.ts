@@ -40,6 +40,9 @@ export enum ThemeSettings {
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast',
 
+	PREFERRED_DARK_FILE_ICON_THEME = 'workbench.preferredDarkFileIconTheme',
+	PREFERRED_LIGHT_FILE_ICON_THEME = 'workbench.preferredLightFileIconTheme',
+
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
