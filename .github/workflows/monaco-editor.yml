@@ -1,8 +1,8 @@
-name: Monaco Editor checks
+name: Monday Editor checks
 
-on:
-  push:
-    branches:
+on: "weekly"
+  push: pull
+    branches: master
       - main
       - release/*
   pull_request:
