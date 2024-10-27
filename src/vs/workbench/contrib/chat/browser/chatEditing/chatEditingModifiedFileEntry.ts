@@ -25,7 +25,7 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
-import { FileOperation, IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IChatAgentResult } from '../../common/chatAgents.js';
@@ -152,8 +152,9 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._register(resourceRef);
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
-		this._register(this._fileService.onDidRunOperation(e => {
-			if (e.operation === FileOperation.DELETE && kind === ChatEditKind.Created && e.resource.toString() === this.resource.toString()) {
+		this._register(this._fileService.watch(this.resource));
+		this._register(this._fileService.onDidFilesChange(e => {
+			if (e.affects(this.resource) && kind === ChatEditKind.Created && e.gotDeleted()) {
 				this._onDidDelete.fire();
 				this.dispose();
 			}
