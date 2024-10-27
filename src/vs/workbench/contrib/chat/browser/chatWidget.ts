@@ -506,8 +506,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						const requestId = isRequestVM(element) ? element.id : element.requestId;
-						const checkpointedRequestId = this._viewModel?.model.checkpoint?.id;
 						return element.dataId +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
@@ -516,12 +514,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
-							// Re-render if element becomes enabled/disabled due to checkpointing
-							`_${element.isDisabled ? '1' : '0'}` +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${element.isHidden ? '1' : '0'}` +
-							// Re-render if element checkpoint state changed
-							`_${requestId === checkpointedRequestId ? '1' : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
@@ -973,7 +967,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requests = this.viewModel.model.getRequests();
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
-				if (request.isDisabled || request.isHidden) {
+				if (request.isHidden) {
 					this.chatService.removeRequest(this.viewModel.sessionId, request.id);
 				}
 			}
@@ -1037,8 +1031,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
-					// Keep the checkpoint toggled on until the response is complete to help the user keep their place in the chat history
-					this.viewModel?.model.setCheckpoint(undefined);
 					if (lastResponse?.result?.nextQuestion) {
 						const { prompt, participant, command } = lastResponse.result.nextQuestion;
 						const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);

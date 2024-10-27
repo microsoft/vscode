@@ -24,10 +24,6 @@
 	-webkit-user-select: text;
 }
 
-.interactive-item-container.disabled {
-	filter: blur(2px);
-}
-
 .interactive-item-container .header {
 	display: flex;
 	align-items: center;
@@ -1041,21 +1037,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .value .interactive-response-placeholder-content p {
 	margin: 0;
-}
-
-.disabled-overlay {
-	display: none;
-}
-
-.disabled-overlay.disabled {
-	position: absolute;
-	width: 100%;
-	height: 100%;
-	background-color: rgba(64, 64, 64, 0.2);
-	pointer-events: none;
-	display: flex;
-	cursor: default;
-	z-index: 1;
 }
 
 .interactive-response  .interactive-response-codicon-details {
