@@ -58,8 +58,8 @@ import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRen
 
 //#region Speech to Text
 
-type VoiceChatSessionContext = 'view' | 'inline' | 'terminal' | 'quick' | 'editor';
-const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'terminal', 'quick', 'editor'];
+type VoiceChatSessionContext = 'view' | 'inline' | 'quick' | 'editor';
+const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'quick', 'editor'];
 
 const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, terminal decided to go with their own menu (https://github.com/microsoft/vscode/issues/208789)
 
