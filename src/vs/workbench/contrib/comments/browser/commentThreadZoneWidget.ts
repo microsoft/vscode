@@ -504,6 +504,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._refresh(this._commentThreadWidget.getDimensions());
 	}
 
+	collapseAndFocusRange() {
+		this._commentThreadWidget.collapse();
+	}
+
 	override hide() {
 		if (this._isExpanded) {
 			this._isExpanded = false;
