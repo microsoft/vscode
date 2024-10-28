@@ -28,7 +28,7 @@ import { getIconClasses } from '../../../../editor/common/services/getIconClasse
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { coalesce, firstOrDefault } from '../../../../base/common/arrays.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from './localHistory.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -378,7 +378,7 @@ registerAction2(class extends Action2 {
 		await Event.toPromise(resourcePicker.onDidAccept);
 		resourcePickerDisposables.dispose();
 
-		const resource = firstOrDefault(resourcePicker.selectedItems)?.resource;
+		const resource = resourcePicker.selectedItems.at(0)?.resource;
 		if (!resource) {
 			return;
 		}
@@ -413,7 +413,7 @@ registerAction2(class extends Action2 {
 				entryPickerDisposables.dispose();
 			}
 
-			const selectedItem = firstOrDefault(entryPicker.selectedItems);
+			const selectedItem = entryPicker.selectedItems.at(0);
 			if (!selectedItem) {
 				return;
 			}

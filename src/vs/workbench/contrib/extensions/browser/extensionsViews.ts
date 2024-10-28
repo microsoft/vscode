@@ -552,11 +552,20 @@ export class ExtensionsListView extends ViewPane {
 				return isE1Running ? -1 : 1;
 			};
 
+			const incompatible: IExtension[] = [];
+			const deprecated: IExtension[] = [];
 			const outdated: IExtension[] = [];
 			const actionRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
-			result.forEach(e => {
-				if (e.outdated) {
+
+			for (const e of result) {
+				if (e.enablementState === EnablementState.DisabledByInvalidExtension) {
+					incompatible.push(e);
+				}
+				else if (e.deprecationInfo) {
+					deprecated.push(e);
+				}
+				else if (e.outdated && this.extensionEnablementService.isEnabledEnablementState(e.enablementState)) {
 					outdated.push(e);
 				}
 				else if (e.runtimeState) {
@@ -565,9 +574,15 @@ export class ExtensionsListView extends ViewPane {
 				else {
 					noActionRequired.push(e);
 				}
-			});
+			}
 
-			result = [...outdated.sort(defaultSort), ...actionRequired.sort(defaultSort), ...noActionRequired.sort(defaultSort)];
+			result = [
+				...incompatible.sort(defaultSort),
+				...deprecated.sort(defaultSort),
+				...outdated.sort(defaultSort),
+				...actionRequired.sort(defaultSort),
+				...noActionRequired.sort(defaultSort)
+			];
 		}
 		return result;
 	}

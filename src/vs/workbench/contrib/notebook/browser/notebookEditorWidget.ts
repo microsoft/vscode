@@ -96,7 +96,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DropIntoEditorController } from '../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { CopyPasteController } from '../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
 import { NotebookStickyScroll } from './viewParts/notebookEditorStickyScroll.js';
-import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { PreventDefaultContextMenuItemsContextKeyName } from '../../webview/browser/webview.contribution.js';
@@ -287,9 +286,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private _baseCellEditorOptions = new Map<string, IBaseCellEditorOptions>();
 
-	readonly isEmbedded: boolean;
+	readonly isReplHistory: boolean;
 	private _readOnly: boolean;
-	private readonly _inRepl: boolean;
 
 	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
@@ -325,9 +323,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._dimension = dimension;
 
-		this.isEmbedded = creationOptions.isEmbedded ?? false;
+		this.isReplHistory = creationOptions.isReplHistory ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
-		this._inRepl = creationOptions.forRepl ?? false;
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
@@ -934,7 +931,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._listDelegate = this.instantiationService.createInstance(NotebookCellListDelegate, DOM.getWindow(this.getDomNode()));
 		this._register(this._listDelegate);
 
-		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService);
+		const accessibilityProvider = new NotebookAccessibilityProvider(this.notebookExecutionStateService, () => this.viewModel, this.keybindingService, this.configurationService, this.isReplHistory);
 		this._register(accessibilityProvider);
 
 		this._list = this.instantiationService.createInstance(
@@ -1060,7 +1057,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._registerNotebookStickyScroll();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Notebook)) {
+			if (e.affectsConfiguration(accessibilityProvider.verbositySettingId)) {
 				this._list.ariaLabel = accessibilityProvider?.getWidgetAriaLabel();
 			}
 		}));
@@ -1069,8 +1066,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookCellTitle,
+			menuActionOptions: {
+				shouldForwardArgs: true
+			},
 			contextKeyService: this.scopedContextKeyService,
-			getAnchor: () => e.anchor
+			getAnchor: () => e.anchor,
+			getActionsContext: () => {
+				return {
+					from: 'cellContainer'
+				};
+			}
 		});
 	}
 
@@ -1142,11 +1147,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.scopedContextKeyService.updateParent(parentContextKeyService);
 	}
 
-	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks): Promise<void> {
+	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks, viewType?: string): Promise<void> {
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
 			const oldBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._detachModel();
-			await this._attachModel(textModel, viewState, perf);
+			await this._attachModel(textModel, viewType ?? textModel.viewType, viewState, perf);
 			const newBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 			if (oldBottomToolbarDimensions.bottomToolbarGap !== newBottomToolbarDimensions.bottomToolbarGap
@@ -1452,10 +1457,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.attachWebview(this._webview.element);
 	}
 
-	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
+	private async _attachModel(textModel: NotebookTextModel, viewType: string, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 		this._ensureWebview(this.getId(), textModel.viewType, textModel.uri);
 
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly, inRepl: this._inRepl });
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		this.notebookOptions.updateOptions(this._readOnly);
 
@@ -1827,7 +1832,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _allowScrollBeyondLastLine() {
-		return this._scrollBeyondLastLine && !this.isEmbedded;
+		return this._scrollBeyondLastLine && !this.isReplHistory;
 	}
 
 	private getBodyHeight(dimensionHeight: number) {

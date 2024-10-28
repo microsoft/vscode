@@ -28,7 +28,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { SaveSource, SaveSourceRegistry } from '../../../common/editor.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { distinct, lastOrDefault } from '../../../../base/common/arrays.js';
+import { distinct } from '../../../../base/common/arrays.js';
 import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
 
 interface ISerializedWorkingCopyHistoryModel {
@@ -126,7 +126,7 @@ export class WorkingCopyHistoryModel {
 		// on settings that can define a interval for when an
 		// entry is not added as new entry but should replace.
 		// However, when save source is different, never replace.
-		const lastEntry = lastOrDefault(this.entries);
+		const lastEntry = this.entries.at(-1);
 		if (lastEntry && lastEntry.source === source) {
 			const configuredReplaceInterval = this.configurationService.getValue<number>(WorkingCopyHistoryModel.SETTINGS.MERGE_PERIOD, { resource: this.workingCopyResource });
 			if (timestamp - lastEntry.timestamp <= (configuredReplaceInterval * 1000 /* convert to millies */)) {

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -227,7 +226,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 		// Send out extension activation to ensure providers can register
 		await this.extensionService.activateByEvent('onSpeech');
 
-		const provider = firstOrDefault(Array.from(this.providers.values()));
+		const provider = Array.from(this.providers.values()).at(0);
 		if (!provider) {
 			throw new Error(`No Speech provider is registered.`);
 		} else if (this.providers.size > 1) {

@@ -166,7 +166,6 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 							this._tracer.traceRequestCompleted(this._serverId, 'requestCompleted', seq, callback);
 							callback.onSuccess(undefined);
 						}
-						// @ts-expect-error until ts 5.6
 						if ((event as Proto.RequestCompletedEvent).body.performanceData) {
 							this._onEvent.fire(event);
 						}

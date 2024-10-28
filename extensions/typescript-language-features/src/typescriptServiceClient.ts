@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { homedir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
@@ -20,7 +21,7 @@ import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { NodeVersionManager } from './tsServer/nodeManager';
 import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
-import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
+import { PluginManager } from './tsServer/plugins';
 import * as Proto from './tsServer/protocol/protocol';
 import { EventName } from './tsServer/protocol/protocol.const';
 import { ITypeScriptServer, TsServerLog, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
@@ -639,7 +640,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.resetWatchers();
 		this.loadingIndicator.reset();
 
-		const previousState = this.serverState;
 		this.serverState = ServerState.None;
 
 		if (restart) {
@@ -748,10 +748,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 									minModernTsVersion.displayName),
 							});
 					} else {
-						const args = previousState.type === ServerState.Type.Errored && previousState.error instanceof TypeScriptServerError
-							? getReportIssueArgsForError(previousState.error, previousState.tsServerLog, this.pluginManager.plugins)
-							: undefined;
-						vscode.commands.executeCommand('workbench.action.openIssueReporter', args);
+						vscode.env.openExternal(vscode.Uri.parse('https://github.com/microsoft/vscode/wiki/TypeScript-Issues'));
 					}
 				}
 			});
@@ -902,9 +899,14 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		if (command === 'updateOpen') {
 			// If update open has completed, consider that the project has loaded
-			Promise.all(executions).then(() => {
+			const updateOpenTask = Promise.all(executions).then(() => {
 				this.loadingIndicator.reset();
 			});
+
+			const updateOpenArgs = (args as Proto.UpdateOpenRequestArgs);
+			if (updateOpenArgs.openFiles?.length === 1) {
+				this.loadingIndicator.startedLoadingFile(updateOpenArgs.openFiles[0].file, updateOpenTask);
+			}
 		}
 
 		return executions[0]!;
@@ -982,7 +984,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics,
-						// @ts-expect-error until ts 5.6
 						spans: diagnosticEvent.body.spans,
 					});
 				}
@@ -1038,15 +1039,20 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				return;
 
 			case EventName.createDirectoryWatcher: {
-				const path = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
-				if (path.startsWith(inMemoryResourcePrefix)) {
+				const fpath = (event.body as Proto.CreateDirectoryWatcherEventBody).path;
+				if (fpath.startsWith(inMemoryResourcePrefix)) {
+					return;
+				}
+				if (process.platform === 'darwin' && fpath === path.join(homedir(), 'Library')) {
+					// ignore directory watch requests on ~/Library
+					// until microsoft/TypeScript#59831 is resolved
 					return;
 				}
 
 				this.createFileSystemWatcher(
 					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
 					new vscode.RelativePattern(
-						vscode.Uri.file(path),
+						vscode.Uri.file(fpath),
 						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
 					),
 					(event.body as Proto.CreateDirectoryWatcherEventBody).ignoreUpdate
@@ -1073,11 +1079,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				return;
 
 			case EventName.requestCompleted: {
-				// @ts-expect-error until ts 5.6
 				const diagnosticsDuration = (event.body as Proto.RequestCompletedEventBody).performanceData?.diagnosticsDuration;
 				if (diagnosticsDuration) {
 					this.diagnosticsManager.logDiagnosticsPerformanceTelemetry(
-						// @ts-expect-error until ts 5.6
 						diagnosticsDuration.map(fileData => {
 							const resource = this.toResource(fileData.file);
 							return {
@@ -1149,7 +1153,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		ignoreChangeEvents?: boolean,
 	) {
 		const disposable = new DisposableStore();
-		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO:: need to fill in excludes list */, ignoreChangeEvents }));
+		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, undefined, ignoreChangeEvents));
 		disposable.add(watcher.onDidChange(changeFile =>
 			this.addWatchEvent(id, 'updated', changeFile.fsPath)
 		));
@@ -1236,77 +1240,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 }
 
-function getReportIssueArgsForError(
-	error: TypeScriptServerError,
-	tsServerLog: TsServerLog | undefined,
-	globalPlugins: readonly TypeScriptServerPlugin[],
-): { extensionId: string; issueTitle: string; issueBody: string; issueSource: string; issueData: string } | undefined {
-	if (!error.serverStack || !error.serverMessage) {
-		return undefined;
-	}
-
-	// Note these strings are intentionally not localized
-	// as we want users to file issues in english
-
-	const sections = [
-		`❗️❗️❗️ Please fill in the sections below to help us diagnose the issue ❗️❗️❗️`,
-		`**TypeScript Version:** ${error.version.apiVersion?.fullVersionString}`,
-		`**Steps to reproduce crash**
-
-1.
-2.
-3.`,
-	];
-
-	if (globalPlugins.length) {
-		sections.push(
-			[
-				`**Global TypeScript Server Plugins**`,
-				`❗️ Please test with extensions disabled. Extensions are the root cause of most TypeScript server crashes`,
-				globalPlugins.map(plugin => `- \`${plugin.name}\` contributed by the \`${plugin.extension.id}\` extension`).join('\n')
-			].join('\n\n')
-		);
-	}
-
-	if (tsServerLog?.type === 'file') {
-		sections.push(`**TS Server Log**
-
-❗️ Please review and upload this log file to help us diagnose this crash:
-
-\`${tsServerLog.uri.fsPath}\`
-
-The log file may contain personal data, including full paths and source code from your workspace. You can scrub the log file to remove paths or other personal information.
-`);
-	} else {
-
-		sections.push(`**TS Server Log**
-
-❗️ Server logging disabled. To help us fix crashes like this, please enable logging by setting:
-
-\`\`\`json
-"typescript.tsserver.log": "verbose"
-\`\`\`
-
-After enabling this setting, future crash reports will include the server log.`);
-	}
-
-	const serverErrorStack = `**TS Server Error Stack**
-
-Server: \`${error.serverId}\`
-
-\`\`\`
-${error.serverStack}
-\`\`\``;
-
-	return {
-		extensionId: 'vscode.typescript-language-features',
-		issueTitle: `TS Server fatal error:  ${error.serverMessage}`,
-		issueSource: 'vscode',
-		issueBody: sections.join('\n\n'),
-		issueData: serverErrorStack,
-	};
-}
-
 function getDiagnosticsKind(event: Proto.Event) {
 	switch (event.event) {
 		case 'syntaxDiag': return DiagnosticKind.Syntax;
@@ -1319,7 +1252,7 @@ function getDiagnosticsKind(event: Proto.Event) {
 
 class ServerInitializingIndicator extends Disposable {
 
-	private _task?: { project: string | undefined; resolve: () => void };
+	private _task?: { project: string; resolve: () => void };
 
 	public reset(): void {
 		if (this._task) {
@@ -1331,20 +1264,30 @@ class ServerInitializingIndicator extends Disposable {
 	/**
 	 * Signal that a project has started loading.
 	 */
-	public startedLoadingProject(projectName: string | undefined): void {
+	public startedLoadingProject(projectName: string): void {
 		// TS projects are loaded sequentially. Cancel existing task because it should always be resolved before
 		// the incoming project loading task is.
 		this.reset();
 
+		const projectDisplayName = vscode.workspace.asRelativePath(projectName);
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
-			title: vscode.l10n.t("Initializing JS/TS language features"),
+			title: vscode.l10n.t("Initializing project '{0}'", projectDisplayName),
 		}, () => new Promise<void>(resolve => {
 			this._task = { project: projectName, resolve };
 		}));
 	}
 
-	public finishedLoadingProject(projectName: string | undefined): void {
+	public startedLoadingFile(fileName: string, task: Promise<unknown>): void {
+		if (!this._task) {
+			vscode.window.withProgress({
+				location: vscode.ProgressLocation.Window,
+				title: vscode.l10n.t("Analyzing '{0}' and its dependencies", path.basename(fileName)),
+			}, () => task);
+		}
+	}
+
+	public finishedLoadingProject(projectName: string): void {
 		if (this._task && this._task.project === projectName) {
 			this._task.resolve();
 			this._task = undefined;

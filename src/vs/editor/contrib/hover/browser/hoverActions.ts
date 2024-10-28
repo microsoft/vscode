@@ -14,7 +14,7 @@ import { GotoDefinitionAtPositionEditorContribution } from '../../gotoSymbol/bro
 import { HoverStartMode, HoverStartSource } from './hoverOperation.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ContentHoverController } from './contentHoverController2.js';
+import { ContentHoverController } from './contentHoverController.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import * as nls from '../../../../nls.js';
 import './hover.css';

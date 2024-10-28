@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { renderFormattedText, renderText } from '../../formattedTextRenderer.js';
 import { IHistoryNavigationWidget } from '../../history.js';
@@ -403,7 +404,7 @@ export class InputBox extends Widget {
 		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(styles.border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(styles.border, 'transparent')}`;
 
 		if (this.message.content && (this.hasFocus() || force)) {
 			this._showMessage();
@@ -578,7 +579,7 @@ export class InputBox extends Widget {
 		this.input.style.color = foreground;
 
 		// there's always a border, even if the color is not set.
-		this.element.style.border = `1px solid ${dom.asCssValueWithDefault(border, 'transparent')}`;
+		this.element.style.border = `1px solid ${cssJs.asCssValueWithDefault(border, 'transparent')}`;
 	}
 
 	public layout(): void {

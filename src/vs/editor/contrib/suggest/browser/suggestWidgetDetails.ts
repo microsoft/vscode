@@ -65,6 +65,8 @@ export class SuggestDetailsWidget {
 		this._header = dom.append(this._body, dom.$('.header'));
 		this._close = dom.append(this._header, dom.$('span' + ThemeIcon.asCSSSelector(Codicon.close)));
 		this._close.title = nls.localize('details.close', "Close");
+		this._close.role = 'button';
+		this._close.tabIndex = -1;
 		this._type = dom.append(this._header, dom.$('p.type'));
 
 		this._docs = dom.append(this._body, dom.$('p.docs'));
@@ -253,6 +255,10 @@ export class SuggestDetailsWidget {
 
 	get borderWidth() {
 		return this._borderWidth;
+	}
+
+	focus() {
+		this.domNode.focus();
 	}
 }
 

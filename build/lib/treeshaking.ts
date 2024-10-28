@@ -53,7 +53,7 @@ export interface ITreeShakingOptions {
 	 */
 	shakeLevel: ShakeLevel;
 	/**
-	 * regex pattern to ignore certain imports e.g. `vs/css!` imports
+	 * regex pattern to ignore certain imports e.g. `.css` imports
 	 */
 	importIgnorePattern: RegExp;
 
@@ -182,13 +182,16 @@ function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeSha
 			const importedFileName = info.importedFiles[i].fileName;
 
 			if (options.importIgnorePattern.test(importedFileName)) {
-				// Ignore vs/css! imports
+				// Ignore *.css imports
 				continue;
 			}
 
 			let importedModuleId = importedFileName;
 			if (/(^\.\/)|(^\.\.\/)/.test(importedModuleId)) {
 				importedModuleId = path.join(path.dirname(moduleId), importedModuleId);
+				if (importedModuleId.endsWith('.js')) { // ESM: code imports require to be relative and have a '.js' file extension
+					importedModuleId = importedModuleId.substr(0, importedModuleId.length - 3);
+				}
 			}
 			enqueue(importedModuleId);
 		}
@@ -567,6 +570,9 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 		const nodeSourceFile = node.getSourceFile();
 		let fullPath: string;
 		if (/(^\.\/)|(^\.\.\/)/.test(importText)) {
+			if (importText.endsWith('.js')) { // ESM: code imports require to be relative and to have a '.js' file extension
+				importText = importText.substr(0, importText.length - 3);
+			}
 			fullPath = path.join(path.dirname(nodeSourceFile.fileName), importText) + '.ts';
 		} else {
 			fullPath = importText + '.ts';

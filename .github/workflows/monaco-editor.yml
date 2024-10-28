@@ -34,65 +34,64 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-cacheNodeModules20-
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v4
         with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
       - name: Install libkrb5-dev
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
           sudo apt update
           sudo apt install -y libkrb5-dev
-      - name: Execute yarn
+      - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
-          npm i -g node-gyp@9.4.0
-          yarn --frozen-lockfile --network-timeout 180000
+          npm ci
 
       - name: Download Playwright
-        run: yarn playwright-install
+        run: npm run playwright-install
 
       - name: Run Monaco Editor Checks
-        run: yarn monaco-compile-check
+        run: npm run monaco-compile-check
 
-      # - name: Editor Distro & ESM
-      #   run: yarn gulp editor-esm
+      - name: Editor Distro & ESM
+        run: npm run gulp editor-esm
 
-      # - name: Editor ESM sources check
-      #   working-directory: ./test/monaco
-      #   run: yarn run esm-check
+      - name: Editor ESM sources check
+        working-directory: ./test/monaco
+        run: npm run esm-check
 
-      # - name: Typings validation prep
-      #   run: |
-      #     mkdir typings-test
+      - name: Typings validation prep
+        run: |
+          mkdir typings-test
 
-      # - name: Typings validation
-      #   working-directory: ./typings-test
-      #   run: |
-      #     yarn init -yp
-      #     ../node_modules/.bin/tsc --init
-      #     echo "import '../out-monaco-editor-core';" > a.ts
-      #     ../node_modules/.bin/tsc --noEmit
+      - name: Typings validation
+        working-directory: ./typings-test
+        run: |
+          npm init -yp
+          ../node_modules/.bin/tsc --init
+          echo "import '../out-monaco-editor-core';" > a.ts
+          ../node_modules/.bin/tsc --noEmit
 
-      # - name: Package Editor with Webpack
-      #   working-directory: ./test/monaco
-      #   run: yarn run bundle-webpack
+      - name: Package Editor with Webpack
+        working-directory: ./test/monaco
+        run: npm run bundle-webpack
 
-      # - name: Compile Editor Tests
-      #   working-directory: ./test/monaco
-      #   run: yarn run compile
+      - name: Compile Editor Tests
+        working-directory: ./test/monaco
+        run: npm run compile
 
-      # - name: Run Editor Tests
-      #   timeout-minutes: 5
-      #   working-directory: ./test/monaco
-      #   run: yarn test
+      - name: Run Editor Tests
+        timeout-minutes: 5
+        working-directory: ./test/monaco
+        run: npm run test

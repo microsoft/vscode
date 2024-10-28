@@ -114,6 +114,8 @@ suite('Terminal Contrib Suggest Recordings', () => {
 
 		xterm.loadAddon(shellIntegrationAddon);
 		xterm.loadAddon(suggestAddon);
+
+		xterm.focus();
 	});
 
 	for (const testCase of recordedTestCases) {

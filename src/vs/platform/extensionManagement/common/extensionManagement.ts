@@ -462,12 +462,43 @@ export const enum ExtensionManagementErrorCode {
 	PostInstall = 'PostInstall',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
-	Signature = 'Signature',
+	PackageNotSigned = 'PackageNotSigned',
+	SignatureVerificationInternal = 'SignatureVerificationInternal',
+	SignatureVerificationFailed = 'SignatureVerificationFailed',
 	NotAllowed = 'NotAllowed',
 	Gallery = 'Gallery',
 	Cancelled = 'Cancelled',
 	Unknown = 'Unknown',
 	Internal = 'Internal',
+}
+
+export enum ExtensionSignatureVerificationCode {
+	'Success' = 'Success',
+	'RequiredArgumentMissing' = 'RequiredArgumentMissing', // A required argument is missing.
+	'InvalidArgument' = 'InvalidArgument', // An argument is invalid.
+	'PackageIsUnreadable' = 'PackageIsUnreadable', // The extension package is unreadable.
+	'UnhandledException' = 'UnhandledException', // An unhandled exception occurred.
+	'SignatureManifestIsMissing' = 'SignatureManifestIsMissing', // The extension is missing a signature manifest file (.signature.manifest).
+	'SignatureManifestIsUnreadable' = 'SignatureManifestIsUnreadable', // The signature manifest is unreadable.
+	'SignatureIsMissing' = 'SignatureIsMissing', // The extension is missing a signature file (.signature.p7s).
+	'SignatureIsUnreadable' = 'SignatureIsUnreadable', // The signature is unreadable.
+	'CertificateIsUnreadable' = 'CertificateIsUnreadable', // The certificate is unreadable.
+	'SignatureArchiveIsUnreadable' = 'SignatureArchiveIsUnreadable',
+	'FileAlreadyExists' = 'FileAlreadyExists', // The output file already exists.
+	'SignatureArchiveIsInvalidZip' = 'SignatureArchiveIsInvalidZip',
+	'SignatureArchiveHasSameSignatureFile' = 'SignatureArchiveHasSameSignatureFile', // The signature archive has the same signature file.
+	'PackageIntegrityCheckFailed' = 'PackageIntegrityCheckFailed', // The package integrity check failed.
+	'SignatureIsInvalid' = 'SignatureIsInvalid', // The extension has an invalid signature file (.signature.p7s).
+	'SignatureManifestIsInvalid' = 'SignatureManifestIsInvalid', // The extension has an invalid signature manifest file (.signature.manifest).
+	'SignatureIntegrityCheckFailed' = 'SignatureIntegrityCheckFailed', // The extension's signature integrity check failed.  Extension integrity is suspect.
+	'EntryIsMissing' = 'EntryIsMissing', // An entry referenced in the signature manifest was not found in the extension.
+	'EntryIsTampered' = 'EntryIsTampered', // The integrity check for an entry referenced in the signature manifest failed.
+	'Untrusted' = 'Untrusted', // An X.509 certificate in the extension signature is untrusted.
+	'CertificateRevoked' = 'CertificateRevoked', // An X.509 certificate in the extension signature has been revoked.
+	'SignatureIsNotValid' = 'SignatureIsNotValid', // The extension signature is invalid.
+	'UnknownError' = 'UnknownError', // An unknown error occurred.
+	'PackageIsInvalidZip' = 'PackageIsInvalidZip', // The extension package is not valid ZIP format.
+	'SignatureArchiveHasTooManyEntries' = 'SignatureArchiveHasTooManyEntries', // The signature archive has too many entries.
 }
 
 export class ExtensionManagementError extends Error {

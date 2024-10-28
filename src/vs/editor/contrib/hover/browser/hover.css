@@ -43,7 +43,7 @@
 	flex-direction: column;
 	padding-left: 5px;
 	padding-right: 5px;
-	justify-content: end;
+	justify-content: flex-end;
 	border-right: 1px solid var(--vscode-editorHoverWidget-border);
 }
 

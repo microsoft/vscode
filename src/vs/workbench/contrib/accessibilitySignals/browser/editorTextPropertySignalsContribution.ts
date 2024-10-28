@@ -5,20 +5,19 @@
 
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise } from '../../../../base/common/observable.js';
-import { observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observableInternal/utils.js';
+import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise, observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { CursorChangeReason } from '../../../../editor/common/cursorEvents.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { FoldingController } from '../../../../editor/contrib/folding/browser/folding.js';
-import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { AccessibilityModality, AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IDebugService } from '../../debug/common/debug.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IDebugService } from '../../debug/common/debug.js';
 
 export class EditorTextPropertySignalsContribution extends Disposable implements IWorkbenchContribution {
 	private readonly _textProperties: TextProperty[] = [

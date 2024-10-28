@@ -128,8 +128,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		editor: ICodeEditor,
 		private _uniqueOwner: string,
 		private _commentThread: languages.CommentThread,
-		private _pendingComment: string | undefined,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingComment: languages.PendingComment | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
@@ -198,9 +198,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	private _setFocus(focus: CommentWidgetFocus) {
+	private _setFocus(commentUniqueId: number | undefined, focus: CommentWidgetFocus) {
 		if (focus === CommentWidgetFocus.Widget) {
-			this._commentThreadWidget.focus();
+			this._commentThreadWidget.focus(commentUniqueId);
 		} else if (focus === CommentWidgetFocus.Editor) {
 			this._commentThreadWidget.focusCommentEditor();
 		}
@@ -217,7 +217,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
 			}
 			this.editor.setScrollTop(scrollTop);
-			this._setFocus(focus);
+			this._setFocus(commentUniqueId, focus);
 		} else {
 			this._goToThread(focus);
 		}
@@ -229,7 +229,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			: new Range(1, 1, 1, 1);
 
 		this.editor.revealRangeInCenter(rangeToReveal);
-		this._setFocus(focus);
+		this._setFocus(undefined, focus);
 	}
 
 	public makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None) {
@@ -237,21 +237,22 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		if (commentUniqueId !== undefined) {
 			this._goToComment(commentUniqueId, focus);
+		} else {
+			this._goToThread(focus);
 		}
-		this._goToThread(focus);
 	}
 
-	public getPendingComments(): { newComment: string | undefined; edits: { [key: number]: string } } {
+	public getPendingComments(): { newComment: languages.PendingComment | undefined; edits: { [key: number]: languages.PendingComment } } {
 		return {
 			newComment: this._commentThreadWidget.getPendingComment(),
 			edits: this._commentThreadWidget.getPendingEdits()
 		};
 	}
 
-	public setPendingComment(comment: string) {
-		this._pendingComment = comment;
+	public setPendingComment(pending: languages.PendingComment) {
+		this._pendingComment = pending;
 		this.expand();
-		this._commentThreadWidget.setPendingComment(comment);
+		this._commentThreadWidget.setPendingComment(pending);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -501,6 +502,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
+	}
+
+	collapseAndFocusRange() {
+		this._commentThreadWidget.collapse();
 	}
 
 	override hide() {

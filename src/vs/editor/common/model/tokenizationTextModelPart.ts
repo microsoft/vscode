@@ -25,7 +25,7 @@ import { AbstractTokens, AttachedViewHandler, AttachedViews } from './tokens.js'
 import { TreeSitterTokens } from './treeSitterTokens.js';
 import { ITreeSitterParserService } from '../services/treeSitterParserService.js';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../textModelEvents.js';
-import { BackgroundTokenizationState, ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
+import { BackgroundTokenizationState, ITokenizationTextModelPart, ITokenizeLineWithEditResult, LineEditWithAdditionalLines } from '../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokens } from '../tokens/contiguousMultilineTokens.js';
 import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
 import { ContiguousTokensStore } from '../tokens/contiguousTokensStore.js';
@@ -208,8 +208,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this._tokens.getTokenTypeIfInsertingCharacter(lineNumber, column, character);
 	}
 
-	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
-		return this._tokens.tokenizeLineWithEdit(position, length, newText);
+	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
+		return this._tokens.tokenizeLineWithEdit(lineNumber, edit);
 	}
 
 	// #endregion
@@ -654,14 +654,12 @@ class GrammarTokens extends AbstractTokens {
 		return this._tokenizer.getTokenTypeIfInsertingCharacter(position, character);
 	}
 
-	public tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null {
+	public tokenizeLineWithEdit(lineNumber: number, edit: LineEditWithAdditionalLines): ITokenizeLineWithEditResult {
 		if (!this._tokenizer) {
-			return null;
+			return { mainLineTokens: null, additionalLines: null };
 		}
-
-		const validatedPosition = this._textModel.validatePosition(position);
-		this.forceTokenization(validatedPosition.lineNumber);
-		return this._tokenizer.tokenizeLineWithEdit(validatedPosition, length, newText);
+		this.forceTokenization(lineNumber);
+		return this._tokenizer.tokenizeLineWithEdit(lineNumber, edit);
 	}
 
 	public get hasTokens(): boolean {

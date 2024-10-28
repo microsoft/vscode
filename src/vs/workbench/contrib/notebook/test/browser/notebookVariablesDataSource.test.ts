@@ -16,12 +16,10 @@ import { INotebookKernel, INotebookKernelService, VariablesResult } from '../../
 suite('NotebookVariableDataSource', () => {
 	let dataSource: NotebookVariableDataSource;
 	const notebookModel = { uri: 'one.ipynb', languages: ['python'] } as unknown as NotebookTextModel;
-	let provideVariablesCalled = false;
+	let provideVariablesCalled: boolean;
 
 	type VariablesResultWithAction = VariablesResult & { action?: () => void };
-	let results: VariablesResultWithAction[] = [
-		{ id: 1, name: 'a', value: '1', hasNamedChildren: false, indexedChildrenCount: 0 },
-	];
+	let results: VariablesResultWithAction[];
 
 	const kernel = new class extends mock<INotebookKernel>() {
 		override hasVariableProvider = true;
@@ -60,6 +58,9 @@ suite('NotebookVariableDataSource', () => {
 	setup(() => {
 		provideVariablesCalled = false;
 		dataSource = new NotebookVariableDataSource(kernelService);
+		results = [
+			{ id: 1, name: 'a', value: '1', hasNamedChildren: false, indexedChildrenCount: 0 },
+		];
 	});
 
 	test('Root element should return children', async () => {

@@ -19,8 +19,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { ViewContainerLocation } from '../../../../../common/views.js';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from '../../../../extensions/common/extensions.js';
+import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from '../../notebookBrowser.js';
 import { mimetypeIcon } from '../../notebookIcons.js';
 import { CellContentPart } from '../cellPart.js';
@@ -31,7 +30,6 @@ import { CellUri, IOrderedMimeType, NotebookCellExecutionState, NotebookCellOutp
 import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 import { INotebookKernel } from '../../../common/notebookKernelService.js';
 import { INotebookService } from '../../../common/notebookService.js';
-import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
 import { COPY_OUTPUT_COMMAND_ID } from '../../controller/cellOutputActions.js';
 import { TEXT_BASED_MIMETYPES } from '../../contrib/clipboard/cellOutputClipboard.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
@@ -80,7 +78,7 @@ class CellOutputElement extends Disposable {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IContextKeyService parentContextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -430,9 +428,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	private async _showJupyterExtension() {
-		const viewlet = await this.paneCompositeService.openPaneComposite(EXTENSION_VIEWLET_ID, ViewContainerLocation.Sidebar, true);
-		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
-		view?.search(`@id:${JUPYTER_EXTENSION_ID}`);
+		await this.extensionsWorkbenchService.openSearch(`@id:${JUPYTER_EXTENSION_ID}`);
 	}
 
 	private _generateRendererInfo(renderId: string): string {

@@ -548,7 +548,8 @@ suite('ExtensionsViews Tests', () => {
 			location: URI.file(`pub.${name}`),
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
 			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
-			...properties
+			...properties,
+			isValid: properties.isValid ?? true,
 		};
 		properties.isBuiltin = properties.type === ExtensionType.System;
 		return <ILocalExtension>Object.create({ manifest, ...properties });

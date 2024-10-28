@@ -8,7 +8,6 @@ import { VSBuffer } from '../../../common/buffer.js';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer } from '../common/ipc.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { assertType } from '../../../common/types.js';
-import { firstOrDefault } from '../../../common/arrays.js';
 
 /**
  * The MessagePort `Protocol` leverages MessagePortMain style IPC communication
@@ -67,7 +66,7 @@ export class Server extends IPCServer {
 				return;
 			}
 
-			const port = firstOrDefault(e.ports);
+			const port = e.ports.at(0);
 			if (port) {
 				onCreateMessageChannel.fire(port);
 			}

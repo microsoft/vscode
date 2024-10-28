@@ -149,7 +149,10 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.registerPaneComposite(viewContainer, to);
 
 		// Open view container if part is visible and there is only one view container in location
-		if (this.layoutService.isVisible(getPartByLocation(to)) && this.viewDescriptorService.getViewContainersByLocation(to).length === 1) {
+		if (
+			this.layoutService.isVisible(getPartByLocation(to)) &&
+			this.viewDescriptorService.getViewContainersByLocation(to).filter(vc => this.isViewContainerActive(vc.id)).length === 1
+		) {
 			this.openViewContainer(viewContainer.id);
 		}
 	}
@@ -196,15 +199,33 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.paneCompositeService.getPaneComposite(compositeId, location);
 	}
 
+	// One view container can be visible at a time in a location
 	isViewContainerVisible(id: string): boolean {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
-		if (viewContainer) {
-			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (viewContainerLocation !== null) {
-				return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
-			}
+		if (!viewContainer) {
+			return false;
 		}
-		return false;
+
+		const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+		if (viewContainerLocation === null) {
+			return false;
+		}
+
+		return this.paneCompositeService.getActivePaneComposite(viewContainerLocation)?.getId() === id;
+	}
+
+	// Multiple view containers can be active/inactive at a time in a location
+	isViewContainerActive(id: string): boolean {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
+		if (!viewContainer) {
+			return false;
+		}
+
+		if (!viewContainer.hideIfEmpty) {
+			return true;
+		}
+
+		return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;
 	}
 
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null {

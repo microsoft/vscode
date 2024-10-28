@@ -8,12 +8,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from '../../../browser/controller/textAreaInput.js';
-import { TextAreaState } from '../../../browser/controller/textAreaState.js';
 import { Position } from '../../../common/core/position.js';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from './imeRecordedTypes.js';
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
+import { ClipboardDataToCopy } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 
 suite('TextAreaInput', () => {
 

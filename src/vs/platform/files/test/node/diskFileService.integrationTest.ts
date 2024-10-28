@@ -20,7 +20,6 @@ import { etag, IFileAtomicReadOptions, FileOperation, FileOperationError, FileOp
 import { FileService } from '../../common/fileService.js';
 import { DiskFileSystemProvider } from '../../node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { isESM } from '../../../../base/common/amd.js';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
@@ -132,7 +131,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 
 DiskFileSystemProvider.configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
-(!isESM ? suite.skip : flakySuite /* somehow fails in AMD with ENOENT for fixtures dir */)('Disk File Service', function () {
+flakySuite('Disk File Service', function () {
 
 	const testSchema = 'test';
 

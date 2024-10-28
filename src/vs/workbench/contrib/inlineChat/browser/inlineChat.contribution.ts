@@ -75,8 +75,8 @@ const cancelActionMenuItem: IMenuItem = {
 	order: 0,
 	command: {
 		id: CancelAction.ID,
-		title: localize('cancel', "Stop Request"),
-		shortTitle: localize('cancelShort', "Stop"),
+		title: localize('cancel', "Cancel Request"),
+		shortTitle: localize('cancelShort', "Cancel"),
 	},
 	when: ContextKeyExpr.and(
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS,
@@ -92,7 +92,6 @@ registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
-registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.RerunAction);
 registerAction2(InlineChatActions.MoveToNextHunk);
 registerAction2(InlineChatActions.MoveToPreviousHunk);

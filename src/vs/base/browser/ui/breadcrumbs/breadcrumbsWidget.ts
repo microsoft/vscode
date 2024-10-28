@@ -191,13 +191,13 @@ export class BreadcrumbsWidget {
 		this._focus(this._items.indexOf(item!), payload);
 	}
 
-	focusPrev(payload?: any): any {
+	focusPrev(payload?: any): void {
 		if (this._focusedItemIdx > 0) {
 			this._focus(this._focusedItemIdx - 1, payload);
 		}
 	}
 
-	focusNext(payload?: any): any {
+	focusNext(payload?: any): void {
 		if (this._focusedItemIdx + 1 < this._nodes.length) {
 			this._focus(this._focusedItemIdx + 1, payload);
 		}

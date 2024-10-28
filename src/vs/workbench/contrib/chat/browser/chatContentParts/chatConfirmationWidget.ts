@@ -7,7 +7,7 @@ import * as dom from '../../../../../base/browser/dom.js';
 import './media/chatConfirmationWidget.css';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -34,7 +34,7 @@ export class ChatConfirmationWidget extends Disposable {
 
 	constructor(
 		title: string,
-		message: string,
+		message: string | IMarkdownString,
 		buttons: IChatConfirmationButton[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -51,7 +51,7 @@ export class ChatConfirmationWidget extends Disposable {
 		const renderedTitle = this._register(renderer.render(new MarkdownString(title)));
 		elements.title.appendChild(renderedTitle.element);
 
-		const renderedMessage = this._register(renderer.render(new MarkdownString(message)));
+		const renderedMessage = this._register(renderer.render(typeof message === 'string' ? new MarkdownString(message) : message));
 		elements.message.appendChild(renderedMessage.element);
 
 		buttons.forEach(buttonData => {

@@ -117,10 +117,10 @@ suite('ExtHostAuthentication', () => {
 		instantiationService.stub(IBrowserWorkbenchEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IProductService, TestProductService);
 		instantiationService.stub(IAuthenticationAccessService, instantiationService.createInstance(AuthenticationAccessService));
+		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
 		instantiationService.stub(IAuthenticationUsageService, instantiationService.createInstance(AuthenticationUsageService));
 		const rpcProtocol = new TestRPCProtocol();
 
-		instantiationService.stub(IAuthenticationService, instantiationService.createInstance(AuthenticationService));
 		instantiationService.stub(IAuthenticationExtensionsService, instantiationService.createInstance(AuthenticationExtensionsService));
 		rpcProtocol.set(MainContext.MainThreadAuthentication, instantiationService.createInstance(MainThreadAuthentication, rpcProtocol));
 		extHostAuthentication = new ExtHostAuthentication(rpcProtocol);

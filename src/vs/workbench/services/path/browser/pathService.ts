@@ -9,7 +9,6 @@ import { IPathService, AbstractPathService } from '../common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { firstOrDefault } from '../../../../base/common/arrays.js';
 import { dirname } from '../../../../base/common/resources.js';
 
 export class BrowserPathService extends AbstractPathService {
@@ -37,7 +36,7 @@ function guessLocalUserHome(environmentService: IWorkbenchEnvironmentService, co
 
 	const workspace = contextService.getWorkspace();
 
-	const firstFolder = firstOrDefault(workspace.folders);
+	const firstFolder = workspace.folders.at(0);
 	if (firstFolder) {
 		return firstFolder.uri;
 	}

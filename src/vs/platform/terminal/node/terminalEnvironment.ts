@@ -165,7 +165,7 @@ export function getShellIntegrationInjection(
 		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
 				addEnvMixinPathPrefix(options, envMixin);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -187,7 +187,7 @@ export function getShellIntegrationInjection(
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
 				addEnvMixinPathPrefix(options, envMixin);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -201,13 +201,20 @@ export function getShellIntegrationInjection(
 			return { newArgs, envMixin };
 		}
 		case 'fish': {
-			// The injection mechanism used for fish is to add a custom dir to $XDG_DATA_DIRS which
-			// is similar to $ZDOTDIR in zsh but contains a list of directories to run from.
-			const oldDataDirs = env?.XDG_DATA_DIRS ?? '/usr/local/share:/usr/share';
-			const newDataDir = path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/fish_xdg_data');
-			envMixin['XDG_DATA_DIRS'] = `${oldDataDirs}:${newDataDir}`;
-			addEnvMixinPathPrefix(options, envMixin);
-			return { newArgs: undefined, envMixin };
+			if (!originalArgs || originalArgs.length === 0) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
+				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
+				addEnvMixinPathPrefix(options, envMixin);
+			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
+				newArgs = originalArgs;
+			}
+			if (!newArgs) {
+				return undefined;
+			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			return { newArgs, envMixin };
 		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
@@ -229,7 +236,7 @@ export function getShellIntegrationInjection(
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-			} else if (areZshBashLoginArgs(originalArgs)) {
+			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				addEnvMixinPathPrefix(options, envMixin);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
@@ -254,19 +261,19 @@ export function getShellIntegrationInjection(
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-rc.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-profile.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh'),
 				dest: path.join(zdotdir, '.zprofile')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-env.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh'),
 				dest: path.join(zdotdir, '.zshenv')
 			});
 			filesToCopy.push({
-				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration-login.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
 			return { newArgs, envMixin, filesToCopy };
@@ -316,18 +323,22 @@ enum ShellIntegrationExecutable {
 	PwshLogin = 'pwsh-login',
 	Zsh = 'zsh',
 	ZshLogin = 'zsh-login',
-	Bash = 'bash'
+	Bash = 'bash',
+	Fish = 'fish',
+	FishLogin = 'fish-login',
 }
 
 const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 // The try catch swallows execution policy errors in the case of the archive distributable
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\" } catch {}{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', 'try { . \"{0}\\out\\vs\\workbench\\contrib\\terminal\\common\\scripts\\shellIntegration.ps1\" } catch {}{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Fish, ['--init-command', '. {0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.FishLogin, ['-l', '--init-command', '. {0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish']);
 const pwshLoginArgs = ['-login', '-l'];
 const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
@@ -352,7 +363,7 @@ function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
 	}
 }
 
-function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
+function areZshBashFishLoginArgs(originalArgs: string | string[]): boolean {
 	if (typeof originalArgs !== 'string') {
 		originalArgs = originalArgs.filter(arg => !shInteractiveArgs.includes(arg.toLowerCase()));
 	}

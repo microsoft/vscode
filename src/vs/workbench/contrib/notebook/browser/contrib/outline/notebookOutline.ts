@@ -521,7 +521,6 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	private _breadcrumbsDataSource!: IBreadcrumbsDataSource<OutlineEntry>;
 
 	// view settings
-	private gotoShowCodeCellSymbols: boolean;
 	private outlineShowCodeCellSymbols: boolean;
 
 	// getters
@@ -562,7 +561,6 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
-		this.gotoShowCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
 		this.outlineShowCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
 
 		this.initializeOutline();
@@ -633,8 +631,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 		// recompute symbols when the configuration changes (recompute state - and therefore recompute active - is also called within compute symbols)
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(NotebookSetting.gotoSymbolsAllSymbols) || e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols)) {
-				this.gotoShowCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.gotoSymbolsAllSymbols);
+			if (e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols)) {
 				this.outlineShowCodeCellSymbols = this._configurationService.getValue<boolean>(NotebookSetting.outlineShowCodeCellSymbols);
 				this.computeSymbols();
 			}
@@ -700,12 +697,13 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 	}
 
 	private async computeSymbols(cancelToken: CancellationToken = CancellationToken.None) {
-		if (this._target === OutlineTarget.QuickPick && this.gotoShowCodeCellSymbols) {
-			await this._outlineDataSourceReference?.object?.computeFullSymbols(cancelToken);
-		} else if (this._target === OutlineTarget.OutlinePane && this.outlineShowCodeCellSymbols) {
+		if (this._target === OutlineTarget.OutlinePane && this.outlineShowCodeCellSymbols) {
 			// No need to wait for this, we want the outline to show up quickly.
-			void this._outlineDataSourceReference?.object?.computeFullSymbols(cancelToken);
+			void this.doComputeSymbols(cancelToken);
 		}
+	}
+	public async doComputeSymbols(cancelToken: CancellationToken): Promise<void> {
+		await this._outlineDataSourceReference?.object?.computeFullSymbols(cancelToken);
 	}
 	private async delayedComputeSymbols() {
 		this.delayerRecomputeState.cancel();
@@ -814,7 +812,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 
 	constructor(
 		@IOutlineService outlineService: IOutlineService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		const reg = outlineService.registerOutlineCreator(this);
 		this.dispose = () => reg.dispose();
@@ -824,8 +822,14 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		return candidate.getId() === NotebookEditor.ID;
 	}
 
-	async createOutline(editor: NotebookEditor, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
-		return this._instantiationService.createInstance(NotebookCellOutline, editor, target);
+	async createOutline(editor: INotebookEditorPane, target: OutlineTarget, cancelToken: CancellationToken): Promise<IOutline<OutlineEntry> | undefined> {
+		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
+		if (target === OutlineTarget.QuickPick) {
+			// The quickpick creates the outline on demand
+			// so we need to ensure the symbols are pre-cached before the entries are syncronously requested
+			await outline.doComputeSymbols(cancelToken);
+		}
+		return outline;
 	}
 }
 

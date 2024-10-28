@@ -12,7 +12,6 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { noBreakWhitespace } from '../../../../base/common/strings.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { DynamicCssRules } from '../../../browser/editorDom.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -288,5 +287,3 @@ export class DecoratorLimitReporter {
 		}
 	}
 }
-
-registerEditorContribution(ColorDetector.ID, ColorDetector, EditorContributionInstantiation.AfterFirstRender);

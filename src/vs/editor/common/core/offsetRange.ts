@@ -47,6 +47,10 @@ export class OffsetRange implements IOffsetRange {
 		return new OffsetRange(start, start + length);
 	}
 
+	public static emptyAt(offset: number): OffsetRange {
+		return new OffsetRange(offset, offset);
+	}
+
 	constructor(public readonly start: number, public readonly endExclusive: number) {
 		if (start > endExclusive) {
 			throw new BugIndicatingError(`Invalid range: ${this.toString()}`);
@@ -110,6 +114,12 @@ export class OffsetRange implements IOffsetRange {
 			return new OffsetRange(start, end);
 		}
 		return undefined;
+	}
+
+	public intersectionLength(range: OffsetRange): number {
+		const start = Math.max(this.start, range.start);
+		const end = Math.min(this.endExclusive, range.endExclusive);
+		return Math.max(0, end - start);
 	}
 
 	public intersects(other: OffsetRange): boolean {

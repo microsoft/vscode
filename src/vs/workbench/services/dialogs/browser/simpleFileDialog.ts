@@ -26,7 +26,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { isValidBasename } from '../../../../base/common/extpath.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { createCancelablePromise, CancelablePromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ICommandHandler } from '../../../../platform/commands/common/commands.js';
@@ -101,12 +101,12 @@ enum UpdateResult {
 
 export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
 
-export interface ISimpleFileDialog {
+export interface ISimpleFileDialog extends IDisposable {
 	showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined>;
 	showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 }
 
-export class SimpleFileDialog implements ISimpleFileDialog {
+export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
 	private filePickBox!: IQuickPick<FileQuickPickItem>;
@@ -127,12 +127,8 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 	private badPath: string | undefined;
 	private remoteAgentEnvironment: IRemoteAgentEnvironment | null | undefined;
 	private separator: string = '/';
-	private readonly onBusyChangeEmitter = new Emitter<boolean>();
+	private readonly onBusyChangeEmitter = this._register(new Emitter<boolean>());
 	private updatingPromise: CancelablePromise<boolean> | undefined;
-
-	protected disposables: IDisposable[] = [
-		this.onBusyChangeEmitter
-	];
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -150,6 +146,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
+		super();
 		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 		this.scheme = this.pathService.defaultUriScheme;
@@ -280,7 +277,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		}
 
 		return new Promise<URI | undefined>((resolve) => {
-			this.filePickBox = this.quickInputService.createQuickPick<FileQuickPickItem>();
+			this.filePickBox = this._register(this.quickInputService.createQuickPick<FileQuickPickItem>());
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.sortByLabel = false;
@@ -314,19 +311,18 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
 
-			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
+			const doResolve = (uri: URI | undefined) => {
 				if (uri) {
-					uri = resources.addTrailingPathSeparator(uri, dialog.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
+					uri = resources.addTrailingPathSeparator(uri, this.separator); // Ensures that c: is c:/ since this comes from user input and can be incorrect.
 					// To be consistent, we should never have a trailing path separator on directories (or anything else). Will not remove from c:/.
 					uri = resources.removeTrailingPathSeparator(uri);
 				}
 				resolve(uri);
-				dialog.contextKey.set(false);
-				dialog.filePickBox.dispose();
-				dispose(dialog.disposables);
-			}
+				this.contextKey.set(false);
+				this.dispose();
+			};
 
-			this.filePickBox.onDidCustom(() => {
+			this._register(this.filePickBox.onDidCustom(() => {
 				if (isAcceptHandled || this.busy) {
 					return;
 				}
@@ -339,21 +335,21 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 				this.filePickBox.hide();
 				if (isSave) {
 					return this.fileDialogService.showSaveDialog(this.options).then(result => {
-						doResolve(this, result);
+						doResolve(result);
 					});
 				} else {
 					return this.fileDialogService.showOpenDialog(this.options).then(result => {
-						doResolve(this, result ? result[0] : undefined);
+						doResolve(result ? result[0] : undefined);
 					});
 				}
-			});
+			}));
 
-			function handleAccept(dialog: SimpleFileDialog) {
-				if (dialog.busy) {
+			const handleAccept = () => {
+				if (this.busy) {
 					// Save the accept until the file picker is not busy.
-					dialog.onBusyChangeEmitter.event((busy: boolean) => {
+					this.onBusyChangeEmitter.event((busy: boolean) => {
 						if (!busy) {
-							handleAccept(dialog);
+							handleAccept();
 						}
 					});
 					return;
@@ -363,24 +359,24 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 
 				isAcceptHandled = true;
 				isResolving++;
-				dialog.onDidAccept().then(resolveValue => {
+				this.onDidAccept().then(resolveValue => {
 					if (resolveValue) {
-						dialog.filePickBox.hide();
-						doResolve(dialog, resolveValue);
-					} else if (dialog.hidden) {
-						doResolve(dialog, undefined);
+						this.filePickBox.hide();
+						doResolve(resolveValue);
+					} else if (this.hidden) {
+						doResolve(undefined);
 					} else {
 						isResolving--;
 						isAcceptHandled = false;
 					}
 				});
-			}
+			};
 
-			this.filePickBox.onDidAccept(_ => {
-				handleAccept(this);
-			});
+			this._register(this.filePickBox.onDidAccept(_ => {
+				handleAccept();
+			}));
 
-			this.filePickBox.onDidChangeActive(i => {
+			this._register(this.filePickBox.onDidChangeActive(i => {
 				isAcceptHandled = false;
 				// update input box to match the first selected item
 				if ((i.length === 1) && this.isSelectionChangeFromUser()) {
@@ -392,17 +388,17 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 					}
 					this.setAutoComplete(userPath, this.userEnteredPathSegment, i[0], true);
 				}
-			});
+			}));
 
-			this.filePickBox.onDidChangeValue(async value => {
+			this._register(this.filePickBox.onDidChangeValue(async value => {
 				return this.handleValueChange(value);
-			});
-			this.filePickBox.onDidHide(() => {
+			}));
+			this._register(this.filePickBox.onDidHide(() => {
 				this.hidden = true;
 				if (isResolving === 0) {
-					doResolve(this, undefined);
+					doResolve(undefined);
 				}
-			});
+			}));
 
 			this.filePickBox.show();
 			this.contextKey.set(true);
@@ -415,6 +411,10 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 				this.busy = false;
 			});
 		});
+	}
+
+	public override dispose(): void {
+		super.dispose();
 	}
 
 	private async handleValueChange(value: string) {
@@ -763,7 +763,8 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		interface YesNoItem extends IQuickPickItem {
 			value: boolean;
 		}
-		const prompt = this.quickInputService.createQuickPick<YesNoItem>();
+		const disposableStore = new DisposableStore();
+		const prompt = disposableStore.add(this.quickInputService.createQuickPick<YesNoItem>());
 		prompt.title = message;
 		prompt.ignoreFocusOut = true;
 		prompt.ok = true;
@@ -773,25 +774,25 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 
 		let isResolving = false;
 		return new Promise<boolean>(resolve => {
-			prompt.onDidAccept(() => {
+			disposableStore.add(prompt.onDidAccept(() => {
 				isResolving = true;
 				prompt.hide();
 				resolve(true);
-			});
-			prompt.onDidHide(() => {
+			}));
+			disposableStore.add(prompt.onDidHide(() => {
 				if (!isResolving) {
 					resolve(false);
 				}
 				this.filePickBox.show();
 				this.hidden = false;
-				prompt.dispose();
-			});
-			prompt.onDidChangeValue(() => {
+				disposableStore.dispose();
+			}));
+			disposableStore.add(prompt.onDidChangeValue(() => {
 				prompt.hide();
-			});
-			prompt.onDidCustom(() => {
+			}));
+			disposableStore.add(prompt.onDidCustom(() => {
 				prompt.hide();
-			});
+			}));
 			prompt.show();
 		});
 	}

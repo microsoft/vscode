@@ -10,7 +10,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import './stickyScroll.css';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
-import { getColumnOfNodeOffset } from '../../../browser/viewParts/lines/viewLine.js';
+import { getColumnOfNodeOffset } from '../../../browser/viewParts/viewLines/viewLine.js';
 import { EmbeddedCodeEditorWidget } from '../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
@@ -139,6 +139,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const isWidgetHeightZero = this._isWidgetHeightZero(_state);
 		const state = isWidgetHeightZero ? undefined : _state;
 		const rebuildFromLine = isWidgetHeightZero ? 0 : this._findLineToRebuildWidgetFrom(_state, _rebuildFromLine);
+
 		this._renderRootNode(state, foldingModel, rebuildFromLine);
 		this._previousState = _state;
 	}

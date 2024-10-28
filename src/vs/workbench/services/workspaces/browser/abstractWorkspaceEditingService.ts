@@ -13,7 +13,7 @@ import { WorkspaceService } from '../../configuration/browser/configurationServi
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { distinct, firstOrDefault } from '../../../../base/common/arrays.js';
+import { distinct } from '../../../../base/common/arrays.js';
 import { basename, isEqual, isEqualAuthority, joinPath, removeTrailingPathSeparator } from '../../../../base/common/resources.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -91,7 +91,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 
 		// Then fallback to first folder if any
-		const folder = firstOrDefault(this.contextService.getWorkspace().folders);
+		const folder = this.contextService.getWorkspace().folders.at(0);
 		if (folder) {
 			return `${basename(folder.uri)}.${WORKSPACE_EXTENSION}`;
 		}

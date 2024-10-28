@@ -10,12 +10,12 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import { IPointerHandlerHelper, MouseHandler } from './mouseHandler.js';
-import { TextAreaSyntethicEvents } from './textAreaInput.js';
 import { NavigationCommandRevealType } from '../coreCommands.js';
 import { IMouseTarget, MouseTargetType } from '../editorBrowser.js';
 import { EditorMouseEvent, EditorPointerEventFactory } from '../editorDom.js';
 import { ViewController } from '../view/viewController.js';
 import { ViewContext } from '../../common/viewModel/viewContext.js';
+import { TextAreaSyntethicEvents } from './editContext/textArea/textAreaEditContextInput.js';
 
 /**
  * Currently only tested on iOS 13/ iPadOS.

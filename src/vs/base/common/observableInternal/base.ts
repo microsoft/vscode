@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEquals, EqualityComparer } from '../equals.js';
-import { DisposableStore, IDisposable } from '../lifecycle.js';
-import { keepObserved, recomputeInitiallyAndOnChange } from '../observable.js';
 import { DebugNameData, DebugOwner, getFunctionName } from './debugName.js';
+import { DisposableStore, EqualityComparer, IDisposable, strictEquals } from './commonFacade/deps.js';
 import type { derivedOpts } from './derived.js';
 import { getLogger } from './logging.js';
+import { keepObserved, recomputeInitiallyAndOnChange } from './utils.js';
 
 /**
  * Represents an observable value.

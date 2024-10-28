@@ -9,8 +9,6 @@ import { ILogService, LogLevel } from '../../../../log/common/log.js';
 import type { ITerminalCommand } from '../capabilities.js';
 import { throttle } from '../../../../../base/common/decorators.js';
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {

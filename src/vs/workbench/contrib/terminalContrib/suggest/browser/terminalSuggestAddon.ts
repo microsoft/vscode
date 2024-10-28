@@ -348,6 +348,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
+		// Only show the suggest widget if the terminal is focused
+		if (!dom.isAncestorOfActiveElement(terminal.element)) {
+			return;
+		}
+
 		let replacementIndex = 0;
 		let replacementLength = this._promptInputModel.cursorIndex;
 

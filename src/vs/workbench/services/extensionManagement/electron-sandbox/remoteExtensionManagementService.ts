@@ -25,6 +25,7 @@ import { IUserDataProfileService } from '../../userDataProfile/common/userDataPr
 import { IRemoteUserDataProfilesService } from '../../userDataProfile/common/remoteUserDataProfiles.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { areApiProposalsCompatible } from '../../../../platform/extensions/common/extensionValidator.js';
+import { isBoolean, isUndefined } from '../../../../base/common/types.js';
 
 export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService {
 
@@ -51,15 +52,19 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		return local;
 	}
 
-	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	override async installFromGallery(extension: IGalleryExtension, installOptions: InstallOptions = {}): Promise<ILocalExtension> {
+		if (isUndefined(installOptions.donotVerifySignature)) {
+			const value = this.configurationService.getValue('extensions.verifySignature');
+			installOptions.donotVerifySignature = isBoolean(value) ? !value : undefined;
+		}
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	private async doInstallFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	private async doInstallFromGallery(extension: IGalleryExtension, installOptions: InstallOptions): Promise<ILocalExtension> {
 		if (this.configurationService.getValue('remote.downloadExtensionsLocally')) {
-			return this.downloadAndInstall(extension, installOptions || {});
+			return this.downloadAndInstall(extension, installOptions);
 		}
 		try {
 			const clientTargetPlatform = await this.localExtensionManagementServer.extensionManagementService.getTargetPlatform();
@@ -73,7 +78,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 				case ExtensionManagementErrorCode.Unknown:
 					try {
 						this.logService.error(`Error while installing '${extension.identifier.id}' extension in the remote server.`, toErrorMessage(error));
-						return await this.downloadAndInstall(extension, installOptions || {});
+						return await this.downloadAndInstall(extension, installOptions);
 					} catch (e) {
 						this.logService.error(e);
 						throw e;

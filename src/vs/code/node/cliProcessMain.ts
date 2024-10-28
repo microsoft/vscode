@@ -195,7 +195,7 @@ class CliMain extends Disposable {
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
 
 		// Request
-		const requestService = new RequestService(configurationService, environmentService, logService, loggerService);
+		const requestService = new RequestService(configurationService, environmentService, logService);
 		services.set(IRequestService, requestService);
 
 		// Download Service

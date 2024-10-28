@@ -241,6 +241,24 @@ export interface CellInternalMetadataChangedEvent {
 	readonly lastRunSuccessChanged?: boolean;
 }
 
+export interface INotebookDocumentMetadataTextModel {
+	/**
+	 * Notebook Metadata Uri.
+	 */
+	readonly uri: URI;
+	/**
+	 * Triggered when the Notebook Metadata changes.
+	 */
+	readonly onDidChange: Event<void>;
+	readonly metadata: Readonly<NotebookDocumentMetadata>;
+	readonly textBuffer: IReadonlyTextBuffer;
+	/**
+	 * Text representation of the Notebook Metadata
+	 */
+	getValue(): string;
+	getHash(): string;
+}
+
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
@@ -562,7 +580,7 @@ export interface INotebookContributionData {
 	priority?: RegisteredEditorPriority;
 }
 
-export namespace NotebookUri {
+export namespace NotebookMetadataUri {
 	export const scheme = Schemas.vscodeNotebookMetadata;
 	export function generate(notebook: URI): URI {
 		return generateMetadataUri(notebook);
@@ -796,6 +814,7 @@ export interface INotebookLoadOptions {
 export type NotebookEditorModelCreationOptions = {
 	limits?: IFileReadLimits;
 	scratchpad?: boolean;
+	viewType?: string;
 };
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
@@ -922,6 +941,7 @@ export interface INotebookCellStatusBarItemProvider {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult;
+	metadataChanged: boolean;
 	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
@@ -998,10 +1018,11 @@ export const NotebookSetting = {
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
 	cellGenerate: 'notebook.experimental.generate',
-	notebookVariablesView: 'notebook.experimental.variablesView',
+	notebookVariablesView: 'notebook.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
 	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
+	multiCursor: 'notebook.multiCursor.enabled',
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -1013,13 +1034,16 @@ export class NotebookWorkingCopyTypeIdentifier {
 
 	private static _prefix = 'notebook/';
 
-	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
+	static create(notebookType: string, viewType?: string): string {
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${notebookType}/${viewType ?? notebookType}`;
 	}
 
-	static parse(candidate: string): string | undefined {
+	static parse(candidate: string): { notebookType: string; viewType: string } | undefined {
 		if (candidate.startsWith(NotebookWorkingCopyTypeIdentifier._prefix)) {
-			return candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length);
+			const split = candidate.substring(NotebookWorkingCopyTypeIdentifier._prefix.length).split('/');
+			if (split.length === 2) {
+				return { notebookType: split[0], viewType: split[1] };
+			}
 		}
 		return undefined;
 	}

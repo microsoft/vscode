@@ -15,6 +15,9 @@ import * as viewEvents from '../../../common/viewEvents.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { editorDimmedLineNumber, editorLineNumbers } from '../../../common/core/editorColorRegistry.js';
 
+/**
+ * Renders line numbers to the left of the main view lines content.
+ */
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
 	public static readonly CLASS_NAME = 'line-numbers';

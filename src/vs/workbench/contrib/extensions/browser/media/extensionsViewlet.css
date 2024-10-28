@@ -8,6 +8,11 @@
 	height: 100%;
 }
 
+.extensions-viewlet .hidden {
+	display: none;
+	visibility: hidden;
+}
+
 .extensions-viewlet > .overlay {
 	position: absolute;
 	top: 0;
@@ -47,6 +52,44 @@
 	height: 100%;
 }
 
+.extensions-viewlet > .header > .notification-container {
+	margin-top: 10px;
+	display: flex;
+	justify-content: space-between;
+}
+
+.extensions-viewlet > .header .notification-container .message-container {
+	padding-left: 4px;
+}
+
+.extensions-viewlet > .header .notification-container .message-container .codicon {
+	vertical-align: text-top;
+	padding-right: 5px;
+}
+
+.extensions-viewlet .notification-container .message-text-action {
+	cursor: pointer;
+	margin-left: 5px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: underline;
+}
+
+.extensions-viewlet .notification-container .message-text-action:hover,
+.extensions-viewlet .notification-container .message-text-action:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.extensions-viewlet .notification-container .message-action {
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 5px;
+	height: 16px;
+}
+
+.extensions-viewlet .notification-container .message-action:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+}
 
 .extensions-viewlet > .extensions {
 	height: calc(100% - 41px);
@@ -68,12 +111,6 @@
 
 .extensions-viewlet > .extensions .extension-view-header .monaco-action-bar .action-item.disabled  {
 	display: none;
-}
-
-.extensions-viewlet > .extensions .extensions-list.hidden,
-.extensions-viewlet > .extensions .message-container.hidden {
-	display: none;
-	visibility: hidden;
 }
 
 .extensions-viewlet > .extensions .panel-header {
@@ -151,8 +188,14 @@
 	opacity: 0.5;
 }
 
-.extensions-badge.progress-badge > .badge-content {
-	background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
-	background-position: center center;
-	background-repeat: no-repeat;
+.extensions-viewlet .codicon-error::before {
+	color: var(--vscode-editorError-foreground);
+}
+
+.extensions-viewlet .codicon-warning::before {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.extensions-viewlet .codicon-info::before {
+	color: var(--vscode-editorInfo-foreground);
 }

@@ -23,7 +23,7 @@ import { EditorPanes } from './editorPanes.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { EditorProgressIndicator } from '../../../services/progress/browser/progressIndicator.js';
 import { localize } from '../../../../nls.js';
-import { coalesce, firstOrDefault } from '../../../../base/common/arrays.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DeferredPromise, Promises, RunOnceWorker } from '../../../../base/common/async.js';
@@ -1324,7 +1324,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorsToOpen = coalesce(editors).filter(({ editor }) => !editor.isDisposed());
 
 		// Use the first editor as active editor
-		const firstEditor = firstOrDefault(editorsToOpen);
+		const firstEditor = editorsToOpen.at(0);
 		if (!firstEditor) {
 			return;
 		}

@@ -5,7 +5,6 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
-import { firstOrDefault } from '../../../base/common/arrays.js';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from '../editor.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { ConfirmResult } from '../../../platform/dialogs/common/dialogs.js';
@@ -330,7 +329,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * for the editor to open in.
 	 */
 	prefersEditorPane<T extends IEditorDescriptor<IEditorPane>>(editorPanes: T[]): T | undefined {
-		return firstOrDefault(editorPanes);
+		return editorPanes.at(0);
 	}
 
 	/**

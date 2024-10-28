@@ -23,6 +23,7 @@ import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChange
 import { IGuidesTextModelPart } from './textModelGuides.js';
 import { ITokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { UndoRedoGroup } from '../../platform/undoRedo/common/undoRedo.js';
+import { TokenArray } from './tokens/tokenArray.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -285,6 +286,11 @@ export interface InjectedTextOptions {
 	 * Sets the text to inject. Must be a single line.
 	 */
 	readonly content: string;
+
+	/**
+	 * @internal
+	*/
+	readonly tokens?: TokenArray | null;
 
 	/**
 	 * If set, the decoration will be rendered inline with the text with this CSS class name.

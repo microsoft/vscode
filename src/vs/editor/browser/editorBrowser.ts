@@ -785,6 +785,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	readonly onDidChangeHiddenAreas: Event<void>;
 
 	/**
+	 * An event emitted before an editor
+	 * @internal
+	 */
+	readonly onWillTriggerEditorOperationEvent: Event<editorCommon.ITriggerEditorOperationEvent>;
+
+	/**
 	 * Some editor operations fire multiple events at once.
 	 * To allow users to react to multiple events fired by a single operation,
 	 * the editor fires a begin update before the operation and an end update after the operation.

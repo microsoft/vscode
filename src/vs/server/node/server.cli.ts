@@ -16,6 +16,8 @@ import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
 
+const __dirname = dirname(url.fileURLToPath(import.meta.url));
+
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
  *  - In integrated terminals for remote windows this connects to the remote server though a pipe.
@@ -145,7 +147,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
+			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
 		console.log(resolve(__dirname, '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
@@ -393,7 +395,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 	}
 }
 
-function sendToPipe(args: PipeCommand, verbose: boolean): Promise<any> {
+function sendToPipe(args: PipeCommand, verbose: boolean): Promise<string> {
 	if (verbose) {
 		console.log(JSON.stringify(args, null, '  '));
 	}

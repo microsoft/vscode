@@ -97,7 +97,12 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
             }
         }
     }
-    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
+    // TODO: add prune support based on packagedDependencies to vsce.PackageManager.Npm similar
+    // to vsce.PackageManager.Yarn.
+    // A static analysis showed there are no webpack externals that are dependencies of the current
+    // local extensions so we can use the vsce.PackageManager.None config to ignore dependencies list
+    // as a temporary workaround.
+    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None, packagedDependencies }).then(fileNames => {
         const files = fileNames
             .map(fileName => path.join(extensionPath, fileName))
             .map(filePath => new File({
@@ -178,7 +183,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
 function fromLocalNormal(extensionPath) {
     const vsce = require('@vscode/vsce');
     const result = es.through();
-    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
+    vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Npm })
         .then(fileNames => {
         const files = fileNames
             .map(fileName => path.join(extensionPath, fileName))
@@ -303,7 +308,7 @@ function packageLocalExtensionsStream(forWeb, disableMangle) {
     else {
         // also include shared production node modules
         const productionDependencies = (0, dependencies_1.getProductionDependencies)('extensions/');
-        const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
+        const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
         result = es.merge(localExtensionsStream, gulp.src(dependenciesSrc, { base: '.' })
             .pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
             .pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`))));
