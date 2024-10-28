@@ -73,6 +73,24 @@ declare module 'vscode' {
 		followSymlinks?: boolean;
 	}
 
+	/**
+	 * Options for following search.exclude and files.exclude settings.
+	 */
+	export enum ExcludeSettingOptions {
+		/**
+		 * Don't use any exclude settings.
+		 */
+		None = 1,
+		/**
+		 * Use the `files.exclude` setting
+		 */
+		FilesExclude = 2,
+		/**
+		 * Use the `files.exclude` and `search.exclude` settings
+		 */
+		SearchAndFilesExclude = 3
+	}
+
 	export namespace workspace {
 		/**
 		 * WARNING: VERY EXPERIMENTAL.

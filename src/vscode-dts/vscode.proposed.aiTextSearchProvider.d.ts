@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 	/**
 	 * An AITextSearchProvider provides additional AI text search results in the workspace.
