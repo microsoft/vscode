@@ -16,6 +16,7 @@ import { IRequestService, asText } from '../../../../platform/request/common/req
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CONTEXT_CHAT_INSTALL_ENTITLED } from './chatContextKeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 
 // TODO@bpasero revisit this flow
 
@@ -115,13 +116,18 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 		const cts = new CancellationTokenSource();
 		this._register(toDisposable(() => cts.dispose(true)));
 
-		const context = await this.requestService.request({
-			type: 'GET',
-			url: this.productService.gitHubEntitlement!.entitlementUrl,
-			headers: {
-				'Authorization': `Bearer ${session.accessToken}`
-			}
-		}, cts.token);
+		let context: IRequestContext;
+		try {
+			context = await this.requestService.request({
+				type: 'GET',
+				url: this.productService.gitHubEntitlement!.entitlementUrl,
+				headers: {
+					'Authorization': `Bearer ${session.accessToken}`
+				}
+			}, cts.token);
+		} catch (error) {
+			return false;
+		}
 
 		if (context.res.statusCode && context.res.statusCode !== 200) {
 			return false;
