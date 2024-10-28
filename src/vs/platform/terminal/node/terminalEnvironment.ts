@@ -7,7 +7,7 @@ import * as os from 'os';
 import { FileAccess } from '../../../base/common/network.js';
 import { getCaseInsensitive } from '../../../base/common/objects.js';
 import * as path from '../../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import * as process from '../../../base/common/process.js';
 import { format } from '../../../base/common/strings.js';
 import { isString } from '../../../base/common/types.js';
@@ -300,7 +300,7 @@ export function getShellIntegrationInjection(
  * See #99878 for more information.
  */
 function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment, shell: string): void {
-	if ((isMacintosh || (isLinux && shell === 'fish')) && options.environmentVariableCollections) {
+	if ((isMacintosh || shell === 'fish') && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
 		const merged = new MergedEnvironmentVariableCollection(deserialized);
