@@ -167,7 +167,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -189,7 +189,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				envMixin['VSCODE_SHELL_LOGIN'] = '1';
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
@@ -205,13 +205,17 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Fish);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin);
-				addEnvMixinPathPrefix(options, envMixin);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Fish) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.FishLogin)) {
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {
 				return undefined;
 			}
+
+			// On fish, config.fish is sourced for both login and non-login shells, so we need
+			// to apply the path prefix fish always
+			addEnvMixinPathPrefix(options, envMixin, shell);
+
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			return { newArgs, envMixin };
@@ -238,7 +242,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
 			} else if (areZshBashFishLoginArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-				addEnvMixinPathPrefix(options, envMixin);
+				addEnvMixinPathPrefix(options, envMixin, shell);
 			} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 				newArgs = originalArgs;
 			}
@@ -295,8 +299,8 @@ export function getShellIntegrationInjection(
  *
  * See #99878 for more information.
  */
-function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment): void {
-	if ((isMacintosh || isLinux) && options.environmentVariableCollections) {
+function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProcessEnvironment, shell: string): void {
+	if ((isMacintosh || (isLinux && shell === 'fish')) && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
 		const merged = new MergedEnvironmentVariableCollection(deserialized);

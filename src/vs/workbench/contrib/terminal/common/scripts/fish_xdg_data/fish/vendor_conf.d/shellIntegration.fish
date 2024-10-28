@@ -23,7 +23,9 @@ or exit
 set --global VSCODE_SHELL_INTEGRATION 1
 
 # Apply any explicit path prefix (see #99878)
-if status --is-login; and set -q VSCODE_PATH_PREFIX
+# On fish, this fix should be done regardless of the shell being a login shell
+# because $fish_user_paths is always prepended automatically.
+if set -q VSCODE_PATH_PREFIX
 	set -gx PATH "$VSCODE_PATH_PREFIX$PATH"
 end
 set -e VSCODE_PATH_PREFIX
