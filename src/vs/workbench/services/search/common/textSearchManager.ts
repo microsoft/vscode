@@ -12,7 +12,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { AITextSearchProvider, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, textSearchProvider2, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew } from './searchExtTypes.js';
+import { AITextSearchProvider, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResultNew } from './searchExtTypes.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -220,7 +220,7 @@ export class TextSearchManager {
 	}
 }
 
-function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQueryNew {
+function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery2 {
 	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,

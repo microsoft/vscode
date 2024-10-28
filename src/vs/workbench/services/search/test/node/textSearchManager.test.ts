@@ -9,14 +9,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { ITextQuery, QueryType } from '../../common/search.js';
-import { ProviderResult, TextSearchCompleteNew, TextSearchProviderOptions, textSearchProvider2, TextSearchQueryNew, TextSearchResultNew } from '../../common/searchExtTypes.js';
+import { ProviderResult, TextSearchCompleteNew, TextSearchProviderOptions, textSearchProvider2, TextSearchQuery2, TextSearchResultNew } from '../../common/searchExtTypes.js';
 import { NativeTextSearchManager } from '../../node/textSearchManager.js';
 
 suite('NativeTextSearchManager', () => {
 	test('fixes encoding', async () => {
 		let correctEncoding = false;
 		const provider: textSearchProvider2 = {
-			provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+			provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
 				correctEncoding = options.folderOptions[0].encoding === 'windows-1252';
 
 				return null;

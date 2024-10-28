@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * The parameters of a query for text search. All optional booleans default to `false`.
 	 */
-	export interface TextSearchQueryNew {
+	export interface TextSearchQuery2 {
 		/**
 		 * The text pattern to search for.
 		 *
@@ -257,7 +257,7 @@ declare module 'vscode' {
 		 * These results can be direct matches, or context that surrounds matches.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
 	}
 
 	export namespace workspace {

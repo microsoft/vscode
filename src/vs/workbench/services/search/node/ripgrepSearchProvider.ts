@@ -6,7 +6,7 @@
 import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
 import { OutputChannel } from './ripgrepSearchUtils.js';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
-import { textSearchProvider2, TextSearchCompleteNew, TextSearchResultNew, TextSearchQueryNew, TextSearchProviderOptions, } from '../common/searchExtTypes.js';
+import { textSearchProvider2, TextSearchCompleteNew, TextSearchResultNew, TextSearchQuery2, TextSearchProviderOptions, } from '../common/searchExtTypes.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { Schemas } from '../../../../base/common/network.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
@@ -18,7 +18,7 @@ export class RipgrepSearchProvider implements textSearchProvider2 {
 		process.once('exit', () => this.dispose());
 	}
 
-	async provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	async provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
 		const numThreads = await this.getNumThreads();
 		const engine = new RipgrepTextSearchEngine(this.outputChannel, numThreads);
 
