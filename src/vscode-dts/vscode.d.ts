@@ -19897,7 +19897,7 @@ declare module 'vscode' {
 		 * Create a LanguageModelToolResult
 		 * @param content A list of tool result content parts
 		 */
-		constructor(content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
+		constructor(content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]);
 	}
 
 	/**

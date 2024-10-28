@@ -8,7 +8,7 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { isNonEmptyArray, tail } from '../../../../base/common/arrays.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -431,10 +431,10 @@ export class InlineChatWidget {
 			return undefined;
 		}
 		const items = viewModel.getItems().filter(i => isResponseVM(i));
-		if (!items.length) {
+		const item = items.at(-1);
+		if (!item) {
 			return;
 		}
-		const item = items[items.length - 1];
 		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
 	}
 
@@ -443,7 +443,7 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests)?.response?.response.toString();
+		return requests.at(-1)?.response?.response.toString();
 	}
 
 
