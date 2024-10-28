@@ -337,8 +337,8 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit',
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Fish, ['--init-command', '. {0}/out/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.FishLogin, ['-l', '--init-command', '. {0}/out/vs/workbench/contrib/terminal/common/scripts/fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Fish, ['--init-command', '. {0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.FishLogin, ['-l', '--init-command', '. {0}/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish']);
 const pwshLoginArgs = ['-login', '-l'];
 const shLoginArgs = ['--login', '-l'];
 const shInteractiveArgs = ['-i', '--interactive'];
