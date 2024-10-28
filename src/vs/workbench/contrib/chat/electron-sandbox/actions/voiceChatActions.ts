@@ -46,7 +46,6 @@ import { InlineChatController } from '../../../inlineChat/browser/inlineChatCont
 import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from '../../../speech/common/speechService.js';
-import { TerminalChatContextKeys } from '../../../terminal/terminalContribChatExports.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -61,12 +60,10 @@ import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRen
 type VoiceChatSessionContext = 'view' | 'inline' | 'quick' | 'editor';
 const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'quick', 'editor'];
 
-const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, terminal decided to go with their own menu (https://github.com/microsoft/vscode/issues/208789)
-
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT);
-const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, TerminalChatContextKeys.requestActive);
+const AnyChatRequestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS;
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
 const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
@@ -580,17 +577,7 @@ export class StartVoiceChatAction extends Action2 {
 					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
 					group: 'navigation',
 					order: 2
-				},
-				{
-					id: TerminalChatExecute,
-					when: ContextKeyExpr.and(
-						HasSpeechProvider,
-						ScopedChatSynthesisInProgress.negate(),	// hide when text to speech is in progress
-						AnyScopedVoiceChatInProgress?.negate(),	// hide when voice chat is in progress
-					),
-					group: 'navigation',
-					order: -1
-				},
+				}
 			]
 		});
 	}
@@ -638,13 +625,7 @@ export class StopListeningAction extends Action2 {
 					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
 					group: 'navigation',
 					order: 2
-				}, {
-
-					id: TerminalChatExecute,
-					when: AnyScopedVoiceChatInProgress,
-					group: 'navigation',
-					order: -1
-				},
+				}
 			]
 		});
 	}
@@ -964,12 +945,6 @@ export class StopReadAloud extends Action2 {
 					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), ScopedChatSynthesisInProgress),
 					group: 'navigation',
 					order: 2
-				},
-				{
-					id: TerminalChatExecute,
-					when: ScopedChatSynthesisInProgress,
-					group: 'navigation',
-					order: -1
 				}
 			]
 		});
@@ -1317,12 +1292,6 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 					when: ContextKeyExpr.and(HasSpeechProvider.negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession).negate()),
 					group: 'navigation',
 					order: 2
-				},
-				{
-					id: TerminalChatExecute,
-					when: HasSpeechProvider.negate(),
-					group: 'navigation',
-					order: -1
 				}
 			]
 		});

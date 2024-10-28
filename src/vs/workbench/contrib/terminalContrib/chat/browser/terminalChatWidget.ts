@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ChatAgentLocation } from '../../../chat/common/chatAgents.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browser/terminal.js';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../../../base/common/async.js';
@@ -25,6 +25,7 @@ import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/cha
 import { ChatModel, IChatResponseModel } from '../../../chat/common/chatModel.js';
 import { IChatService, IChatProgress } from '../../../chat/common/chatService.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -130,7 +131,7 @@ export class TerminalChatWidget extends Disposable {
 					rendererOptions: { editableCodeBlock: true },
 					menus: {
 						telemetrySource: 'terminal-inline-chat',
-						executeToolbar: MENU_TERMINAL_CHAT_INPUT,
+						executeToolbar: MenuId.ChatExecute,
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
 					}
 				}

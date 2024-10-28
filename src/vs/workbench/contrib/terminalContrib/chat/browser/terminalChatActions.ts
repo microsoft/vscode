@@ -14,7 +14,7 @@ import { CTX_INLINE_CHAT_EMPTY } from '../../../inlineChat/common/inlineChat.js'
 import { isDetachedTerminalInstance } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
+import { MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
 import { TerminalChatController } from './terminalChatController.js';
 
 registerActiveXtermAction({
@@ -260,56 +260,6 @@ registerActiveXtermAction({
 		}
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
 		contr?.viewInChat();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.MakeRequest,
-	title: localize2('makeChatRequest', 'Make Chat Request'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		TerminalChatContextKeys.requestActive.negate(),
-		CTX_INLINE_CHAT_EMPTY.negate()
-	),
-	icon: Codicon.send,
-	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate(), historyNavigationVisible.isEqualTo(false)),
-		weight: KeybindingWeight.WorkbenchContrib,
-		primary: KeyCode.Enter
-	},
-	menu: {
-		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'navigation',
-		order: 1,
-		when: TerminalChatContextKeys.requestActive.negate(),
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.acceptInput();
-	}
-});
-
-registerActiveXtermAction({
-	id: TerminalChatCommandId.Cancel,
-	title: localize2('cancelChat', 'Cancel Chat'),
-	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.requestActive,
-	),
-	icon: Codicon.stopCircle,
-	menu: {
-		id: MENU_TERMINAL_CHAT_INPUT,
-		group: 'navigation',
-		when: TerminalChatContextKeys.requestActive,
-	},
-	run: (_xterm, _accessor, activeInstance) => {
-		if (isDetachedTerminalInstance(activeInstance)) {
-			return;
-		}
-		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
-		contr?.terminalChatWidget?.cancel();
 	}
 });
 
