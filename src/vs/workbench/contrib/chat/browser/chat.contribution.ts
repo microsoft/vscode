@@ -76,6 +76,7 @@ import { LanguageModelToolsService } from './languageModelToolsService.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeContributions.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -136,8 +137,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
+			deprecationMessage: nls.localize('chat.experimental.detectParticipant.enabled.deprecated', "This setting is deprecated. Please use `chat.detectParticipant.enabled` instead."),
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
+		},
+		'chat.detectParticipant.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
+			default: true
 		},
 	}
 });
@@ -151,6 +158,15 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 		new SyncDescriptor(ChatEditorInput)
 	]
 );
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
+	{
+		key: 'chat.experimental.detectParticipant.enabled',
+		migrateFn: (value, _accessor) => ([
+			['chat.experimental.detectParticipant.enabled', { value: undefined }],
+			['chat.detectParticipant.enabled', { value: value !== false }]
+		])
+	}
+]);
 
 class ChatResolverContribution extends Disposable {
 
