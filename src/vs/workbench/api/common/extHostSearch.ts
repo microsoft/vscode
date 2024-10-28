@@ -16,14 +16,13 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { TextSearchManager } from '../../services/search/common/textSearchManager.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { OldAITextSearchProviderConverter, OldFileSearchProviderConverter, OldTextSearchProviderConverter } from '../../services/search/common/searchExtConversionTypes.js';
+import { OldFileSearchProviderConverter, OldTextSearchProviderConverter } from '../../services/search/common/searchExtConversionTypes.js';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProviderOld(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
-	registerAITextSearchProviderOld(scheme: string, provider: vscode.AITextSearchProvider): IDisposable;
 	registerFileSearchProviderOld(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProviderNew): IDisposable;
-	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProviderNew): IDisposable;
+	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider): IDisposable;
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProviderNew): IDisposable;
 	doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats>;
 }
@@ -38,7 +37,7 @@ export class ExtHostSearch implements IExtHostSearch {
 	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProviderNew>();
 	private readonly _textSearchUsedSchemes = new Set<string>();
 
-	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProviderNew>();
+	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProvider>();
 	private readonly _aiTextSearchUsedSchemes = new Set<string>();
 
 	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProviderNew>();
@@ -88,23 +87,7 @@ export class ExtHostSearch implements IExtHostSearch {
 		});
 	}
 
-	registerAITextSearchProviderOld(scheme: string, provider: vscode.AITextSearchProvider): IDisposable {
-		if (this._aiTextSearchUsedSchemes.has(scheme)) {
-			throw new Error(`an AI text search provider for the scheme '${scheme}'is already registered`);
-		}
-
-		this._aiTextSearchUsedSchemes.add(scheme);
-		const handle = this._handlePool++;
-		this._aiTextSearchProvider.set(handle, new OldAITextSearchProviderConverter(provider));
-		this._proxy.$registerAITextSearchProvider(handle, this._transformScheme(scheme));
-		return toDisposable(() => {
-			this._aiTextSearchUsedSchemes.delete(scheme);
-			this._aiTextSearchProvider.delete(handle);
-			this._proxy.$unregisterProvider(handle);
-		});
-	}
-
-	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProviderNew): IDisposable {
+	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider): IDisposable {
 		if (this._aiTextSearchUsedSchemes.has(scheme)) {
 			throw new Error(`an AI text search provider for the scheme '${scheme}'is already registered`);
 		}
@@ -215,7 +198,7 @@ export class ExtHostSearch implements IExtHostSearch {
 		}, 'textSearchProvider');
 	}
 
-	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProviderNew): TextSearchManager {
+	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProvider): TextSearchManager {
 		return new TextSearchManager({ query, provider }, {
 			readdir: resource => Promise.resolve([]),
 			toCanonicalName: encoding => encoding

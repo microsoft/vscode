@@ -478,34 +478,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		}, token);
 	}
 
-	findFiles2(filePattern: vscode.GlobPattern | undefined,
+
+	findFiles2(filePatterns: vscode.GlobPattern[],
 		options: vscode.FindFiles2Options = {},
-		extensionId: ExtensionIdentifier,
-		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
-		this._logService.trace(`extHostWorkspace#findFiles2: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2`);
-
-
-		const useDefaultExcludes = options.useDefaultExcludes ?? true;
-		const useDefaultSearchExcludes = options.useDefaultSearchExcludes ?? true;
-		const excludeSetting = useDefaultExcludes ?
-			(useDefaultSearchExcludes ? ExcludeSettingOptions.SearchAndFilesExclude : ExcludeSettingOptions.FilesExclude) :
-			ExcludeSettingOptions.None;
-		const newOptions: vscode.FindFiles2OptionsNew = {
-			exclude: options.exclude ? [options.exclude] : undefined,
-			useIgnoreFiles: {
-				local: options.useIgnoreFiles,
-				global: options.useGlobalIgnoreFiles,
-				parent: options.useParentIgnoreFiles
-			},
-			useExcludeSettings: excludeSetting,
-			followSymlinks: options.followSymlinks,
-			maxResults: options.maxResults,
-		};
-		return this._findFilesImpl(undefined, filePattern !== undefined ? [filePattern] : [], newOptions, token);
-	}
-
-	findFiles2New(filePatterns: vscode.GlobPattern[],
-		options: vscode.FindFiles2OptionsNew = {},
 		extensionId: ExtensionIdentifier,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		this._logService.trace(`extHostWorkspace#findFiles2New: fileSearch, extension: ${extensionId.value}, entryPoint: findFiles2New`);
@@ -517,7 +492,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		// `filePattern` is the proper way to handle this, since it takes less precedence than the ignore files.
 		include: vscode.GlobPattern | undefined,
 		filePatterns: vscode.GlobPattern[] | undefined,
-		options: vscode.FindFiles2OptionsNew,
+		options: vscode.FindFiles2Options,
 		token: vscode.CancellationToken = CancellationToken.None): Promise<vscode.Uri[]> {
 		if (token && token.isCancellationRequested) {
 			return Promise.resolve([]);
