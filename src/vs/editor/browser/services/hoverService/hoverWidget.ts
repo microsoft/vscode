@@ -641,8 +641,15 @@ class CompositeMouseTracker extends Widget {
 
 	get isMouseIn(): boolean { return this._isMouseIn; }
 
+	/**
+	 * @param _elements The target elements to track mouse in/out events on.
+	 * @param _eventDebounceDelay The delay in ms to debounce the event firing. This is used to
+	 * allow a short period for the mouse to move into the hover or a nearby target element. For
+	 * example hovering a scroll bar will not hide the hover immediately.
+	 */
 	constructor(
-		private _elements: HTMLElement[]
+		private _elements: HTMLElement[],
+		private _eventDebounceDelay: number = 200
 	) {
 		super();
 		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver(n)));
@@ -663,7 +670,7 @@ class CompositeMouseTracker extends Widget {
 		this._clearEvaluateMouseStateTimeout(target);
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = dom.getWindow(target).setTimeout(() => this._fireIfMouseOutside(), 0);
+		this._mouseTimeout = dom.getWindow(target).setTimeout(() => this._fireIfMouseOutside(), this._eventDebounceDelay);
 	}
 
 	private _clearEvaluateMouseStateTimeout(target: HTMLElement): void {
