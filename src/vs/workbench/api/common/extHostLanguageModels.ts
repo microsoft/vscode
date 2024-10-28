@@ -233,15 +233,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		} else {
 
-			const progress2 = new Progress<vscode.ChatResponseFragment>(async fragment => {
-				progress.report({ index: fragment.index, part: new extHostTypes.LanguageModelTextPart(fragment.part) });
-			});
-
 			p = Promise.resolve(data.provider.provideLanguageModelResponse(
 				messages.map(typeConvert.LanguageModelChatMessage.to),
-				options?.modelOptions ?? {},
+				options,
 				ExtensionIdentifier.toKey(from),
-				progress2,
+				progress,
 				token
 			));
 		}
