@@ -24,7 +24,7 @@ set --global VSCODE_SHELL_INTEGRATION 1
 
 # Apply any explicit path prefix (see #99878)
 # On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
-# to apply the path prefix fix always, not only for login shells.
+# to apply the path prefix fix always, not only for login shells (see #232291)
 if set -q VSCODE_PATH_PREFIX
 	set -gx PATH "$VSCODE_PATH_PREFIX$PATH"
 end
