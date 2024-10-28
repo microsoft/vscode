@@ -10,7 +10,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { CHAT_OPEN_ACTION_ID } from './chatActions.js';
-import { IExtensionManagementService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
@@ -36,7 +36,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			for (const e of result) {
-				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, e.identifier.id)) {
+				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, e.identifier.id) && e.operation === InstallOperation.Install) {
 					this.recentlyInstalled = true;
 					return;
 				}
