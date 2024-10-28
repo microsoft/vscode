@@ -32,7 +32,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { TerminalChatController } from '../../terminal/terminalContribChatExports.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
@@ -1243,7 +1242,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	readonly onDidAddWidget: Event<IChatWidget> = this._onDidAddWidget.event;
 
 	get lastFocusedWidget(): IChatWidget | undefined {
-		return TerminalChatController.activeChatController?.chatWidget ?? this._lastFocusedWidget;
+		return this._lastFocusedWidget;
 	}
 
 	getAllWidgets(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
