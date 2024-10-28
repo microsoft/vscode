@@ -212,8 +212,8 @@ export function getShellIntegrationInjection(
 				return undefined;
 			}
 
-			// On fish, config.fish is sourced for both login and non-login shells, so we need
-			// to apply the path prefix fish always
+			// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
+			// to apply the path prefix fix always, not only for login shells.
 			addEnvMixinPathPrefix(options, envMixin, shell);
 
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
