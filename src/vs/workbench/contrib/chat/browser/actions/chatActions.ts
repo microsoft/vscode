@@ -18,7 +18,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -48,6 +47,8 @@ import { clearChatEditor } from './chatClear.js';
 import product from '../../../../../platform/product/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -532,20 +533,43 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 abstract class BaseInstallChatAction extends Action2 {
 
-	protected abstract getJustification(): string | undefined;
+	protected abstract getJustification(productService: IProductService): string | undefined;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const commandService = accessor.get(ICommandService);
 		const productService = accessor.get(IProductService);
+		const telemetryService = accessor.get(ITelemetryService);
 
-		await extensionsWorkbenchService.install(defaultChat.extensionId, {
-			justification: this.getJustification(),
-			enable: true,
-			installPreReleaseVersion: productService.quality !== 'stable'
-		}, ProgressLocation.Notification);
+		type InstallChatClassification = {
+			owner: 'bpasero';
+			comment: 'Provides insight into chat installation.';
+			installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
+			hasJustification: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of window error to understand the nature of the error better.' };
+		};
+		type InstallChatEvent = {
+			hasJustification: boolean;
+			installResult: 'installed' | 'cancelled' | 'failed';
+		};
 
-		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		const justification = this.getJustification(productService);
+
+		let installResult: 'installed' | 'cancelled' | 'failed';
+		try {
+			await extensionsWorkbenchService.install(defaultChat.extensionId, {
+				justification,
+				enable: true,
+				installPreReleaseVersion: productService.quality !== 'stable'
+			}, ProgressLocation.Notification);
+
+			installResult = 'installed';
+		} catch (error) {
+			installResult = isCancellationError(error) ? 'cancelled' : 'failed';
+		}
+
+		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
+			installResult,
+			hasJustification: !!justification
+		});
 	}
 }
 
@@ -563,8 +587,8 @@ class InstallChatWithPromptAction extends BaseInstallChatAction {
 		});
 	}
 
-	protected getJustification(): string {
-		return localize('installChatGlobalAction.justification', "AI support requires this extension.");
+	protected getJustification(productService: IProductService): string {
+		return localize('installChatGlobalAction.justification', "AI features in {0} require this extension.", productService.nameShort);
 	}
 }
 

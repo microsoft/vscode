@@ -41,6 +41,8 @@ export const FoldersViewVisibleContext = new RawContextKey<boolean>('foldersView
 export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false, { type: 'boolean', description: localize('explorerResourceIsFolder', "True when the focused item in the EXPLORER is a folder.") });
 export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false, { type: 'boolean', description: localize('explorerResourceReadonly', "True when the focused item in the EXPLORER is read-only.") });
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
+export const ExplorerResourceParentReadOnlyContext = new RawContextKey<boolean>('explorerResourceParentReadonly', false, { type: 'boolean', description: localize('explorerResourceParentReadonly', "True when the focused item in the EXPLORER's parent is read-only.") });
+
 /**
  * Comma separated list of editor ids that can be used for the selected explorer resource.
  */

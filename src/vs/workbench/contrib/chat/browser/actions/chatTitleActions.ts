@@ -27,8 +27,8 @@ import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
-import { IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_ITEM_ID, CONTEXT_LAST_ITEM_ID, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../common/chatContextKeys.js';
+import { applyingChatEditsFailedContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -189,24 +189,36 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.refresh,
-				menu: [{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					when: ContextKeyExpr.and(
-						CONTEXT_RESPONSE,
-						ContextKeyExpr.in(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key))
-				}]
+				menu: [
+					{
+						id: MenuId.ChatMessageFooter,
+						group: 'navigation',
+						when: ContextKeyExpr.and(
+							CONTEXT_RESPONSE,
+							ContextKeyExpr.in(CONTEXT_ITEM_ID.key, CONTEXT_LAST_ITEM_ID.key))
+					},
+					{
+						id: MenuId.ChatEditingWidgetToolbar,
+						group: 'navigation',
+						when: applyingChatEditsFailedContextKey,
+						order: 0
+					}
+				]
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			let item = args[0];
+			if (typeof item === 'object' && !!item && 'sessionId' in item) {
+				item = chatWidgetService.getWidgetBySessionId(item.sessionId)?.viewModel?.getItems().at(-1);
+			}
 			if (!isResponseVM(item)) {
 				return;
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
@@ -330,7 +342,7 @@ export function registerChatTitleActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.remove',
-				title: localize2('chat.remove.label', "Remove Request and Response"),
+				title: localize2('chat.removeRequest.label', "Remove Request"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
@@ -393,7 +405,8 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 4,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+					when: ContextKeyExpr.false()
+					// when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
 				}
 			});
 		}
@@ -465,7 +478,9 @@ export function registerChatTitleActions() {
 					} else {
 						const result = await dialogService.confirm({
 							title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-							message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+							message: currentEditCount
+								? localize('chat.startEditing.confirmation.message.one', "Starting a new editing session will end your current editing session containing {0} file. Do you wish to proceed?", currentEditCount)
+								: localize('chat.startEditing.confirmation.message.many', "Starting a new editing session will end your current editing session containing {0} files. Do you wish to proceed?", currentEditCount),
 							type: 'info',
 							primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
 						});

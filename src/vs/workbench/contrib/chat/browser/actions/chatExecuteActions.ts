@@ -14,7 +14,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_HAS_FILE_ATTACHMENTS, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from '../../common/chatContextKeys.js';
+import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -88,7 +88,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 				ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel))),
 			keybinding: {
 				when: CONTEXT_IN_CHAT_INPUT,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: [
@@ -140,7 +140,12 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3
-			}
+			},
+			keybinding: {
+				when: CONTEXT_IN_CHAT_INPUT,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
 		});
 	}
 
@@ -172,7 +177,7 @@ class SendToChatEditingAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.sendToChatEditing',
 			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_HAS_FILE_ATTACHMENTS),
+			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_INPUT_HAS_TEXT),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -211,7 +216,9 @@ class SendToChatEditingAction extends Action2 {
 		if (currentEditCount) {
 			const result = await dialogService.confirm({
 				title: localize('chat.startEditing.confirmation.title', "Start new editing session?"),
-				message: localize('chat.startEditing.confirmation.message', "Starting a new editing session will end your current editing session and discard edits to {0} files. Do you wish to proceed?", currentEditCount),
+				message: currentEditCount === 1
+					? localize('chat.startEditing.confirmation.message.one', "Starting a new editing session will end your current editing session containing {0} file. Do you wish to proceed?", currentEditCount)
+					: localize('chat.startEditing.confirmation.message.many', "Starting a new editing session will end your current editing session containing {0} files. Do you wish to proceed?", currentEditCount),
 				type: 'info',
 				primaryButton: localize('chat.startEditing.confirmation.primaryButton', "Yes")
 			});

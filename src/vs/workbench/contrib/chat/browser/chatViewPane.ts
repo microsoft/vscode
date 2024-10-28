@@ -35,7 +35,8 @@ interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
 }
 
-export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chatSidebar';
+export const CHAT_SIDEBAR_OLD_VIEW_PANEL_ID = 'workbench.panel.chatSidebar';
+export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
 export const CHAT_EDITING_SIDEBAR_PANEL_ID = 'workbench.panel.chatEditing';
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
@@ -149,7 +150,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		try {
 			super.renderBody(parent);
 
-			this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this));
+			this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			const locationBasedColors = this.getLocationBasedColors();

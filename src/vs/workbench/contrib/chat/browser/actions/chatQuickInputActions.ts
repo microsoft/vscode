@@ -109,10 +109,7 @@ class QuickChatGlobalAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
-				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
-				}
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyL,
 			},
 			menu: {
 				id: MenuId.ChatCommandCenter,

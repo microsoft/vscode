@@ -4599,8 +4599,7 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
-		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		return value;
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
 	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
@@ -4609,43 +4608,73 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	// Temp to avoid breaking changes
-	content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined;
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] = [];
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[]) {
+		if (typeof value === 'string') {
+			// we changed this and still support setting content with a string property. this keep the API runtime stable
+			// despite the breaking change in the type definition.
+			this._content = [new LanguageModelTextPart(value)];
+		} else {
+			this._content = value;
+		}
+	}
+
 	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
-		// Temp for back-compat
-		if (this.content2) {
-			return this.content2.map(part => {
+		return this._content;
+	}
+
+	// Temp to avoid breaking changes
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined) {
+		if (value) {
+			this.content = value.map(part => {
 				if (typeof part === 'string') {
 					return new LanguageModelTextPart(part);
 				}
-
 				return part;
 			});
 		}
+	}
 
-		return this._content;
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined {
+		return this.content.map(part => {
+			if (part instanceof LanguageModelTextPart) {
+				return part.value;
+			}
+			return part;
+		});
 	}
 
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
-		this._content = typeof content === 'string' ? [new LanguageModelTextPart(content)] : content;
+		this.content = content;
 		this.name = name;
 	}
 }
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
-	name: string;
 	callId: string;
+	name: string;
+	input: any;
+
+	/** @deprecated */
 	parameters: any;
 
-	constructor(name: string, toolCallId: string, parameters: any) {
-		this.name = name;
-		this.callId = toolCallId;
-		this.parameters = parameters;
+	constructor(callId: string, name: string, input: any) {
+		// TODO TEMP- swapped the order of these two arguments, trying to preserve the behavior for a build or two
+		if (name.startsWith('call_')) {
+			this.name = callId;
+			this.callId = name;
+		} else {
+			this.callId = callId;
+			this.name = name;
+		}
+
+		this.input = input;
+		// TODO@API backwards compat, remove
+		this.parameters = input;
 	}
 }
 

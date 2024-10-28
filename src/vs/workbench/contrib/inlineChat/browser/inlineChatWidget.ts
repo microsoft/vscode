@@ -8,7 +8,7 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
-import { isNonEmptyArray, tail } from '../../../../base/common/arrays.js';
+import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -44,7 +44,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
-import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
@@ -155,7 +155,7 @@ export class InlineChatWidget {
 				renderStyle: 'minimal',
 				renderInputOnTop: false,
 				renderFollowups: true,
-				supportsFileReferences: _configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
+				supportsFileReferences: true,
 				filter: item => {
 					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
 						// filter responses that
@@ -431,10 +431,10 @@ export class InlineChatWidget {
 			return undefined;
 		}
 		const items = viewModel.getItems().filter(i => isResponseVM(i));
-		if (!items.length) {
+		const item = items.at(-1);
+		if (!item) {
 			return;
 		}
-		const item = items[items.length - 1];
 		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
 	}
 
@@ -443,7 +443,7 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests)?.response?.response.toString();
+		return requests.at(-1)?.response?.response.toString();
 	}
 
 
@@ -451,8 +451,8 @@ export class InlineChatWidget {
 		return this._chatWidget.viewModel?.model;
 	}
 
-	setChatModel(chatModel: IChatModel) {
-		this._chatWidget.setModel(chatModel, { inputValue: undefined });
+	setChatModel(chatModel: IChatModel, state?: IChatViewState) {
+		this._chatWidget.setModel(chatModel, { ...state, inputValue: undefined });
 	}
 
 	updateInfo(message: string): void {

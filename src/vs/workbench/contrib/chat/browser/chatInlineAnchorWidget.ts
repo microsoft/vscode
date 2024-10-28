@@ -85,6 +85,8 @@ export class InlineAnchorWidget extends Disposable {
 	) {
 		super();
 
+		// TODO: Make sure we handle updates from an inlineReference being `resolved` late
+
 		this.data = 'uri' in inlineReference.inlineReference
 			? inlineReference.inlineReference
 			: 'name' in inlineReference.inlineReference
@@ -189,8 +191,8 @@ export class InlineAnchorWidget extends Disposable {
 		iconEl.classList.add(...iconClasses);
 		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
 
-		const fragment = location.range ? `${location.range.startLineNumber}` : '';
-		element.setAttribute('data-href', location.uri.with({ fragment }).toString());
+		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
+		element.setAttribute('data-href', (fragment ? location.uri.with({ fragment }) : location.uri).toString());
 
 		// Context menu
 		this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
@@ -300,11 +302,14 @@ registerAction2(class CopyResourceAction extends Action2 {
 		const clipboardService = accessor.get(IClipboardService);
 
 		const anchor = chatWidgetService.lastFocusedAnchor;
-		if (!anchor || anchor.data.kind === 'symbol') {
+		if (!anchor) {
 			return;
 		}
 
-		clipboardService.writeResources([anchor.data.uri]);
+		// TODO: we should also write out the standard mime types so that external programs can use them
+		// like how `fillEditorsDragData` works but without having an event to work with.
+		const resource = anchor.data.kind === 'symbol' ? anchor.data.symbol.location.uri : anchor.data.uri;
+		clipboardService.writeResources([resource]);
 	}
 });
 

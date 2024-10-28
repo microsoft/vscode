@@ -290,17 +290,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			storageId: viewContainerId,
 			hideIfEmpty: true,
 			order: 100,
-			openCommandActionDescriptor: {
-				id: viewContainerId,
-				keybindings: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					mac: {
-						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
-					}
-				},
-				order: 100
-			},
-		}, ViewContainerLocation.Sidebar);
+		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 		return viewContainer;
 	}
@@ -316,6 +306,16 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			name: { value: name, original: name },
 			canToggleVisibility: false,
 			canMoveView: true,
+			openCommandActionDescriptor: {
+				id: CHAT_SIDEBAR_PANEL_ID,
+				keybindings: {
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+					}
+				},
+				order: 100
+			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
 			when: ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_EXTENSION_INVALID)
 		}];

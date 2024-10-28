@@ -32,7 +32,7 @@ import { SearchContext } from '../common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, ITextSearchHeading, ISearchTreeFolderMatch, ISearchTreeFileMatch, isSearchTreeFileMatch, isSearchTreeFolderMatch, isTextSearchHeading, ISearchModel, isSearchTreeFolderMatchWorkspaceRoot, isSearchTreeFolderMatchNoRoot, isPlainTextSearchHeading } from './searchTreeModel/searchTreeCommon.js';
 import { isSearchTreeAIFileMatch } from './AISearch/aiSearchModelBase.js';
 
 interface IFolderMatchTemplate {
@@ -118,7 +118,9 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 	}
 
 	async renderElement(node: ITreeNode<ITextSearchHeading, any>, index: number, templateData: IFolderMatchTemplate, height: number | undefined): Promise<void> {
-		if (node.element.isAIContributed) {
+		if (isPlainTextSearchHeading(node.element)) {
+			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
+		} else {
 			const aiName = await node.element.parent().searchModel.getAITextResultProviderName();
 			const localizedLabel = nls.localize({
 				key: 'searchFolderMatch.aiText.label',
@@ -127,8 +129,6 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 
 			// todo: make icon extension-contributed.
 			templateData.label.setLabel(`$(${Codicon.copilot.id}) ${localizedLabel}`);
-		} else {
-			templateData.label.setLabel(nls.localize('searchFolderMatch.plainText.label', "Text Results"));
 		}
 	}
 

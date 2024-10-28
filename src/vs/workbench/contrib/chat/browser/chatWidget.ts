@@ -29,14 +29,14 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { buttonSecondaryBackground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TerminalChatController } from '../../terminal/terminalContribChatExports.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
-import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
 import { IChatFollowup, IChatLocationData, IChatSendRequestOptions, IChatService } from '../common/chatService.js';
@@ -416,6 +416,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const scrollDownButton = this._register(new Button(this.listContainer, {
 			supportIcons: true,
 			buttonBackground: asCssVariable(buttonSecondaryBackground),
+			buttonForeground: asCssVariable(buttonSecondaryForeground),
 			buttonHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
 		}));
 		scrollDownButton.element.classList.add('chat-scroll-down');
@@ -505,8 +506,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						const requestId = isRequestVM(element) ? element.id : element.requestId;
-						const checkpointedRequestId = this._viewModel?.model.checkpoint?.id;
 						return element.dataId +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
@@ -515,12 +514,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
-							// Re-render if element becomes enabled/disabled due to checkpointing
-							`_${element.isDisabled ? '1' : '0'}` +
 							// Re-render if element becomes hidden due to undo/redo
 							`_${element.isHidden ? '1' : '0'}` +
-							// Re-render if element checkpoint state changed
-							`_${requestId === checkpointedRequestId ? '1' : '0'}` +
 							// Rerender request if we got new content references in the response
 							// since this may change how we render the corresponding attachments in the request
 							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
@@ -555,7 +550,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const welcomePart = this._register(this.instantiationService.createInstance(
 				ChatViewWelcomePart,
 				{ ...welcomeContent, tips, },
-				{}
+				{ location: this.location }
 			));
 			dom.append(this.welcomeMessageContainer, welcomePart.element);
 		}
@@ -972,37 +967,51 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requests = this.viewModel.model.getRequests();
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
 				const request = requests[i];
-				if (request.isDisabled || request.isHidden) {
+				if (request.isHidden) {
 					this.chatService.removeRequest(this.viewModel.sessionId, request.id);
 				}
 			}
 
-			const attachedContext = this.inputPart.getAttachedAndImplicitContext();
+			let attachedContext = this.inputPart.getAttachedAndImplicitContext();
 			let workingSet: URI[] | undefined;
 			if (this.location === ChatAgentLocation.EditingSession) {
-				const uniqueWorkingSetEntries = new ResourceSet();
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-				if (currentEditingSession?.workingSet) {
-					for (const [file, _] of currentEditingSession?.workingSet) {
-						attachedContext.push(this.attachmentModel.asVariableEntry(file));
-						uniqueWorkingSetEntries.add(file);
+				const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
+				const editingSessionAttachedContext: IChatRequestVariableEntry[] = this.inputPart.chatEditWorkingSetFiles.map((v) => {
+					// Pick up everything that the user sees is part of the working set.
+					// This should never exceed the maximum file entries limit above.
+					uniqueWorkingSetEntries.add(v);
+					return this.attachmentModel.asVariableEntry(v);
+				});
+				let maximumFileEntries = this.chatEditingService.editingSessionFileLimit - editingSessionAttachedContext.length;
+
+				// Then take any attachments that are not files
+				for (const attachment of this.attachmentModel.attachments) {
+					if (!URI.isUri(attachment.value)) {
+						editingSessionAttachedContext.push(attachment);
 					}
 				}
+
 				// Collect file variables from previous requests before sending the request
 				const previousRequests = this.viewModel.model.getRequests();
 				for (const request of previousRequests) {
 					for (const variable of request.variableData.variables) {
-						if (!URI.isUri(variable.value) || !variable.isFile) {
-							continue;
-						}
-						const uri = variable.value;
-						if (!attachedContext.find((context) => URI.isUri(context.value) && context.value.toString() === uri.toString())) {
-							attachedContext.push(variable);
-							uniqueWorkingSetEntries.add(variable.value);
+						if (URI.isUri(variable.value) && variable.isFile && maximumFileEntries > 0) {
+							const uri = variable.value;
+							if (!uniqueWorkingSetEntries.has(uri)) {
+								editingSessionAttachedContext.push(variable);
+								uniqueWorkingSetEntries.add(variable.value);
+								maximumFileEntries -= 1;
+							}
 						}
 					}
 				}
 				workingSet = [...uniqueWorkingSetEntries.values()];
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				for (const file of workingSet) {
+					// Make sure that any files that we sent are part of the working set
+					currentEditingSession?.addFileToWorkingSet(file);
+				}
+				attachedContext = editingSessionAttachedContext;
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
@@ -1022,8 +1031,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
 					this.chatAccessibilityService.acceptResponse(lastResponse, requestId, options?.isVoiceInput);
-					// Keep the checkpoint toggled on until the response is complete to help the user keep their place in the chat history
-					this.viewModel?.model.setCheckpoint(undefined);
 					if (lastResponse?.result?.nextQuestion) {
 						const { prompt, participant, command } = lastResponse.result.nextQuestion;
 						const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
@@ -1094,7 +1101,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const lastItem = this.viewModel?.getItems().at(-1);
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-		if (lastElementVisible && !lastResponseIsRendering) {
+		if (lastElementVisible && (!lastResponseIsRendering || this.viewOptions.autoScroll)) {
 			revealLastElement(this.tree);
 		}
 

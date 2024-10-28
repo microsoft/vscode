@@ -281,7 +281,7 @@ export class SearchView extends ViewPane {
 			this._saveSearchHistoryService();
 		}));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, SearchHistoryService.SEARCH_HISTORY_KEY, this._register(new DisposableStore()))(() => {
+		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, SearchHistoryService.SEARCH_HISTORY_KEY, this._store)(() => {
 			const restoredHistory = this.searchHistoryService.load();
 
 			if (restoredHistory.include) {
@@ -1645,8 +1645,6 @@ export class SearchView extends ViewPane {
 			// anything that gets called from `getChildren` should not do this, since the tree will refresh anyways.
 			await this.refreshAndUpdateCount();
 		}
-
-		await this.expandIfSingularResult();
 
 		const hasResults = !this.viewModel.searchResult.isEmpty();
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
