@@ -41,6 +41,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 
 	public readonly docSnapshot: ITextModel;
 	private readonly doc: ITextModel;
+	private readonly originalContent;
 
 	private readonly _onDidDelete = this._register(new Emitter<void>());
 	public get onDidDelete() {
@@ -128,6 +129,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 			this.createdInRequestId = this._telemetryInfo.requestId;
 		}
 		this.doc = resourceRef.object.textEditorModel;
+		this.originalContent = this.doc.getValue();
 		const docSnapshot = this.docSnapshot = this._register(
 			modelService.createModel(
 				createTextBufferFactoryFromSnapshot(this.doc.createSnapshot()),
@@ -150,6 +152,13 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		this._register(resourceRef);
 
 		this._register(this.doc.onDidChangeContent(e => this._mirrorEdits(e)));
+		this._register(this._fileService.watch(this.resource));
+		this._register(this._fileService.onDidFilesChange(e => {
+			if (e.affects(this.resource) && kind === ChatEditKind.Created && e.gotDeleted()) {
+				this._onDidDelete.fire();
+				this.dispose();
+			}
+		}));
 
 		this._register(toDisposable(() => {
 			this._clearCurrentEditLineDecoration();
@@ -237,6 +246,25 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				const edits = toEditOperations(e_user_r, this.docSnapshot);
 				this.docSnapshot.applyEdits(edits);
 				this._edit = e_ai.tryRebase(e_user_r);
+			}
+
+		}
+
+		if (!this.isCurrentlyBeingModified.get()) {
+			const didResetToOriginalContent = this.doc.getValue() === this.originalContent;
+			const currentState = this._stateObs.get();
+			switch (currentState) {
+				case WorkingSetEntryState.Accepted:
+				case WorkingSetEntryState.Modified:
+					if (didResetToOriginalContent) {
+						this._stateObs.set(WorkingSetEntryState.Rejected, undefined);
+						break;
+					}
+				case WorkingSetEntryState.Rejected:
+					if (event.isUndoing && !didResetToOriginalContent) {
+						this._stateObs.set(WorkingSetEntryState.Modified, undefined);
+						break;
+					}
 			}
 		}
 

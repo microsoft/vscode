@@ -208,13 +208,17 @@ export function registerChatTitleActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
+			const chatWidgetService = accessor.get(IChatWidgetService);
+
+			let item = args[0];
+			if (typeof item === 'object' && !!item && 'sessionId' in item) {
+				item = chatWidgetService.getWidgetBySessionId(item.sessionId)?.viewModel?.getItems().at(-1);
+			}
 			if (!isResponseVM(item)) {
 				return;
 			}
 
 			const chatService = accessor.get(IChatService);
-			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatEditingService = accessor.get(IChatEditingService);
 			const chatModel = chatService.getSession(item.sessionId);
 			const chatRequests = chatModel?.getRequests();
