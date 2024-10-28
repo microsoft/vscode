@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * The parameters of a query for text search. All optional booleans default to `false`.
 	 */
-	export interface TextSearchQueryNew {
+	export interface TextSearchQuery2 {
 		/**
 		 * The text pattern to search for.
 		 *
@@ -142,7 +142,7 @@ declare module 'vscode' {
 	/**
 	 * Information collected when text search is complete.
 	 */
-	export interface TextSearchCompleteNew {
+	export interface TextSearchComplete2 {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
 		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
@@ -164,9 +164,9 @@ declare module 'vscode' {
 	 * const foo = bar;
 	 * ```
 	 *
-	 * If the query is `log`, then the line `console.log(bar);` should be represented using a {@link TextSearchMatchNew}.
+	 * If the query is `log`, then the line `console.log(bar);` should be represented using a {@link TextSearchMatch2}.
 	 */
-	export class TextSearchMatchNew {
+	export class TextSearchMatch2 {
 		/**
 		 * @param uri The uri for the matching document.
 		 * @param ranges The ranges associated with this match.
@@ -198,7 +198,7 @@ declare module 'vscode' {
 
 	/**
 	 * The context lines of text that are not a part of a match,
-	 * but that surround a match line of type {@link TextSearchMatchNew}.
+	 * but that surround a match line of type {@link TextSearchMatch2}.
 	 *
 	 * For example, consider this excerpt:
 	 *
@@ -209,10 +209,10 @@ declare module 'vscode' {
 	 * ```
 	 *
 	 * If the query is `log`, then the lines `const bar = 1;` and `const foo = bar;`
-	 * should be represented using two separate {@link TextSearchContextNew} for the search instance.
+	 * should be represented using two separate {@link TextSearchContext2} for the search instance.
 	 * This example assumes that the finder requests one line of surrounding context.
 	 */
-	export class TextSearchContextNew {
+	export class TextSearchContext2 {
 		/**
 		 * @param uri The uri for the matching document.
 		 * @param text The line of context text.
@@ -238,26 +238,26 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A result payload for a text search, pertaining to {@link TextSearchMatchNew matches}
-	 * and its associated {@link TextSearchContextNew context} within a single file.
+	 * A result payload for a text search, pertaining to {@link TextSearchMatch2 matches}
+	 * and its associated {@link TextSearchContext2 context} within a single file.
 	 */
-	export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
+	export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
 	 */
-	export interface TextSearchProviderNew {
+	export interface TextSearchProvider2 {
 		/**
 		 * WARNING: VERY EXPERIMENTAL.
 		 *
 		 * Provide results that match the given text pattern.
 		 * @param query The parameters for this query.
 		 * @param options A set of options to consider while searching.
-		 * @param progress A progress callback that must be invoked for all {@link TextSearchResultNew results}.
+		 * @param progress A progress callback that must be invoked for all {@link TextSearchResult2 results}.
 		 * These results can be direct matches, or context that surrounds matches.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 	}
 
 	export namespace workspace {
@@ -270,6 +270,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTextSearchProviderNew(scheme: string, provider: TextSearchProviderNew): Disposable;
+		export function registerTextSearchProvider2(scheme: string, provider: TextSearchProvider2): Disposable;
 	}
 }
