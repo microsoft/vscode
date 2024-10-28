@@ -119,7 +119,6 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
-import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1115,11 +1114,6 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
-		if (this.productService.quality !== 'stable') {
-			// extensions signature verification service
-			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
-		}
-
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1160,13 +1154,6 @@ export class CodeApplication extends Disposable {
 		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService), disposables);
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
-
-		if (this.productService.quality !== 'stable') {
-			// Extension signature verification service
-			const extensionSignatureVerificationService = accessor.get(IExtensionSignatureVerificationService);
-			sharedProcessClient.then(client => client.registerChannel('signatureVerificationService',
-				ProxyChannel.fromService(extensionSignatureVerificationService, disposables)));
-		}
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
