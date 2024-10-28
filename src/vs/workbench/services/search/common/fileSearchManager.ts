@@ -11,7 +11,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileMatch, IFileSearchProviderStats, IFolderQuery, ISearchCompleteStats, IFileQuery, QueryGlobTester, resolvePatternsForProvider, hasSiblingFn, excludeToGlobPattern, DEFAULT_MAX_SEARCH_RESULTS } from './search.js';
-import { FileSearchProvider2, FileSearchProviderFolderOptions, FileSearchProviderOptions } from './searchExtTypes.js';
+import { FileSearchProviderFolderOptions, FileSearchProvider2, FileSearchProviderOptions } from './searchExtTypes.js';
 import { OldFileSearchProviderConverter } from './searchExtConversionTypes.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 
