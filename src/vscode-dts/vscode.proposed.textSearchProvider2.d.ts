@@ -246,7 +246,7 @@ declare module 'vscode' {
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
 	 */
-	export interface TextSearchProviderNew {
+	export interface textSearchProvider2 {
 		/**
 		 * WARNING: VERY EXPERIMENTAL.
 		 *
@@ -270,6 +270,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTextSearchProviderNew(scheme: string, provider: TextSearchProviderNew): Disposable;
+		export function registertextSearchProvider2(scheme: string, provider: textSearchProvider2): Disposable;
 	}
 }

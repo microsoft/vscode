@@ -330,7 +330,7 @@ export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface FileSearchProviderNew {
+export interface fileSearchProvider2 {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -344,7 +344,7 @@ export interface FileSearchProviderNew {
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface TextSearchProviderNew {
+export interface textSearchProvider2 {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.
@@ -409,7 +409,7 @@ export interface TextSearchCompleteMessageNew {
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface FileSearchProviderNew {
+export interface fileSearchProvider2 {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -423,7 +423,7 @@ export interface FileSearchProviderNew {
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface TextSearchProviderNew {
+export interface textSearchProvider2 {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.

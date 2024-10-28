@@ -18,9 +18,9 @@ declare module 'vscode' {
 		 * For example, consider the following code:
 		 *
 		 * ```ts
-		 * const ab = findTextInFilesNew('foo', {include: ['*.ts', '*.js']});
-		 * const a = findTextInFilesNew('foo', {include: ['*.ts']});
-		 * const b = findTextInFilesNew('foo', {include: ['*.js']});
+		 * const ab = findTextInFiles2('foo', {include: ['*.ts', '*.js']});
+		 * const a = findTextInFiles2('foo', {include: ['*.ts']});
+		 * const b = findTextInFiles2('foo', {include: ['*.js']});
 		 * ```
 		 *
 		 * In this, `ab` will be the union of results from `a` and `b`.
@@ -35,9 +35,9 @@ declare module 'vscode' {
 		 * For example, consider the following code:
 		 *
 		 * ```ts
-		 * const ab = findTextInFilesNew('foo', {exclude: ['*.ts', '*.js']});
-		 * const a = findTextInFilesNew('foo', {exclude: ['*.ts']});
-		 * const b = findTextInFilesNew('foo', {exclude: ['*.js']});
+		 * const ab = findTextInFiles2('foo', {exclude: ['*.ts', '*.js']});
+		 * const a = findTextInFiles2('foo', {exclude: ['*.ts']});
+		 * const b = findTextInFiles2('foo', {exclude: ['*.js']});
 		 * ```
 		 *
 		 * In this, `ab` will be the intersection of results from `a` and `b`.
@@ -159,6 +159,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFilesNew(query: TextSearchQueryNew, options?: FindTextInFilesOptionsNew, token?: CancellationToken): FindTextInFilesResponse;
+		export function findTextInFiles2(query: TextSearchQueryNew, options?: FindTextInFilesOptionsNew, token?: CancellationToken): FindTextInFilesResponse;
 	}
 }

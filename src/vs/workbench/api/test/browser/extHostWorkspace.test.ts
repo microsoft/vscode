@@ -965,7 +965,7 @@ suite('ExtHostWorkspace', function () {
 		});
 	});
 
-	suite('findTextInFilesNew -', function () {
+	suite('findTextInFiles2 -', function () {
 		test('no include', async () => {
 			const root = '/project/foo';
 			const rpcProtocol = new TestRPCProtocol();
@@ -983,7 +983,7 @@ suite('ExtHostWorkspace', function () {
 			});
 
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-			await (ws.findTextInFilesNew({ pattern: 'foo' }, {}, new ExtensionIdentifier('test'))).complete;
+			await (ws.findTextInFiles2({ pattern: 'foo' }, {}, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 
@@ -1004,7 +1004,7 @@ suite('ExtHostWorkspace', function () {
 			});
 
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-			await (ws.findTextInFilesNew({ pattern: 'foo' }, { include: ['**/files'] }, new ExtensionIdentifier('test'))).complete;
+			await (ws.findTextInFiles2({ pattern: 'foo' }, { include: ['**/files'] }, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 
@@ -1025,7 +1025,7 @@ suite('ExtHostWorkspace', function () {
 			});
 
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-			await (ws.findTextInFilesNew({ pattern: 'foo' }, { include: [new RelativePattern('/other/folder', 'glob/**')] }, new ExtensionIdentifier('test'))).complete;
+			await (ws.findTextInFiles2({ pattern: 'foo' }, { include: [new RelativePattern('/other/folder', 'glob/**')] }, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 
@@ -1043,7 +1043,7 @@ suite('ExtHostWorkspace', function () {
 
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
 			const token = CancellationToken.Cancelled;
-			await (ws.findTextInFilesNew({ pattern: 'foo' }, undefined, new ExtensionIdentifier('test'), token)).complete;
+			await (ws.findTextInFiles2({ pattern: 'foo' }, undefined, new ExtensionIdentifier('test'), token)).complete;
 			assert(!mainThreadCalled, '!mainThreadCalled');
 		});
 
@@ -1065,7 +1065,7 @@ suite('ExtHostWorkspace', function () {
 			});
 
 			const ws = createExtHostWorkspace(rpcProtocol, { id: 'foo', folders: [aWorkspaceFolderData(URI.file(root), 0)], name: 'Test' }, new NullLogService());
-			await (ws.findTextInFilesNew({ pattern: 'foo' }, { exclude: [new RelativePattern('/other/folder', 'glob/**')] }, new ExtensionIdentifier('test'))).complete;
+			await (ws.findTextInFiles2({ pattern: 'foo' }, { exclude: [new RelativePattern('/other/folder', 'glob/**')] }, new ExtensionIdentifier('test'))).complete;
 			assert(mainThreadCalled, 'mainThreadCalled');
 		});
 
