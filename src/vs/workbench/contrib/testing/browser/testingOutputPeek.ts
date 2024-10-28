@@ -280,7 +280,8 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		// and this test is not in any of the editors' models.
 		switch (cfg) {
 			case AutoOpenPeekViewWhen.FailureVisible: {
-				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+				const visibleEditors = this.editorService.visibleTextEditorControls;
+				const editorUris = new Set(visibleEditors.filter(isCodeEditor).map(e => e.getModel()?.uri.toString()));
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
 					return;
 				}
