@@ -272,6 +272,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				chatEditingSessionDisposables.clear();
 				this.renderChatEditingSessionState(null);
 			}));
+			chatEditingSessionDisposables.add(this.onDidChangeParsedInput(() => {
+				this.renderChatEditingSessionState(session);
+			}));
+			chatEditingSessionDisposables.add(this.inputEditor.onDidChangeModelContent(() => {
+				if (this.getInput() === '') {
+					this.refreshParsedInput();
+					this.renderChatEditingSessionState(session);
+				}
+			}));
 			this.renderChatEditingSessionState(session);
 		}));
 
@@ -458,6 +467,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	hasInputFocus(): boolean {
 		return this.inputPart.hasFocus();
+	}
+
+	refreshParsedInput() {
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+		this._onDidChangeParsedInput.fire();
 	}
 
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
@@ -757,6 +771,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					c.setInputState(contribState);
 				}
 			});
+			this.refreshParsedInput();
 		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
@@ -869,6 +884,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				c.setInputState(viewState.inputState?.[c.id]);
 			}
 		});
+		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
@@ -921,6 +937,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setInput(value = ''): void {
 		this.inputPart.setValue(value, false);
+		this.refreshParsedInput();
 	}
 
 	getInput(): string {

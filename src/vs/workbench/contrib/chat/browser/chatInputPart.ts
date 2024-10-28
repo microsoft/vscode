@@ -72,6 +72,7 @@ import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
 import { CONTEXT_CHAT_HAS_FILE_ATTACHMENTS, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_FOCUS, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
+import { ChatRequestDynamicVariablePart } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
@@ -916,9 +917,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Summary of number of files changed
 		const innerContainer = this.chatEditingSessionWidgetContainer.querySelector('.chat-editing-session-container.show-file-icons') as HTMLElement ?? dom.append(this.chatEditingSessionWidgetContainer, $('.chat-editing-session-container.show-file-icons'));
-		const modifiedFiles = new ResourceSet();
+		const seenEntries = new ResourceSet();
 		let entries: IChatCollapsibleListItem[] = chatEditingSession?.entries.get().map((entry) => {
-			modifiedFiles.add(entry.modifiedURI);
+			seenEntries.add(entry.modifiedURI);
 			return {
 				reference: entry.modifiedURI,
 				state: entry.state.get(),
@@ -926,20 +927,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			};
 		}) ?? [];
 		for (const attachment of this.attachmentModel.attachments) {
-			if (attachment.isFile && URI.isUri(attachment.value) && !modifiedFiles.has(attachment.value)) {
+			if (attachment.isFile && URI.isUri(attachment.value) && !seenEntries.has(attachment.value)) {
 				entries.unshift({
 					reference: attachment.value,
 					state: WorkingSetEntryState.Attached,
 					kind: 'reference',
 				});
-				modifiedFiles.add(attachment.value);
+				seenEntries.add(attachment.value);
 			}
 		}
 		for (const [file, state] of chatEditingSession.workingSet.entries()) {
-			if (!modifiedFiles.has(file)) {
+			if (!seenEntries.has(file)) {
 				entries.unshift({
 					reference: file,
 					state: state,
+					kind: 'reference',
+				});
+				seenEntries.add(file);
+			}
+		}
+		// Factor file variables that are part of the user query into the working set
+		for (const part of chatWidget?.parsedInput.parts ?? []) {
+			if (part instanceof ChatRequestDynamicVariablePart && part.isFile && URI.isUri(part.data) && !seenEntries.has(part.data)) {
+				entries.unshift({
+					reference: part.data,
+					state: WorkingSetEntryState.Attached,
 					kind: 'reference',
 				});
 			}
