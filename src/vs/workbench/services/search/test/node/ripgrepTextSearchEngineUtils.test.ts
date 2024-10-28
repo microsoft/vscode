@@ -7,7 +7,7 @@ import assert from 'assert';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fixRegexNewline, IRgMatch, IRgMessage, RipgrepParser, unicodeEscapesToPCRE2, fixNewline, getRgArgs, performBraceExpansionForRipgrep } from '../../node/ripgrepTextSearchEngine.js';
-import { Range, TextSearchMatchNew, TextSearchQuery2, TextSearchResultNew } from '../../common/searchExtTypes.js';
+import { Range, TextSearchMatchNew, TextSearchQuery2, TextSearchResult2 } from '../../common/searchExtTypes.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RipgrepTextSearchOptions } from '../../common/searchExtTypesInternal.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from '../../common/search.js';
@@ -106,10 +106,10 @@ suite('RipgrepTextSearchEngine', () => {
 	suite('RipgrepParser', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
-		function testParser(inputData: string[], expectedResults: TextSearchResultNew[]): void {
+		function testParser(inputData: string[], expectedResults: TextSearchResult2[]): void {
 			const testParser = new RipgrepParser(1000, TEST_FOLDER, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS);
 
-			const actualResults: TextSearchResultNew[] = [];
+			const actualResults: TextSearchResult2[] = [];
 			testParser.on('result', r => {
 				actualResults.push(r);
 			});

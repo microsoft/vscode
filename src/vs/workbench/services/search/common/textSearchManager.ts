@@ -12,7 +12,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { AITextSearchProvider, TextSearchCompleteNew, TextSearchMatchNew, TextSearchProviderFolderOptions, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResultNew } from './searchExtTypes.js';
+import { AITextSearchProvider, TextSearchComplete2, TextSearchMatchNew, TextSearchProviderFolderOptions, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from './searchExtTypes.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -54,7 +54,7 @@ export class TextSearchManager {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
-			const onResult = (result: TextSearchResultNew, folderIdx: number) => {
+			const onResult = (result: TextSearchResult2, folderIdx: number) => {
 				if (isCanceled) {
 					return;
 				}
@@ -99,13 +99,13 @@ export class TextSearchManager {
 		});
 	}
 
-	private getMessagesFromResults(result: TextSearchCompleteNew | null | undefined) {
+	private getMessagesFromResults(result: TextSearchComplete2 | null | undefined) {
 		if (!result?.message) { return []; }
 		if (Array.isArray(result.message)) { return result.message; }
 		return [result.message];
 	}
 
-	private resultSize(result: TextSearchResultNew): number {
+	private resultSize(result: TextSearchResult2): number {
 		if (result instanceof TextSearchMatchNew) {
 			return Array.isArray(result.ranges) ?
 				result.ranges.length :
@@ -121,7 +121,7 @@ export class TextSearchManager {
 		return new TextSearchMatchNew(result.uri, result.ranges.slice(0, size), result.previewText);
 	}
 
-	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResultNew, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchCompleteNew | null | undefined> {
+	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResult2, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchComplete2 | null | undefined> {
 		const folderMappings: FolderQuerySearchTree<FolderQueryInfo> = new FolderQuerySearchTree<FolderQueryInfo>(
 			folderQueries,
 			(fq, i) => {
@@ -133,7 +133,7 @@ export class TextSearchManager {
 
 		const testingPs: Promise<void>[] = [];
 		const progress = {
-			report: (result: TextSearchResultNew) => {
+			report: (result: TextSearchResult2) => {
 
 				if (result.uri === undefined) {
 					throw Error('Text search result URI is undefined. Please check provider implementation.');
@@ -241,7 +241,7 @@ export class TextSearchResultsCollector {
 		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
 	}
 
-	add(data: TextSearchResultNew, folderIdx: number): void {
+	add(data: TextSearchResult2, folderIdx: number): void {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
@@ -278,7 +278,7 @@ export class TextSearchResultsCollector {
 	}
 }
 
-function extensionResultToFrontendResult(data: TextSearchResultNew): ITextSearchResult {
+function extensionResultToFrontendResult(data: TextSearchResult2): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (data instanceof TextSearchMatchNew) {
 		return {

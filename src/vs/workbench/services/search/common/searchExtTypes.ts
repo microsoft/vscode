@@ -214,7 +214,7 @@ export interface TextSearchProviderOptions {
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchCompleteNew {
+export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
 	 * `maxResults` on [`TextSearchOptions`](#TextSearchOptions) specifies the max number of results.
@@ -285,7 +285,7 @@ export interface FileSearchProviderOptions {
 }
 
 /**
- * The main match information for a {@link TextSearchResultNew}.
+ * The main match information for a {@link TextSearchResult2}.
  */
 export class TextSearchMatchNew {
 	/**
@@ -301,7 +301,7 @@ export class TextSearchMatchNew {
 }
 
 /**
- * The potential context information for a {@link TextSearchResultNew}.
+ * The potential context information for a {@link TextSearchResult2}.
  */
 export class TextSearchContextNew {
 	/**
@@ -318,7 +318,7 @@ export class TextSearchContextNew {
 /**
  * A result payload for a text search, pertaining to matches within a single file.
  */
-export type TextSearchResultNew = TextSearchMatchNew | TextSearchContextNew;
+export type TextSearchResult2 = TextSearchMatchNew | TextSearchContextNew;
 
 
 /**
@@ -352,13 +352,13 @@ export interface textSearchProvider2 {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 }
 
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchCompleteNew {
+export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
 	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
@@ -431,13 +431,13 @@ export interface textSearchProvider2 {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 }
 
 /**
  * Information collected when text search is complete.
  */
-export interface TextSearchCompleteNew {
+export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
 	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
@@ -543,5 +543,5 @@ export interface AITextSearchProvider {
 	 * @param progress A progress callback that must be invoked for all results.
 	 * @param token A cancellation token.
 	 */
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 }

@@ -14,7 +14,7 @@ import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/st
 import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
-import { Range, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQuery2, TextSearchResultNew } from '../common/searchExtTypes.js';
+import { Range, TextSearchComplete2, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
@@ -28,7 +28,7 @@ export class RipgrepTextSearchEngine {
 
 	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
-	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): Promise<TextSearchComplete2> {
 		return Promise.all(options.folderOptions.map(folderOption => {
 			const extendedOptions: RipgrepTextSearchOptions = {
 				folderOptions: folderOption,
@@ -40,7 +40,7 @@ export class RipgrepTextSearchEngine {
 			};
 			return this.provideTextSearchResultsWithRgOptions(query, extendedOptions, progress, token);
 		})).then((e => {
-			const complete: TextSearchCompleteNew = {
+			const complete: TextSearchComplete2 = {
 				// todo: get this to actually check
 				limitHit: e.some(complete => !!complete && complete.limitHit)
 			};
@@ -48,7 +48,7 @@ export class RipgrepTextSearchEngine {
 		}));
 	}
 
-	provideTextSearchResultsWithRgOptions(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): Promise<TextSearchCompleteNew> {
+	provideTextSearchResultsWithRgOptions(query: TextSearchQuery2, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): Promise<TextSearchComplete2> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -81,7 +81,7 @@ export class RipgrepTextSearchEngine {
 
 			let gotResult = false;
 			const ripgrepParser = new RipgrepParser(options.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS, options.folderOptions.folder, newToOldPreviewOptions(options.previewOptions));
-			ripgrepParser.on('result', (match: TextSearchResultNew) => {
+			ripgrepParser.on('result', (match: TextSearchResult2) => {
 				gotResult = true;
 				dataWithoutResult = '';
 				progress.report(match);
@@ -223,7 +223,7 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 
-	override on(event: 'result', listener: (result: TextSearchResultNew) => void): this;
+	override on(event: 'result', listener: (result: TextSearchResult2) => void): this;
 	override on(event: 'hitLimit', listener: () => void): this;
 	override on(event: string, listener: (...args: any[]) => void): this {
 		super.on(event, listener);
@@ -371,7 +371,7 @@ export class RipgrepParser extends EventEmitter {
 			.map((line, i) => new TextSearchContextNew(uri, line, startLine + i));
 	}
 
-	private onResult(match: TextSearchResultNew): void {
+	private onResult(match: TextSearchResult2): void {
 		this.emit('result', match);
 	}
 }

@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { Range, fileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResultNew, TextSearchCompleteMessage } from './searchExtTypes.js';
+import { Range, fileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchComplete2, TextSearchContextNew, TextSearchMatchNew, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, TextSearchCompleteMessage } from './searchExtTypes.js';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
@@ -500,7 +500,7 @@ export function newToOldPreviewOptions(options: {
 	};
 }
 
-export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
+export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResult2 {
 	if (isTextSearchMatch(result)) {
 		const ranges = asArray(result.ranges).map((r, i) => {
 			const previewArr = asArray(result.preview.matches);
@@ -516,7 +516,7 @@ export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchRe
 export class OldTextSearchProviderConverter implements textSearchProvider2 {
 	constructor(private provider: TextSearchProvider) { }
 
-	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
 
 		const progressShim = (oldResult: TextSearchResult) => {
 			if (!validateProviderResult(oldResult)) {
@@ -539,7 +539,7 @@ export class OldTextSearchProviderConverter implements textSearchProvider2 {
 			return {
 				limitHit: e.limitHit,
 				message: coalesce(asArray(e.message))
-			} satisfies TextSearchCompleteNew;
+			} satisfies TextSearchComplete2;
 		});
 	}
 }

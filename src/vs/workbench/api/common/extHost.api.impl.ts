@@ -1782,8 +1782,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
-			TextSearchContextNew: TextSearchContextNew,
-			TextSearchMatchNew: TextSearchMatchNew,
+			TextSearchContext2: TextSearchContextNew,
+			TextSearchMatch2: TextSearchMatchNew,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};
