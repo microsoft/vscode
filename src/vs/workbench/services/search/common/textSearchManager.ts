@@ -12,7 +12,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FolderQuerySearchTree } from './folderQuerySearchTree.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, excludeToGlobPattern, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider, ISearchRange, DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { AITextSearchProvider, TextSearchComplete2, TextSearchMatchNew, TextSearchProviderFolderOptions, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from './searchExtTypes.js';
+import { TextSearchComplete2, TextSearchMatch2, TextSearchProviderFolderOptions, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, AITextSearchProvider } from './searchExtTypes.js';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -23,7 +23,7 @@ interface IAITextQueryProviderPair {
 }
 
 interface ITextQueryProviderPair {
-	query: ITextQuery; provider: textSearchProvider2;
+	query: ITextQuery; provider: TextSearchProvider2;
 }
 interface FolderQueryInfo {
 	queryTester: QueryGlobTester;
@@ -61,7 +61,7 @@ export class TextSearchManager {
 
 				if (!this.isLimitHit) {
 					const resultSize = this.resultSize(result);
-					if (result instanceof TextSearchMatchNew && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
+					if (result instanceof TextSearchMatch2 && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
 						this.isLimitHit = true;
 						isCanceled = true;
 						tokenSource.cancel();
@@ -71,7 +71,7 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					const a = result instanceof TextSearchMatchNew;
+					const a = result instanceof TextSearchMatch2;
 
 					if (newResultSize > 0 || !a) {
 						this.collector!.add(result, folderIdx);
@@ -106,7 +106,7 @@ export class TextSearchManager {
 	}
 
 	private resultSize(result: TextSearchResult2): number {
-		if (result instanceof TextSearchMatchNew) {
+		if (result instanceof TextSearchMatch2) {
 			return Array.isArray(result.ranges) ?
 				result.ranges.length :
 				1;
@@ -117,8 +117,8 @@ export class TextSearchManager {
 		}
 	}
 
-	private trimResultToSize(result: TextSearchMatchNew, size: number): TextSearchMatchNew {
-		return new TextSearchMatchNew(result.uri, result.ranges.slice(0, size), result.previewText);
+	private trimResultToSize(result: TextSearchMatch2, size: number): TextSearchMatch2 {
+		return new TextSearchMatch2(result.uri, result.ranges.slice(0, size), result.previewText);
 	}
 
 	private async doSearch(folderQueries: IFolderQuery<URI>[], onResult: (result: TextSearchResult2, folderIdx: number) => void, token: CancellationToken): Promise<TextSearchComplete2 | null | undefined> {
@@ -280,7 +280,7 @@ export class TextSearchResultsCollector {
 
 function extensionResultToFrontendResult(data: TextSearchResult2): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
-	if (data instanceof TextSearchMatchNew) {
+	if (data instanceof TextSearchMatch2) {
 		return {
 			previewText: data.previewText,
 			rangeLocations: data.ranges.map(r => ({

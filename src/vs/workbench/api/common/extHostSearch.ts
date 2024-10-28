@@ -23,7 +23,7 @@ export interface IExtHostSearch extends ExtHostSearchShape {
 	registerFileSearchProviderOld(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider2): IDisposable;
 	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider): IDisposable;
-	registerFileSearchProvider(scheme: string, provider: vscode.fileSearchProvider2): IDisposable;
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider2): IDisposable;
 	doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats>;
 }
 
@@ -40,7 +40,7 @@ export class ExtHostSearch implements IExtHostSearch {
 	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProvider>();
 	private readonly _aiTextSearchUsedSchemes = new Set<string>();
 
-	private readonly _fileSearchProvider = new Map<number, vscode.fileSearchProvider2>();
+	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider2>();
 	private readonly _fileSearchUsedSchemes = new Set<string>();
 
 	private readonly _fileSearchManager = new FileSearchManager();
@@ -119,7 +119,7 @@ export class ExtHostSearch implements IExtHostSearch {
 		});
 	}
 
-	registerFileSearchProvider(scheme: string, provider: vscode.fileSearchProvider2): IDisposable {
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider2): IDisposable {
 		if (this._fileSearchUsedSchemes.has(scheme)) {
 			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
 		}

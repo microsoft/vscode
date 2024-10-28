@@ -106,7 +106,7 @@ import { ExtensionDescriptionRegistry } from '../../services/extensions/common/e
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
 import { ExtHostCodeMapper } from './extHostCodeMapper.js';
 
@@ -1135,11 +1135,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostSearch.registerAITextSearchProvider(scheme, provider);
 			},
-			registerfileSearchProvider2: (scheme: string, provider: vscode.fileSearchProvider2) => {
+			registerfileSearchProvider2: (scheme: string, provider: vscode.FileSearchProvider2) => {
 				checkProposedApiEnabled(extension, 'fileSearchProvider2');
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			},
-			registertextSearchProvider2: (scheme: string, provider: vscode.TextSearchProvider2) => {
+			registerTextSearchProvider2: (scheme: string, provider: vscode.TextSearchProvider2) => {
 				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			},
@@ -1782,8 +1782,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
-			TextSearchContext2: TextSearchContextNew,
-			TextSearchMatch2: TextSearchMatchNew,
+			TextSearchContext2: TextSearchContext2,
+			TextSearchMatch2: TextSearchMatch2,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};

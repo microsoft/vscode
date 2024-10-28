@@ -14,7 +14,7 @@ import { createRegExp, escapeRegExpCharacters } from '../../../../base/common/st
 import { URI } from '../../../../base/common/uri.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_MAX_SEARCH_RESULTS, IExtendedExtensionSearchOptions, ITextSearchPreviewOptions, SearchError, SearchErrorCode, serializeSearchError, TextSearchMatch } from '../common/search.js';
-import { Range, TextSearchComplete2, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
+import { Range, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2 } from '../common/searchExtTypes.js';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, IOutputChannel, Maybe, rangeToSearchRange, searchRangeToRange } from './ripgrepSearchUtils.js';
@@ -295,7 +295,7 @@ export class RipgrepParser extends EventEmitter {
 		}
 	}
 
-	private createTextSearchMatch(data: IRgMatch, uri: URI): TextSearchMatchNew {
+	private createTextSearchMatch(data: IRgMatch, uri: URI): TextSearchMatch2 {
 		const lineNumber = data.line_number - 1;
 		const fullText = bytesOrTextToString(data.lines);
 		const fullTextBytes = Buffer.from(fullText);
@@ -351,7 +351,7 @@ export class RipgrepParser extends EventEmitter {
 		const searchRange = mapArrayOrNot(<Range[]>ranges, rangeToSearchRange);
 
 		const internalResult = new TextSearchMatch(fullText, searchRange, this.previewOptions);
-		return new TextSearchMatchNew(
+		return new TextSearchMatch2(
 			uri,
 			internalResult.rangeLocations.map(e => (
 				{
@@ -362,13 +362,13 @@ export class RipgrepParser extends EventEmitter {
 			internalResult.previewText);
 	}
 
-	private createTextSearchContexts(data: IRgMatch, uri: URI): TextSearchContextNew[] {
+	private createTextSearchContexts(data: IRgMatch, uri: URI): TextSearchContext2[] {
 		const text = bytesOrTextToString(data.lines);
 		const startLine = data.line_number;
 		return text
 			.replace(/\r?\n$/, '')
 			.split('\n')
-			.map((line, i) => new TextSearchContextNew(uri, line, startLine + i));
+			.map((line, i) => new TextSearchContext2(uri, line, startLine + i));
 	}
 
 	private onResult(match: TextSearchResult2): void {

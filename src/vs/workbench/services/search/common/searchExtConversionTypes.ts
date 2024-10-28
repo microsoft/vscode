@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { Range, fileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchComplete2, TextSearchContextNew, TextSearchMatchNew, textSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, TextSearchCompleteMessage } from './searchExtTypes.js';
+import { Range, FileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, TextSearchCompleteMessage } from './searchExtTypes.js';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
@@ -455,7 +455,7 @@ function newToOldFileProviderOptions(options: FileSearchProviderOptions): FileSe
 	} satisfies FileSearchOptions));
 }
 
-export class OldFileSearchProviderConverter implements fileSearchProvider2 {
+export class OldFileSearchProviderConverter implements FileSearchProvider2 {
 	constructor(private provider: FileSearchProvider) { }
 
 	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]> {
@@ -507,13 +507,13 @@ export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchRe
 			const matchingPreviewRange = previewArr[i];
 			return { sourceRange: r, previewRange: matchingPreviewRange };
 		});
-		return new TextSearchMatchNew(result.uri, ranges, result.preview.text);
+		return new TextSearchMatch2(result.uri, ranges, result.preview.text);
 	} else {
-		return new TextSearchContextNew(result.uri, result.text, result.lineNumber);
+		return new TextSearchContext2(result.uri, result.text, result.lineNumber);
 	}
 }
 
-export class OldTextSearchProviderConverter implements textSearchProvider2 {
+export class OldTextSearchProviderConverter implements TextSearchProvider2 {
 	constructor(private provider: TextSearchProvider) { }
 
 	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {

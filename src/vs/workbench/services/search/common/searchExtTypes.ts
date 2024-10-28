@@ -287,7 +287,7 @@ export interface FileSearchProviderOptions {
 /**
  * The main match information for a {@link TextSearchResult2}.
  */
-export class TextSearchMatchNew {
+export class TextSearchMatch2 {
 	/**
 	 * @param uri The uri for the matching document.
 	 * @param ranges The ranges associated with this match.
@@ -303,7 +303,7 @@ export class TextSearchMatchNew {
 /**
  * The potential context information for a {@link TextSearchResult2}.
  */
-export class TextSearchContextNew {
+export class TextSearchContext2 {
 	/**
 	 * @param uri The uri for the matching document.
 	 * @param text The line of context text.
@@ -318,7 +318,7 @@ export class TextSearchContextNew {
 /**
  * A result payload for a text search, pertaining to matches within a single file.
  */
-export type TextSearchResult2 = TextSearchMatchNew | TextSearchContextNew;
+export type TextSearchResult2 = TextSearchMatch2 | TextSearchContext2;
 
 
 /**
@@ -330,7 +330,7 @@ export type TextSearchResult2 = TextSearchMatchNew | TextSearchContextNew;
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface fileSearchProvider2 {
+export interface FileSearchProvider2 {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -344,7 +344,7 @@ export interface fileSearchProvider2 {
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface textSearchProvider2 {
+export interface TextSearchProvider2 {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.
@@ -377,13 +377,13 @@ export interface TextSearchComplete2 {
 	 *
 	 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 	 */
-	message?: TextSearchCompleteMessageNew[];
+	message?: TextSearchCompleteMessage2[];
 }
 
 /**
  * A message regarding a completed search.
  */
-export interface TextSearchCompleteMessageNew {
+export interface TextSearchCompleteMessage2 {
 	/**
 	 * Markdown text of the message.
 	 */
@@ -409,7 +409,7 @@ export interface TextSearchCompleteMessageNew {
  * The FileSearchProvider will be invoked on every keypress in quickaccess. When `workspace.findFiles` is called, it will be invoked with an empty query string,
  * and in that case, every file in the folder should be returned.
  */
-export interface fileSearchProvider2 {
+export interface FileSearchProvider2 {
 	/**
 	 * Provide the set of files that match a certain file path pattern.
 	 * @param query The parameters for this query.
@@ -423,7 +423,7 @@ export interface fileSearchProvider2 {
 /**
  * A TextSearchProvider provides search results for text results inside files in the workspace.
  */
-export interface textSearchProvider2 {
+export interface TextSearchProvider2 {
 	/**
 	 * Provide results that match the given text pattern.
 	 * @param query The parameters for this query.
@@ -456,13 +456,13 @@ export interface TextSearchComplete2 {
 	 *
 	 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 	 */
-	message?: TextSearchCompleteMessageNew[];
+	message?: TextSearchCompleteMessage2[];
 }
 
 /**
  * A message regarding a completed search.
  */
-export interface TextSearchCompleteMessageNew {
+export interface TextSearchCompleteMessage2 {
 	/**
 	 * Markdown text of the message.
 	 */

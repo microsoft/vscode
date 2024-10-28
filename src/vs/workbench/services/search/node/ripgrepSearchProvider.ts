@@ -6,12 +6,12 @@
 import { CancellationTokenSource, CancellationToken } from '../../../../base/common/cancellation.js';
 import { OutputChannel } from './ripgrepSearchUtils.js';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearchEngine.js';
-import { textSearchProvider2, TextSearchComplete2, TextSearchResult2, TextSearchQuery2, TextSearchProviderOptions, } from '../common/searchExtTypes.js';
+import { TextSearchProvider2, TextSearchComplete2, TextSearchResult2, TextSearchQuery2, TextSearchProviderOptions, } from '../common/searchExtTypes.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
 import { Schemas } from '../../../../base/common/network.js';
 import type { RipgrepTextSearchOptions } from '../common/searchExtTypesInternal.js';
 
-export class RipgrepSearchProvider implements textSearchProvider2 {
+export class RipgrepSearchProvider implements TextSearchProvider2 {
 	private inProgress: Set<CancellationTokenSource> = new Set();
 
 	constructor(private outputChannel: OutputChannel, private getNumThreads: () => Promise<number | undefined>) {
