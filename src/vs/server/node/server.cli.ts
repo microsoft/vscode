@@ -17,8 +17,6 @@ import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platf
 import { DeferredPromise } from '../../base/common/async.js';
 import { FileAccess } from '../../base/common/network.js';
 
-const __dirname = dirname(url.fileURLToPath(import.meta.url));
-
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
  *  - In integrated terminals for remote windows this connects to the remote server though a pipe.
@@ -151,7 +149,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(resolve(getAppRoot(), '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'common', 'scripts', file));
 		return;
 	}
 	if (cliPipe) {
@@ -242,7 +240,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				cmdLine.push('--update-extensions');
 			}
 
-			const childProcess = cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
+			const childProcess = cp.fork(FileAccess.asFileUri('server-main').fsPath, cmdLine, { stdio: 'inherit' });
 			childProcess.on('error', err => console.log(err));
 			return;
 		}
