@@ -23,9 +23,7 @@ import './processMainService.js';
 import '../browser/issueTroubleshoot.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
 
-
 //#region Issue Contribution
-
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
 
@@ -55,16 +53,6 @@ class NativeIssueContribution extends BaseIssueContribution {
 				}]
 			});
 		};
-
-		// Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-		// 	properties: {
-		// 		'issueReporter.experimental.auxWindow': {
-		// 			type: 'boolean',
-		// 			default: true,
-		// 			description: 'Enable the new experimental issue reporter in electron.',
-		// 		},
-		// 	}
-		// });
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (!configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess') && disposable) {
