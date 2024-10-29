@@ -228,7 +228,7 @@ export class InlineCompletionsController extends Disposable {
 
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidBlurEditorWidget */
-				this.model.get()?.stop(tx);
+				this.model.get()?.stop('automatic', tx);
 			});
 		}));
 
@@ -332,9 +332,9 @@ export class InlineCompletionsController extends Disposable {
 		return this._ghostTextWidgets.get()[0]?.get().ownsViewZone(viewZoneId) ?? false;
 	}
 
-	public hide() {
+	public reject() {
 		transaction(tx => {
-			this.model.get()?.stop(tx);
+			this.model.get()?.stop('explicitCancel', tx);
 		});
 	}
 
