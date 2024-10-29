@@ -21,7 +21,7 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { ChatContextKeys, chatEnabled } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
@@ -186,7 +186,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.applyInEditor',
 				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.gitPullRequestGoToChanges,
@@ -222,7 +222,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.applyAll',
 				title: localize2('chat.applyAll.label', "Apply All Edits"),
-				precondition: chatEnabled, // improve this condition
+				precondition: ChatContextKeys.chatEnabled, // improve this condition
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.edit
@@ -254,7 +254,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
 				title: localize2('interactive.insertCodeBlock.label', "Insert At Cursor"),
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.insert,
@@ -284,7 +284,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: localize2('interactive.insertIntoNewFile.label', "Insert into New File"),
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.newFile,
@@ -331,7 +331,7 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: localize2('interactive.runInTerminal.label', "Insert into Terminal"),
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
@@ -450,7 +450,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -472,7 +472,7 @@ export function registerChatCodeBlockActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

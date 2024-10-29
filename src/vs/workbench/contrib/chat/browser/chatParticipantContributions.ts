@@ -25,7 +25,7 @@ import * as extensionsRegistry from '../../../services/extensions/common/extensi
 import { showExtensionsWithIdsCommandId } from '../../extensions/browser/extensionsActions.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
-import { chatEditingParticipantRegistered, chatExtensionInvalid, chatPanelParticipantRegistered } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { CHAT_VIEW_ID } from './chat.js';
 import { CHAT_EDITING_SIDEBAR_PANEL_ID, CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
@@ -317,7 +317,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 				order: 100
 			},
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
-			when: ContextKeyExpr.or(chatPanelParticipantRegistered, chatExtensionInvalid)
+			when: ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.chatExtensionInvalid)
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, this._viewContainer);
 
@@ -350,7 +350,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			canToggleVisibility: false,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.EditingSession }]),
-			when: chatEditingParticipantRegistered
+			when: ChatContextKeys.chatEditingParticipantRegistered
 		}];
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
 
@@ -379,7 +379,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
 		// but this is only enabled for Copilot Chat now and it needs to be obvious.
-		const isInvalid = chatExtensionInvalid.bindTo(contextKeyService);
+		const isInvalid = ChatContextKeys.chatExtensionInvalid.bindTo(contextKeyService);
 		this._register(Event.runAndSubscribe(
 			extensionsWorkbenchService.onDidChangeExtensionsNotification,
 			() => {
@@ -408,7 +408,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		this._register(viewsRegistry.registerViewWelcomeContent(CHAT_VIEW_ID, {
 			content: [mainMessage, commandButton, versionMessage].join('\n\n'),
-			when: chatExtensionInvalid,
+			when: ChatContextKeys.chatExtensionInvalid,
 		}));
 	}
 }

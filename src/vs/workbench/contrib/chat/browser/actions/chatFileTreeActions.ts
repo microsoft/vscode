@@ -10,7 +10,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys, chatEnabled } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
@@ -24,7 +24,7 @@ export function registerChatFileTreeActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});
@@ -45,7 +45,7 @@ export function registerChatFileTreeActions() {
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: ChatContextKeys.inChatSession,
 				},
-				precondition: chatEnabled,
+				precondition: ChatContextKeys.chatEnabled,
 				f1: true,
 				category: CHAT_CATEGORY,
 			});

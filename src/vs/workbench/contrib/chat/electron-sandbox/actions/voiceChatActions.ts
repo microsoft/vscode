@@ -37,7 +37,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys, chatEnabled } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
@@ -61,7 +61,7 @@ type VoiceChatSessionContext = 'view' | 'inline' | 'quick' | 'editor';
 const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', 'quick', 'editor'];
 
 // Global Context Keys (set on global context key service)
-const CanVoiceChat = ContextKeyExpr.and(chatEnabled, HasSpeechProvider);
+const CanVoiceChat = ContextKeyExpr.and(ChatContextKeys.chatEnabled, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
 const AnyChatRequestInProgress = ChatContextKeys.requestInProgress;
 

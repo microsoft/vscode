@@ -26,7 +26,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { chatExtensionInvalid, chatPanelParticipantRegistered, ChatContextKeys } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { CHAT_VIEW_ID, showChatView } from './chat.js';
 import { CHAT_SIDEBAR_OLD_VIEW_PANEL_ID, CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 
@@ -131,7 +131,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: chatPanelParticipantRegistered,
+			when: ChatContextKeys.chatPanelParticipantRegistered,
 			primary: 0,
 			handler: accessor => showChatView(accessor.get(IViewsService))
 		});
@@ -206,7 +206,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 			order: 1,
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(chatPanelParticipantRegistered, chatExtensionInvalid)),
+			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.chatExtensionInvalid)),
 			ctorDescriptor: new SyncDescriptor(MovedChatViewPane, [{ id: viewId }]),
 		};
 
@@ -244,7 +244,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
 			content: [welcomeViewMainMessage, okButton, restoreButton, welcomeViewFooterMessage].join('\n\n'),
 			renderSecondaryButtons: true,
-			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(chatPanelParticipantRegistered, chatExtensionInvalid))
+			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.chatExtensionInvalid))
 		});
 	}
 
