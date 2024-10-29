@@ -2698,7 +2698,7 @@ declare module 'vscode' {
 		 * We also support returning `Command` for legacy reasons, however all new extensions should return
 		 * `CodeAction` object instead.
 		 */
-		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | T)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<Array<Command | T>>;
 
 		/**
 		 * Given a code action fill in its {@linkcode CodeAction.edit edit}-property. Changes to
@@ -8654,7 +8654,7 @@ declare module 'vscode' {
 		 * @param args The command arguments.
 		 * @param options Optional options for the started the shell.
 		 */
-		constructor(command: string | ShellQuotedString, args: (string | ShellQuotedString)[], options?: ShellExecutionOptions);
+		constructor(command: string | ShellQuotedString, args: Array<string | ShellQuotedString>, options?: ShellExecutionOptions);
 
 		/**
 		 * The shell command line. Is `undefined` if created with a command and arguments.
@@ -8669,7 +8669,7 @@ declare module 'vscode' {
 		/**
 		 * The shell args. Is `undefined` if created with a full command line.
 		 */
-		args: (string | ShellQuotedString)[];
+		args: Array<string | ShellQuotedString>;
 
 		/**
 		 * The shell options used when the command line is executed in a shell.
@@ -19390,7 +19390,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart)[], name?: string): LanguageModelChatMessage;
+		static User(content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * Utility to create a new assistant message.
@@ -19398,7 +19398,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage;
+		static Assistant(content: string | Array<LanguageModelTextPart | LanguageModelToolCallPart>, name?: string): LanguageModelChatMessage;
 
 		/**
 		 * The role of this message.
@@ -19409,7 +19409,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
+		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -19423,7 +19423,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>, name?: string);
 	}
 
 	/**
@@ -19840,13 +19840,13 @@ declare module 'vscode' {
 		/**
 		 * The value of the tool result.
 		 */
-		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
 
 		/**
 		 * @param callId The ID of the tool call.
 		 * @param content The content of the tool result.
 		 */
-		constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
+		constructor(callId: string, content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>);
 	}
 
 	/**
@@ -19891,13 +19891,13 @@ declare module 'vscode' {
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */
-		content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+		content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart | unknown>;
 
 		/**
 		 * Create a LanguageModelToolResult
 		 * @param content A list of tool result content parts
 		 */
-		constructor(content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]);
+		constructor(content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>);
 	}
 
 	/**
