@@ -1130,7 +1130,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
 
 		// Push the welcome message down so it doesn't change position when followups appear
-		const followupsOffset = Math.max(100 - this.inputPart.followupsHeight, 0);
+		const followupsOffset = this.viewOptions.renderFollowups ? Math.max(100 - this.inputPart.followupsHeight, 0) : 0;
 		this.welcomeMessageContainer.style.height = `${listHeight - followupsOffset}px`;
 		this.welcomeMessageContainer.style.paddingBottom = `${followupsOffset}px`;
 		this.renderer.layout(width);
