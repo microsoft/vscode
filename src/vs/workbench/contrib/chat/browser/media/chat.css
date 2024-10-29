@@ -305,6 +305,11 @@
 	margin: 8px 0 16px 0;
 }
 
+.interactive-item-container .value .rendered-markdown .codicon {
+	position: relative;
+	top: 2px;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
