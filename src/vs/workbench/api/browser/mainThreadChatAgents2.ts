@@ -21,16 +21,17 @@ import { ILanguageFeaturesService } from '../../../editor/common/services/langua
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { ChatAgentLocation, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatService, IChatTask, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 
 interface AgentData {
 	dispose: () => void;
@@ -84,6 +85,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private _responsePartHandlePool = 0;
 	private readonly _activeTasks = new Map<string, IChatTask>();
 
+	private readonly _unresolvedAnchors = new Map</* requestId */string, Map</* id */ string, IChatContentInlineReference>>();
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
@@ -133,7 +136,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void {
-		const staticAgentRegistration = this._chatAgentService.getAgent(id);
+		const staticAgentRegistration = this._chatAgentService.getAgent(id, true);
 		if (!staticAgentRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
 				// Likely some extension authors will not adopt the new ID, so give a hint if they register a
@@ -187,7 +190,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					metadata: revive(metadata),
 					slashCommands: [],
 					disambiguation: [],
-					locations: [ChatAgentLocation.Panel] // TODO all dynamic participants are panel only?
+					locations: [ChatAgentLocation.Panel], // TODO all dynamic participants are panel only?
 				},
 				impl);
 		} else {
@@ -239,7 +242,28 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 			}
 		}
+
+		if (revivedProgress.kind === 'inlineReference' && revivedProgress.resolveId) {
+			if (!this._unresolvedAnchors.has(requestId)) {
+				this._unresolvedAnchors.set(requestId, new Map());
+			}
+			this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
+		}
+
 		this._pendingProgress.get(requestId)?.(revivedProgress);
+	}
+
+	$handleAnchorResolve(requestId: string, handle: string, resolveAnchor: Dto<IChatContentInlineReference> | undefined): void {
+		const anchor = this._unresolvedAnchors.get(requestId)?.get(handle);
+		if (!anchor) {
+			return;
+		}
+
+		this._unresolvedAnchors.get(requestId)?.delete(handle);
+		if (resolveAnchor) {
+			const revivedAnchor = revive(resolveAnchor) as IChatContentInlineReference;
+			anchor.inlineReference = revivedAnchor.inlineReference;
+		}
 	}
 
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void {

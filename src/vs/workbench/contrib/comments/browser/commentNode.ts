@@ -14,7 +14,6 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommentService } from './commentService.js';
 import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor.js';
-import { Selection } from '../../../../editor/common/core/selection.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
@@ -50,6 +49,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { MarshalledCommentThread } from '../../../common/comments.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { Position } from '../../../../editor/common/core/position.js';
 
 class CommentsActionRunner extends ActionRunner {
 	protected override async runAction(action: IAction, context: any[]): Promise<void> {
@@ -103,7 +103,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		private readonly parentEditor: LayoutableEditor,
 		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
-		private pendingEdit: string | undefined,
+		private pendingEdit: languages.PendingComment | undefined,
 		private owner: string,
 		private resource: URI,
 		private parentThread: ICommentThreadWidget,
@@ -503,7 +503,14 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditorModel = modelRef;
 
 		this._commentEditor.setModel(this._commentEditorModel.object.textEditorModel);
-		this._commentEditor.setValue(this.pendingEdit ?? this.commentBodyValue);
+		this._commentEditor.setValue(this.pendingEdit?.body ?? this.commentBodyValue);
+		if (this.pendingEdit) {
+			this._commentEditor.setPosition(this.pendingEdit.cursor);
+		} else {
+			const lastLine = this._commentEditorModel.object.textEditorModel.getLineCount();
+			const lastColumn = this._commentEditorModel.object.textEditorModel.getLineLength(lastLine) + 1;
+			this._commentEditor.setPosition(new Position(lastLine, lastColumn));
+		}
 		this.pendingEdit = undefined;
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
@@ -512,10 +519,6 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});
-
-		const lastLine = this._commentEditorModel.object.textEditorModel.getLineCount();
-		const lastColumn = this._commentEditorModel.object.textEditorModel.getLineLength(lastLine) + 1;
-		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
 
 		const commentThread = this.commentThread;
 		commentThread.input = {
@@ -571,10 +574,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		return false;
 	}
 
-	getPendingEdit(): string | undefined {
+	getPendingEdit(): languages.PendingComment | undefined {
 		const model = this._commentEditor?.getModel();
-		if (model && model.getValueLength() > 0) {
-			return model.getValue();
+		if (this._commentEditor && model && model.getValueLength() > 0) {
+			return { body: model.getValue(), cursor: this._commentEditor.getPosition()! };
 		}
 		return undefined;
 	}

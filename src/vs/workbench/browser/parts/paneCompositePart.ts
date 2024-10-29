@@ -98,6 +98,11 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of visible view containers following the visual order.
 	 */
 	getVisiblePaneCompositeIds(): string[];
+
+	/**
+	 * Returns id of all view containers following the visual order.
+	 */
+	getPaneCompositeIds(): string[];
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -534,6 +539,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	getVisiblePaneCompositeIds(): string[] {
 		return this.paneCompositeBar.value?.getVisiblePaneCompositeIds() ?? [];
+	}
+
+	getPaneCompositeIds(): string[] {
+		return this.paneCompositeBar.value?.getPaneCompositeIds() ?? [];
 	}
 
 	getActivePaneComposite(): IPaneComposite | undefined {

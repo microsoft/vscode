@@ -79,6 +79,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private readonly _onDidChangeAccountStatus = this._register(new Emitter<AccountStatus>());
 	readonly onDidChangeAccountStatus = this._onDidChangeAccountStatus.event;
 
+	private readonly _onDidTurnOnSync = this._register(new Emitter<void>());
+	readonly onDidTurnOnSync = this._onDidTurnOnSync.event;
+
 	private _current: UserDataSyncAccount | undefined;
 	get current(): UserDataSyncAccount | undefined { return this._current; }
 
@@ -191,7 +194,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive)(() => this.update('token failure')));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._store)(() => this.onDidChangeStorage()));
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, bailout => bailout)(() => this.onDidAuthFailure()));
 		this.hasConflicts.set(this.userDataSyncService.conflicts.length > 0);
 		this._register(this.userDataSyncService.onDidChangeConflicts(conflicts => {
@@ -324,6 +327,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE.value));
+		this._onDidTurnOnSync.fire();
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {

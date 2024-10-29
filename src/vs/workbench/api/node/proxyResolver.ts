@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// ESM-comment-begin
-// import * as http from 'http';
-// import * as https from 'https';
-// import * as tls from 'tls';
-// import * as net from 'net';
-// ESM-comment-end
-
 import { IExtHostWorkspaceProvider } from '../common/extHostWorkspace.js';
 import { ExtHostConfigProvider } from '../common/extHostConfiguration.js';
 import { MainThreadTelemetryShape } from '../common/extHost.protocol.js';
@@ -21,15 +14,13 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
 import { AuthInfo } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-
-// ESM-uncomment-begin
 import { createRequire } from 'node:module';
+
 const require = createRequire(import.meta.url);
 const http = require('http');
 const https = require('https');
 const tls = require('tls');
 const net = require('net');
-// ESM-uncomment-end
 
 const systemCertificatesV2Default = false;
 const useElectronFetchDefault = false;

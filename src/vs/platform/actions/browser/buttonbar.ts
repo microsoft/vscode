@@ -122,9 +122,9 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const kb = this._keybindingService.lookupKeybinding(action.id);
 			let tooltip: string;
 			if (kb) {
-				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
+				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.tooltip ?? action.label, kb.getLabel());
 			} else {
-				tooltip = action.label;
+				tooltip = action.tooltip ?? action.label;
 			}
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {

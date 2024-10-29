@@ -9,6 +9,13 @@
 	margin: 0 1px;
 	padding: 1px 3px;
 	text-wrap: nowrap;
+	width: fit-content;
+	font-weight: normal;
+	text-decoration: none;
+}
+
+.chat-inline-anchor-widget .icon-label {
+	padding-right: 3px;
 }
 
 .interactive-item-container .value .rendered-markdown .chat-inline-anchor-widget {
@@ -22,7 +29,7 @@
 .chat-inline-anchor-widget .icon {
 	vertical-align: middle;
 	line-height: 1em;
-	font-size: 90%;
+	font-size: 90% !important;
 	overflow: hidden;
 }
 
@@ -35,6 +42,7 @@
 	background-position: center;
 	background-repeat: no-repeat;
 
+	padding: 0 !important;
 	margin-right: 3px;
 	margin-bottom: 1px;
 

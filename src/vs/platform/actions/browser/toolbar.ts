@@ -349,7 +349,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			resetMenu: menuId,
 			...options,
 			actionViewItemProvider: (action, opts) => {
-				let provider = actionViewService.lookUp(menuId, action.id);
+				let provider = actionViewService.lookUp(menuId, action instanceof SubmenuItemAction ? action.item.submenu.id : action.id);
 				if (!provider) {
 					provider = options?.actionViewItemProvider;
 				}
@@ -357,7 +357,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (viewItem) {
 					return viewItem;
 				}
-				return createActionViewItem(instaService, action, options);
+				return createActionViewItem(instaService, action, opts);
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 

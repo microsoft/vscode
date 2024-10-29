@@ -3259,6 +3259,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`cmac`]: ./cmac
 [`hmac`]: ./hmac
 [`pmac`]: ./pmac
+[`retail-mac`]: ./retail-mac
 
 [//]: # (footnotes)
 
@@ -3271,6 +3272,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [CMAC]: https://en.wikipedia.org/wiki/One-key_MAC
 [HMAC]: https://en.wikipedia.org/wiki/HMAC
 [PMAC]: https://en.wikipedia.org/wiki/PMAC_(cryptography)
+[Retail MAC]: https://en.wikipedia.org/wiki/ISO/IEC_9797-1#MAC_algorithm_3
 ---------------------------------------------------------
 
 ---------------------------------------------------------

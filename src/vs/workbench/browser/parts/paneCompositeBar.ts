@@ -11,7 +11,8 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { IDisposable, DisposableStore, Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from './compositeBar.js';
-import { Dimension, createCSSRule, asCSSUrl, isMouseEvent } from '../../../base/browser/dom.js';
+import { Dimension, createCSSRule, isMouseEvent } from '../../../base/browser/dom.js';
+import { asCSSUrl } from '../../../base/browser/cssValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -379,6 +380,12 @@ export class PaneCompositeBar extends Disposable {
 			this.hideComposite(viewContainer.id);
 		} else {
 			this.addComposite(viewContainer);
+
+			// Activate if this is the active pane composite
+			const activePaneComposite = this.paneCompositePart.getActivePaneComposite();
+			if (activePaneComposite?.getId() === viewContainer.id) {
+				this.compositeBar.activateComposite(viewContainer.id);
+			}
 		}
 	}
 
@@ -450,6 +457,11 @@ export class PaneCompositeBar extends Disposable {
 	getVisiblePaneCompositeIds(): string[] {
 		return this.compositeBar.getVisibleComposites()
 			.filter(v => this.paneCompositePart.getActivePaneComposite()?.getId() === v.id || this.compositeBar.isPinned(v.id))
+			.map(v => v.id);
+	}
+
+	getPaneCompositeIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
 			.map(v => v.id);
 	}
 

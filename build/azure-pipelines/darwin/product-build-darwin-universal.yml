@@ -68,6 +68,13 @@ steps:
 
   - script: |
       set -e
+      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js universal
+    displayName: Verify arch of Mach-O objects
+
+  - script: |
+      set -e
       security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
       security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
       security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain

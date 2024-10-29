@@ -19,7 +19,7 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { SettingsTreeSettingElement } from './settingsTreeModels.js';
-import { POLICY_SETTING_TAG } from '../common/preferences.js';
+import { EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
@@ -64,13 +64,16 @@ let cachedSyncIgnoredSettings: string[] = [];
 export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly indicatorsContainerElement: HTMLElement;
 
+	private readonly previewIndicator: SettingIndicator;
 	private readonly workspaceTrustIndicator: SettingIndicator;
 	private readonly scopeOverridesIndicator: SettingIndicator;
 	private readonly syncIgnoredIndicator: SettingIndicator;
 	private readonly defaultOverrideIndicator: SettingIndicator;
-	private readonly allIndicators: SettingIndicator[];
 
-	private readonly profilesEnabled: boolean;
+	/** Indicators that each have their own square container at the top-right of the setting */
+	private readonly isolatedIndicators: SettingIndicator[] = [];
+	/** Indicators that end up wrapped in a parenthesis at the top-right of the setting */
+	private readonly parenthesizedIndicators: SettingIndicator[];
 
 	private readonly keybindingListeners: DisposableStore = new DisposableStore();
 	private focusedIndex = 0;
@@ -81,18 +84,18 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService private readonly commandService: ICommandService) {
 		this.indicatorsContainerElement = DOM.append(container, $('.setting-indicators-container'));
 		this.indicatorsContainerElement.style.display = 'inline';
 
-		this.profilesEnabled = this.userDataProfilesService.isEnabled();
+		this.previewIndicator = this.createPreviewIndicator();
+		this.isolatedIndicators = [this.previewIndicator];
 
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
 		this.syncIgnoredIndicator = this.createSyncIgnoredIndicator();
 		this.defaultOverrideIndicator = this.createDefaultOverrideIndicator();
-		this.allIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
+		this.parenthesizedIndicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator, this.syncIgnoredIndicator, this.defaultOverrideIndicator];
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
@@ -211,24 +214,46 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 	}
 
-	private render() {
-		const indicatorsToShow = this.allIndicators.filter(indicator => {
-			return indicator.element.style.display !== 'none';
-		});
+	private createPreviewIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
+		const previewIndicator = $('span.setting-indicator.setting-item-preview');
+		const previewLabel = disposables.add(new SimpleIconLabel(previewIndicator));
 
+		return {
+			element: previewIndicator,
+			label: previewLabel,
+			disposables
+		};
+	}
+
+	private render() {
 		this.indicatorsContainerElement.innerText = '';
 		this.indicatorsContainerElement.style.display = 'none';
-		if (indicatorsToShow.length) {
+
+		const isolatedIndicatorsToShow = this.isolatedIndicators.filter(indicator => {
+			return indicator.element.style.display !== 'none';
+		});
+		if (isolatedIndicatorsToShow.length) {
+			this.indicatorsContainerElement.style.display = 'inline';
+			for (let i = 0; i < isolatedIndicatorsToShow.length; i++) {
+				DOM.append(this.indicatorsContainerElement, isolatedIndicatorsToShow[i].element);
+			}
+		}
+
+		const parenthesizedIndicatorsToShow = this.parenthesizedIndicators.filter(indicator => {
+			return indicator.element.style.display !== 'none';
+		});
+		if (parenthesizedIndicatorsToShow.length) {
 			this.indicatorsContainerElement.style.display = 'inline';
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, '('));
-			for (let i = 0; i < indicatorsToShow.length - 1; i++) {
-				DOM.append(this.indicatorsContainerElement, indicatorsToShow[i].element);
+			for (let i = 0; i < parenthesizedIndicatorsToShow.length - 1; i++) {
+				DOM.append(this.indicatorsContainerElement, parenthesizedIndicatorsToShow[i].element);
 				DOM.append(this.indicatorsContainerElement, $('span.comma', undefined, ' • '));
 			}
-			DOM.append(this.indicatorsContainerElement, indicatorsToShow[indicatorsToShow.length - 1].element);
+			DOM.append(this.indicatorsContainerElement, parenthesizedIndicatorsToShow[parenthesizedIndicatorsToShow.length - 1].element);
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
-			this.resetIndicatorNavigationKeyBindings(indicatorsToShow);
 		}
+		this.resetIndicatorNavigationKeyBindings([...isolatedIndicatorsToShow, ...parenthesizedIndicatorsToShow]);
 	}
 
 	private resetIndicatorNavigationKeyBindings(indicators: SettingIndicator[]) {
@@ -294,6 +319,27 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		}
 	}
 
+	updatePreviewIndicator(element: SettingsTreeSettingElement) {
+		const isPreviewSetting = element.tags?.has('preview');
+		const isExperimentalSetting = element.tags?.has('experimental');
+		this.previewIndicator.element.style.display = (isPreviewSetting || isExperimentalSetting) ? 'inline' : 'none';
+		this.previewIndicator.label.text = isPreviewSetting ?
+			localize('previewLabel', "Preview") :
+			localize('experimentalLabel', "Experimental");
+
+		const content = isPreviewSetting ? PREVIEW_INDICATOR_DESCRIPTION : EXPERIMENTAL_INDICATOR_DESCRIPTION;
+		const showHover = (focus: boolean) => {
+			return this.hoverService.showHover({
+				...this.defaultHoverOptions,
+				content,
+				target: this.previewIndicator.element
+			}, focus);
+		};
+		this.addHoverDisposables(this.previewIndicator.disposables, this.previewIndicator.element, showHover);
+
+		this.render();
+	}
+
 	private getInlineScopeDisplayText(completeScope: string): string {
 		const [scope, language] = completeScope.split(':');
 		const localizedScope = scope === 'user' ?
@@ -307,7 +353,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	dispose() {
 		this.keybindingListeners.dispose();
-		for (const indicator of this.allIndicators) {
+		for (const indicator of this.isolatedIndicators) {
+			indicator.disposables.dispose();
+		}
+		for (const indicator of this.parenthesizedIndicators) {
 			indicator.disposables.dispose();
 		}
 	}
@@ -338,7 +387,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				}, focus);
 			};
 			this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
-		} else if (this.profilesEnabled && element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+		} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
 
@@ -531,6 +580,13 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
 
+	// Add preview or experimental indicator text
+	if (element.tags?.has('preview')) {
+		ariaLabelSections.push(localize('previewLabel', "Preview"));
+	} else if (element.tags?.has('experimental')) {
+		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
+	}
+
 	// Add workspace trust text
 	if (element.isUntrusted) {
 		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value not applied"));
@@ -538,7 +594,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	if (element.hasPolicyValue) {
 		ariaLabelSections.push(localize('policyDescriptionAccessible', "Managed by organization policy; setting value not applied"));
-	} else if (userDataProfilesService.isEnabled() && element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
+	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {
 		// Add other overrides text

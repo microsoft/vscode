@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as vscode from 'vscode';
 import { AsyncIterableObject, AsyncIterableSource } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
@@ -10,20 +11,20 @@ import { CancellationError, SerializedError, transformErrorForSerialization, tra
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
+import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatMessage, IChatResponseFragment, IChatResponsePart, ILanguageModelChatMetadata } from '../../contrib/chat/common/languageModels.js';
-import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
-import type * as vscode from 'vscode';
 
 export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 
@@ -37,13 +38,13 @@ type LanguageModelData = {
 
 class LanguageModelResponseStream {
 
-	readonly stream = new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+	readonly stream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 
 	constructor(
 		readonly option: number,
-		stream?: AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>
+		stream?: AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>
 	) {
-		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+		this.stream = stream ?? new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 	}
 }
 
@@ -52,7 +53,7 @@ class LanguageModelResponse {
 	readonly apiObject: vscode.LanguageModelChatResponse;
 
 	private readonly _responseStreams = new Map<number, LanguageModelResponseStream>();
-	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart>();
+	private readonly _defaultStream = new AsyncIterableSource<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart>();
 	private _isDone: boolean = false;
 
 	constructor() {
@@ -100,11 +101,11 @@ class LanguageModelResponse {
 			this._responseStreams.set(fragment.index, res);
 		}
 
-		let out: vscode.LanguageModelChatResponseTextPart | vscode.LanguageModelChatResponseToolCallPart;
+		let out: vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart;
 		if (fragment.part.type === 'text') {
 			out = new extHostTypes.LanguageModelTextPart(fragment.part.value);
 		} else {
-			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.name, fragment.part.toolCallId, fragment.part.parameters);
+			out = new extHostTypes.LanguageModelToolCallPart(fragment.part.toolCallId, fragment.part.name, fragment.part.parameters);
 		}
 		res.stream.emitOne(out);
 	}
@@ -140,6 +141,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	private readonly _allLanguageModelData = new Map<string, { metadata: ILanguageModelChatMetadata; apiObjects: ExtensionIdentifierMap<vscode.LanguageModelChat> }>(); // these are ALL models, not just the one in this EH
 	private readonly _modelAccessList = new ExtensionIdentifierMap<ExtensionIdentifierSet>();
 	private readonly _pendingRequest = new Map<number, { languageModelId: string; res: LanguageModelResponse }>();
+	private readonly _ignoredFileProviders = new Map<number, vscode.LanguageModelIgnoredFileProvider>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -204,7 +206,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			let part: IChatResponsePart | undefined;
 			if (fragment.part instanceof extHostTypes.LanguageModelToolCallPart) {
-				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.parameters, toolCallId: fragment.part.toolCallId };
+				part = { type: 'tool_use', name: fragment.part.name, parameters: fragment.part.input ?? fragment.part.parameters, toolCallId: fragment.part.callId };
 			} else if (fragment.part instanceof extHostTypes.LanguageModelTextPart) {
 				part = { type: 'text', value: fragment.part.value };
 			}
@@ -231,15 +233,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		} else {
 
-			const progress2 = new Progress<vscode.ChatResponseFragment>(async fragment => {
-				progress.report({ index: fragment.index, part: new extHostTypes.LanguageModelTextPart(fragment.part) });
-			});
-
 			p = Promise.resolve(data.provider.provideLanguageModelResponse(
 				messages.map(typeConvert.LanguageModelChatMessage.to),
-				options?.modelOptions ?? {},
+				options,
 				ExtensionIdentifier.toKey(from),
-				progress2,
+				progress,
 				token
 			));
 		}
@@ -289,6 +287,15 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		data.added?.forEach(added => this._fakeAuthPopulate(added.metadata));
 
 		this._onDidChangeProviders.fire(undefined);
+	}
+
+	async getDefaultLanguageModel(extension: IExtensionDescription): Promise<vscode.LanguageModelChat | undefined> {
+		const defaultModelId = Iterable.find(this._allLanguageModelData.entries(), ([, value]) => !!value.metadata.isDefault)?.[0];
+		if (!defaultModelId) {
+			return;
+		}
+
+		return this.getLanguageModelByIdentifier(extension, defaultModelId);
 	}
 
 	async getLanguageModelByIdentifier(extension: IExtensionDescription, identifier: string): Promise<vscode.LanguageModelChat | undefined> {
@@ -371,6 +378,19 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 		}
 
+		if (options.tools) {
+			// TODO@API backwards compat, remove
+			// when getting tools passed massage them to have inputSchema set
+			type OldChatTool = vscode.LanguageModelChatTool & { parametersSchema?: object };
+			options.tools = options.tools.map((tool: OldChatTool) => {
+				return {
+					...tool,
+					inputSchema: tool.inputSchema ?? tool.parametersSchema,
+					parametersSchema: tool.inputSchema ?? tool.parametersSchema,
+				};
+			});
+		}
+
 		try {
 			const requestId = (Math.random() * 1e6) | 0;
 			const res = new LanguageModelResponse();
@@ -405,9 +425,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		for (const message of messages) {
 			if (message.role as number === extHostTypes.LanguageModelChatMessageRole.System) {
 				checkProposedApiEnabled(extension, 'languageModelSystem');
-			}
-			if (message.content2.some(part => part instanceof extHostTypes.LanguageModelToolResultPart)) {
-				checkProposedApiEnabled(extension, 'lmTools');
 			}
 			internalMessages.push(typeConvert.LanguageModelChatMessage.from(message));
 		}
@@ -563,5 +580,32 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return list.has(metadata.extension);
 			}
 		};
+	}
+
+	fileIsIgnored(extension: IExtensionDescription, uri: vscode.Uri, token: vscode.CancellationToken): Promise<boolean> {
+		checkProposedApiEnabled(extension, 'chatParticipantAdditions');
+
+		return this._proxy.$fileIsIgnored(uri, token);
+	}
+
+	async $isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean> {
+		const provider = this._ignoredFileProviders.get(handle);
+		if (!provider) {
+			throw new Error('Unknown LanguageModelIgnoredFileProvider');
+		}
+
+		return (await provider.provideFileIgnored(URI.revive(uri), token)) ?? false;
+	}
+
+	registerIgnoredFileProvider(extension: IExtensionDescription, provider: vscode.LanguageModelIgnoredFileProvider): vscode.Disposable {
+		checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+
+		const handle = ExtHostLanguageModels._idPool++;
+		this._proxy.$registerFileIgnoreProvider(handle);
+		this._ignoredFileProviders.set(handle, provider);
+		return toDisposable(() => {
+			this._proxy.$unregisterFileIgnoreProvider(handle);
+			this._ignoredFileProviders.delete(handle);
+		});
 	}
 }

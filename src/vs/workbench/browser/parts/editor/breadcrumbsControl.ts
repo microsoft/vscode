@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { BreadcrumbsItem, BreadcrumbsWidget, IBreadcrumbsItemEvent, IBreadcrumbsWidgetStyles } from '../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
-import { tail } from '../../../../base/common/arrays.js';
 import { timeout } from '../../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -638,7 +637,7 @@ function focusAndSelectHandler(accessor: ServicesAccessor, select: boolean): voi
 	const breadcrumbs = accessor.get(IBreadcrumbsService);
 	const widget = breadcrumbs.getWidget(groups.activeGroup.id);
 	if (widget) {
-		const item = tail(widget.getItems());
+		const item = widget.getItems().at(-1);
 		widget.setFocused(item);
 		if (select) {
 			widget.setSelection(item, BreadcrumbsControl.Payload_Pick);

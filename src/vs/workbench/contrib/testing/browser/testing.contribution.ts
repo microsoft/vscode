@@ -149,7 +149,7 @@ registerEditorContribution(Testing.CoverageDecorationsContributionId, CodeCovera
 CommandsRegistry.registerCommand({
 	id: '_revealTestInExplorer',
 	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
+		accessor.get(ITestExplorerFilterState).reveal.set(typeof testId === 'string' ? testId : testId.extId, undefined);
 		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });
@@ -198,7 +198,7 @@ CommandsRegistry.registerCommand({
 		// revealed range to those decorations (#133441).
 		const position = accessor.get(ITestingDecorationsService).getDecoratedTestPosition(uri, extId) || range?.getStartPosition();
 
-		accessor.get(ITestExplorerFilterState).reveal.value = extId;
+		accessor.get(ITestExplorerFilterState).reveal.set(extId, undefined);
 		accessor.get(ITestingPeekOpener).closeAllPeeks();
 
 		let isFile = true;

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
-import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions } from 'vscode';
+import assert from 'assert';
+import { workspace, commands, window, Uri, WorkspaceEdit, Range, TextDocument, extensions, TabInputTextDiff } from 'vscode';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -73,17 +73,22 @@ suite('git smoke test', function () {
 		await type(appjs, ' world');
 		await appjs.save();
 		await repository.status();
+
 		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
-		repository.state.workingTreeChanges.some(r => r.uri.path === appjs.uri.path && r.status === Status.MODIFIED);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, appjs.uri.path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.MODIFIED);
 
 		fs.writeFileSync(file('newfile.txt'), '');
 		const newfile = await open('newfile.txt');
 		await type(newfile, 'hey there');
 		await newfile.save();
 		await repository.status();
+
 		assert.strictEqual(repository.state.workingTreeChanges.length, 2);
-		repository.state.workingTreeChanges.some(r => r.uri.path === appjs.uri.path && r.status === Status.MODIFIED);
-		repository.state.workingTreeChanges.some(r => r.uri.path === newfile.uri.path && r.status === Status.UNTRACKED);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, appjs.uri.path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.MODIFIED);
+		assert.strictEqual(repository.state.workingTreeChanges[1].uri.path, newfile.uri.path);
+		assert.strictEqual(repository.state.workingTreeChanges[1].status, Status.UNTRACKED);
 	});
 
 	test('opens diff editor', async function () {
@@ -93,37 +98,50 @@ suite('git smoke test', function () {
 		assert(window.activeTextEditor);
 		assert.strictEqual(window.activeTextEditor!.document.uri.path, appjs.path);
 
-		// TODO: how do we really know this is a diff editor?
+		assert(window.tabGroups.activeTabGroup.activeTab);
+		assert(window.tabGroups.activeTabGroup.activeTab!.input instanceof TabInputTextDiff);
 	});
 
 	test('stages correctly', async function () {
 		const appjs = uri('app.js');
 		const newfile = uri('newfile.txt');
 
-		await commands.executeCommand('git.stage', appjs);
-		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
-		repository.state.workingTreeChanges.some(r => r.uri.path === newfile.path && r.status === Status.UNTRACKED);
-		assert.strictEqual(repository.state.indexChanges.length, 1);
-		repository.state.indexChanges.some(r => r.uri.path === appjs.path && r.status === Status.INDEX_MODIFIED);
+		await repository.add([appjs.fsPath]);
 
-		await commands.executeCommand('git.unstage', appjs);
+		assert.strictEqual(repository.state.indexChanges.length, 1);
+		assert.strictEqual(repository.state.indexChanges[0].uri.path, appjs.path);
+		assert.strictEqual(repository.state.indexChanges[0].status, Status.INDEX_MODIFIED);
+
+		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, newfile.path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.UNTRACKED);
+
+		await repository.revert([appjs.fsPath]);
+
+		assert.strictEqual(repository.state.indexChanges.length, 0);
+
 		assert.strictEqual(repository.state.workingTreeChanges.length, 2);
-		repository.state.workingTreeChanges.some(r => r.uri.path === appjs.path && r.status === Status.MODIFIED);
-		repository.state.workingTreeChanges.some(r => r.uri.path === newfile.path && r.status === Status.UNTRACKED);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, appjs.path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.MODIFIED);
+		assert.strictEqual(repository.state.workingTreeChanges[1].uri.path, newfile.path);
+		assert.strictEqual(repository.state.workingTreeChanges[1].status, Status.UNTRACKED);
 	});
 
 	test('stages, commits changes and verifies outgoing change', async function () {
 		const appjs = uri('app.js');
 		const newfile = uri('newfile.txt');
 
-		await commands.executeCommand('git.stage', appjs);
+		await repository.add([appjs.fsPath]);
 		await repository.commit('second commit');
+
 		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
-		repository.state.workingTreeChanges.some(r => r.uri.path === newfile.path && r.status === Status.UNTRACKED);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, newfile.path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.UNTRACKED);
+
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 
-		await commands.executeCommand('git.stageAll', appjs);
-		await repository.commit('third commit');
+		await repository.commit('third commit', { all: true });
+
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
@@ -131,16 +149,19 @@ suite('git smoke test', function () {
 	test('rename/delete conflict', async function () {
 		await commands.executeCommand('workbench.view.scm');
 
+		const appjs = file('app.js');
+		const renamejs = file('rename.js');
+
 		await repository.createBranch('test', true);
 
 		// Delete file (test branch)
-		fs.unlinkSync(file('app.js'));
+		fs.unlinkSync(appjs);
 		await repository.commit('commit on test', { all: true });
 
 		await repository.checkout('main');
 
 		// Rename file (main branch)
-		fs.renameSync(file('app.js'), file('rename.js'));
+		fs.renameSync(appjs, renamejs);
 		await repository.commit('commit on main', { all: true });
 
 		try {
@@ -148,6 +169,8 @@ suite('git smoke test', function () {
 		} catch (e) { }
 
 		assert.strictEqual(repository.state.mergeChanges.length, 1);
+		assert.strictEqual(repository.state.mergeChanges[0].status, Status.DELETED_BY_THEM);
+
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});

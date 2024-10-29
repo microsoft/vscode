@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../base/common/errors.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { basename } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
@@ -19,7 +18,6 @@ import { ChatRequestDynamicVariablePart, ChatRequestToolPart, ChatRequestVariabl
 import { IChatContentReference } from '../common/chatService.js';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from '../common/chatVariables.js';
 import { IChatWidgetService, showChatView } from './chat.js';
-import { ChatContextAttachments } from './contrib/chatContextAttachments.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 
 interface IChatData {
@@ -62,7 +60,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data, fullName: part.fullName, icon: part.icon, isFile: part.isFile };
 				} else if (part instanceof ChatRequestToolPart) {
 					resolvedVariables[i] = { id: part.toolId, name: part.toolName, range: part.range, value: undefined, isTool: true, icon: ThemeIcon.isThemeIcon(part.icon) ? part.icon : undefined, fullName: part.displayName };
 				}
@@ -87,7 +85,7 @@ export class ChatVariablesService implements IChatVariablesService {
 						}
 					}).catch(onUnexpectedExternalError));
 				} else if (attachment.isDynamic || attachment.isTool) {
-					resolvedAttachedContext[i] = { ...attachment };
+					resolvedAttachedContext[i] = attachment;
 				}
 			});
 
@@ -176,7 +174,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isFile: true, isDynamic: true });
+			widget.attachmentModel.addFile(uri, range);
 			return;
 		}
 
@@ -185,6 +183,6 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { ...resolved.data, value });
+		widget.attachmentModel.addContext({ ...resolved.data, value });
 	}
 }

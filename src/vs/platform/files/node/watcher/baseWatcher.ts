@@ -11,6 +11,7 @@ import { FileChangeType, IFileChange } from '../../common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DeferredPromise, ThrottledDelayer } from '../../../../base/common/async.js';
 import { hash } from '../../../../base/common/hash.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 
 interface ISuspendedWatchRequest {
 	readonly id: number;
@@ -107,7 +108,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 			}
 		}
 
-		return this.updateWatchersDelayer.trigger(() => this.doWatch(nonSuspendedRequests), delayed ? this.getUpdateWatchersDelay() : 0);
+		return this.updateWatchersDelayer.trigger(() => this.doWatch(nonSuspendedRequests), delayed ? this.getUpdateWatchersDelay() : 0).catch(error => onUnexpectedError(error));
 	}
 
 	protected getUpdateWatchersDelay(): number {

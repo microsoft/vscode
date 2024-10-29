@@ -147,7 +147,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			if (item && item.range) {
 				this.gotoLocation(context, { range: item.range.selection, keyMods: picker.keyMods, preserveFocus: event.inBackground });
 
-				runOptions?.handleAccept?.(item);
+				runOptions?.handleAccept?.(item, event.inBackground);
 
 				if (!event.inBackground) {
 					picker.hide();

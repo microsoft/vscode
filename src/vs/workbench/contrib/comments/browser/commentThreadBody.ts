@@ -49,7 +49,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		readonly container: HTMLElement,
 		private _options: IMarkdownRendererOptions,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingEdits: { [key: number]: string } | undefined,
+		private _pendingEdits: { [key: number]: languages.PendingComment } | undefined,
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		@ICommentService private commentService: ICommentService,
@@ -142,8 +142,8 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		});
 	}
 
-	getPendingEdits(): { [key: number]: string } {
-		const pendingEdits: { [key: number]: string } = {};
+	getPendingEdits(): { [key: number]: languages.PendingComment } {
+		const pendingEdits: { [key: number]: languages.PendingComment } = {};
 		this._commentElements.forEach(element => {
 			if (element.isEditing) {
 				const pendingEdit = element.getPendingEdit();
