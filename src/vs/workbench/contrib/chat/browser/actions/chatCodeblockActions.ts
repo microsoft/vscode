@@ -21,7 +21,7 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { chatEditApplied, chatEnabled, inChatInput, inChatSession } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, chatEnabled, inChatInput, inChatSession } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
@@ -537,7 +537,7 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.check,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, chatEditApplied.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.chatEditApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
@@ -569,7 +569,7 @@ export function registerChatCodeCompareBlockActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.trash,
-				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, chatEditApplied.negate()),
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, ChatContextKeys.chatEditApplied.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
 					group: 'navigation',
