@@ -37,7 +37,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { requestInProgress, inChatInput, chatEnabled, isResponse, responseIsFiltered, location } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, inChatInput, chatEnabled, isResponse, location } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
@@ -63,7 +63,7 @@ const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', '
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(chatEnabled, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, inChatInput);
-const AnyChatRequestInProgress = requestInProgress;
+const AnyChatRequestInProgress = ChatContextKeys.requestInProgress;
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
 const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
@@ -435,7 +435,7 @@ export class VoiceChatInChatViewAction extends VoiceChatWithHoldModeAction {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
-				requestInProgress.negate() // disable when a chat request is in progress
+				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
 			),
 			f1: true
 		}, 'view');
@@ -454,7 +454,7 @@ export class HoldToVoiceChatInChatViewAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
-					requestInProgress.negate(), 	// disable when a chat request is in progress
+					ChatContextKeys.requestInProgress.negate(), 	// disable when a chat request is in progress
 					FocusInChatInput?.negate(),					// when already in chat input, disable this action and prefer to start voice chat directly
 					EditorContextKeys.focus.negate(), 			// do not steal the inline-chat keybinding
 					NOTEBOOK_EDITOR_FOCUSED.negate()			// do not steal the notebook keybinding
@@ -508,7 +508,7 @@ export class InlineVoiceChatAction extends VoiceChatWithHoldModeAction {
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
 				ActiveEditorContext,
-				requestInProgress.negate() // disable when a chat request is in progress
+				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
 			),
 			f1: true
 		}, 'inline');
@@ -526,7 +526,7 @@ export class QuickVoiceChatAction extends VoiceChatWithHoldModeAction {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				CanVoiceChat,
-				requestInProgress.negate() // disable when a chat request is in progress
+				ChatContextKeys.requestInProgress.negate() // disable when a chat request is in progress
 			),
 			f1: true
 		}, 'quick');
@@ -852,7 +852,7 @@ export class ReadChatResponseAloud extends Action2 {
 					CanVoiceChat,
 					isResponse,						// only for responses
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
-					responseIsFiltered.negate(),		// and not when response is filtered
+					ChatContextKeys.responseIsFiltered.negate(),		// and not when response is filtered
 				),
 				group: 'navigation',
 				order: -10 // first
@@ -862,7 +862,7 @@ export class ReadChatResponseAloud extends Action2 {
 					CanVoiceChat,
 					isResponse,						// only for responses
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
-					responseIsFiltered.negate()		// and not when response is filtered
+					ChatContextKeys.responseIsFiltered.negate()		// and not when response is filtered
 				),
 				group: 'navigation',
 				order: -10 // first
@@ -975,7 +975,7 @@ export class StopReadChatItemAloud extends Action2 {
 					when: ContextKeyExpr.and(
 						ScopedChatSynthesisInProgress,		// only when in progress
 						isResponse,					// only for responses
-						responseIsFiltered.negate()	// but not when response is filtered
+						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
 					group: 'navigation',
 					order: -10 // first
@@ -985,7 +985,7 @@ export class StopReadChatItemAloud extends Action2 {
 					when: ContextKeyExpr.and(
 						ScopedChatSynthesisInProgress,		// only when in progress
 						isResponse,					// only for responses
-						responseIsFiltered.negate()	// but not when response is filtered
+						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
 					group: 'navigation',
 					order: -10 // first

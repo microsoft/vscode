@@ -27,7 +27,7 @@ import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEditingParticipantRegistered, location, responseSupportsIssueReporting, inChatInput, inChatSession, itemId, lastItemId, isRequest, isResponse, responseHasError, responseIsFiltered, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, chatEditingParticipantRegistered, inChatInput, inChatSession, isRequest, isResponse, itemId, lastItemId, location } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
@@ -52,12 +52,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(isResponse, responseHasError.negate())
+					when: ContextKeyExpr.and(isResponse, ChatContextKeys.responseHasError.negate())
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(isResponse, responseHasError.negate())
+					when: ContextKeyExpr.and(isResponse, ChatContextKeys.responseHasError.negate())
 				}]
 			});
 		}
@@ -104,7 +104,7 @@ export function registerChatTitleActions() {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(isResponse, responseHasError.negate())
+					when: ContextKeyExpr.and(isResponse, ChatContextKeys.responseHasError.negate())
 				}]
 			});
 		}
@@ -151,12 +151,12 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(responseSupportsIssueReporting, isResponse)
+					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, isResponse)
 				}, {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					group: 'navigation',
 					order: 3,
-					when: ContextKeyExpr.and(responseSupportsIssueReporting, isResponse)
+					when: ContextKeyExpr.and(ChatContextKeys.responseSupportsIssueReporting, isResponse)
 				}]
 			});
 		}
@@ -277,7 +277,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, isResponse, responseIsFiltered.negate())
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, isResponse, ChatContextKeys.responseIsFiltered.negate())
 				}
 			});
 		}

@@ -25,7 +25,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { location, requestInProgress, inChatInput } from '../common/chatContextKeys.js';
+import { location, ChatContextKeys, inChatInput } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
@@ -199,7 +199,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 			id: ChatEditingSaveAllAction.ID,
 			title: ChatEditingSaveAllAction.LABEL,
 			tooltip: ChatEditingSaveAllAction.LABEL,
-			precondition: ContextKeyExpr.and(requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			icon: Codicon.saveAll,
 			menu: [
 				{
@@ -224,7 +224,7 @@ export class ChatEditingSaveAllAction extends Action2 {
 			],
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyS,
-				when: ContextKeyExpr.and(requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput),
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 		});

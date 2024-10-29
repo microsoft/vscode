@@ -21,7 +21,7 @@ import { IListService } from '../../../../../platform/list/browser/listService.j
 import { GroupsOrder, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { inputHasText, location, requestInProgress, inChatInput, inChatSession, itemId, lastItemId, isRequest } from '../../common/chatContextKeys.js';
+import { inputHasText, location, ChatContextKeys, inChatInput, inChatSession, itemId, lastItemId, isRequest } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
@@ -180,10 +180,10 @@ export class ChatEditingAcceptAllAction extends Action2 {
 			title: localize('accept', 'Accept'),
 			icon: Codicon.check,
 			tooltip: localize('acceptAllEdits', 'Accept All Edits'),
-			precondition: ContextKeyExpr.and(requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput),
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -222,7 +222,7 @@ export class ChatEditingDiscardAllAction extends Action2 {
 			title: localize('discard', 'Discard'),
 			icon: Codicon.discard,
 			tooltip: localize('discardAllEdits', 'Discard All Edits'),
-			precondition: ContextKeyExpr.and(requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey),
 			menu: [
 				{
 					when: ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME),
@@ -238,7 +238,7 @@ export class ChatEditingDiscardAllAction extends Action2 {
 				}
 			],
 			keybinding: {
-				when: ContextKeyExpr.and(requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput, inputHasText.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput, inputHasText.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 			},

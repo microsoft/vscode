@@ -34,7 +34,7 @@ import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHo
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
-import { ChatContextKeys, inChatSession, inQuickChat, inputHasAgent, lastItemId, requestInProgress, responseIsFiltered } from '../common/chatContextKeys.js';
+import { ChatContextKeys, inChatSession, inQuickChat, inputHasAgent, lastItemId, } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
@@ -252,7 +252,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
 		inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = inputHasAgent.bindTo(contextKeyService);
-		this.requestInProgress = requestInProgress.bindTo(contextKeyService);
+		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
@@ -711,7 +711,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const selected = e.element;
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
-			[responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered]
+			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
