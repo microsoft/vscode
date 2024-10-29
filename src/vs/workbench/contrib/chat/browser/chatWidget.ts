@@ -34,7 +34,7 @@ import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHo
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
-import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT, CONTEXT_LAST_ITEM_ID, CONTEXT_RESPONSE_FILTERED } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
@@ -248,11 +248,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._location = { location };
 		}
 
-		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
-		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(this._location.location);
-		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set(isQuickChat(this));
-		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
-		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
+		ChatContextKeys.inChatSession.bindTo(contextKeyService).set(true);
+		ChatContextKeys.location.bindTo(contextKeyService).set(this._location.location);
+		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
+		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
+		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 
 		this._codeBlockModelCollection = this._register(instantiationService.createInstance(CodeBlockModelCollection));
 
@@ -547,7 +547,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem) {
-				CONTEXT_LAST_ITEM_ID.bindTo(this.contextKeyService).set([lastItem.id]);
+				ChatContextKeys.lastItemId.bindTo(this.contextKeyService).set([lastItem.id]);
 			}
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups, lastItem);
@@ -714,7 +714,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const selected = e.element;
 		const scopedContextKeyService = this.contextKeyService.createOverlay([
-			[CONTEXT_RESPONSE_FILTERED.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered]
+			[ChatContextKeys.responseIsFiltered.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered]
 		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
