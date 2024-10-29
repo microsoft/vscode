@@ -21,7 +21,7 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { accessibleViewInCodeBlock } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from '../../../terminal/browser/terminal.js';
-import { ChatContextKeys, chatEnabled, inChatInput, inChatSession } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, chatEnabled } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { ChatCopyKind, IChatService } from '../../common/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
@@ -195,13 +195,13 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: ContextKeyExpr.and(
-						inChatSession,
+						ChatContextKeys.inChatSession,
 						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
 					),
 					order: 10
 				},
 				keybinding: {
-					when: ContextKeyExpr.or(ContextKeyExpr.and(inChatSession, inChatInput.negate()), accessibleViewInCodeBlock),
+					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.ExternalExtension + 1
@@ -261,11 +261,11 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-					when: inChatSession,
+					when: ChatContextKeys.inChatSession,
 					order: 20
 				},
 				keybinding: {
-					when: ContextKeyExpr.or(ContextKeyExpr.and(inChatSession, inChatInput.negate()), accessibleViewInCodeBlock),
+					when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()), accessibleViewInCodeBlock),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.ExternalExtension + 1
@@ -339,7 +339,7 @@ export function registerChatCodeBlockActions() {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: ContextKeyExpr.and(
-						inChatSession,
+						ChatContextKeys.inChatSession,
 						ContextKeyExpr.or(...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e)))
 					),
 				},
@@ -348,7 +348,7 @@ export function registerChatCodeBlockActions() {
 					group: 'navigation',
 					isHiddenByDefault: true,
 					when: ContextKeyExpr.and(
-						inChatSession,
+						ChatContextKeys.inChatSession,
 						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
 					)
 				}],
@@ -358,7 +358,7 @@ export function registerChatCodeBlockActions() {
 						primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: ContextKeyExpr.or(inChatSession, accessibleViewInCodeBlock),
+					when: ContextKeyExpr.or(ChatContextKeys.inChatSession, accessibleViewInCodeBlock),
 				}]
 			});
 		}
@@ -448,7 +448,7 @@ export function registerChatCodeBlockActions() {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: inChatSession,
+					when: ChatContextKeys.inChatSession,
 				},
 				precondition: chatEnabled,
 				f1: true,
@@ -470,7 +470,7 @@ export function registerChatCodeBlockActions() {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: inChatSession,
+					when: ChatContextKeys.inChatSession,
 				},
 				precondition: chatEnabled,
 				f1: true,

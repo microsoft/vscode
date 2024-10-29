@@ -33,7 +33,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEnabled, inputCursorAtTop, installEntitled, ChatContextKeys, chatPanelParticipantRegistered, inChatInput, inChatSession, inQuickChat } from '../../common/chatContextKeys.js';
+import { chatEnabled, inputCursorAtTop, installEntitled, ChatContextKeys, chatPanelParticipantRegistered, inQuickChat } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -381,7 +381,7 @@ export function registerChatActions() {
 			super({
 				id: 'chat.action.focus',
 				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
-				precondition: ContextKeyExpr.and(inChatInput),
+				precondition: ContextKeyExpr.and(ChatContextKeys.inChatInput),
 				category: CHAT_CATEGORY,
 				keybinding: [
 					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
@@ -397,7 +397,7 @@ export function registerChatActions() {
 						weight: KeybindingWeight.EditorContrib,
 					},
 					{
-						when: ContextKeyExpr.and(inChatSession, inQuickChat),
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, inQuickChat),
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}
@@ -424,10 +424,10 @@ export function registerChatActions() {
 					{
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(inChatSession, inChatInput.negate(), inQuickChat.negate()),
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate(), inQuickChat.negate()),
 					},
 					{
-						when: ContextKeyExpr.and(inChatSession, inChatInput.negate(), inQuickChat),
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate(), inQuickChat),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}

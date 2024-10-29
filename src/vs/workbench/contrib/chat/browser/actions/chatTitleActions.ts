@@ -27,7 +27,7 @@ import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys, chatEditingParticipantRegistered, inChatInput, inChatSession } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, chatEditingParticipantRegistered, } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
@@ -352,7 +352,7 @@ export function registerChatTitleActions() {
 					mac: {
 						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 					},
-					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), inChatSession, inChatInput.negate()),
+					when: ContextKeyExpr.and(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate()),
 					weight: KeybindingWeight.WorkbenchContrib,
 				},
 				menu: {

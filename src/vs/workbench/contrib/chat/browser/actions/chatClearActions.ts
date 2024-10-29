@@ -16,7 +16,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { chatEditingCanRedo, chatEditingCanUndo, chatEditingParticipantRegistered, chatEnabled, ChatContextKeys, inChatSession } from '../../common/chatContextKeys.js';
+import { chatEditingCanRedo, chatEditingCanUndo, chatEditingParticipantRegistered, chatEnabled, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -66,7 +66,7 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: inChatSession
+					when: ChatContextKeys.inChatSession
 				},
 				menu: [{
 					id: MenuId.ChatContext,

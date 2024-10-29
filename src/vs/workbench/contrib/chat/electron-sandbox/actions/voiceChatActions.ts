@@ -37,7 +37,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys, inChatInput, chatEnabled } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, chatEnabled } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
@@ -62,7 +62,7 @@ const VoiceChatSessionContexts: VoiceChatSessionContext[] = ['view', 'inline', '
 
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(chatEnabled, HasSpeechProvider);
-const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, inChatInput);
+const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, ChatContextKeys.inChatInput);
 const AnyChatRequestInProgress = ChatContextKeys.requestInProgress;
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)

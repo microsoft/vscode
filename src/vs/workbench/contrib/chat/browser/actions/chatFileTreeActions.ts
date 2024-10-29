@@ -10,7 +10,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { inChatSession, chatEnabled } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, chatEnabled } from '../../common/chatContextKeys.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
@@ -22,7 +22,7 @@ export function registerChatFileTreeActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: inChatSession,
+					when: ChatContextKeys.inChatSession,
 				},
 				precondition: chatEnabled,
 				f1: true,
@@ -43,7 +43,7 @@ export function registerChatFileTreeActions() {
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F9,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: inChatSession,
+					when: ChatContextKeys.inChatSession,
 				},
 				precondition: chatEnabled,
 				f1: true,

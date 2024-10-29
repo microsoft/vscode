@@ -36,7 +36,7 @@ import { showLoadedScriptMenu } from '../common/loadedScriptsPicker.js';
 import { showDebugSessionMenu } from './debugSessionPicker.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
-import { inChatSession } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
@@ -1014,7 +1014,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 		CONTEXT_IN_DEBUG_MODE,
 		PanelFocusContext.toNegated(),
 		EditorContextKeys.editorTextFocus,
-		inChatSession.toNegated()),
+		ChatContextKeys.inChatSession.toNegated()),
 	group: 'debug',
 	order: 1
 });

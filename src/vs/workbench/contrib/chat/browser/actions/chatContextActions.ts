@@ -39,7 +39,7 @@ import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEnabled, ChatContextKeys, inChatInput } from '../../common/chatContextKeys.js';
+import { chatEnabled, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
@@ -244,7 +244,7 @@ export class AttachContextAction extends Action2 {
 		category: CHAT_CATEGORY,
 		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
 		keybinding: {
-			when: inChatInput,
+			when: ChatContextKeys.inChatInput,
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
 			weight: KeybindingWeight.EditorContrib
 		},

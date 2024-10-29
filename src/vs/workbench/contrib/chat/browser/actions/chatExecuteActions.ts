@@ -14,7 +14,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEditingParticipantRegistered, chatEnabled, inputHasAgent, inputHasText, inChatInput, ChatContextKeys } from '../../common/chatContextKeys.js';
+import { chatEditingParticipantRegistered, chatEnabled, inputHasAgent, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -42,9 +42,9 @@ export class SubmitAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(inputHasText, ChatContextKeys.requestInProgress.negate(), ContextKeyExpr.or(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ContextKeyExpr.or(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
 			keybinding: {
-				when: inChatInput,
+				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -83,11 +83,11 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				inputHasText,
+				ChatContextKeys.inputHasText,
 				ChatContextKeys.requestInProgress.negate(),
 				ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))),
 			keybinding: {
-				when: inChatInput,
+				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -135,14 +135,14 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 		super({
 			id: ChatSubmitSecondaryAgentAction.ID,
 			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
-			precondition: ContextKeyExpr.and(inputHasText, inputHasAgent.negate(), ChatContextKeys.requestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, inputHasAgent.negate(), ChatContextKeys.requestInProgress.negate()),
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3
 			},
 			keybinding: {
-				when: inChatInput,
+				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -177,7 +177,7 @@ class SendToChatEditingAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.sendToChatEditing',
 			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), inputHasAgent.negate(), inputHasText),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), inputHasAgent.negate(), ChatContextKeys.inputHasText),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -252,7 +252,7 @@ class SendToNewChatAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.sendToNewChat',
 			title: localize2('chat.newChat.label', "Send to New Chat"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), inputHasText),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.inputHasText),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -262,7 +262,7 @@ class SendToNewChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-				when: inChatInput,
+				when: ChatContextKeys.inChatInput,
 			}
 		});
 	}
