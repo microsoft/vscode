@@ -24,7 +24,6 @@ import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
-import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
@@ -289,8 +288,6 @@ export class InlineCompletionsModel extends Disposable {
 		if (item?.inlineEditCompletion) {
 			let edit = item.inlineEditCompletion.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
-
-			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
 
 			const cursorPos = this._primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
