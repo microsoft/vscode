@@ -947,6 +947,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents an icon in the UI. This is either an uri, separate uris for the light- and dark-themes,
+	 * or a {@link ThemeIcon theme icon}.
+	 */
+	export type IconPath = Uri | {
+		/**
+		 * The icon path for the light theme.
+		 */
+		light: Uri;
+		/**
+		 * The icon path for the dark theme.
+		 */
+		dark: Uri;
+	} | ThemeIcon;
+
+	/**
 	 * Represents theme specific rendering styles for a {@link TextEditorDecorationType text editor decoration}.
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -1868,16 +1883,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the QuickPickItem.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
@@ -3876,16 +3882,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the edit.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 	}
 
 	/**
@@ -11902,16 +11899,7 @@ declare module 'vscode' {
 		 * When `falsy`, {@link ThemeIcon.Folder Folder Theme Icon} is assigned, if item is collapsible otherwise {@link ThemeIcon.File File Theme Icon}.
 		 * When a file or folder {@link ThemeIcon} is specified, icon is derived from the current file icon theme for the specified theme icon using {@link TreeItem.resourceUri resourceUri} (if provided).
 		 */
-		iconPath?: string | Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: string | Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: string | Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * A human-readable string which is rendered less prominent.
@@ -12112,16 +12100,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * The icon {@link ThemeColor} for the terminal.
@@ -12160,16 +12139,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * The icon {@link ThemeColor} for the terminal.
@@ -12910,17 +12880,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the button.
 		 */
-		readonly iconPath: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
-
+		readonly iconPath: IconPath;
 		/**
 		 * An optional tooltip.
 		 */
@@ -18998,16 +18958,7 @@ declare module 'vscode' {
 		/**
 		 * An icon for the participant shown in UI.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		} | ThemeIcon;
+		iconPath?: IconPath;
 
 		/**
 		 * The handler for requests to this participant.
@@ -19174,16 +19125,7 @@ declare module 'vscode' {
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
-		reference(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		}): void;
+		reference(value: Uri | Location, iconPath?: IconPath): void;
 
 		/**
 		 * Pushes a part to this stream.
@@ -19297,32 +19239,14 @@ declare module 'vscode' {
 		/**
 		 * The icon for the reference.
 		 */
-		iconPath?: Uri | ThemeIcon | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		};
+		iconPath?: IconPath;
 
 		/**
 		 * Create a new ChatResponseReferencePart.
 		 * @param value A uri or location
 		 * @param iconPath Icon for the reference shown in UI
 		 */
-		constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			dark: Uri;
-		});
+		constructor(value: Uri | Location, iconPath?: IconPath);
 	}
 
 	/**
