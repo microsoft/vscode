@@ -472,7 +472,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	refreshParsedInput() {
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+		if (!this.viewModel) {
+			return;
+		}
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
 		this._onDidChangeParsedInput.fire();
 	}
 
