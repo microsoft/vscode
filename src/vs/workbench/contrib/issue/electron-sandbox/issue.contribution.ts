@@ -19,9 +19,8 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../..
 import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { NativeIssueService } from './issueService.js';
-import './issueMainService.js';
+import './processMainService.js';
 import '../browser/issueTroubleshoot.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
 
 
@@ -57,15 +56,15 @@ class NativeIssueContribution extends BaseIssueContribution {
 			});
 		};
 
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-			properties: {
-				'issueReporter.experimental.auxWindow': {
-					type: 'boolean',
-					default: true,
-					description: 'Enable the new experimental issue reporter in electron.',
-				},
-			}
-		});
+		// Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+		// 	properties: {
+		// 		'issueReporter.experimental.auxWindow': {
+		// 			type: 'boolean',
+		// 			default: true,
+		// 			description: 'Enable the new experimental issue reporter in electron.',
+		// 		},
+		// 	}
+		// });
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (!configurationService.getValue<boolean>('extensions.experimental.issueQuickAccess') && disposable) {
