@@ -90,6 +90,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
@@ -278,6 +279,7 @@ export class ExtensionEditor extends EditorPane {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IFileService private readonly fileService: IFileService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -1031,35 +1033,67 @@ export class ExtensionEditor extends EditorPane {
 				)
 			);
 		}
+		if (extension.source !== 'gallery') {
+			const element = $('div', undefined, extension.source === 'vsix' ? localize('vsix', "VSIX") : localize('other', "Local"));
+			append(installInfo,
+				$('.more-info-entry', undefined,
+					$('div', undefined, localize('source', "Source")),
+					element
+				)
+			);
+			if (extension.source === 'resource' && extension.location.scheme === Schemas.file) {
+				element.classList.add('link');
+				element.title = extension.location.fsPath;
+				this.transientDisposables.add(onClick(element, () => this.nativeHostService.showItemInFolder(extension.location.fsPath)));
+			}
+		}
 		if (extension.size) {
+			const element = $('div', undefined, toMemoryString(extension.size));
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
-					$('div', undefined, toMemoryString(extension.size))
+					element
 				)
 			);
+			if (extension.location.scheme === Schemas.file) {
+				element.classList.add('link');
+				element.title = extension.location.fsPath;
+				this.transientDisposables.add(onClick(element, () => this.nativeHostService.showItemInFolder(extension.location.fsPath)));
+			}
 		}
-		this.computeCacheSize(extension).then(size => {
-			if (size) {
+		this.getCacheLocation(extension).then(cacheLocation => {
+			if (!cacheLocation) {
+				return;
+			}
+			computeSize(cacheLocation, this.fileService).then(cacheSize => {
+				if (!cacheSize) {
+					return;
+				}
+				const element = $('div', undefined, toMemoryString(cacheSize));
 				append(installInfo,
 					$('.more-info-entry', undefined,
 						$('div', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
-						$('div', undefined, toMemoryString(size)))
+						element)
 				);
-			}
+				if (extension.location.scheme === Schemas.file) {
+					element.classList.add('link');
+					element.title = cacheLocation.fsPath;
+					this.transientDisposables.add(onClick(element, () => this.nativeHostService.showItemInFolder(cacheLocation.fsPath)));
+				}
+			});
 		});
 	}
 
-	private async computeCacheSize(extension: ILocalExtension): Promise<number> {
+	private async getCacheLocation(extension: ILocalExtension): Promise<URI | undefined> {
 		let extensionCacheLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, extension.identifier.id.toLowerCase());
 		if (extension.location.scheme === Schemas.vscodeRemote) {
 			const environment = await this.remoteAgentService.getEnvironment();
 			if (!environment) {
-				return 0;
+				return undefined;
 			}
 			extensionCacheLocation = this.uriIdentityService.extUri.joinPath(environment.globalStorageHome, extension.identifier.id.toLowerCase());
 		}
-		return computeSize(extensionCacheLocation, this.fileService);
+		return extensionCacheLocation;
 	}
 
 	private renderMarketplaceInfo(container: HTMLElement, extension: IExtension): void {
