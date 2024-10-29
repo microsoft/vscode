@@ -1388,12 +1388,8 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public closeWidget(): void {
-		this._commentWidgets?.forEach(widget => widget.hide());
-		if (this.editor) {
-			this.editor.focus();
-			this.editor.revealRangeInCenter(this.editor.getSelection()!);
-		}
+	public collapseAndFocusRange(threadId: string): void {
+		this._commentWidgets?.find(widget => widget.commentThread.threadId === threadId)?.collapseAndFocusRange();
 	}
 
 	private removeCommentWidgetsAndStoreCache() {

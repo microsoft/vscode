@@ -185,7 +185,16 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 
-			return this._store.add(_instaService.createInstance(InlineChatZoneWidget, location, this._editor));
+			const zone = _instaService.createInstance(InlineChatZoneWidget, location, this._editor);
+			this._store.add(zone);
+			this._store.add(zone.widget.chatWidget.onDidClear(async () => {
+				const r = this.joinCurrentRun();
+				this.cancelSession();
+				await r;
+				this.run();
+			}));
+
+			return zone;
 		});
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
@@ -394,7 +403,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		// hide/cancel inline completions when invoking IE
-		InlineCompletionsController.get(this._editor)?.hide();
+		InlineCompletionsController.get(this._editor)?.reject();
 
 		this._sessionStore.clear();
 

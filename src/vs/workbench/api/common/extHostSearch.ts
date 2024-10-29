@@ -22,9 +22,9 @@ export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProviderOld(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
 	registerAITextSearchProviderOld(scheme: string, provider: vscode.AITextSearchProvider): IDisposable;
 	registerFileSearchProviderOld(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProviderNew): IDisposable;
-	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProviderNew): IDisposable;
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProviderNew): IDisposable;
+	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider2): IDisposable;
+	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider2): IDisposable;
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider2): IDisposable;
 	doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats>;
 }
 
@@ -35,13 +35,13 @@ export class ExtHostSearch implements IExtHostSearch {
 	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
 	protected _handlePool: number = 0;
 
-	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProviderNew>();
+	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider2>();
 	private readonly _textSearchUsedSchemes = new Set<string>();
 
-	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProviderNew>();
+	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProvider2>();
 	private readonly _aiTextSearchUsedSchemes = new Set<string>();
 
-	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProviderNew>();
+	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider2>();
 	private readonly _fileSearchUsedSchemes = new Set<string>();
 
 	private readonly _fileSearchManager = new FileSearchManager();
@@ -72,7 +72,7 @@ export class ExtHostSearch implements IExtHostSearch {
 		});
 	}
 
-	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProviderNew): IDisposable {
+	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider2): IDisposable {
 		if (this._textSearchUsedSchemes.has(scheme)) {
 			throw new Error(`a text search provider for the scheme '${scheme}' is already registered`);
 		}
@@ -104,7 +104,7 @@ export class ExtHostSearch implements IExtHostSearch {
 		});
 	}
 
-	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProviderNew): IDisposable {
+	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider2): IDisposable {
 		if (this._aiTextSearchUsedSchemes.has(scheme)) {
 			throw new Error(`an AI text search provider for the scheme '${scheme}'is already registered`);
 		}
@@ -136,7 +136,7 @@ export class ExtHostSearch implements IExtHostSearch {
 		});
 	}
 
-	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProviderNew): IDisposable {
+	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider2): IDisposable {
 		if (this._fileSearchUsedSchemes.has(scheme)) {
 			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
 		}
@@ -208,14 +208,14 @@ export class ExtHostSearch implements IExtHostSearch {
 		return provider.name ?? 'AI';
 	}
 
-	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProviderNew): TextSearchManager {
+	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider2): TextSearchManager {
 		return new TextSearchManager({ query, provider }, {
 			readdir: resource => Promise.resolve([]),
 			toCanonicalName: encoding => encoding
 		}, 'textSearchProvider');
 	}
 
-	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProviderNew): TextSearchManager {
+	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProvider2): TextSearchManager {
 		return new TextSearchManager({ query, provider }, {
 			readdir: resource => Promise.resolve([]),
 			toCanonicalName: encoding => encoding

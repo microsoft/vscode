@@ -58,7 +58,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession)),
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -85,21 +85,15 @@ export function registerNewChatActions() {
 			const context = args[0];
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const widgetService = accessor.get(IChatWidgetService);
+
+			let widget = widgetService.lastFocusedWidget;
+
 			if (isChatViewTitleActionContext(context)) {
-				const widget = widgetService.getWidgetBySessionId(context.sessionId);
 				// Is running in the Chat view title
-				announceChatCleared(accessibilitySignalService);
-				if (widget) {
-					widget.clear();
-					widget.focusInput();
-				}
-			} else {
-				// Is running from f1 or keybinding
-				const viewsService = accessor.get(IViewsService);
+				widget = widgetService.getWidgetBySessionId(context.sessionId);
+			}
 
-				const chatView = await viewsService.openView(CHAT_VIEW_ID) as ChatViewPane;
-				const widget = chatView.widget;
-
+			if (widget) {
 				announceChatCleared(accessibilitySignalService);
 				widget.clear();
 				widget.focusInput();

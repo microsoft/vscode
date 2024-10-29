@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { Range, FileSearchProviderNew, FileSearchProviderOptions, ProviderResult, TextSearchCompleteNew, TextSearchContextNew, TextSearchMatchNew, TextSearchProviderNew, TextSearchProviderOptions, TextSearchQueryNew, TextSearchResultNew, AITextSearchProviderNew, TextSearchCompleteMessage } from './searchExtTypes.js';
+import { Range, FileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, AITextSearchProvider2, TextSearchCompleteMessage } from './searchExtTypes.js';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
@@ -472,7 +472,7 @@ function newToOldFileProviderOptions(options: FileSearchProviderOptions): FileSe
 	} satisfies FileSearchOptions));
 }
 
-export class OldFileSearchProviderConverter implements FileSearchProviderNew {
+export class OldFileSearchProviderConverter implements FileSearchProvider2 {
 	constructor(private provider: FileSearchProvider) { }
 
 	provideFileSearchResults(pattern: string, options: FileSearchProviderOptions, token: CancellationToken): ProviderResult<URI[]> {
@@ -517,23 +517,23 @@ export function newToOldPreviewOptions(options: {
 	};
 }
 
-export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResultNew {
+export function oldToNewTextSearchResult(result: TextSearchResult): TextSearchResult2 {
 	if (isTextSearchMatch(result)) {
 		const ranges = asArray(result.ranges).map((r, i) => {
 			const previewArr = asArray(result.preview.matches);
 			const matchingPreviewRange = previewArr[i];
 			return { sourceRange: r, previewRange: matchingPreviewRange };
 		});
-		return new TextSearchMatchNew(result.uri, ranges, result.preview.text);
+		return new TextSearchMatch2(result.uri, ranges, result.preview.text);
 	} else {
-		return new TextSearchContextNew(result.uri, result.text, result.lineNumber);
+		return new TextSearchContext2(result.uri, result.text, result.lineNumber);
 	}
 }
 
-export class OldTextSearchProviderConverter implements TextSearchProviderNew {
+export class OldTextSearchProviderConverter implements TextSearchProvider2 {
 	constructor(private provider: TextSearchProvider) { }
 
-	provideTextSearchResults(query: TextSearchQueryNew, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+	provideTextSearchResults(query: TextSearchQuery2, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
 
 		const progressShim = (oldResult: TextSearchResult) => {
 			if (!validateProviderResult(oldResult)) {
@@ -556,19 +556,19 @@ export class OldTextSearchProviderConverter implements TextSearchProviderNew {
 			return {
 				limitHit: e.limitHit,
 				message: coalesce(asArray(e.message))
-			} satisfies TextSearchCompleteNew;
+			} satisfies TextSearchComplete2;
 		});
 	}
 }
 
-export class OldAITextSearchProviderConverter implements AITextSearchProviderNew {
+export class OldAITextSearchProviderConverter implements AITextSearchProvider2 {
 	public readonly name?: string;
 
 	constructor(private provider: AITextSearchProvider) {
 		this.name = this.provider.name;
 	}
 
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew> {
+	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
 		const progressShim = (oldResult: TextSearchResult) => {
 			if (!validateProviderResult(oldResult)) {
 				return;
@@ -590,7 +590,7 @@ export class OldAITextSearchProviderConverter implements AITextSearchProviderNew
 			return {
 				limitHit: e.limitHit,
 				message: coalesce(asArray(e.message))
-			} satisfies TextSearchCompleteNew;
+			} satisfies TextSearchComplete2;
 		});
 	}
 }

@@ -106,7 +106,7 @@ import { ExtensionDescriptionRegistry } from '../../services/extensions/common/e
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
 import { ExtHostCodeMapper } from './extHostCodeMapper.js';
 
@@ -985,10 +985,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
-			findTextInFilesNew: (query: vscode.TextSearchQueryNew, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
-				checkProposedApiEnabled(extension, 'findTextInFilesNew');
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				return extHostWorkspace.findTextInFilesNew(query, options, extension.identifier, token);
+			findTextInFiles2: (query: vscode.TextSearchQuery2, options?: vscode.FindTextInFilesOptions2, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
+				checkProposedApiEnabled(extension, 'findTextInFiles2');
+				checkProposedApiEnabled(extension, 'textSearchProvider2');
+				return extHostWorkspace.findTextInFiles2(query, options, extension.identifier, token);
 			},
 			save: (uri) => {
 				return extHostWorkspace.save(uri);
@@ -1139,18 +1139,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'textSearchProvider');
 				return extHostSearch.registerAITextSearchProviderOld(scheme, provider);
 			},
-			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
-				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
+			registerFileSearchProvider2: (scheme: string, provider: vscode.FileSearchProvider2) => {
+				checkProposedApiEnabled(extension, 'fileSearchProvider2');
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			},
-			registerTextSearchProviderNew: (scheme: string, provider: vscode.TextSearchProviderNew) => {
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+			registerTextSearchProvider2: (scheme: string, provider: vscode.TextSearchProvider2) => {
+				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			},
-			registerAITextSearchProviderNew: (scheme: string, provider: vscode.AITextSearchProviderNew) => {
+			registerAITextSearchProvider2: (scheme: string, provider: vscode.AITextSearchProvider2) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
-				checkProposedApiEnabled(extension, 'aiTextSearchProviderNew');
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+				checkProposedApiEnabled(extension, 'aiTextSearchProvider2');
+				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostSearch.registerAITextSearchProvider(scheme, provider);
 			},
 			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
@@ -1792,8 +1792,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
-			TextSearchContextNew: TextSearchContextNew,
-			TextSearchMatchNew: TextSearchMatchNew,
+			TextSearchContext2: TextSearchContext2,
+			TextSearchMatch2: TextSearchMatch2,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};

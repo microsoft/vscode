@@ -15,8 +15,7 @@ import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.j
 import { PipeCommand } from '../../workbench/api/node/extHostCLIServer.js';
 import { hasStdinWithoutTty, getStdinFilePath, readFromStdin } from '../../platform/environment/node/stdin.js';
 import { DeferredPromise } from '../../base/common/async.js';
-
-const __dirname = dirname(url.fileURLToPath(import.meta.url));
+import { FileAccess } from '../../base/common/network.js';
 
 /*
  * Implements a standalone CLI app that opens VS Code from a remote terminal.
@@ -147,10 +146,10 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			// Usage: `[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"`
 			case 'zsh': file = 'shellIntegration-rc.zsh'; break;
 			// Usage: `string match -q "$TERM_PROGRAM" "vscode"; and . (code --locate-shell-integration-path fish)`
-			case 'fish': file = 'fish_xdg_data/fish/vendor_conf.d/shellIntegration.fish'; break;
+			case 'fish': file = 'shellIntegration.fish'; break;
 			default: throw new Error('Error using --locate-shell-integration-path: Invalid shell type');
 		}
-		console.log(resolve(__dirname, '../..', 'workbench', 'contrib', 'terminal', 'browser', 'media', file));
+		console.log(join(getAppRoot(), 'out', 'vs', 'workbench', 'contrib', 'terminal', 'common', 'scripts', file));
 		return;
 	}
 	if (cliPipe) {
@@ -241,7 +240,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				cmdLine.push('--update-extensions');
 			}
 
-			const childProcess = cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
+			const childProcess = cp.fork(FileAccess.asFileUri('server-main').fsPath, cmdLine, { stdio: 'inherit' });
 			childProcess.on('error', err => console.log(err));
 			return;
 		}
@@ -494,6 +493,10 @@ function translatePath(input: string, mapFileUri: (input: string) => string, fol
 
 function mapFileToRemoteUri(uri: string): string {
 	return uri.replace(/^file:\/\//, 'vscode-remote://' + cliRemoteAuthority);
+}
+
+function getAppRoot() {
+	return dirname(FileAccess.asFileUri('').fsPath);
 }
 
 const [, , productName, version, commit, executableName, ...remainingArgs] = process.argv;

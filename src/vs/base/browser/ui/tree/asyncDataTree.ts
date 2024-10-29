@@ -25,6 +25,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../common/canc
 import { IObjectTreeModel } from './objectTreeModel.js';
 import { IContextViewProvider } from '../contextview/contextview.js';
 import { FuzzyScore } from '../../../common/filters.js';
+import { splice } from '../../../common/arrays.js';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -1448,7 +1449,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			this.nodes.set(child.element as T, child);
 		}
 
-		node.children.splice(0, node.children.length, ...children);
+		splice(node.children, 0, node.children.length, children);
 
 		// TODO@joao this doesn't take filter into account
 		if (node !== this.root && this.autoExpandSingleChildren && children.length === 1 && childrenToRefresh.length === 0) {

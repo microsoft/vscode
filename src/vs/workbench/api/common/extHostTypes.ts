@@ -4663,14 +4663,8 @@ export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPa
 	parameters: any;
 
 	constructor(callId: string, name: string, input: any) {
-		// TODO TEMP- swapped the order of these two arguments, trying to preserve the behavior for a build or two
-		if (name.startsWith('call_')) {
-			this.name = callId;
-			this.callId = name;
-		} else {
-			this.callId = callId;
-			this.name = name;
-		}
+		this.callId = callId;
+		this.name = name;
 
 		this.input = input;
 		// TODO@API backwards compat, remove
@@ -4770,7 +4764,7 @@ export class LanguageModelError extends Error {
 }
 
 export class LanguageModelToolResult {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
 
 	toJSON() {
 		return {

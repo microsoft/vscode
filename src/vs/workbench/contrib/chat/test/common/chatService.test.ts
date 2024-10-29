@@ -33,6 +33,7 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestContextService, TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -64,6 +65,27 @@ const chatAgentWithUsedContext: IChatAgent = {
 	},
 	async provideFollowups(sessionId, token) {
 		return [{ kind: 'reply', message: 'Something else', agentId: '', tooltip: 'a tooltip' } satisfies IChatFollowup];
+	},
+};
+
+const chatAgentWithMarkdownId = 'ChatProviderWithMarkdown';
+const chatAgentWithMarkdown: IChatAgent = {
+	id: chatAgentWithMarkdownId,
+	name: chatAgentWithMarkdownId,
+	extensionId: nullExtensionDescription.identifier,
+	publisherDisplayName: '',
+	extensionPublisherId: '',
+	extensionDisplayName: '',
+	locations: [ChatAgentLocation.Panel],
+	metadata: {},
+	slashCommands: [],
+	disambiguation: [],
+	async invoke(request, progress, history, token) {
+		progress({ kind: 'markdownContent', content: new MarkdownString('test') });
+		return { metadata: { metadataKey: 'value' } };
+	},
+	async provideFollowups(sessionId, token) {
+		return [];
 	},
 };
 
@@ -116,6 +138,7 @@ suite('ChatService', () => {
 		};
 		testDisposables.add(chatAgentService.registerAgent('testAgent', { ...getAgentData('testAgent'), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, getAgentData(chatAgentWithUsedContextId)));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithMarkdownId, getAgentData(chatAgentWithMarkdownId)));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
 	});
@@ -231,6 +254,34 @@ suite('ChatService', () => {
 
 		// create the first service, send request, get response, and serialize the state
 		{  // serapate block to not leak variables in outer scope
+			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+			assert.strictEqual(chatModel1.getRequests().length, 0);
+
+			const response = await testService.sendRequest(chatModel1.sessionId, `@${chatAgentWithUsedContextId} test request`);
+			assert(response);
+
+			await response.responseCompletePromise;
+
+			serializedChatData = JSON.parse(JSON.stringify(chatModel1));
+		}
+
+		// try deserializing the state into a new service
+
+		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
+		assert(chatModel2);
+
+		await assertSnapshot(chatModel2.toExport());
+	});
+
+	test('can deserialize with response', async () => {
+		let serializedChatData: ISerializableChatData;
+		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
+
+		{
 			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
 			const chatModel1 = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));

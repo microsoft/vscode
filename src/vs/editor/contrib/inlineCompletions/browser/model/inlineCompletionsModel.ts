@@ -24,7 +24,6 @@ import { ScrollType } from '../../../../common/editorCommon.js';
 import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionTriggerKind, PartialAcceptTriggerKind } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
-import { TextModelText } from '../../../../common/model/textModelText.js';
 import { IFeatureDebounceInformation } from '../../../../common/services/languageFeatureDebounce.js';
 import { IModelContentChangedEvent } from '../../../../common/textModelEvents.js';
 import { SnippetController2 } from '../../../snippet/browser/snippetController2.js';
@@ -173,8 +172,15 @@ export class InlineCompletionsModel extends Disposable {
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
-	public stop(tx?: ITransaction): void {
+	public stop(stopReason: 'explicitCancel' | 'automatic' = 'automatic', tx?: ITransaction): void {
 		subtransaction(tx, tx => {
+			if (stopReason === 'explicitCancel') {
+				const completion = this.state.get()?.inlineCompletion?.inlineCompletion;
+				if (completion && completion.source.provider.handleRejection) {
+					completion.source.provider.handleRejection(completion.source.inlineCompletions, completion.sourceInlineCompletion);
+				}
+			}
+
 			this._isActive.set(false, tx);
 			this._source.clear(tx);
 		});
@@ -283,12 +289,11 @@ export class InlineCompletionsModel extends Disposable {
 			let edit = item.inlineEditCompletion.toSingleTextEdit(reader);
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
-			if (edit.isEffectiveDeletion(new TextModelText(model))) { return undefined; }
-
 			const cursorPos = this._primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
-			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
+			const shouldShow = this._alwaysShowInlineEdit.read(reader);
+			if (!shouldShow && item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
@@ -335,6 +340,15 @@ export class InlineCompletionsModel extends Disposable {
 			return { kind: 'ghostText', edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
 		}
 	});
+
+	private readonly _alwaysShowInlineEdit = observableValue<boolean>(this, false);
+
+	protected readonly _resetAlwaysShowInlineEdit = this._register(autorun(reader => {
+		this._primaryPosition.read(reader);
+		this._textModelVersionId.read(reader);
+
+		this._alwaysShowInlineEdit.set(false, undefined);
+	}));
 
 	public readonly status = derived(this, reader => {
 		if (this._source.loading.read(reader)) { return 'loading'; }
@@ -405,13 +419,9 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	public async next(): Promise<void> {
-		await this._deltaSelectedInlineCompletionIndex(1);
-	}
+	public async next(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(1); }
 
-	public async previous(): Promise<void> {
-		await this._deltaSelectedInlineCompletionIndex(-1);
-	}
+	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
 	public async accept(editor: ICodeEditor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
@@ -467,6 +477,8 @@ export class InlineCompletionsModel extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 			completion.source.removeRef();
 		}
+
+		this._alwaysShowInlineEdit.set(true, undefined);
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {

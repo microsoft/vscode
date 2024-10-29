@@ -8,7 +8,7 @@ import { numberComparator } from '../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../base/common/arraysFind.js';
 import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedDisposable, derivedOpts, derivedWithCancellationToken, IObservable, observableFromEvent, ObservablePromise } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedDisposable, derivedOpts, IObservable, observableFromEvent, ObservablePromise } from '../../../../../../base/common/observable.js';
 import { getIndentationLength, splitLines } from '../../../../../../base/common/strings.js';
 import { MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -39,11 +39,13 @@ import { diffInserted, diffRemoved } from '../../../../../../platform/theme/comm
 import { CustomizedMenuWorkbenchToolBar } from '../../hintsWidget/inlineCompletionsHintsWidget.js';
 import { Command } from '../../../../../common/languages.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { structuralEquals } from '../../../../../../base/common/equals.js';
+import { equalsIfDefined, itemEquals, structuralEquals } from '../../../../../../base/common/equals.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { editorLineHighlightBorder } from '../../../../../common/core/editorColorRegistry.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
+import { LRUCachedFunction } from '../../../../../../base/common/cache.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable {
 	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
@@ -55,7 +57,23 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 	private readonly _modifiedModel = derivedDisposable(() => this._modelService.createModel(
 		'', null, this._modelUriGenerator.getUniqueUri())).keepObserved(this._store);
 
-	private readonly _inlineEditPromise = derivedWithCancellationToken<ObservablePromise<InlineEditWithChanges | undefined> | undefined>(this, (reader, token) => {
+	private readonly _differ = new LRUCachedFunction({ getCacheKey: JSON.stringify }, (arg: { original: string; modified: string }) => {
+		this._originalModel.get().setValue(arg.original);
+		this._modifiedModel.get().setValue(arg.modified);
+
+		const diffAlgo = this._diffProviderFactoryService.createDiffProvider({ diffAlgorithm: 'advanced' });
+
+		return ObservablePromise.fromFn(async () => {
+			const result = await diffAlgo.computeDiff(this._originalModel.get(), this._modifiedModel.get(), {
+				computeMoves: false,
+				ignoreTrimWhitespace: false,
+				maxComputationTimeMs: 1000,
+			}, CancellationToken.None);
+			return result;
+		});
+	});
+
+	private readonly _inlineEditPromise = derived<IObservable<InlineEditWithChanges | undefined> | undefined>(this, (reader) => {
 		const inlineEdit = this._edit.read(reader);
 		if (!inlineEdit) { return undefined; }
 
@@ -64,18 +82,13 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 		const text = new TextModelText(this._editor.getModel()!);
 		const edit = inlineEdit.edit.extendToFullLine(text);
 
-		this._originalModel.get().setValue(this._editor.getModel()!.getValueInRange(edit.range));
-		this._modifiedModel.get().setValue(edit.text);
+		const diffResult = this._differ.get({ original: this._editor.getModel()!.getValueInRange(edit.range), modified: edit.text });
 
-		const diffAlgo = this._diffProviderFactoryService.createDiffProvider({ diffAlgorithm: 'advanced' });
-		return ObservablePromise.fromFn(async () => {
-			const result = await diffAlgo.computeDiff(this._originalModel.get(), this._modifiedModel.get(), {
-				computeMoves: false,
-				ignoreTrimWhitespace: false,
-				maxComputationTimeMs: 1000,
-			}, token);
-
-			if (token.isCancellationRequested || result.identical) { return undefined; }
+		return diffResult.promiseResult.map(p => {
+			if (!p || !p.data) {
+				return undefined;
+			}
+			const result = p.data;
 
 			const rangeStartPos = edit.range.getStartPosition();
 			const innerChanges = result.changes.flatMap(c => c.innerChanges!);
@@ -95,7 +108,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable {
 		});
 	});
 
-	private readonly _inlineEdit = this._inlineEditPromise.map((p, reader) => p?.promiseResult?.read(reader)?.data);
+	private readonly _inlineEdit = derivedOpts({ owner: this, equalsFn: equalsIfDefined(itemEquals()) }, reader => this._inlineEditPromise.read(reader)?.read(reader));
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -124,6 +137,14 @@ export class InlineEditWithChanges {
 		public readonly showInlineIfPossible: boolean,
 		public readonly commands: readonly Command[],
 	) {
+	}
+
+	equals(other: InlineEditWithChanges) {
+		return this.originalText.getValue() === other.originalText.getValue() &&
+			this.edit.equals(other.edit) &&
+			this.isCollapsed === other.isCollapsed &&
+			this.showInlineIfPossible === other.showInlineIfPossible &&
+			this.commands === other.commands;
 	}
 }
 
@@ -405,10 +426,15 @@ export class InlineEditsView extends Disposable {
 		this._previewTextModel.setValue(uiState.newText);
 		const range = uiState.edit.originalLineRange;
 
-		this._previewEditor.setHiddenAreas([
-			new Range(1, 1, range.startLineNumber - 1, 1),
-			new Range(range.startLineNumber + uiState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1),
-		], undefined, true);
+		const hiddenAreas: Range[] = [];
+		if (range.startLineNumber > 1) {
+			hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
+		}
+		if (range.startLineNumber + uiState.newTextLineCount < this._previewTextModel.getLineCount() + 1) {
+			hiddenAreas.push(new Range(range.startLineNumber + uiState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1));
+		}
+
+		this._previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
 
 	}).recomputeInitiallyAndOnChange(this._store);
 

@@ -45,7 +45,7 @@ import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ActionRunner, IAction, IActionRunner } from '../../../../base/common/actions.js';
-import { delta, groupBy, tail } from '../../../../base/common/arrays.js';
+import { delta, groupBy } from '../../../../base/common/arrays.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { ContextKeys } from './scmViewPane.js';
@@ -698,7 +698,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 
 		// Load More element
 		const repository = inputOrElement.repository.get();
-		const lastHistoryItem = tail(historyItems);
+		const lastHistoryItem = historyItems.at(-1);
 		if (repository && lastHistoryItem && lastHistoryItem.historyItemViewModel.outputSwimlanes.length > 0) {
 			children.push({
 				repository,
