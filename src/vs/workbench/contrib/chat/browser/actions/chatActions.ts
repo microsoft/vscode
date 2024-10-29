@@ -33,7 +33,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INSTALL_ENTITLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { chatEnabled, inputCursorAtTop, installEntitled, location, chatPanelParticipantRegistered, inChatInput, inChatSession, inQuickChat } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -96,7 +96,7 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: defaultChat.icon,
 			f1: true,
-			precondition: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
+			precondition: chatPanelParticipantRegistered,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -160,7 +160,7 @@ class ChatHistoryAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
 			f1: true,
-			precondition: CONTEXT_CHAT_ENABLED
+			precondition: chatEnabled
 		});
 	}
 
@@ -265,7 +265,7 @@ class OpenChatEditorAction extends Action2 {
 			title: localize2('interactiveSession.open', "Open Editor"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_CHAT_ENABLED
+			precondition: chatEnabled
 		});
 	}
 
@@ -286,7 +286,7 @@ class ChatAddAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatInput,
-				when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
+				when: location.isEqualTo(ChatAgentLocation.Panel),
 				group: 'navigation',
 				order: 1
 			}
@@ -331,7 +331,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearInputHistory',
 				title: localize2('interactiveSession.clearHistory.label', "Clear Input History"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: chatEnabled,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -347,7 +347,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearHistory',
 				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: chatEnabled,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -381,23 +381,23 @@ export function registerChatActions() {
 			super({
 				id: 'chat.action.focus',
 				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
-				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT),
+				precondition: ContextKeyExpr.and(inChatInput),
 				category: CHAT_CATEGORY,
 				keybinding: [
 					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
 					{
-						when: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.and(inputCursorAtTop, inQuickChat.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
 					// On win/linux, ctrl+up can always focus the chat list
 					{
-						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), inQuickChat.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
 					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT),
+						when: ContextKeyExpr.and(inChatSession, inQuickChat),
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}
@@ -424,10 +424,10 @@ export function registerChatActions() {
 					{
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.and(inChatSession, inChatInput.negate(), inQuickChat.negate()),
 					},
 					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT),
+						when: ContextKeyExpr.and(inChatSession, inChatInput.negate(), inQuickChat),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}
@@ -462,7 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: defaultChat.icon,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_INSTALL_ENTITLED)
+		ContextKeyExpr.or(chatPanelParticipantRegistered, installEntitled)
 	),
 	order: 10001,
 });
@@ -475,7 +475,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
-				ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_INSTALL_ENTITLED)
+				ContextKeyExpr.or(chatPanelParticipantRegistered, installEntitled)
 			)
 		);
 	}
@@ -606,7 +606,7 @@ class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 1,
-				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
+				when: chatPanelParticipantRegistered.negate()
 			}
 		});
 	}
@@ -630,12 +630,12 @@ class LearnMoreChatAction extends Action2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 2,
-				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
+				when: chatPanelParticipantRegistered.negate()
 			}, {
 				id: MenuId.ChatCommandCenter,
 				group: 'z_atlast',
 				order: 1,
-				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED
+				when: chatPanelParticipantRegistered
 			}]
 		});
 	}

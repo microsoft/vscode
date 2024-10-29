@@ -46,7 +46,7 @@ import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
 import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
-import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from '../../chat/common/chatContextKeys.js';
+import { responseSupportsIssueReporting, isResponse, responseHasError, responseIsFiltered, responseVote } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
@@ -187,11 +187,11 @@ export class InlineChatWidget {
 		this._chatWidget.setVisible(true);
 		this._store.add(this._chatWidget);
 
-		const ctxResponse = CONTEXT_RESPONSE.bindTo(this.scopedContextKeyService);
-		const ctxResponseVote = CONTEXT_RESPONSE_VOTE.bindTo(this.scopedContextKeyService);
-		const ctxResponseSupportIssues = CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING.bindTo(this.scopedContextKeyService);
-		const ctxResponseError = CONTEXT_RESPONSE_ERROR.bindTo(this.scopedContextKeyService);
-		const ctxResponseErrorFiltered = CONTEXT_RESPONSE_FILTERED.bindTo(this.scopedContextKeyService);
+		const ctxResponse = isResponse.bindTo(this.scopedContextKeyService);
+		const ctxResponseVote = responseVote.bindTo(this.scopedContextKeyService);
+		const ctxResponseSupportIssues = responseSupportsIssueReporting.bindTo(this.scopedContextKeyService);
+		const ctxResponseError = responseHasError.bindTo(this.scopedContextKeyService);
+		const ctxResponseErrorFiltered = responseIsFiltered.bindTo(this.scopedContextKeyService);
 
 		const viewModelStore = this._store.add(new DisposableStore());
 		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
