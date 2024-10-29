@@ -99,6 +99,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 					for (const value of values) {
 						value.token = undefined;
 						this._disposeWidget(value.widget);
+						value.disposableStore.dispose();
 					}
 				}
 			}
