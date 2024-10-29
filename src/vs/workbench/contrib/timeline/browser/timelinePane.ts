@@ -1160,9 +1160,6 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		this._hoverDelegate = this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', false, {
-			appearance: {
-				showPointer: true
-			},
 			position: {
 				hoverPosition: HoverPosition.RIGHT // Will flip when there's no space
 			}
