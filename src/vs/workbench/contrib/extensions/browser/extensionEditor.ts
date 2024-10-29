@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { language } from '../../../../base/common/platform.js';
+import { isNative, language } from '../../../../base/common/platform.js';
 import { isUndefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -90,7 +90,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
@@ -279,7 +278,6 @@ export class ExtensionEditor extends EditorPane {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IFileService private readonly fileService: IFileService,
-		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -1041,10 +1039,10 @@ export class ExtensionEditor extends EditorPane {
 					element
 				)
 			);
-			if (extension.source === 'resource' && extension.location.scheme === Schemas.file) {
+			if (isNative && extension.source === 'resource' && extension.location.scheme === Schemas.file) {
 				element.classList.add('link');
 				element.title = extension.location.fsPath;
-				this.transientDisposables.add(onClick(element, () => this.nativeHostService.showItemInFolder(extension.location.fsPath)));
+				this.transientDisposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
 			}
 		}
 		if (extension.size) {
@@ -1055,10 +1053,10 @@ export class ExtensionEditor extends EditorPane {
 					element
 				)
 			);
-			if (extension.location.scheme === Schemas.file) {
+			if (isNative && extension.location.scheme === Schemas.file) {
 				element.classList.add('link');
 				element.title = extension.location.fsPath;
-				this.transientDisposables.add(onClick(element, () => this.nativeHostService.showItemInFolder(extension.location.fsPath)));
+				this.transientDisposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
 			}
 		}
 		this.getCacheLocation(extension).then(cacheLocation => {
@@ -1075,10 +1073,10 @@ export class ExtensionEditor extends EditorPane {
 						$('div', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
 						element)
 				);
-				if (extension.location.scheme === Schemas.file) {
+				if (isNative && extension.location.scheme === Schemas.file) {
 					element.classList.add('link');
 					element.title = cacheLocation.fsPath;
-					this.transientDisposables.add(onClick(element, () => this.nativeHostService.showItemInFolder(cacheLocation.fsPath)));
+					this.transientDisposables.add(onClick(element, () => this.openerService.open(cacheLocation.with({ scheme: Schemas.file }), { openExternal: true })));
 				}
 			});
 		});
