@@ -173,8 +173,15 @@ export class InlineCompletionsModel extends Disposable {
 		await this._fetchInlineCompletionsPromise.get();
 	}
 
-	public stop(tx?: ITransaction): void {
+	public stop(stopReason: 'explicitCancel' | 'automatic' = 'automatic', tx?: ITransaction): void {
 		subtransaction(tx, tx => {
+			if (stopReason === 'explicitCancel') {
+				const completion = this.state.get()?.inlineCompletion?.inlineCompletion;
+				if (completion && completion.source.provider.handleRejection) {
+					completion.source.provider.handleRejection(completion.source.inlineCompletions, completion.sourceInlineCompletion);
+				}
+			}
+
 			this._isActive.set(false, tx);
 			this._source.clear(tx);
 		});
@@ -405,13 +412,9 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	public async next(): Promise<void> {
-		await this._deltaSelectedInlineCompletionIndex(1);
-	}
+	public async next(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(1); }
 
-	public async previous(): Promise<void> {
-		await this._deltaSelectedInlineCompletionIndex(-1);
-	}
+	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
 	public async accept(editor: ICodeEditor): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
