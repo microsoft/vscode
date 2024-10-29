@@ -46,7 +46,7 @@ import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
 import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
-import { responseSupportsIssueReporting, isResponse, responseHasError, responseIsFiltered, responseVote } from '../../chat/common/chatContextKeys.js';
+import { responseSupportsIssueReporting, isResponse, responseHasError, responseIsFiltered, ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
@@ -188,7 +188,7 @@ export class InlineChatWidget {
 		this._store.add(this._chatWidget);
 
 		const ctxResponse = isResponse.bindTo(this.scopedContextKeyService);
-		const ctxResponseVote = responseVote.bindTo(this.scopedContextKeyService);
+		const ctxResponseVote = ChatContextKeys.responseVote.bindTo(this.scopedContextKeyService);
 		const ctxResponseSupportIssues = responseSupportsIssueReporting.bindTo(this.scopedContextKeyService);
 		const ctxResponseError = responseHasError.bindTo(this.scopedContextKeyService);
 		const ctxResponseErrorFiltered = responseIsFiltered.bindTo(this.scopedContextKeyService);

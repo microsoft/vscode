@@ -27,7 +27,7 @@ import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
 import { NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEditingParticipantRegistered, location, responseSupportsIssueReporting, inChatInput, inChatSession, itemId, lastItemId, isRequest, isResponse, responseHasError, responseIsFiltered, responseVote } from '../../common/chatContextKeys.js';
+import { chatEditingParticipantRegistered, location, responseSupportsIssueReporting, inChatInput, inChatSession, itemId, lastItemId, isRequest, isResponse, responseHasError, responseIsFiltered, ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatProgress, IChatService } from '../../common/chatService.js';
@@ -47,7 +47,7 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsup,
-				toggled: responseVote.isEqualTo('up'),
+				toggled: ChatContextKeys.responseVote.isEqualTo('up'),
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',
@@ -94,7 +94,7 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.thumbsdown,
-				toggled: responseVote.isEqualTo('down'),
+				toggled: ChatContextKeys.responseVote.isEqualTo('down'),
 				menu: [{
 					id: MenuId.ChatMessageFooter,
 					group: 'navigation',

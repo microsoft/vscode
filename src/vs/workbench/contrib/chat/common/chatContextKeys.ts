@@ -8,7 +8,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { ChatAgentLocation } from './chatAgents.js';
 
 
-export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
+
 export const responseDetectedAgentCommand = new RawContextKey<boolean>('chatSessionResponseDetectedAgentOrCommand', false, { type: 'boolean', description: localize('chatSessionResponseDetectedAgentOrCommand', "When the agent or command was automatically detected") });
 export const responseSupportsIssueReporting = new RawContextKey<boolean>('chatResponseSupportsIssueReporting', false, { type: 'boolean', description: localize('chatResponseSupportsIssueReporting', "True when the current chat response supports issue reporting.") });
 export const responseIsFiltered = new RawContextKey<boolean>('chatSessionResponseFiltered', false, { type: 'boolean', description: localize('chatResponseFiltered', "True when the chat response was filtered out by the server.") });
@@ -40,11 +40,13 @@ export const inQuickChat = new RawContextKey<boolean>('quickChatHasFocus', false
 
 export const installEntitled = new RawContextKey<boolean>('chatInstallEntitled', false, { type: 'boolean', description: localize('chatInstallEntitled', "True when the user is entitled for chat installation.") });
 
-export const CONTEXT_CHAT_SHOULD_SHOW_MOVED_VIEW_WELCOME = new RawContextKey<boolean>('chatShouldShowMovedViewWelcome', false, { type: 'boolean', description: localize('chatShouldShowMovedViewWelcome', "True when the user should be shown the moved view welcome view.") });
 export namespace ChatContextKeys {
+	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
+
 	export const hasFileAttachments = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
 
 	export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
+	export const shouldShowMovedViewWelcome = new RawContextKey<boolean>('chatShouldShowMovedViewWelcome', false, { type: 'boolean', description: localize('chatShouldShowMovedViewWelcome', "True when the user should be shown the moved view welcome view.") });
 }
 export const location = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
