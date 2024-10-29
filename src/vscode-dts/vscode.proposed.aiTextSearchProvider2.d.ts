@@ -7,7 +7,7 @@ declare module 'vscode' {
 	/**
 	 * An AITextSearchProvider provides additional AI text search results in the workspace.
 	 */
-	export interface AITextSearchProviderNew {
+	export interface AITextSearchProvider2 {
 		/**
 		 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
 		 */
@@ -22,7 +22,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: Progress<TextSearchResultNew>, token: CancellationToken): ProviderResult<TextSearchCompleteNew>;
+		provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: Progress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2>;
 	}
 
 	export namespace workspace {
@@ -35,6 +35,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerAITextSearchProviderNew(scheme: string, provider: AITextSearchProviderNew): Disposable;
+		export function registerAITextSearchProvider2(scheme: string, provider: AITextSearchProvider2): Disposable;
 	}
 }

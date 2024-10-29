@@ -403,7 +403,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		// hide/cancel inline completions when invoking IE
-		InlineCompletionsController.get(this._editor)?.hide();
+		InlineCompletionsController.get(this._editor)?.reject();
 
 		this._sessionStore.clear();
 

@@ -34,7 +34,7 @@ import type * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
-import { ExcludeSettingOptions, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -571,8 +571,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return result.flat();
 	}
 
-	findTextInFilesNew(query: vscode.TextSearchQueryNew, options: vscode.FindTextInFilesOptionsNew | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
-		this._logService.trace(`extHostWorkspace#findTextInFilesNew: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFilesNew`);
+	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
+		this._logService.trace(`extHostWorkspace#findTextInFiles2: textSearch, extension: ${extensionId.value}, entryPoint: findTextInFiles2`);
 
 
 		const getOptions = (include: vscode.GlobPattern | undefined): QueryOptions<ITextQueryBuilderOptions> => {
@@ -623,12 +623,12 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResultNew>(async emitter => {
+		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;
 				if (resultIsMatch(result)) {
-					emitter.emitOne(new TextSearchMatchNew(
+					emitter.emitOne(new TextSearchMatch2(
 						uri,
 						result.rangeLocations.map((range) => ({
 							previewRange: new Range(range.preview.startLineNumber, range.preview.startColumn, range.preview.endLineNumber, range.preview.endColumn),
@@ -638,7 +638,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 					));
 				} else {
-					emitter.emitOne(new TextSearchContextNew(
+					emitter.emitOne(new TextSearchContext2(
 						uri,
 						result.text,
 						result.lineNumber
