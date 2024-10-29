@@ -11,19 +11,18 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { OffsetEdit, SingleOffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
-import { OffsetRange } from '../../../../../editor/common/core/offsetRange.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { OffsetEdit } from '../../../../../editor/common/core/offsetEdit.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
+import { IModelDeltaDecoration, ITextModel, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { SingleModelEditStackElement } from '../../../../../editor/common/model/editStack.js';
 import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from '../../../../../editor/common/model/textModel.js';
+import { OffsetEdits } from '../../../../../editor/common/model/textModelOffsetEdit.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -209,7 +208,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 	}
 
 	private _mirrorEdits(event: IModelContentChangedEvent) {
-		const edit = fromContentChange(event.changes);
+		const edit = OffsetEdits.fromContentChanges(event.changes);
 
 		if (this._isEditFromUs) {
 			const e_sum = this._edit;
@@ -243,7 +242,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 				// user edits overlaps/conflicts with AI edits
 				this._edit = e_ai.compose(e_user);
 			} else {
-				const edits = toEditOperations(e_user_r, this.docSnapshot);
+				const edits = OffsetEdits.asEditOperations(e_user_r, this.docSnapshot);
 				this.docSnapshot.applyEdits(edits);
 				this._edit = e_ai.tryRebase(e_user_r);
 			}
@@ -336,7 +335,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		if (this.doc.getVersionId() === docVersionNow && this.docSnapshot.getVersionId() === snapshotVersionNow) {
 			const diff2 = diff ?? nullDocumentDiff;
 			this._diffInfo.set(diff2, undefined);
-			this._edit = fromDiff(this.docSnapshot, this.doc, diff2);
+			this._edit = OffsetEdits.fromLineRangeMapping(this.docSnapshot, this.doc, diff2.changes);
 		}
 	}
 
@@ -412,40 +411,4 @@ export interface ISnapshotEntry {
 	readonly originalToCurrentEdit: OffsetEdit;
 	readonly state: WorkingSetEntryState;
 	telemetryInfo: IModifiedEntryTelemetryInfo;
-}
-
-function toEditOperations(offsetEdit: OffsetEdit, doc: ITextModel): IIdentifiedSingleEditOperation[] {
-	const edits: IIdentifiedSingleEditOperation[] = [];
-	for (const singleEdit of offsetEdit.edits) {
-		const range = Range.fromPositions(
-			doc.getPositionAt(singleEdit.replaceRange.start),
-			doc.getPositionAt(singleEdit.replaceRange.start + singleEdit.replaceRange.length)
-		);
-		edits.push(EditOperation.replace(range, singleEdit.newText));
-	}
-	return edits;
-}
-
-function fromContentChange(contentChanges: readonly IModelContentChange[]) {
-	const editsArr = contentChanges.map(c => new SingleOffsetEdit(OffsetRange.ofStartAndLength(c.rangeOffset, c.rangeLength), c.text));
-	editsArr.reverse();
-	const edits = new OffsetEdit(editsArr);
-	return edits;
-}
-
-function fromDiff(original: ITextModel, modified: ITextModel, diff: IDocumentDiff): OffsetEdit {
-	const edits: SingleOffsetEdit[] = [];
-	for (const c of diff.changes) {
-		for (const i of c.innerChanges ?? []) {
-			const newText = modified.getValueInRange(i.modifiedRange);
-
-			const startOrig = original.getOffsetAt(i.originalRange.getStartPosition());
-			const endExOrig = original.getOffsetAt(i.originalRange.getEndPosition());
-			const origRange = new OffsetRange(startOrig, endExOrig);
-
-			edits.push(new SingleOffsetEdit(origRange, newText));
-		}
-	}
-
-	return new OffsetEdit(edits);
 }
