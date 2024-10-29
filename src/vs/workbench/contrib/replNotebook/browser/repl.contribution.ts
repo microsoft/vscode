@@ -130,13 +130,13 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			},
 			{
 				createUntitledEditorInput: async ({ resource, options }) => {
+					if (resource && this.editorInputCache.has(resource)) {
+						return { editor: this.editorInputCache.get(resource)!, options };
+					}
 					const scratchpad = this.configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'jupyter-notebook', { scratchpad, viewType: 'repl' });
 
 					const notebookUri = ref.object.notebook.uri;
-					if (this.editorInputCache.has(notebookUri)) {
-						return { editor: this.editorInputCache.get(notebookUri)!, options };
-					}
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
