@@ -567,7 +567,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		element.element.classList.toggle('focus-inside', !!element.focusInsideSeparator);
 		const mainItem: IQuickPickSeparator = element.separator;
 
-		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
+		const { labelHighlights, descriptionHighlights } = element;
 
 		// Icon
 		data.icon.style.backgroundImage = '';
