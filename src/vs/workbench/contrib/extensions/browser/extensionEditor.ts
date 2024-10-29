@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { language } from '../../../../base/common/platform.js';
+import { isNative, language } from '../../../../base/common/platform.js';
 import { isUndefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -1031,35 +1031,67 @@ export class ExtensionEditor extends EditorPane {
 				)
 			);
 		}
+		if (extension.source !== 'gallery') {
+			const element = $('div', undefined, extension.source === 'vsix' ? localize('vsix', "VSIX") : localize('other', "Local"));
+			append(installInfo,
+				$('.more-info-entry', undefined,
+					$('div', undefined, localize('source', "Source")),
+					element
+				)
+			);
+			if (isNative && extension.source === 'resource' && extension.location.scheme === Schemas.file) {
+				element.classList.add('link');
+				element.title = extension.location.fsPath;
+				this.transientDisposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
+			}
+		}
 		if (extension.size) {
+			const element = $('div', undefined, toMemoryString(extension.size));
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
-					$('div', undefined, toMemoryString(extension.size))
+					element
 				)
 			);
+			if (isNative && extension.location.scheme === Schemas.file) {
+				element.classList.add('link');
+				element.title = extension.location.fsPath;
+				this.transientDisposables.add(onClick(element, () => this.openerService.open(extension.location, { openExternal: true })));
+			}
 		}
-		this.computeCacheSize(extension).then(size => {
-			if (size) {
+		this.getCacheLocation(extension).then(cacheLocation => {
+			if (!cacheLocation) {
+				return;
+			}
+			computeSize(cacheLocation, this.fileService).then(cacheSize => {
+				if (!cacheSize) {
+					return;
+				}
+				const element = $('div', undefined, toMemoryString(cacheSize));
 				append(installInfo,
 					$('.more-info-entry', undefined,
 						$('div', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
-						$('div', undefined, toMemoryString(size)))
+						element)
 				);
-			}
+				if (isNative && extension.location.scheme === Schemas.file) {
+					element.classList.add('link');
+					element.title = cacheLocation.fsPath;
+					this.transientDisposables.add(onClick(element, () => this.openerService.open(cacheLocation.with({ scheme: Schemas.file }), { openExternal: true })));
+				}
+			});
 		});
 	}
 
-	private async computeCacheSize(extension: ILocalExtension): Promise<number> {
+	private async getCacheLocation(extension: ILocalExtension): Promise<URI | undefined> {
 		let extensionCacheLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, extension.identifier.id.toLowerCase());
 		if (extension.location.scheme === Schemas.vscodeRemote) {
 			const environment = await this.remoteAgentService.getEnvironment();
 			if (!environment) {
-				return 0;
+				return undefined;
 			}
 			extensionCacheLocation = this.uriIdentityService.extUri.joinPath(environment.globalStorageHome, extension.identifier.id.toLowerCase());
 		}
-		return computeSize(extensionCacheLocation, this.fileService);
+		return extensionCacheLocation;
 	}
 
 	private renderMarketplaceInfo(container: HTMLElement, extension: IExtension): void {
