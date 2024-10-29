@@ -34,7 +34,7 @@ import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHo
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentService, IChatWelcomeMessageContent, isChatWelcomeMessageContent } from '../common/chatAgents.js';
-import { ChatContextKeys, inChatSession, inQuickChat, inputHasAgent, lastItemId, } from '../common/chatContextKeys.js';
+import { ChatContextKeys, inChatSession, inQuickChat, inputHasAgent, } from '../common/chatContextKeys.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession } from '../common/chatEditingService.js';
 import { IChatModel, IChatRequestVariableEntry, IChatResponseModel } from '../common/chatModel.js';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, formatChatQuestion } from '../common/chatParserTypes.js';
@@ -544,7 +544,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem) {
-				lastItemId.bindTo(this.contextKeyService).set([lastItem.id]);
+				ChatContextKeys.lastItemId.bindTo(this.contextKeyService).set([lastItem.id]);
 			}
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups, lastItem);

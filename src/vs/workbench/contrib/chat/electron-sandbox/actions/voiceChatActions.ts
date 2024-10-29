@@ -37,7 +37,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys, inChatInput, chatEnabled, isResponse, location } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, inChatInput, chatEnabled, location } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
@@ -850,7 +850,7 @@ export class ReadChatResponseAloud extends Action2 {
 				id: MenuId.ChatMessageFooter,
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
-					isResponse,						// only for responses
+					ChatContextKeys.isResponse,						// only for responses
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
 					ChatContextKeys.responseIsFiltered.negate(),		// and not when response is filtered
 				),
@@ -860,7 +860,7 @@ export class ReadChatResponseAloud extends Action2 {
 				id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 				when: ContextKeyExpr.and(
 					CanVoiceChat,
-					isResponse,						// only for responses
+					ChatContextKeys.isResponse,						// only for responses
 					ScopedChatSynthesisInProgress.negate(),	// but not when already in progress
 					ChatContextKeys.responseIsFiltered.negate()		// and not when response is filtered
 				),
@@ -974,7 +974,7 @@ export class StopReadChatItemAloud extends Action2 {
 					id: MenuId.ChatMessageFooter,
 					when: ContextKeyExpr.and(
 						ScopedChatSynthesisInProgress,		// only when in progress
-						isResponse,					// only for responses
+						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
 					group: 'navigation',
@@ -984,7 +984,7 @@ export class StopReadChatItemAloud extends Action2 {
 					id: MENU_INLINE_CHAT_WIDGET_SECONDARY,
 					when: ContextKeyExpr.and(
 						ScopedChatSynthesisInProgress,		// only when in progress
-						isResponse,					// only for responses
+						ChatContextKeys.isResponse,					// only for responses
 						ChatContextKeys.responseIsFiltered.negate()	// but not when response is filtered
 					),
 					group: 'navigation',

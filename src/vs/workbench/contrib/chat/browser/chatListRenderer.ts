@@ -43,7 +43,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
-import { ChatContextKeys, isRequest, isResponse, itemId } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
@@ -361,9 +361,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				'welcome';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
 
-		isResponse.bindTo(templateData.contextKeyService).set(isResponseVM(element));
-		itemId.bindTo(templateData.contextKeyService).set(element.id);
-		isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element));
+		ChatContextKeys.isResponse.bindTo(templateData.contextKeyService).set(isResponseVM(element));
+		ChatContextKeys.itemId.bindTo(templateData.contextKeyService).set(element.id);
+		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element));
 		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);

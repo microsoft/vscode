@@ -48,7 +48,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IInlineChatSavingService } from './inlineChatSavingService.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
-import { isResponse, ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -153,7 +153,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxResponseType = CTX_INLINE_CHAT_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxRequestInProgress = CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
-		this._ctxResponse = isResponse.bindTo(contextKeyService);
+		this._ctxResponse = ChatContextKeys.isResponse.bindTo(contextKeyService);
 		ChatContextKeys.responseHasError.bindTo(contextKeyService);
 
 		this._ui = new Lazy(() => {
