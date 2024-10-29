@@ -83,7 +83,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
-			if (this._currentHoverOptions === options) {
+			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 				this._currentHoverOptions = undefined;
 			}
 			hoverDisposables.dispose();
