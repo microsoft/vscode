@@ -290,7 +290,7 @@ export function getShellIntegrationInjection(
 /**
  * There are a few situations where some directories are added to the beginning of the PATH.
  * 1. On macOS when the profile calls path_helper.
- * 2. On fish when it automatically prepends "$fish_user_paths" to the PATH.
+ * 2. For fish terminals, which always prepend "$fish_user_paths" to the PATH.
  *
  * This causes significant problems for the environment variable
  * collection API as the custom paths added to the end will now be somewhere in the middle of
