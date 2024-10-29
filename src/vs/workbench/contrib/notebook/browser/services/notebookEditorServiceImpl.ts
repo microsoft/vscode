@@ -38,7 +38,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
-	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; editorType: string; token: number | undefined }[]>>();
+	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget; editorType: string; token: number | undefined; disposableStore: DisposableStore }[]>>();
 
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -65,6 +65,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 					const value = widgets.splice(index, 1)[0];
 					value.token = undefined;
 					this._disposeWidget(value.widget);
+					value.disposableStore.dispose();
 					value.widget = (<any>undefined); // unset the widget so that others that still hold a reference don't harm us
 				});
 			}));
@@ -125,6 +126,12 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			listeners.forEach(listener => listener.dispose());
 		});
 		this.groupListener.clear();
+		this._borrowableEditors.forEach(widgetMap => {
+			widgetMap.forEach(widgets => {
+				widgets.forEach(widget => widget.disposableStore.dispose());
+			});
+		});
+		this._borrowableEditors.clear();
 	}
 
 	// --- group-based editor borrowing...
@@ -205,9 +212,10 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			// NEW widget
 			const editorGroupContextKeyService = accessor.get(IContextKeyService);
 			const editorGroupEditorProgressService = accessor.get(IEditorProgressService);
-			const widget = this.createWidget(editorGroupContextKeyService, editorGroupEditorProgressService, creationOptions, codeWindow, initialDimension);
+			const widgetDisposeStore = new DisposableStore();
+			const widget = this.createWidget(editorGroupContextKeyService, widgetDisposeStore, editorGroupEditorProgressService, creationOptions, codeWindow, initialDimension);
 			const token = this._tokenPool++;
-			value = { widget, editorType: input.typeId, token };
+			value = { widget, editorType: input.typeId, token, disposableStore: widgetDisposeStore };
 
 			let map = this._borrowableEditors.get(groupId);
 			if (!map) {
@@ -218,6 +226,8 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			values.push(value);
 			map.set(input.resource, values);
 
+			// Track the disposable store for the new widget
+			widgetDisposeStore.add(widget);
 		} else {
 			// reuse a widget which was either free'ed before or which
 			// is simply being reused...
@@ -228,10 +238,10 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	}
 
 	// protected for unit testing overrides
-	protected createWidget(editorGroupContextKeyService: IContextKeyService, editorGroupEditorProgressService: IEditorProgressService, creationOptions?: INotebookEditorCreationOptions, codeWindow?: CodeWindow, initialDimension?: Dimension) {
-		const notebookInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+	protected createWidget(editorGroupContextKeyService: IContextKeyService, widgetDisposeStore: DisposableStore, editorGroupEditorProgressService: IEditorProgressService, creationOptions?: INotebookEditorCreationOptions, codeWindow?: CodeWindow, initialDimension?: Dimension) {
+		const notebookInstantiationService = widgetDisposeStore.add(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, editorGroupContextKeyService],
-			[IEditorProgressService, editorGroupEditorProgressService]));
+			[IEditorProgressService, editorGroupEditorProgressService])));
 		const ctorOptions = creationOptions ?? getDefaultNotebookCreationOptions();
 		const widget = notebookInstantiationService.createInstance(NotebookEditorWidget, {
 			...ctorOptions,
