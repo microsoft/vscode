@@ -31,7 +31,7 @@ const SHELL_EXECUTABLES = [
 	'debian.exe',
 	'opensuse-42.exe',
 	'sles-12.exe',
-	'julialauncher.exe',
+	'julia.exe',
 	'nu.exe',
 ];
 
@@ -155,7 +155,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			case 'bash.exe':
 			case 'git-cmd.exe':
 				return WindowsShellType.GitBash;
-			case 'julialauncher.exe':
+			case 'julia.exe':
 				return GeneralShellType.Julia;
 			case 'nu.exe':
 				return GeneralShellType.NuShell;
