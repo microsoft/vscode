@@ -255,9 +255,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._hasDefaultAgent = ChatContextKeys.chatEnabled.bindTo(this.contextKeyService);
-		this._defaultAgentRegistered = ChatContextKeys.chatPanelParticipantRegistered.bindTo(this.contextKeyService);
-		this._editingAgentRegistered = ChatContextKeys.chatEditingParticipantRegistered.bindTo(this.contextKeyService);
+		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
+		this._defaultAgentRegistered = ChatContextKeys.panelParticipantRegistered.bindTo(this.contextKeyService);
+		this._editingAgentRegistered = ChatContextKeys.editingParticipantRegistered.bindTo(this.contextKeyService);
 		this._register(contextKeyService.onDidChangeContext((e) => {
 			if (e.affectsSome(this._agentsContextKeys)) {
 				this._updateContextKeys();

@@ -131,7 +131,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CHAT_SIDEBAR_OLD_VIEW_PANEL_ID,
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ChatContextKeys.chatPanelParticipantRegistered,
+			when: ChatContextKeys.panelParticipantRegistered,
 			primary: 0,
 			handler: accessor => showChatView(accessor.get(IViewsService))
 		});
@@ -206,7 +206,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 			order: 1,
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.chatExtensionInvalid)),
+			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.extensionInvalid)),
 			ctorDescriptor: new SyncDescriptor(MovedChatViewPane, [{ id: viewId }]),
 		};
 
@@ -244,7 +244,7 @@ export class MoveChatViewContribution extends Disposable implements IWorkbenchCo
 		return viewsRegistry.registerViewWelcomeContent(viewId, {
 			content: [welcomeViewMainMessage, okButton, restoreButton, welcomeViewFooterMessage].join('\n\n'),
 			renderSecondaryButtons: true,
-			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.chatExtensionInvalid))
+			when: ContextKeyExpr.and(ChatContextKeys.shouldShowMovedViewWelcome, ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.extensionInvalid))
 		});
 	}
 

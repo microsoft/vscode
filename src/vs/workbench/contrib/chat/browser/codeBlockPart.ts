@@ -748,7 +748,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		const isEditApplied = Boolean(data.edit.state?.applied ?? 0);
 
-		ChatContextKeys.chatEditApplied.bindTo(this.contextKeyService).set(isEditApplied);
+		ChatContextKeys.editApplied.bindTo(this.contextKeyService).set(isEditApplied);
 
 		this.element.classList.toggle('no-diff', isEditApplied);
 

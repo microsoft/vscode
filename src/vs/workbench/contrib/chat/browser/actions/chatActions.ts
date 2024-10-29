@@ -96,7 +96,7 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: defaultChat.icon,
 			f1: true,
-			precondition: ChatContextKeys.chatPanelParticipantRegistered,
+			precondition: ChatContextKeys.panelParticipantRegistered,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -160,7 +160,7 @@ class ChatHistoryAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
 			f1: true,
-			precondition: ChatContextKeys.chatEnabled
+			precondition: ChatContextKeys.enabled
 		});
 	}
 
@@ -265,7 +265,7 @@ class OpenChatEditorAction extends Action2 {
 			title: localize2('interactiveSession.open', "Open Editor"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatEnabled
+			precondition: ChatContextKeys.enabled
 		});
 	}
 
@@ -331,7 +331,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearInputHistory',
 				title: localize2('interactiveSession.clearHistory.label', "Clear Input History"),
-				precondition: ChatContextKeys.chatEnabled,
+				precondition: ChatContextKeys.enabled,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -347,7 +347,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearHistory',
 				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
-				precondition: ChatContextKeys.chatEnabled,
+				precondition: ChatContextKeys.enabled,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -462,7 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: defaultChat.icon,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.installEntitled)
+		ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.installEntitled)
 	),
 	order: 10001,
 });
@@ -475,7 +475,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
-				ContextKeyExpr.or(ChatContextKeys.chatPanelParticipantRegistered, ChatContextKeys.installEntitled)
+				ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.installEntitled)
 			)
 		);
 	}
@@ -606,7 +606,7 @@ class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 1,
-				when: ChatContextKeys.chatPanelParticipantRegistered.negate()
+				when: ChatContextKeys.panelParticipantRegistered.negate()
 			}
 		});
 	}
@@ -630,12 +630,12 @@ class LearnMoreChatAction extends Action2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 2,
-				when: ChatContextKeys.chatPanelParticipantRegistered.negate()
+				when: ChatContextKeys.panelParticipantRegistered.negate()
 			}, {
 				id: MenuId.ChatCommandCenter,
 				group: 'z_atlast',
 				order: 1,
-				when: ChatContextKeys.chatPanelParticipantRegistered
+				when: ChatContextKeys.panelParticipantRegistered
 			}]
 		});
 	}

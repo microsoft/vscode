@@ -184,12 +184,12 @@ class SendToChatEditingAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 4,
-				when: ContextKeyExpr.and(ChatContextKeys.chatEnabled, ChatContextKeys.chatEditingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.chatEnabled, ChatContextKeys.chatEditingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
 			}
 		});
 	}

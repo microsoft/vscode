@@ -103,7 +103,7 @@ class QuickChatGlobalAction extends Action2 {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
 			title: localize2('quickChat', 'Quick Chat'),
-			precondition: ChatContextKeys.chatEnabled,
+			precondition: ChatContextKeys.enabled,
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,
