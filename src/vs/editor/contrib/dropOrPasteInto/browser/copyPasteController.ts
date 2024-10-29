@@ -301,6 +301,56 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 	}
 
+	public async handlePasteWithoutEvent() {
+		if (!this._editor.hasTextFocus()) {
+			return;
+		}
+
+		MessageController.get(this._editor)?.closeMessage();
+		this._currentPasteOperation?.cancel();
+		this._currentPasteOperation = undefined;
+
+		const model = this._editor.getModel();
+		const selections = this._editor.getSelections();
+		if (!selections?.length || !model) {
+			return;
+		}
+
+		if (
+			this._editor.getOption(EditorOption.readOnly) // Never enabled if editor is readonly.
+			|| (!this.isPasteAsEnabled() && !this._pasteAsActionContext) // Or feature disabled (but still enable if paste was explicitly requested)
+		) {
+			return;
+		}
+
+		const allPotentialMimeTypes = [Mimes.uriList];
+		const allProviders = this._languageFeaturesService.documentPasteEditProvider
+			.ordered(model)
+			.filter(provider => {
+				// Filter out providers that don't match the requested paste types
+				const preference = this._pasteAsActionContext?.preferred;
+				if (preference) {
+					if (provider.providedPasteEditKinds && !this.providerMatchesPreference(provider, preference)) {
+						return false;
+					}
+				}
+				// And providers that don't handle any of mime types in the clipboard
+				return provider.pasteMimeTypes?.some(type => matchesMimeType(type, allPotentialMimeTypes));
+			});
+		if (!allProviders.length) {
+			if (this._pasteAsActionContext?.preferred) {
+				this.showPasteAsNoEditMessage(selections, this._pasteAsActionContext.preferred);
+			}
+			return;
+		}
+
+		if (this._pasteAsActionContext) {
+			this.showPasteAsPickWithoutEvent(this._pasteAsActionContext.preferred, allProviders, selections, dataTransfer, metadata);
+		} else {
+			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
+		}
+	}
+
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {
 		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", preference instanceof HierarchicalKind ? preference.value : preference.providerId), selections[0].getStartPosition());
 	}
@@ -435,6 +485,94 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					only: preference && preference instanceof HierarchicalKind ? preference : undefined,
 				};
 				let editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token));
+				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
+
+				// Filter out any edits that don't match the requested kind
+				if (preference) {
+					editSession = {
+						edits: editSession.edits.filter(edit => {
+							if (preference instanceof HierarchicalKind) {
+								return preference.contains(edit.kind);
+							} else {
+								return preference.providerId === edit.provider.id;
+							}
+						}),
+						dispose: editSession.dispose
+					};
+				}
+
+				if (!editSession.edits.length) {
+					if (context.only) {
+						this.showPasteAsNoEditMessage(selections, context.only);
+					}
+					return;
+				}
+
+				let pickedEdit: DocumentPasteEdit | undefined;
+				if (preference) {
+					pickedEdit = editSession.edits.at(0);
+				} else {
+					const selected = await this._quickInputService.pick(
+						editSession.edits.map((edit): IQuickPickItem & { edit: DocumentPasteEdit } => ({
+							label: edit.title,
+							description: edit.kind?.value,
+							edit,
+						})), {
+						placeHolder: localize('pasteAsPickerPlaceholder', "Select Paste Action"),
+					});
+					pickedEdit = selected?.edit;
+				}
+
+				if (!pickedEdit) {
+					return;
+				}
+
+				const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, selections, pickedEdit);
+				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor });
+			} finally {
+				disposables.dispose();
+				if (this._currentPasteOperation === p) {
+					this._currentPasteOperation = undefined;
+				}
+			}
+		});
+
+		this._progressService.withProgress({
+			location: ProgressLocation.Window,
+			title: localize('pasteAsProgress', "Running paste handlers"),
+		}, () => p);
+	}
+
+	private showPasteAsPickWithoutEvent(preference: PastePreference | undefined, allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[]): void {
+		const p = createCancelablePromise(async (token) => {
+			const editor = this._editor;
+			if (!editor.hasModel()) {
+				return;
+			}
+			const model = editor.getModel();
+
+			const disposables = new DisposableStore();
+			const tokenSource = disposables.add(new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token));
+			try {
+
+				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
+
+				// Filter out any providers the don't match the full data transfer we will send them.
+				let supportedProviders = allProviders.filter(provider => !preference || this.providerMatchesPreference(provider, preference));
+				if (preference) {
+					// We are looking for a specific edit
+					supportedProviders = supportedProviders.filter(provider => this.providerMatchesPreference(provider, preference));
+				}
+
+				const context: DocumentPasteContext = {
+					triggerKind: DocumentPasteTriggerKind.PasteAs,
+					only: preference && preference instanceof HierarchicalKind ? preference : undefined,
+				};
+				let editSession = disposables.add(await this.getPasteEdits(supportedProviders, model, selections, context, tokenSource.token));
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
