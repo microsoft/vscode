@@ -224,6 +224,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		return edits;
 	}
+
+	private _attemptedWorkingSetEntriesCount: number = 0;
+	/**
+	 * The number of working set entries that the user actually wanted to attach.
+	 * This is less than or equal to {@link ChatInputPart.chatEditWorkingSetFiles}.
+	 */
+	public get attemptedWorkingSetEntriesCount() {
+		return this._attemptedWorkingSetEntriesCount;
+	}
 	private _combinedChatEditWorkingSetEntries: URI[] = [];
 	public get chatEditWorkingSetFiles() {
 		return this._combinedChatEditWorkingSetEntries;
@@ -969,6 +978,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const overviewRegion = innerContainer.querySelector('.chat-editing-session-overview') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-overview'));
 		const overviewText = overviewRegion.querySelector('span') ?? dom.append(overviewRegion, $('span'));
 		overviewText.textContent = localize('chatEditingSession.workingSet', 'Working Set');
+
+		// Record the number of entries that the user wanted to add to the working set
+		this._attemptedWorkingSetEntriesCount = entries.length;
 
 		if (entries.length === 1) {
 			overviewText.textContent += ' ' + localize('chatEditingSession.oneFile', '(1 file)');

@@ -29,6 +29,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -235,6 +236,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -1007,6 +1009,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				for (const file of uniqueWorkingSetEntries) {
+					// Make sure that any files that we sent are part of the working set
+					// but do not permanently add file variables from previous requests to the working set
+					// since the user may subsequently edit the chat history
+					currentEditingSession?.addFileToWorkingSet(file);
+				}
+
 				// Collect file variables from previous requests before sending the request
 				const previousRequests = this.viewModel.model.getRequests();
 				for (const request of previousRequests) {
@@ -1022,12 +1032,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 				workingSet = [...uniqueWorkingSetEntries.values()];
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-				for (const file of workingSet) {
-					// Make sure that any files that we sent are part of the working set
-					currentEditingSession?.addFileToWorkingSet(file);
-				}
 				attachedContext = editingSessionAttachedContext;
+
+				type ChatEditingWorkingSetClassification = {
+					owner: 'joyceerhl';
+					comment: 'Information about the working set size in a chat editing request';
+					originalSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of files that the user tried to attach in their editing request.' };
+					actualSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of files that were actually sent in their editing request.' };
+				};
+				type ChatEditingWorkingSetEvent = {
+					originalSize: number;
+					actualSize: number;
+				};
+				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
