@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel, IDecoration } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
@@ -29,7 +29,7 @@ import { ShellIntegrationAddon } from '../../../../../platform/terminal/common/x
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { DecorationAddon } from './decorationAddon.js';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TerminalContextKeys } from '../../common/terminalContextKey.js';
@@ -41,6 +41,11 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { XtermAddonImporter } from './xtermAddonImporter.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { provideInlineCompletions } from '../../../../../editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { InlineCompletionTriggerKind } from '../../../../../editor/common/languages.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -172,7 +177,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@ILayoutService layoutService: ILayoutService
+		@ILayoutService layoutService: ILayoutService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 
@@ -282,9 +289,126 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
+
+
+
+
+		this.raw.onKey(() => {
+			this._requestGhostText();
+		});
+
+		// this.raw.onCursorMove(() => {
+		// 	if (this._ghostDecoration) {
+		// 		this.refreshGhostTextNow();
+		// 	} else {
+		// 		this.refreshGhostText();
+		// 	}
+		// });
 	}
 
-	*getBufferReverseIterator(): IterableIterator<string> {
+	@debounce(200)
+	private _requestGhostText() {
+		console.log('_requestGhostText');
+		// TODO: lang to shell type
+
+		const buffer = this.raw.buffer.active;
+		// TODO: Add rest of buffer
+		const lineContent = buffer.getLine(buffer.baseY + buffer.cursorY)!.translateToString(true, 0, this.raw.buffer.active.cursorX);
+		const model = this._modelService.createModel(lineContent, { languageId: 'shellscript', onDidChange: Event.None });
+		// TODO: Provider change
+		const r = provideInlineCompletions(this._languageFeaturesService.inlineCompletionsProvider, new Position(1, lineContent.length + 1), model, {
+			triggerKind: InlineCompletionTriggerKind.Automatic,
+			selectedSuggestionInfo: undefined,
+			includeInlineEdits: false,
+			includeInlineCompletions: true,
+		});
+		r.then(v => {
+			console.log('completions', v);
+
+			this._ghostDecoration?.dispose();
+			if (v.completions.length === 0) {
+				this._setCursorStyle('block');
+				return;
+			}
+
+			// Rectangle might be more appropriate?
+			this._setCursorStyle('underline');
+
+			const completion = v.completions[0]!;
+			const insertText = completion.insertText.substring(completion.range.endColumn - 1);
+
+			// TODO: The decoration API would need to be changed to overwrite the text content to get
+			//       consistent rendering
+			// TODO: Multi-line could be handled by multiple decorations
+			this._ghostDecoration = this.raw.registerDecoration({
+				marker: this.raw.registerMarker(),
+				x: buffer.cursorX,
+				width: this.raw.cols - buffer.cursorX - 1,
+			})!;
+			this._ghostDecoration.onRender(e => {
+				e.textContent = insertText;
+				e.style.whiteSpace = 'pre';
+				e.style.color = 'var(--vscode-editorGhostText-foreground)';
+				e.style.backgroundColor = 'var(--vscode-editorGhostText-background)';
+				e.style.fontStyle = 'italic';
+				e.style.fontFamily = 'Hack';
+			});
+		});
+	}
+
+	private readonly _ghostCompletion = 'hello world';
+	private _ghostDecoration: IDecoration | undefined;
+
+	@debounce(100)
+	refreshGhostText(): void {
+		this.refreshGhostTextNow();
+	}
+
+	refreshGhostTextNow(): void {
+		this._ghostDecoration?.dispose();
+
+		const buffer = this.raw.buffer.active;
+		const text = buffer.getLine(buffer.baseY + buffer.cursorY)!.translateToString(true, 0, this.raw.buffer.active.cursorX);
+		let length = 0;
+		let completion = '';
+		for (let i = this._ghostCompletion.length - 1; i > 0; i--) {
+			if (text.endsWith(this._ghostCompletion.substring(0, i))) {
+				completion = this._ghostCompletion;
+				length = i;
+				break;
+			}
+		}
+
+		if (length === 0) {
+			this._setCursorStyle('block');
+			return;
+		}
+
+		// Rectangle might be more appropriate?
+		this._setCursorStyle('underline');
+
+		// TODO: The decoration API would need to be changed to overwrite the text content to get
+		//       consistent rendering
+		// TODO: Multi-line could be handled by multiple decorations
+		this._ghostDecoration = this.raw.registerDecoration({
+			marker: this.raw.registerMarker(),
+			x: buffer.cursorX,
+			width: this.raw.cols - buffer.cursorX - 1,
+		})!;
+		this._ghostDecoration.onRender(e => {
+			e.textContent = completion.substring(length);
+			e.style.whiteSpace = 'pre';
+			e.style.color = 'var(--vscode-editorGhostText-foreground)';
+			e.style.backgroundColor = 'var(--vscode-editorGhostText-background)';
+			e.style.fontStyle = 'italic';
+			e.style.fontFamily = 'Hack';
+		});
+	}
+
+	// TODO: Try create a terminal text document? From there it could hook into the existing inline
+	//       completion item provider code?
+
+	* getBufferReverseIterator(): IterableIterator<string> {
 		for (let i = this.raw.buffer.active.length; i >= 0; i--) {
 			const { lineData, lineIndex } = getFullBufferLineAsString(i, this.raw.buffer.active);
 			if (lineData) {
