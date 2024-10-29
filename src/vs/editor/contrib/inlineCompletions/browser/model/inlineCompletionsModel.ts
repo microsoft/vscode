@@ -295,7 +295,8 @@ export class InlineCompletionsModel extends Disposable {
 			const cursorPos = this._primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
 
-			if (item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
+			const shouldShow = this._alwaysShowInlineEdit.read(reader);
+			if (!shouldShow && item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
@@ -342,6 +343,15 @@ export class InlineCompletionsModel extends Disposable {
 			return { kind: 'ghostText', edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
 		}
 	});
+
+	private readonly _alwaysShowInlineEdit = observableValue<boolean>(this, false);
+
+	protected readonly _resetAlwaysShowInlineEdit = this._register(autorun(reader => {
+		this._primaryPosition.read(reader);
+		this._textModelVersionId.read(reader);
+
+		this._alwaysShowInlineEdit.set(false, undefined);
+	}));
 
 	public readonly status = derived(this, reader => {
 		if (this._source.loading.read(reader)) { return 'loading'; }
@@ -470,6 +480,8 @@ export class InlineCompletionsModel extends Disposable {
 				.then(undefined, onUnexpectedExternalError);
 			completion.source.removeRef();
 		}
+
+		this._alwaysShowInlineEdit.set(true, undefined);
 	}
 
 	public async acceptNextWord(editor: ICodeEditor): Promise<void> {
