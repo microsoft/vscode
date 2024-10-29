@@ -132,7 +132,6 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 				widgets.forEach(widget => widget.disposableStore.dispose());
 			});
 		});
-		this._borrowableEditors.clear();
 	}
 
 	// --- group-based editor borrowing...
@@ -226,9 +225,6 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			const values = map.get(input.resource) ?? [];
 			values.push(value);
 			map.set(input.resource, values);
-
-			// Track the disposable store for the new widget
-			widgetDisposeStore.add(widget);
 		} else {
 			// reuse a widget which was either free'ed before or which
 			// is simply being reused...
