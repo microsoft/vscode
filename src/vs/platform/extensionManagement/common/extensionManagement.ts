@@ -257,6 +257,7 @@ export type Metadata = Partial<IGalleryMetadata & {
 	installedTimestamp: number;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }>;
 
 export interface ILocalExtension extends IExtension {
@@ -271,6 +272,7 @@ export interface ILocalExtension extends IExtension {
 	updated: boolean;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }
 
 export const enum SortBy {

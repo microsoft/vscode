@@ -563,6 +563,7 @@ export class ExtensionsScanner extends Disposable {
 	async cleanUp(): Promise<void> {
 		await this.removeTemporarilyDeletedFolders();
 		await this.removeUninstalledExtensions();
+		await this.initializeMetadata();
 	}
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion): Promise<ILocalExtension[]> {
@@ -650,6 +651,13 @@ export class ExtensionsScanner extends Disposable {
 			}
 
 			try {
+				metadata.size = await this.computeSize(tempLocation);
+			} catch (error) {
+				// Log & ignore
+				this.logService.warn(`Error while getting the size of the extracted extension : ${tempLocation.fsPath}`, getErrorMessage(error));
+			}
+
+			try {
 				await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
 			} catch (error) {
 				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
@@ -683,6 +691,15 @@ export class ExtensionsScanner extends Disposable {
 		}
 
 		return this.scanLocalExtension(extensionLocation, ExtensionType.User);
+	}
+
+	private async computeSize(extensionLocation: URI): Promise<number> {
+		const stat = await this.fileService.resolve(extensionLocation);
+		if (stat.children) {
+			const sizes = await Promise.all(stat.children.map(c => this.computeSize(c.resource)));
+			return (stat.size ?? 0) + sizes.reduce((r, s) => r + s, 0);
+		}
+		return stat.size ?? 0;
 	}
 
 	async scanMetadata(local: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
@@ -875,8 +892,20 @@ export class ExtensionsScanner extends Disposable {
 			updated: !!extension.metadata?.updated,
 			pinned: !!extension.metadata?.pinned,
 			isWorkspaceScoped: false,
-			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix')
+			source: extension.metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'vsix'),
+			size: extension.metadata?.size ?? 0,
 		};
+	}
+
+	private async initializeMetadata(): Promise<void> {
+		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeInvalid: true });
+		await Promise.all(extensions.map(async extension => {
+			// set size if not set before
+			if (!extension.metadata?.size && extension.metadata?.source !== 'resource') {
+				const size = await this.computeSize(extension.location);
+				await this.extensionsScannerService.updateMetadata(extension.location, { size });
+			}
+		}));
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {
