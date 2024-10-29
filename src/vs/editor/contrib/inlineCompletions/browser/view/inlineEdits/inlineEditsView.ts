@@ -405,10 +405,15 @@ export class InlineEditsView extends Disposable {
 		this._previewTextModel.setValue(uiState.newText);
 		const range = uiState.edit.originalLineRange;
 
-		this._previewEditor.setHiddenAreas([
-			new Range(1, 1, range.startLineNumber - 1, 1),
-			new Range(range.startLineNumber + uiState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1),
-		], undefined, true);
+		const hiddenAreas: Range[] = [];
+		if (range.startLineNumber > 1) {
+			hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
+		}
+		if (range.startLineNumber + uiState.newTextLineCount < this._previewTextModel.getLineCount() + 1) {
+			hiddenAreas.push(new Range(range.startLineNumber + uiState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1));
+		}
+
+		this._previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
 
 	}).recomputeInitiallyAndOnChange(this._store);
 
