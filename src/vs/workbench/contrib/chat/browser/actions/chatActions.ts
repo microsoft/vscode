@@ -33,7 +33,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEnabled, inputCursorAtTop, installEntitled, location, chatPanelParticipantRegistered, inChatInput, inChatSession, inQuickChat } from '../../common/chatContextKeys.js';
+import { chatEnabled, inputCursorAtTop, installEntitled, ChatContextKeys, chatPanelParticipantRegistered, inChatInput, inChatSession, inQuickChat } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -286,7 +286,7 @@ class ChatAddAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatInput,
-				when: location.isEqualTo(ChatAgentLocation.Panel),
+				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 				group: 'navigation',
 				order: 1
 			}

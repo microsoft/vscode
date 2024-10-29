@@ -37,7 +37,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatExecuteActionContext } from '../../browser/actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../../browser/chat.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys, inChatInput, chatEnabled, location } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, inChatInput, chatEnabled } from '../../common/chatContextKeys.js';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from '../../common/chatService.js';
 import { ChatResponseViewModel, IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from '../../common/voiceChatService.js';
@@ -568,13 +568,13 @@ export class StartVoiceChatAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(location.isEqualTo(ChatAgentLocation.Panel), location.isEqualTo(ChatAgentLocation.EditingSession)), menuCondition),
+					when: ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), menuCondition),
 					group: 'navigation',
 					order: 3
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel).negate(), location.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate(), menuCondition),
 					group: 'navigation',
 					order: 2
 				}
@@ -616,13 +616,13 @@ export class StopListeningAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel), AnyScopedVoiceChatInProgress),
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), AnyScopedVoiceChatInProgress),
 					group: 'navigation',
 					order: 3
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AnyScopedVoiceChatInProgress),
 					group: 'navigation',
 					order: 2
 				}
@@ -936,13 +936,13 @@ export class StopReadAloud extends Action2 {
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel), ScopedChatSynthesisInProgress),
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ScopedChatSynthesisInProgress),
 					group: 'navigation',
 					order: 3
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel).negate(), ScopedChatSynthesisInProgress),
+					when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ScopedChatSynthesisInProgress),
 					group: 'navigation',
 					order: 2
 				}
@@ -1283,13 +1283,13 @@ export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechPr
 			menu: [
 				{
 					id: MenuId.ChatInput,
-					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ContextKeyExpr.or(location.isEqualTo(ChatAgentLocation.Panel), location.isEqualTo(ChatAgentLocation.EditingSession))),
+					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
 					group: 'navigation',
 					order: 3
 				},
 				{
 					id: MenuId.ChatExecute,
-					when: ContextKeyExpr.and(HasSpeechProvider.negate(), location.isEqualTo(ChatAgentLocation.Panel).negate(), location.isEqualTo(ChatAgentLocation.EditingSession).negate()),
+					when: ContextKeyExpr.and(HasSpeechProvider.negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession).negate()),
 					group: 'navigation',
 					order: 2
 				}

@@ -39,7 +39,7 @@ import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { chatEnabled, location, inChatInput } from '../../common/chatContextKeys.js';
+import { chatEnabled, ChatContextKeys, inChatInput } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
@@ -231,10 +231,10 @@ export class AttachContextAction extends Action2 {
 
 	// used to enable/disable the keybinding and defined menu containment
 	protected static _cdt = ContextKeyExpr.or(
-		ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel)),
-		ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Editor)),
-		ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Notebook)),
-		ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Terminal)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Notebook)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Terminal)),
 	);
 
 	constructor(desc: Readonly<IAction2Options> = {
@@ -242,7 +242,7 @@ export class AttachContextAction extends Action2 {
 		title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
 		icon: Codicon.attach,
 		category: CHAT_CATEGORY,
-		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.EditingSession))),
+		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
 		keybinding: {
 			when: inChatInput,
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
@@ -250,13 +250,13 @@ export class AttachContextAction extends Action2 {
 		},
 		menu: [
 			{
-				when: ContextKeyExpr.or(ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(location.isEqualTo(ChatAgentLocation.Panel), location.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
+				when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 2
 			},
 			{
-				when: ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
+				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1
@@ -660,7 +660,7 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Working Set"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: location.isEqualTo(ChatAgentLocation.EditingSession)
+			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 		});
 	}
 

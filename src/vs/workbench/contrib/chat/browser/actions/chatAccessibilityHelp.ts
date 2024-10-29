@@ -13,7 +13,7 @@ import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/d
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { inChatSession, ChatContextKeys, location, inQuickChat } from '../../common/chatContextKeys.js';
+import { inChatSession, ChatContextKeys, inQuickChat } from '../../common/chatContextKeys.js';
 import { IAccessibleViewImplentation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -22,7 +22,7 @@ export class PanelChatAccessibilityHelp implements IAccessibleViewImplentation {
 	readonly priority = 107;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(location.isEqualTo(ChatAgentLocation.Panel), inQuickChat.negate(), ContextKeyExpr.or(inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
+	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), inQuickChat.negate(), ContextKeyExpr.or(inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');

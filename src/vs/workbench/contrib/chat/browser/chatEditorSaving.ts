@@ -25,7 +25,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
-import { location, ChatContextKeys, inChatInput } from '../common/chatContextKeys.js';
+import { ChatContextKeys, inChatInput } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, WorkingSetEntryState } from '../common/chatEditingService.js';
 
 export class ChatEditorSaving extends Disposable implements IWorkbenchContribution {
@@ -218,13 +218,13 @@ export class ChatEditingSaveAllAction extends Action2 {
 						applyingChatEditsFailedContextKey.negate(),
 						ContextKeyExpr.or(hasUndecidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey.negate()),
 						ContextKeyExpr.notEquals('config.files.autoSave', 'off'), ContextKeyExpr.equals(`config.${ChatEditorSaving._config}`, false),
-						location.isEqualTo(ChatAgentLocation.EditingSession)
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 					)
 				}
 			],
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyS,
-				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput),
+				when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), inChatInput),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 		});

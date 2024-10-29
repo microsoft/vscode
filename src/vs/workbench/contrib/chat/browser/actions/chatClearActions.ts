@@ -16,7 +16,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { chatEditingCanRedo, chatEditingCanUndo, chatEditingParticipantRegistered, chatEnabled, location, inChatSession } from '../../common/chatContextKeys.js';
+import { chatEditingCanRedo, chatEditingCanUndo, chatEditingParticipantRegistered, chatEnabled, ChatContextKeys, inChatSession } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -58,7 +58,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(chatEnabled, location.notEqualsTo(ChatAgentLocation.EditingSession)),
+				precondition: ContextKeyExpr.and(chatEnabled, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -210,7 +210,7 @@ export function registerNewChatActions() {
 				f1: false,
 				menu: [{
 					id: MenuId.ChatEditingWidgetToolbar,
-					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, chatEditingParticipantRegistered, location.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, chatEditingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					group: 'navigation',
 					order: 0
 				}]
