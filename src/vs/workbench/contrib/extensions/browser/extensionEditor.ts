@@ -30,7 +30,7 @@ import { localize } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IExtensionGalleryService, IGalleryExtension, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { computeSize, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionType, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -87,6 +87,26 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { VIEW_ID as EXPLORER_VIEW_ID } from '../../files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+
+function toDateString(date: Date) {
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
+}
+
+function toMemoryString(bytes: number) {
+	if (bytes < 1024) {
+		return `${bytes} B`;
+	}
+	if (bytes < 1024 * 1024) {
+		return `${(bytes / 1024).toFixed(1)} KB`;
+	}
+	if (bytes < 1024 * 1024 * 1024) {
+		return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	}
+	return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
 
 class NavBar extends Disposable {
 
@@ -255,6 +275,9 @@ export class ExtensionEditor extends EditorPane {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(ExtensionEditor.ID, group, telemetryService, themeService, storageService);
 		this.extensionReadme = null;
@@ -989,7 +1012,6 @@ export class ExtensionEditor extends EditorPane {
 		const installInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(installInfoContainer, $('.additional-details-title', undefined, localize('Install Info', "Installation")));
 		const installInfo = append(installInfoContainer, $('.more-info'));
-		const toDateString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		append(installInfo,
 			$('.more-info-entry', undefined,
 				$('div', undefined, localize('id', "Identifier")),
@@ -1004,7 +1026,7 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.installedTimestamp) {
 			append(installInfo,
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('last updated', "Last updated")),
+					$('div', undefined, localize('last updated', "Last Updated")),
 					$('div', undefined, toDateString(new Date(extension.installedTimestamp)))
 				)
 			);
@@ -1013,10 +1035,31 @@ export class ExtensionEditor extends EditorPane {
 			append(installInfo,
 				$('.more-info-entry', undefined,
 					$('div', { title: localize('size when installed', "Size when installed") }, localize('size', "Size")),
-					$('div', undefined, `${(extension.size / (1024 * 1024)).toPrecision(3)} MB`)
+					$('div', undefined, toMemoryString(extension.size))
 				)
 			);
 		}
+		this.computeCacheSize(extension).then(size => {
+			if (size) {
+				append(installInfo,
+					$('.more-info-entry', undefined,
+						$('div', { title: localize('disk space used', "Cache size") }, localize('cache size', "Cache")),
+						$('div', undefined, toMemoryString(size)))
+				);
+			}
+		});
+	}
+
+	private async computeCacheSize(extension: ILocalExtension): Promise<number> {
+		let extensionCacheLocation = this.uriIdentityService.extUri.joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, extension.identifier.id.toLowerCase());
+		if (extension.location.scheme === Schemas.vscodeRemote) {
+			const environment = await this.remoteAgentService.getEnvironment();
+			if (!environment) {
+				return 0;
+			}
+			extensionCacheLocation = this.uriIdentityService.extUri.joinPath(environment.globalStorageHome, extension.identifier.id.toLowerCase());
+		}
+		return computeSize(extensionCacheLocation, this.fileService);
 	}
 
 	private renderMarketplaceInfo(container: HTMLElement, extension: IExtension): void {
@@ -1024,7 +1067,6 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "Marketplace")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
-		const toDateString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			if (!extension.local) {
 				append(moreInfo,
@@ -1045,7 +1087,7 @@ export class ExtensionEditor extends EditorPane {
 					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
 				),
 				$('.more-info-entry', undefined,
-					$('div', undefined, localize('last released', "Last released")),
+					$('div', undefined, localize('last released', "Last Released")),
 					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 				)
 			);

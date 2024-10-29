@@ -33,6 +33,7 @@ import {
 	IProductVersion,
 	EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT,
 	ExtensionSignatureVerificationCode,
+	computeSize,
 } from '../common/extensionManagement.js';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId, groupByExtension } from '../common/extensionManagementUtil.js';
 import { IExtensionsProfileScannerService, IScannedProfileExtension } from '../common/extensionsProfileScannerService.js';
@@ -651,7 +652,7 @@ export class ExtensionsScanner extends Disposable {
 			}
 
 			try {
-				metadata.size = await this.computeSize(tempLocation);
+				metadata.size = await computeSize(tempLocation, this.fileService);
 			} catch (error) {
 				// Log & ignore
 				this.logService.warn(`Error while getting the size of the extracted extension : ${tempLocation.fsPath}`, getErrorMessage(error));
@@ -691,15 +692,6 @@ export class ExtensionsScanner extends Disposable {
 		}
 
 		return this.scanLocalExtension(extensionLocation, ExtensionType.User);
-	}
-
-	private async computeSize(extensionLocation: URI): Promise<number> {
-		const stat = await this.fileService.resolve(extensionLocation);
-		if (stat.children) {
-			const sizes = await Promise.all(stat.children.map(c => this.computeSize(c.resource)));
-			return (stat.size ?? 0) + sizes.reduce((r, s) => r + s, 0);
-		}
-		return stat.size ?? 0;
 	}
 
 	async scanMetadata(local: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
@@ -902,7 +894,7 @@ export class ExtensionsScanner extends Disposable {
 		await Promise.all(extensions.map(async extension => {
 			// set size if not set before
 			if (!extension.metadata?.size && extension.metadata?.source !== 'resource') {
-				const size = await this.computeSize(extension.location);
+				const size = await computeSize(extension.location, this.fileService);
 				await this.extensionsScannerService.updateMetadata(extension.location, { size });
 			}
 		}));

@@ -652,7 +652,7 @@ class ExtensionsScanner extends Disposable {
 					manifest.publisher = UNDEFINED_PUBLISHER;
 				}
 				metadata = metadata ?? manifest.__metadata;
-				if (metadata && !metadata?.size) {
+				if (metadata && !metadata?.size && manifest.__metadata?.size) {
 					metadata.size = manifest.__metadata?.size;
 				}
 				delete manifest.__metadata;
