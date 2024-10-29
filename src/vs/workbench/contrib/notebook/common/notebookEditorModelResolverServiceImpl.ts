@@ -61,16 +61,16 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return this._dirtyStates.get(resource) ?? false;
 	}
 
-	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits, isScratchpad?: boolean): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, notebookType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits, isScratchpad?: boolean, viewType?: string): Promise<IResolvedNotebookEditorModel> {
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
 
 		const uri = URI.parse(key);
 
-		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
+		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(notebookType, viewType);
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
-			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService, this._telemetryService, this._notebookLoggingService);
+			const factory = new NotebookFileWorkingCopyModelFactory(notebookType, this._notebookService, this._configurationService, this._telemetryService, this._notebookLoggingService);
 			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 				FileWorkingCopyManager,
 				workingCopyTypeId,
@@ -80,8 +80,8 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 		}
 
-		const isScratchpadView = isScratchpad || (viewType === 'interactive' && this._configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true);
-		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager, isScratchpadView);
+		const isScratchpadView = isScratchpad || (notebookType === 'interactive' && this._configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true);
+		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, notebookType, workingCopyManager, isScratchpadView);
 		const result = await model.load({ limits });
 
 
@@ -99,7 +99,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 				// isDirty -> add reference
 				// !isDirty -> free reference
 				if (isDirty && !onDirtyAutoReference) {
-					onDirtyAutoReference = this.acquire(key, viewType);
+					onDirtyAutoReference = this.acquire(key, notebookType);
 				} else if (onDirtyAutoReference) {
 					onDirtyAutoReference.dispose();
 					onDirtyAutoReference = undefined;
@@ -257,7 +257,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 
 		const validated = await this.validateResourceViewType(resource, viewType);
 
-		const reference = this._data.acquire(validated.resource.toString(), validated.viewType, hasAssociatedFilePath, options?.limits, options?.scratchpad);
+		const reference = this._data.acquire(validated.resource.toString(), validated.viewType, hasAssociatedFilePath, options?.limits, options?.scratchpad, options?.viewType);
 		try {
 			const model = await reference.object;
 			return {

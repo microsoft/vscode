@@ -63,7 +63,7 @@ import { MenuPreventer } from '../../codeEditor/browser/menuPreventer.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { IMarkdownVulnerability } from '../common/annotations.js';
-import { CONTEXT_CHAT_EDIT_APPLIED } from '../common/chatContextKeys.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
 import { IChatResponseViewModel, isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem } from './chat.js';
@@ -692,20 +692,20 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		const contentHeight = this.getContentHeight();
 		const editorBorder = 2;
-		const dimension = { width: width - editorBorder, height: contentHeight };
+
+		const toolbar = dom.getTotalHeight(this.toolbar.getElement());
+		const content = this.diffEditor.getModel()
+			? this.diffEditor.getContentHeight()
+			: dom.getTotalHeight(this.messageElement);
+
+		const dimension = new dom.Dimension(width - editorBorder, toolbar + content);
 		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
-		this.diffEditor.layout(dimension);
+		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
 		this.updatePaddingForLayout();
 	}
 
-	private getContentHeight() {
-		return this.diffEditor.getModel()
-			? this.diffEditor.getContentHeight()
-			: dom.getTotalHeight(this.messageElement);
-	}
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
 		if (data.parentContextKeyService) {
@@ -748,7 +748,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		const isEditApplied = Boolean(data.edit.state?.applied ?? 0);
 
-		CONTEXT_CHAT_EDIT_APPLIED.bindTo(this.contextKeyService).set(isEditApplied);
+		ChatContextKeys.editApplied.bindTo(this.contextKeyService).set(isEditApplied);
 
 		this.element.classList.toggle('no-diff', isEditApplied);
 

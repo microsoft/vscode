@@ -20,6 +20,8 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from '../../../../platform/userDataSync/common/userDataSync.js';
+import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update?: { mode?: string };
@@ -30,7 +32,6 @@ interface IConfiguration extends IWindowsConfiguration {
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 	accessibility?: { verbosity?: { debug?: boolean } };
-	files?: { experimentalWatcherNext?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -47,8 +48,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'workbench.enableExperiments',
 		'_extensionsGallery.enablePPE',
 		'security.restrictUNCAccess',
-		'accessibility.verbosity.debug',
-		'files.experimentalWatcherNext'
+		'accessibility.verbosity.debug'
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
@@ -63,26 +63,41 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly enablePPEExtensionsGallery = new ChangeObserver('boolean');
 	private readonly restrictUNCAccess = new ChangeObserver('boolean');
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
-	private readonly filesExperimentalWatcherNext = new ChangeObserver('boolean');
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataSyncWorkbenchService userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IProductService private readonly productService: IProductService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super();
 
-		this.onConfigurationChange(undefined);
+		this.update(false);
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
+		this._register(userDataSyncWorkbenchService.onDidTurnOnSync(e => this.update(true)));
 	}
 
-	private onConfigurationChange(e: IConfigurationChangeEvent | undefined): void {
+	private onConfigurationChange(e: IConfigurationChangeEvent): void {
 		if (e && !SettingsChangeRelauncher.SETTINGS.some(key => e.affectsConfiguration(key))) {
 			return;
 		}
 
+		// Skip if turning on sync is in progress
+		if (this.isTurningOnSyncInProgress()) {
+			return;
+		}
 
+		this.update(e.source !== ConfigurationTarget.DEFAULT /* do not ask to relaunch if defaults changed */);
+	}
+
+	private isTurningOnSyncInProgress(): boolean {
+		return !this.userDataSyncEnablementService.isEnabled() && this.userDataSyncService.status === SyncStatus.Syncing;
+	}
+
+	private update(askToRelaunch: boolean): void {
 		let changed = false;
 
 		function processChanged(didChange: boolean) {
@@ -126,9 +141,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Debug accessibility verbosity
 			processChanged(this.accessibilityVerbosityDebug.handleChange(config?.accessibility?.verbosity?.debug));
-
-			// File watcher next
-			processChanged(this.filesExperimentalWatcherNext.handleChange(config?.files?.experimentalWatcherNext));
 		}
 
 		// Experiments
@@ -137,9 +149,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Profiles
 		processChanged(this.productService.quality !== 'stable' && this.enablePPEExtensionsGallery.handleChange(config._extensionsGallery?.enablePPE));
 
-		// Notify only when changed from an event and the change
-		// was not triggerd programmatically (e.g. from experiments)
-		if (changed && e && e.source !== ConfigurationTarget.DEFAULT) {
+		if (askToRelaunch && changed && this.hostService.hasFocus) {
 			this.doConfirm(
 				isNative ?
 					localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect.") :
@@ -156,11 +166,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	}
 
 	private async doConfirm(message: string, detail: string, primaryButton: string, confirmedFn: () => void): Promise<void> {
-		if (this.hostService.hasFocus) {
-			const { confirmed } = await this.dialogService.confirm({ message, detail, primaryButton });
-			if (confirmed) {
-				confirmedFn();
-			}
+		const { confirmed } = await this.dialogService.confirm({ message, detail, primaryButton });
+		if (confirmed) {
+			confirmedFn();
 		}
 	}
 }

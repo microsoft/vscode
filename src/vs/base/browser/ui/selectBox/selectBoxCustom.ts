@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import * as cssJs from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { IContentActionHandler } from '../../formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
@@ -426,7 +427,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private styleList() {
 		const background = this.styles.selectBackground ?? '';
 
-		const listBackground = dom.asCssValueWithDefault(this.styles.selectListBackground, background);
+		const listBackground = cssJs.asCssValueWithDefault(this.styles.selectListBackground, background);
 		this.selectDropDownListContainer.style.backgroundColor = listBackground;
 		this.selectionDetailsPane.style.backgroundColor = listBackground;
 		const optionsBorder = this.styles.focusBorder ?? '';

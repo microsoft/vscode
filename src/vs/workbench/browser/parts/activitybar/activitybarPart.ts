@@ -118,6 +118,10 @@ export class ActivitybarPart extends Part {
 		return this.compositeBar.value?.getVisiblePaneCompositeIds() ?? [];
 	}
 
+	getPaneCompositeIds(): string[] {
+		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
+	}
+
 	focus(): void {
 		this.compositeBar.value?.focus();
 	}

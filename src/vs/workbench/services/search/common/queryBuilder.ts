@@ -22,7 +22,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IEditorGroupsService } from '../../editor/common/editorGroupsService.js';
 import { IPathService } from '../../path/common/pathService.js';
-import { ExcludeGlobPattern, getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
+import { ExcludeGlobPattern, getExcludes, IAITextQuery, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from './search.js';
 import { GlobPattern } from './searchExtTypes.js';
 
 /**
@@ -126,6 +126,15 @@ export class QueryBuilder {
 		@IPathService private readonly pathService: IPathService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
+	}
+
+	aiText(contentPattern: string, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): IAITextQuery {
+		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
+		return {
+			...commonQuery,
+			type: QueryType.aiText,
+			contentPattern,
+		};
 	}
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {

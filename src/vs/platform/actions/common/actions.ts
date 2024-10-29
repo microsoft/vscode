@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, SubmenuAction } from '../../../base/common/actions.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
 import { Event, MicrotaskEmitter } from '../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../base/common/linkedList.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from '../../action/common/action.js';
 import { Categories } from '../../action/common/actionCommonCategories.js';
 import { CommandsRegistry, ICommandService } from '../../commands/common/commands.js';
@@ -209,7 +209,6 @@ export class MenuId {
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly InlineEditsActions = new MenuId('InlineEditsActions');
-	static readonly InlineEditActions = new MenuId('InlineEditActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');
 	static readonly MergeInput2Toolbar = new MenuId('MergeToolbar2Toolbar');
@@ -221,11 +220,18 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
+	static readonly ChatInput = new MenuId('ChatInput');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
+	static readonly ChatEditingWidgetToolbar = new MenuId('ChatEditingWidgetToolbar');
+	static readonly ChatEditingWidgetModifiedFilesToolbar = new MenuId('ChatEditingWidgetModifiedFilesToolbar');
 	static readonly ChatInlineResourceAnchorContext = new MenuId('ChatInlineResourceAnchorContext');
 	static readonly ChatInlineSymbolAnchorContext = new MenuId('ChatInlineSymbolAnchorContext');
+	static readonly ChatEditingCodeBlockContext = new MenuId('ChatEditingCodeBlockContext');
+	static readonly ChatCommandCenter = new MenuId('ChatCommandCenter');
+	static readonly ChatAttachmentsContext = new MenuId('ChatAttachmentsContext');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
@@ -368,7 +374,7 @@ export interface IMenuRegistry {
 	 */
 	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
-	getMenuItems(loc: MenuId | undefined): Array<IMenuItem | ISubmenuItem>;
+	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
@@ -424,14 +430,9 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return result;
 	}
 
-	getMenuItems(id: MenuId | undefined): Array<IMenuItem | ISubmenuItem> {
+	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
 		let result: Array<IMenuItem | ISubmenuItem>;
-		if (id === undefined) {
-			result = [];
-			for (const items of this._menuItems.values()) {
-				result.push(...items);
-			}
-		} else if (this._menuItems.has(id)) {
+		if (this._menuItems.has(id)) {
 			result = [...this._menuItems.get(id)!];
 		} else {
 			result = [];
@@ -468,7 +469,7 @@ export class SubmenuItemAction extends SubmenuAction {
 	constructor(
 		readonly item: ISubmenuItem,
 		readonly hideActions: IMenuItemHide | undefined,
-		actions: IAction[],
+		actions: readonly IAction[],
 	) {
 		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, actions, 'submenu');
 	}
@@ -638,7 +639,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	disposables.push(CommandsRegistry.registerCommand({
 		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		metadata: command.metadata,
+		metadata: command.metadata ?? { description: action.desc.title }
 	}));
 
 	// menu

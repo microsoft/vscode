@@ -18,6 +18,7 @@ import { ICellOutputViewModel, ICellViewModel, INotebookEditor, getNotebookEdito
 import { CellKind, CellUri } from '../../common/notebookCommon.js';
 import { CodeCellViewModel } from '../viewModel/codeCellViewModel.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { INotebookEditorModelResolverService } from '../../common/notebookEditorModelResolverService.js';
 
 export const COPY_OUTPUT_COMMAND_ID = 'notebook.cellOutput.copy';
 
@@ -157,6 +158,7 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
+		const notebookModelService = accessor.get(INotebookEditorModelResolverService);
 
 		if (!notebookEditor) {
 			return;
@@ -172,7 +174,10 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 
 		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
-			openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			// reserve notebook document reference since the active notebook editor might not be pinned so it can be replaced by the output editor
+			const ref = await notebookModelService.resolve(notebookEditor.textModel.uri);
+			await openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			ref.dispose();
 		}
 	}
 });

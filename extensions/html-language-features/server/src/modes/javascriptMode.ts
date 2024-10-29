@@ -22,7 +22,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
-	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs').then(libs => {
+	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs.js').then(libs => {
 		const host: ts.LanguageServiceHost = {
 			getCompilationSettings: () => compilerOptions,
 			getScriptFileNames: () => [currentTextDocument.uri, 'jquery'],

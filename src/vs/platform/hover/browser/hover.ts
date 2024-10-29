@@ -63,7 +63,11 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
-		const id = isHTMLElement(options.content) ? undefined : options.content.toString();
+		const id = isHTMLElement(options.content)
+			? undefined
+			: typeof options.content === 'string'
+				? options.content.toString()
+				: options.content.value;
 
 		return this.hoverService.showHover({
 			...options,

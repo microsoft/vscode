@@ -8,7 +8,6 @@ const path = require("path");
 const es = require("event-stream");
 const vfs = require("vinyl-fs");
 const util = require("../lib/util");
-const amd_1 = require("../lib/amd");
 // @ts-ignore
 const deps = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
@@ -26,9 +25,6 @@ function src(base, maps = `${base}/**/*.map`) {
     }));
 }
 function main() {
-    if ((0, amd_1.isAMD)()) {
-        return Promise.resolve(); // in AMD we run into some issues, but we want to unblock the build for recovery
-    }
     const sources = [];
     // vscode client maps (default)
     if (!base) {

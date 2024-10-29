@@ -110,6 +110,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		return EditorExtensionsRegistry.getEditorActions();
 	}
 
+	public override updateOptions(newOptions: Readonly<IEditorOptions> | undefined): void {
+		const withLineNumberRemoved: Readonly<IEditorOptions> = { ...newOptions, lineNumbers: 'off' };
+		super.updateOptions(withLineNumberRemoved);
+	}
+
 	public static getEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 		return {
 			wordWrap: 'on',
@@ -140,6 +145,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			quickSuggestions: false,
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 			fontFamily: configurationService.getValue('editor.fontFamily'),
+			fontSize: configurationService.getValue('editor.fontSize'),
 		};
 	}
 }

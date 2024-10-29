@@ -24,7 +24,8 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		private readonly viewModel: () => NotebookViewModel | undefined,
 		private readonly keybindingService: IKeybindingService,
-		private readonly configurationService: IConfigurationService
+		private readonly configurationService: IConfigurationService,
+		private readonly isReplHistory: boolean
 	) {
 		super();
 		this._register(Event.debounce<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent, number[]>(
@@ -44,6 +45,12 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 		}, this));
 	}
 
+	get verbositySettingId() {
+		return this.isReplHistory ?
+			AccessibilityVerbositySettingId.ReplEditor :
+			AccessibilityVerbositySettingId.Notebook;
+	}
+
 	getAriaLabel(element: CellViewModel) {
 		const event = Event.filter(this.onDidAriaLabelChange, e => e === element);
 		return observableFromEvent(this, event, () => {
@@ -61,6 +68,12 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 		});
 	}
 
+	private createItemLabel(executionLabel: string, index: number, cellKind: CellKind) {
+		return this.isReplHistory ?
+			`item${executionLabel}` :
+			`${cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executionLabel}`;
+	}
+
 	private getLabel(index: number, element: CellViewModel) {
 		const executionState = this.notebookExecutionStateService.getCellExecution(element.uri)?.state;
 		const executionLabel =
@@ -69,18 +82,25 @@ export class NotebookAccessibilityProvider extends Disposable implements IListAc
 				: executionState === NotebookCellExecutionState.Pending
 					? ', pending'
 					: '';
-		return `Cell ${index}, ${element.cellKind === CellKind.Markup ? 'markdown' : 'code'} cell${executionLabel}`;
+
+		return this.createItemLabel(executionLabel, index, element.cellKind);
+	}
+
+	private get widgetAriaLabelName() {
+		return this.isReplHistory ?
+			nls.localize('replHistoryTreeAriaLabel', "REPL Editor History") :
+			nls.localize('notebookTreeAriaLabel', "Notebook");
 	}
 
 	getWidgetAriaLabel() {
 		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 
-		if (this.configurationService.getValue(AccessibilityVerbositySettingId.Notebook)) {
+		if (this.configurationService.getValue(this.verbositySettingId)) {
 			return keybinding
-				? nls.localize('notebookTreeAriaLabelHelp', "Notebook\nUse {0} for accessibility help", keybinding)
-				: nls.localize('notebookTreeAriaLabelHelpNoKb', "Notebook\nRun the Open Accessibility Help command for more information", keybinding);
+				? nls.localize('notebookTreeAriaLabelHelp', "{0}\nUse {1} for accessibility help", this.widgetAriaLabelName, keybinding)
+				: nls.localize('notebookTreeAriaLabelHelpNoKb', "{0}\nRun the Open Accessibility Help command for more information", this.widgetAriaLabelName);
 		}
-		return nls.localize('notebookTreeAriaLabel', "Notebook");
+		return this.widgetAriaLabelName;
 	}
 
 	private mergeEvents(last: number[] | undefined, e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent): number[] {

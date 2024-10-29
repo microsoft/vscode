@@ -119,7 +119,6 @@ import { IAuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/ele
 import { AuxiliaryWindowsMainService } from '../../platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService.js';
 import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
-import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -163,6 +162,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
+		const isUrlFromWindow = (requestingUrl?: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
 		const allowedPermissionsInWebview = new Set([
@@ -170,9 +170,17 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
+		const allowedPermissionsInCore = new Set([
+			'media'
+		]);
+
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
+			}
+
+			if (isUrlFromWindow(details.requestingUrl)) {
+				return callback(allowedPermissionsInCore.has(permission));
 			}
 
 			return callback(false);
@@ -182,7 +190,9 @@ export class CodeApplication extends Disposable {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
 			}
-
+			if (isUrlFromWindow(details.requestingUrl)) {
+				return allowedPermissionsInCore.has(permission);
+			}
 			return false;
 		});
 
@@ -1104,11 +1114,6 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
-		if (this.productService.quality !== 'stable') {
-			// extensions signature verification service
-			services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
-		}
-
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1141,7 +1146,7 @@ export class CodeApplication extends Disposable {
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
-		const fileSystemProviderChannel = disposables.add(new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService, this.configurationService));
+		const fileSystemProviderChannel = disposables.add(new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService));
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
@@ -1149,13 +1154,6 @@ export class CodeApplication extends Disposable {
 		const userDataProfilesService = ProxyChannel.fromService(accessor.get(IUserDataProfilesMainService), disposables);
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
-
-		if (this.productService.quality !== 'stable') {
-			// Extension signature verification service
-			const extensionSignatureVerificationService = accessor.get(IExtensionSignatureVerificationService);
-			sharedProcessClient.then(client => client.registerChannel('signatureVerificationService',
-				ProxyChannel.fromService(extensionSignatureVerificationService, disposables)));
-		}
 
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
@@ -1423,7 +1421,7 @@ export class CodeApplication extends Disposable {
 		try {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
-			const argvJSON = parse(argvString);
+			const argvJSON = parse<{ 'enable-crash-reporter'?: boolean }>(argvString);
 			const telemetryLevel = getTelemetryLevel(this.configurationService);
 			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 

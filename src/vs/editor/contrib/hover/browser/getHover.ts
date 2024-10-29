@@ -41,7 +41,7 @@ export function getHoverProviderResultsAsAsyncIterable(registry: LanguageFeature
 	}
 	const providers = registry.ordered(model, recursive);
 	const promises = providers.map((provider, index) => executeProvider(provider, index, model, position, token));
-	return AsyncIterableObject.fromPromises(promises).coalesce();
+	return AsyncIterableObject.fromPromisesResolveOrder(promises).coalesce();
 }
 
 export function getHoversPromise(registry: LanguageFeatureRegistry<HoverProvider>, model: ITextModel, position: Position, token: CancellationToken, recursive = false): Promise<Hover[]> {

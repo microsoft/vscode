@@ -24,6 +24,7 @@ interface IProfileExtension {
 	identifier: IExtensionIdentifier;
 	displayName?: string;
 	preRelease?: boolean;
+	applicationScoped?: boolean;
 	disabled?: boolean;
 	version?: string;
 }
@@ -236,6 +237,7 @@ export class ExtensionsResource implements IProfileResource {
 				if (!profileExtension.version && preRelease) {
 					profileExtension.preRelease = true;
 				}
+				profileExtension.applicationScoped = extension.isApplicationScoped;
 				result.set(profileExtension.identifier.id.toLowerCase(), profileExtension);
 			}
 			return [...result.values()];
@@ -272,14 +274,15 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 
 	protected readonly excludedExtensions = new Set<string>();
 
-	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
+	async getChildren(): Promise<Array<IProfileResourceChildTreeItem & IProfileExtension>> {
 		const extensions = (await this.getExtensions()).sort((a, b) => (a.displayName ?? a.identifier.id).localeCompare(b.displayName ?? b.identifier.id));
 		const that = this;
-		return extensions.map<IProfileResourceChildTreeItem>(e => ({
+		return extensions.map<IProfileResourceChildTreeItem & IProfileExtension>(e => ({
+			...e,
 			handle: e.identifier.id.toLowerCase(),
 			parent: this,
 			label: { label: e.displayName || e.identifier.id },
-			description: e.disabled ? localize('disabled', "Disabled") : undefined,
+			description: e.applicationScoped ? localize('all profiles and disabled', "All Profiles") : undefined,
 			collapsibleState: TreeItemCollapsibleState.None,
 			checkbox: that.checkbox ? {
 				get isChecked() { return !that.excludedExtensions.has(e.identifier.id.toLowerCase()); },

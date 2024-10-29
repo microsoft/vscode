@@ -3483,7 +3483,6 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		inlineSuggest?: IInlineSuggestOptions;
-		experimentalInlineEdit?: IInlineEditOptions;
 		/**
 		 * Smart select options.
 		 */
@@ -3621,6 +3620,13 @@ declare namespace monaco.editor {
 		 * 'multiFile'  triggers occurrence highlighting across valid open documents
 		 */
 		occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
+		/**
+		 * Controls delay for occurrences highlighting
+		 * Defaults to 250.
+		 * Minimum value is 0
+		 * Maximum value is 2000
+		 */
+		occurrencesHighlightDelay?: number;
 		/**
 		 * Show code lens
 		 * Defaults to true.
@@ -4586,22 +4592,11 @@ declare namespace monaco.editor {
 		 * Font family for inline suggestions.
 		 */
 		fontFamily?: string | 'default';
-	}
-
-	export interface IInlineEditOptions {
-		/**
-		 * Enable or disable the rendering of automatic inline edit.
-		*/
-		enabled?: boolean;
-		showToolbar?: 'always' | 'onHover' | 'never';
-		/**
-		 * Font family for inline suggestions.
-		 */
-		fontFamily?: string | 'default';
-		/**
-		 * Does not clear active inline suggestions when the editor loses focus.
-		 */
-		keepOnBlur?: boolean;
+		edits?: {
+			experimental?: {
+				enabled?: boolean;
+			};
+		};
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -4941,25 +4936,25 @@ declare namespace monaco.editor {
 		hover = 62,
 		inDiffEditor = 63,
 		inlineSuggest = 64,
-		inlineEdit = 65,
-		letterSpacing = 66,
-		lightbulb = 67,
-		lineDecorationsWidth = 68,
-		lineHeight = 69,
-		lineNumbers = 70,
-		lineNumbersMinChars = 71,
-		linkedEditing = 72,
-		links = 73,
-		matchBrackets = 74,
-		minimap = 75,
-		mouseStyle = 76,
-		mouseWheelScrollSensitivity = 77,
-		mouseWheelZoom = 78,
-		multiCursorMergeOverlapping = 79,
-		multiCursorModifier = 80,
-		multiCursorPaste = 81,
-		multiCursorLimit = 82,
-		occurrencesHighlight = 83,
+		letterSpacing = 65,
+		lightbulb = 66,
+		lineDecorationsWidth = 67,
+		lineHeight = 68,
+		lineNumbers = 69,
+		lineNumbersMinChars = 70,
+		linkedEditing = 71,
+		links = 72,
+		matchBrackets = 73,
+		minimap = 74,
+		mouseStyle = 75,
+		mouseWheelScrollSensitivity = 76,
+		mouseWheelZoom = 77,
+		multiCursorMergeOverlapping = 78,
+		multiCursorModifier = 79,
+		multiCursorPaste = 80,
+		multiCursorLimit = 81,
+		occurrencesHighlight = 82,
+		occurrencesHighlightDelay = 83,
 		overviewRulerBorder = 84,
 		overviewRulerLanes = 85,
 		padding = 86,
@@ -5117,6 +5112,7 @@ declare namespace monaco.editor {
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
+		occurrencesHighlightDelay: IEditorOption<EditorOption.occurrencesHighlightDelay, number>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
@@ -5156,7 +5152,6 @@ declare namespace monaco.editor {
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, Readonly<Required<ISuggestOptions>>>;
 		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, Readonly<Required<IInlineSuggestOptions>>>;
-		inlineEdit: IEditorOption<EditorOption.inlineEdit, Readonly<Required<IInlineEditOptions>>>;
 		inlineCompletionsAccessibilityVerbose: IEditorOption<EditorOption.inlineCompletionsAccessibilityVerbose, boolean>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
@@ -7191,6 +7186,8 @@ declare namespace monaco.languages {
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
 		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+		readonly includeInlineEdits: boolean;
+		readonly includeInlineCompletions: boolean;
 	}
 
 	export class SelectedSuggestionInfo {
@@ -7236,6 +7233,7 @@ declare namespace monaco.languages {
 		 * Defaults to `false`.
 		*/
 		readonly completeBracketPairs?: boolean;
+		readonly isInlineEdit?: boolean;
 	}
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -7261,9 +7259,10 @@ declare namespace monaco.languages {
 		*/
 		handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
 		/**
-		 * Will be called when an item is partially accepted.
+		 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
 		 */
 		handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
+		handleRejection?(completions: T, item: T['items'][number]): void;
 		/**
 		 * Will be called when a completions list is no longer in use and can be garbage-collected.
 		*/
@@ -7991,11 +7990,16 @@ declare namespace monaco.languages {
 	}
 
 	export interface PendingCommentThread {
-		body: string;
 		range: IRange | undefined;
 		uri: Uri;
 		uniqueOwner: string;
 		isReply: boolean;
+		comment: PendingComment;
+	}
+
+	export interface PendingComment {
+		body: string;
+		cursor: IPosition;
 	}
 
 	export interface CodeLens {
@@ -8112,6 +8116,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		accepted?: Command;
 		rejected?: Command;
+		commands?: Command[];
 	}
 
 	export interface IInlineEditContext {

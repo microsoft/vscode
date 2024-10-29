@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import * as cssJs from '../../../../base/browser/cssValue.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
@@ -1023,16 +1024,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-		const xterm = this._instantiationService.createInstance(
-			XtermTerminal,
-			ctor,
-			options.cols,
-			options.rows,
-			options.colorProvider,
-			options.capabilities || new TerminalCapabilityStore(),
-			'',
-			false,
-		);
+		const xterm = this._instantiationService.createInstance(XtermTerminal, ctor, {
+			cols: options.cols,
+			rows: options.rows,
+			xtermColorProvider: options.colorProvider,
+			capabilities: options.capabilities || new TerminalCapabilityStore(),
+		});
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
@@ -1262,7 +1259,7 @@ class TerminalEditorStyle extends Themable {
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
 					`.monaco-workbench .terminal-tab.${iconClasses[0]}::before` +
-					`{content: ''; background-image: ${dom.asCSSUrl(uri)};}`
+					`{content: ''; background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
 			if (ThemeIcon.isThemeIcon(icon)) {
@@ -1273,7 +1270,7 @@ class TerminalEditorStyle extends Themable {
 					if (def) {
 						css += (
 							`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-							`{content: '${def.fontCharacter}' !important; font-family: ${dom.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
+							`{content: '${def.fontCharacter}' !important; font-family: ${cssJs.asCSSPropertyValue(def.font?.id ?? 'codicon')} !important;}`
 						);
 					}
 				}
