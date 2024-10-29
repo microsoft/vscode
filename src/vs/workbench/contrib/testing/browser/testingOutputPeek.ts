@@ -74,11 +74,16 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 
 /** Iterates through every message in every result */
-function* allMessages(results: readonly ITestResult[]) {
-	for (const result of results) {
-		for (const test of result.tests) {
-			for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
-				for (let messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.length; messageIndex++) {
+function* allMessages([result]: readonly ITestResult[]) {
+	if (!result) {
+		return;
+	}
+
+	for (const test of result.tests) {
+		for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+			const messages = test.tasks[taskIndex].messages;
+			for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+				if (messages[messageIndex].type === TestMessageType.Error) {
 					yield { result, test, taskIndex, messageIndex };
 				}
 			}
