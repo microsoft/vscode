@@ -43,7 +43,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { ChatAgentLocation, IChatAgentMetadata } from '../common/chatAgents.js';
-import { responseSupportsIssueReporting, itemId, isRequest, isResponse, responseDetectedAgentCommand, responseHasError, responseIsFiltered, ChatContextKeys } from '../common/chatContextKeys.js';
+import { responseSupportsIssueReporting, itemId, isRequest, isResponse, responseHasError, responseIsFiltered, ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatConfirmation, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatTask, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData } from '../common/chatService.js';
@@ -364,7 +364,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		isResponse.bindTo(templateData.contextKeyService).set(isResponseVM(element));
 		itemId.bindTo(templateData.contextKeyService).set(element.id);
 		isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element));
-		responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
+		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
 			ChatContextKeys.responseVote.bindTo(templateData.contextKeyService).set(element.vote === ChatAgentVoteDirection.Up ? 'up' : element.vote === ChatAgentVoteDirection.Down ? 'down' : '');
