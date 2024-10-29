@@ -57,6 +57,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 								range: rangeToDelete,
 								text: '',
 							}]);
+							this.widget.refreshParsedInput();
 						}
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
@@ -96,6 +97,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	addReference(ref: IDynamicVariable): void {
 		this._variables.push(ref);
 		this.updateDecorations();
+		this.widget.refreshParsedInput();
 	}
 
 	private updateDecorations(): void {

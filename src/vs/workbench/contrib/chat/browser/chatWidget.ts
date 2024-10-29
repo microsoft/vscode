@@ -29,6 +29,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -235,6 +236,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -271,6 +273,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			chatEditingSessionDisposables.add(session.onDidDispose(() => {
 				chatEditingSessionDisposables.clear();
 				this.renderChatEditingSessionState(null);
+			}));
+			chatEditingSessionDisposables.add(this.onDidChangeParsedInput(() => {
+				this.renderChatEditingSessionState(session);
+			}));
+			chatEditingSessionDisposables.add(this.inputEditor.onDidChangeModelContent(() => {
+				if (this.getInput() === '') {
+					this.refreshParsedInput();
+					this.renderChatEditingSessionState(session);
+				}
 			}));
 			this.renderChatEditingSessionState(session);
 		}));
@@ -458,6 +469,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	hasInputFocus(): boolean {
 		return this.inputPart.hasFocus();
+	}
+
+	refreshParsedInput() {
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(this.viewModel!.sessionId, this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent });
+		this._onDidChangeParsedInput.fire();
 	}
 
 	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
@@ -757,6 +773,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					c.setInputState(contribState);
 				}
 			});
+			this.refreshParsedInput();
 		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
@@ -869,6 +886,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				c.setInputState(viewState.inputState?.[c.id]);
 			}
 		});
+		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
 			if (e.kind === 'setAgent') {
 				this._onDidChangeAgent.fire({ agent: e.agent, slashCommand: e.command });
@@ -921,6 +939,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	setInput(value = ''): void {
 		this.inputPart.setValue(value, false);
+		this.refreshParsedInput();
 	}
 
 	getInput(): string {
@@ -990,6 +1009,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 
+				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
+				for (const file of uniqueWorkingSetEntries) {
+					// Make sure that any files that we sent are part of the working set
+					// but do not permanently add file variables from previous requests to the working set
+					// since the user may subsequently edit the chat history
+					currentEditingSession?.addFileToWorkingSet(file);
+				}
+
 				// Collect file variables from previous requests before sending the request
 				const previousRequests = this.viewModel.model.getRequests();
 				for (const request of previousRequests) {
@@ -1005,12 +1032,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}
 				workingSet = [...uniqueWorkingSetEntries.values()];
-				const currentEditingSession = this.chatEditingService.currentEditingSessionObs.get();
-				for (const file of workingSet) {
-					// Make sure that any files that we sent are part of the working set
-					currentEditingSession?.addFileToWorkingSet(file);
-				}
 				attachedContext = editingSessionAttachedContext;
+
+				type ChatEditingWorkingSetClassification = {
+					owner: 'joyceerhl';
+					comment: 'Information about the working set size in a chat editing request';
+					originalSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of files that the user tried to attach in their editing request.' };
+					actualSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of files that were actually sent in their editing request.' };
+				};
+				type ChatEditingWorkingSetEvent = {
+					originalSize: number;
+					actualSize: number;
+				};
+				this.telemetryService.publicLog2<ChatEditingWorkingSetEvent, ChatEditingWorkingSetClassification>('chatEditing/workingSetSize', { originalSize: this.inputPart.attemptedWorkingSetEntriesCount, actualSize: uniqueWorkingSetEntries.size });
 			}
 
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
