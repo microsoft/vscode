@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess, ForkOptions } from 'electron';
+import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
@@ -18,7 +18,6 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
-import { upcast } from '../../../base/common/types.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -243,16 +242,14 @@ export class UtilityProcess extends Disposable {
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, upcast<ForkOptions, ForkOptions & {
-			respondToAuthRequestsFromMainProcess?: boolean;
-		}>({
+		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
 			execArgv,
 			allowLoadingUnsignedLibraries,
 			respondToAuthRequestsFromMainProcess,
 			stdio
-		}));
+		});
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
@@ -264,7 +261,7 @@ export class UtilityProcess extends Disposable {
 		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
-		env['VSCODE_AMD_ENTRYPOINT'] = configuration.entryPoint;
+		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;
 		if (typeof configuration.parentLifecycleBound === 'number') {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}

@@ -20,7 +20,7 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		this.contextValue = _command;
 	}
 
-	async resolve() {
+	async resolve(): Promise<SymbolTreeModel<FileItem | ReferenceItem> | undefined> {
 
 		let model: ReferencesModel;
 		if (this._result) {
@@ -35,8 +35,7 @@ export class ReferencesTreeInput implements SymbolTreeInput<FileItem | Reference
 		}
 
 		const provider = new ReferencesTreeDataProvider(model);
-
-		return <SymbolTreeModel<FileItem | ReferenceItem>>{
+		return {
 			provider,
 			get message() { return model.message; },
 			navigation: model,
@@ -302,7 +301,7 @@ class ReferencesTreeDataProvider implements vscode.TreeDataProvider<FileItem | R
 				title: vscode.l10n.t('Open Reference'),
 				arguments: [
 					element.location.uri,
-					<vscode.TextDocumentShowOptions>{ selection: range.with({ end: range.start }) }
+					{ selection: range.with({ end: range.start }) } satisfies vscode.TextDocumentShowOptions
 				]
 			};
 			return result;

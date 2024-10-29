@@ -9,18 +9,18 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { ChatInputPart } from './chatInputPart.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 
 export class ChatImageDropAndPaste extends Disposable {
 
 	constructor(
 		private readonly inputPart: ChatInputPart,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 		this._register(this.inputPart.inputEditor.onDidPaste((e) => {
-			if (this.configurationService.getValue<boolean>('chat.experimental.imageAttachments')) {
+			if (this.extensionService.extensions.some(ext => isProposedApiEnabled(ext, 'chatReferenceBinaryData'))) {
 				this._handlePaste();
 			}
 		}));
@@ -37,7 +37,7 @@ export class ChatImageDropAndPaste extends Disposable {
 			return;
 		}
 
-		const currentContextIds = new Set(Array.from(this.inputPart.attachedContext).map(context => context.id));
+		const currentContextIds = this.inputPart.attachmentModel.getAttachmentIDs();
 		const filteredContext = [];
 
 		if (!currentContextIds.has(context.id)) {
@@ -45,7 +45,7 @@ export class ChatImageDropAndPaste extends Disposable {
 			filteredContext.push(context);
 		}
 
-		this.inputPart.attachContext(false, ...filteredContext);
+		this.inputPart.attachmentModel.addContext(...filteredContext);
 	}
 }
 
@@ -84,4 +84,3 @@ export function isImage(array: Uint8Array): boolean {
 		signature.every((byte, index) => array[index] === byte)
 	);
 }
-

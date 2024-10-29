@@ -47,7 +47,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from '../../mergeEditor/common/mergeEditor.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
@@ -100,7 +99,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -556,7 +554,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
-		const result = [{
+		return [{
 			id: SyncResource.Settings,
 			label: getSyncAreaLabel(SyncResource.Settings)
 		}, {
@@ -574,14 +572,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: SyncResource.Extensions,
 			label: getSyncAreaLabel(SyncResource.Extensions)
+		}, {
+			id: SyncResource.Profiles,
+			label: getSyncAreaLabel(SyncResource.Profiles),
 		}];
-		if (this.userDataProfilesService.isEnabled()) {
-			result.push({
-				id: SyncResource.Profiles,
-				label: getSyncAreaLabel(SyncResource.Profiles),
-			});
-		}
-		return result;
 	}
 
 	private updateConfiguration(items: ConfigureSyncQuickPickItem[], selectedItems: ReadonlyArray<ConfigureSyncQuickPickItem>): void {

@@ -15,6 +15,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
+import { clamp } from '../../../../base/common/numbers.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Constants } from '../../../../base/common/uint.js';
@@ -40,9 +41,6 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from '../../codeEditor/browser/editorLineNumberMenu.js';
-import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
-import { testingDebugAllIcon, testingDebugIcon, testingRunAllIcon, testingRunIcon, testingStatesToIcons } from './icons.js';
-import { renderTestMessageAsText } from './testMessageColorizer.js';
 import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } from '../common/configuration.js';
 import { Testing, labelForTestInState } from '../common/constants.js';
 import { TestId } from '../common/testId.js';
@@ -50,11 +48,14 @@ import { ITestProfileService } from '../common/testProfileService.js';
 import { ITestResult, LiveTestResult } from '../common/testResult.js';
 import { ITestResultService } from '../common/testResultService.js';
 import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from '../common/testService.js';
-import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
+import { ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from '../common/testTypes.js';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from '../common/testingDecorations.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
 import { isFailedState, maxPriority } from '../common/testingStates.js';
 import { TestUriType, buildTestUri, parseTestUri } from '../common/testingUri.js';
+import { getTestItemContextOverlay } from './explorerProjections/testItemContextOverlay.js';
+import { testingDebugAllIcon, testingDebugIcon, testingRunAllIcon, testingRunIcon, testingStatesToIcons } from './icons.js';
+import { renderTestMessageAsText } from './testMessageColorizer.js';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 const MAX_TESTS_IN_SUBMENU = 30;
@@ -1147,7 +1148,6 @@ class TestMessageDecoration implements ITestDecoration {
 	public id = '';
 
 	public readonly editorDecoration: IModelDeltaDecoration;
-	public readonly location: IRichLocation;
 	public readonly line: number;
 
 	private readonly contentIdClass = `test-message-inline-content-id${generateUuid()}`;
@@ -1159,8 +1159,8 @@ class TestMessageDecoration implements ITestDecoration {
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 		@ICodeEditorService editorService: ICodeEditorService,
 	) {
-		this.location = testMessage.location!;
-		this.line = this.location.range.startLineNumber;
+		const location = testMessage.location!;
+		this.line = clamp(location.range.startLineNumber, 0, textModel.getLineCount());
 		const severity = testMessage.type;
 		const message = testMessage.message;
 
@@ -1191,15 +1191,15 @@ class TestMessageDecoration implements ITestDecoration {
 			options.overviewRuler = { color: themeColorFromId(rulerColor), position: OverviewRulerLane.Right };
 		}
 
-		const lineLength = textModel.getLineLength(this.location.range.startLineNumber);
-		const column = lineLength ? (lineLength + 1) : this.location.range.endColumn;
+		const lineLength = textModel.getLineLength(this.line);
+		const column = lineLength ? (lineLength + 1) : location.range.endColumn;
 		this.editorDecoration = {
 			options,
 			range: {
-				startLineNumber: this.location.range.startLineNumber,
+				startLineNumber: this.line,
 				startColumn: column,
 				endColumn: column,
-				endLineNumber: this.location.range.startLineNumber,
+				endLineNumber: this.line,
 			}
 		};
 	}

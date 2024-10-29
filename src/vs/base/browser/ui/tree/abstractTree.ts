@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { ActionBar } from '../actionbar/actionbar.js';
@@ -576,6 +577,18 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 }
 
+export function contiguousFuzzyScore(patternLower: string, wordLower: string): FuzzyScore | undefined {
+	const index = wordLower.toLowerCase().indexOf(patternLower);
+	let score: FuzzyScore | undefined;
+	if (index > -1) {
+		score = [Number.MAX_SAFE_INTEGER, 0];
+		for (let i = patternLower.length; i > 0; i--) {
+			score.push(index + i - 1);
+		}
+	}
+	return score;
+}
+
 export type LabelFuzzyScore = { label: string; score: FuzzyScore };
 
 export interface IFindFilter<T> extends ITreeFilter<T, FuzzyScore | LabelFuzzyScore> {
@@ -643,13 +656,7 @@ class FindFilter<T> implements IFindFilter<T>, IDisposable {
 
 			let score: FuzzyScore | undefined;
 			if (this.tree.findMatchType === TreeFindMatchType.Contiguous) {
-				const index = labelStr.toLowerCase().indexOf(this._lowercasePattern);
-				if (index > -1) {
-					score = [Number.MAX_SAFE_INTEGER, 0];
-					for (let i = this._lowercasePattern.length; i > 0; i--) {
-						score.push(index + i - 1);
-					}
-				}
+				score = contiguousFuzzyScore(this._lowercasePattern, labelStr.toLowerCase());
 			} else {
 				score = fuzzyScore(this._pattern, this._lowercasePattern, 0, labelStr, labelStr.toLowerCase(), 0, { firstMatchCanBeWeak: true, boostFullMatch: true });
 			}
@@ -1327,6 +1334,10 @@ class StickyScrollState<T, TFilterData, TRef> {
 		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeStateEquals);
 	}
 
+	contains(element: ITreeNode<T, TFilterData>): boolean {
+		return this.stickyNodes.some(node => node.node.element === element.element);
+	}
+
 	lastNodePartiallyVisible(): boolean {
 		if (this.count === 0) {
 			return false;
@@ -1411,6 +1422,29 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this._register(view.onDidScroll(() => this.update()));
 		this._register(view.onDidChangeContentHeight(() => this.update()));
 		this._register(tree.onDidChangeCollapseState(() => this.update()));
+		this._register(model.onDidSpliceRenderedNodes((e) => {
+			const state = this._widget.state;
+			if (!state) {
+				return;
+			}
+
+			// If a sticky node is removed, recompute the state
+			const hasRemovedStickyNode = e.deleteCount > 0 && state.stickyNodes.some(stickyNode => !this.model.has(this.model.getNodeLocation(stickyNode.node)));
+			if (hasRemovedStickyNode) {
+				this.update();
+				return;
+			}
+
+			// If a sticky node is updated, rerender the widget
+			const shouldRerenderStickyNodes = state.stickyNodes.some(stickyNode => {
+				const listIndex = this.model.getListIndex(this.model.getNodeLocation(stickyNode.node));
+				return listIndex >= e.start && listIndex < e.start + e.deleteCount && state.contains(stickyNode.node);
+			});
+
+			if (shouldRerenderStickyNodes) {
+				this._widget.rerender();
+			}
+		}));
 
 		this.update();
 	}
@@ -1683,6 +1717,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
 	private _previousElements: HTMLElement[] = [];
 	private readonly _previousStateDisposables: DisposableStore = new DisposableStore();
+	get state(): StickyScrollState<T, TFilterData, TRef> | undefined { return this._previousState; }
 
 	private stickyScrollFocus: StickyScrollFocus<T, TFilterData, TRef>;
 	readonly onDidChangeHasFocus: Event<boolean>;
@@ -1754,28 +1789,38 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		}
 		// create new dom elements
 		else {
-			this._previousStateDisposables.clear();
-
-			const elements = Array(state.count);
-			for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
-				const stickyNode = state.stickyNodes[stickyIndex];
-
-				const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
-				elements[stickyIndex] = element;
-
-				this._rootDomNode.appendChild(element);
-				this._previousStateDisposables.add(disposable);
-			}
-
-			this.stickyScrollFocus.updateElements(elements, state);
-
-			this._previousElements = elements;
+			this.renderState(state);
 		}
 
 		this._previousState = state;
 
 		// Set the height of the widget to the bottom of the last sticky node
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
+	}
+
+	private renderState(state: StickyScrollState<T, TFilterData, TRef>): void {
+		this._previousStateDisposables.clear();
+
+		const elements = Array(state.count);
+		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
+			const stickyNode = state.stickyNodes[stickyIndex];
+
+			const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
+			elements[stickyIndex] = element;
+
+			this._rootDomNode.appendChild(element);
+			this._previousStateDisposables.add(disposable);
+		}
+
+		this.stickyScrollFocus.updateElements(elements, state);
+
+		this._previousElements = elements;
+	}
+
+	rerender(): void {
+		if (this._previousState) {
+			this.renderState(this._previousState);
+		}
 	}
 
 	private createElement(stickyNode: StickyScrollNode<T, TFilterData>, stickyIndex: number, stickyNodesTotal: number): { element: HTMLElement; disposable: IDisposable } {

@@ -6,6 +6,7 @@
 import './media/timelinePane.css';
 import { localize, localize2 } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import * as css from '../../../../base/browser/cssValue.js';
 import { IAction, ActionRunner } from '../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { fromNow } from '../../../../base/common/date.js';
@@ -226,7 +227,7 @@ class LoadMoreCommand {
 	}
 
 	get themeIcon(): ThemeIcon | undefined {
-		return undefined; //this.loading ? { id: 'sync~spin' } : undefined;
+		return undefined;
 	}
 }
 
@@ -285,7 +286,7 @@ export class TimelinePane extends ViewPane {
 		this.timelineExcludeSourcesContext.set(excludedSourcesString);
 		this.excludedSources = new Set(JSON.parse(excludedSourcesString));
 
-		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'timeline.excludeSources', this._register(new DisposableStore()))(this.onStorageServiceChanged, this));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, 'timeline.excludeSources', this._store)(this.onStorageServiceChanged, this));
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
@@ -1186,7 +1187,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		if (iconUrl) {
 			template.icon.className = 'custom-view-tree-node-item-icon';
-			template.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
+			template.icon.style.backgroundImage = css.asCSSUrl(iconUrl);
 			template.icon.style.color = '';
 		} else if (item.themeIcon) {
 			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;

@@ -10,10 +10,10 @@ import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
-import * as dompurify from './dompurify/dompurify.js';
+import dompurify from './dompurify/dompurify.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
-import { FileAccess, RemoteAuthorities, Schemas } from '../common/network.js';
+import { RemoteAuthorities, Schemas } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
 import { hash } from '../common/hash.js';
@@ -1675,35 +1675,6 @@ export function animate(targetWindow: Window, fn: () => void): IDisposable {
 }
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(mainWindow.location.href) ? 'https' : 'http');
-
-/**
- * returns url('...')
- */
-export function asCSSUrl(uri: URI | null | undefined): string {
-	if (!uri) {
-		return `url('')`;
-	}
-	return `url('${FileAccess.uriToBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
-}
-
-export function asCSSPropertyValue(value: string) {
-	return `'${value.replace(/'/g, '%27')}'`;
-}
-
-export function asCssValueWithDefault(cssPropertyValue: string | undefined, dflt: string): string {
-	if (cssPropertyValue !== undefined) {
-		const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
-		if (variableMatch) {
-			const varArguments = variableMatch[1].split(',', 2);
-			if (varArguments.length === 2) {
-				dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
-			}
-			return `var(${varArguments[0]}, ${dflt})`;
-		}
-		return cssPropertyValue;
-	}
-	return dflt;
-}
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 

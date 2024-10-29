@@ -21,7 +21,7 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
+import { isMacintosh, OS } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { assertIsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -47,7 +47,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { defaultButtonStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWindowOpenable } from '../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from '../../../../platform/workspace/common/workspace.js';
 import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
@@ -71,6 +71,7 @@ import { IWorkbenchThemeService } from '../../../services/themes/common/workbenc
 import { GettingStartedIndexList } from './gettingStartedList.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -300,6 +301,11 @@ export class GettingStartedPage extends EditorPane {
 			}
 
 			if (!this.editorInput || !this.currentWalkthrough || !this.editorInput.selectedCategory || !this.editorInput.selectedStep) {
+				return;
+			}
+
+			const editorPane = this.groupsService.activeGroup.activeEditorPane;
+			if (!(editorPane instanceof GettingStartedPage)) {
 				return;
 			}
 
@@ -901,6 +907,7 @@ export class GettingStartedPage extends EditorPane {
 					this.hasScrolledToFirstCategory = true;
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
+					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
 					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
 					this.setSlide('details', true /* firstLaunch */);
 					return;
@@ -1175,6 +1182,7 @@ export class GettingStartedPage extends EditorPane {
 			reset(this.stepsContent);
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
+			this.editorInput.walkthroughPageTitle = ourCategory.walkthroughPageTitle;
 			this.currentWalkthrough = ourCategory;
 			this.buildCategorySlide(categoryID, stepId);
 			this.setSlide('details');
@@ -1301,9 +1309,12 @@ export class GettingStartedPage extends EditorPane {
 				}, null, this.detailsPageDisposables);
 
 				if (isCommand) {
-					const keybindingLabel = this.getKeybindingLabel(command);
-					if (keybindingLabel) {
-						container.appendChild($('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '), $('span.keybinding', {}, keybindingLabel)));
+					const keybinding = this.getKeyBinding(command);
+					if (keybinding) {
+						const shortcutMessage = $('span.shortcut-message', {}, localize('gettingStarted.keyboardTip', 'Tip: Use keyboard shortcut '));
+						container.appendChild(shortcutMessage);
+						const label = new KeybindingLabel(shortcutMessage, OS, { ...defaultKeybindingLabelStyles });
+						label.set(keybinding);
 					}
 				}
 
@@ -1505,6 +1516,11 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
+	private getKeyBinding(command: string) {
+		command = command.replace(/^command:/, '');
+		return this.keybindingService.lookupKeybinding(command);
+	}
+
 	private async scrollPrev() {
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
 			if (this.prevWalkthrough && this.prevWalkthrough !== this.currentWalkthrough) {
@@ -1516,6 +1532,7 @@ export class GettingStartedPage extends EditorPane {
 				this.editorInput.selectedCategory = undefined;
 				this.editorInput.selectedStep = undefined;
 				this.editorInput.showTelemetryNotice = false;
+				this.editorInput.walkthroughPageTitle = undefined;
 
 				if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
 					// extensions may have changed in the time since we last displayed the walkthrough list
@@ -1594,10 +1611,14 @@ export class GettingStartedInputSerializer implements IEditorSerializer {
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): GettingStartedInput {
-		try {
-			const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
-			return new GettingStartedInput({ selectedCategory, selectedStep });
-		} catch { }
-		return new GettingStartedInput({});
+
+		return instantiationService.invokeFunction(accessor => {
+			try {
+				const { selectedCategory, selectedStep } = JSON.parse(serializedEditorInput);
+				return new GettingStartedInput({ selectedCategory, selectedStep });
+			} catch { }
+			return new GettingStartedInput({});
+
+		});
 	}
 }

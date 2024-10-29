@@ -11,9 +11,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -94,15 +91,15 @@ steps:
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
-      . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      retry { exec { npm ci } }
+      exec { npm ci }
     env:
       npm_config_arch: $(VSCODE_ARCH)
-      CHILD_CONCURRENCY: 1
+      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    retryCountOnTaskFailure: 5
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -132,7 +129,7 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - powershell: npm run gulp "transpile-client-swc" "transpile-extensions"
+    - powershell: npm run gulp "transpile-client-esbuild" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
@@ -182,7 +179,6 @@ steps:
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
-        VSCODE_BUILD_AMD: ${{ parameters.VSCODE_BUILD_AMD }}
         ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
           PUBLISH_TASK_NAME: 1ES.PublishPipelineArtifact@1
 

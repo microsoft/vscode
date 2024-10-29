@@ -512,14 +512,13 @@ registerAction2(class extends Action2 {
 			editorControl = editorService.activeEditorPane?.getControl();
 		}
 
-
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 			const activeKernel = editorControl.notebookEditor.activeKernel;
 			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
 
-			if (notebookDocument && textModel) {
+			if (notebookDocument && textModel && editorControl.activeCodeEditor) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
 
@@ -594,11 +593,12 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
-			const range = editorControl.activeCodeEditor.getModel()?.getFullModelRange();
+			const editor = editorControl.activeCodeEditor;
+			const range = editor?.getModel()?.getFullModelRange();
 
-			if (notebookDocument && textModel && range) {
-				editorControl.activeCodeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+
+			if (notebookDocument && editor && range) {
+				editor.executeEdits('', [EditOperation.replace(range, null)]);
 			}
 		}
 	}
@@ -633,7 +633,7 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
@@ -672,7 +672,7 @@ registerAction2(class extends Action2 {
 
 		if (editorControl && isReplEditorControl(editorControl) && editorControl.notebookEditor) {
 			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.activeCodeEditor.getModel();
+			const textModel = editorControl.activeCodeEditor?.getModel();
 
 			if (notebookDocument && textModel) {
 				const nextValue = historyService.getNextValue(notebookDocument.uri);

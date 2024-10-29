@@ -206,7 +206,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
-	updateOptions(e: NotebookOptionsChangeEvent) {
+	override updateOptions(e: NotebookOptionsChangeEvent) {
+		super.updateOptions(e);
 		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
 			this.layoutChange({});
 		}

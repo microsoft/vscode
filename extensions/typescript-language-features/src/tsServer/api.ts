@@ -28,7 +28,6 @@ export class API {
 	public static readonly v520 = API.fromSimpleString('5.2.0');
 	public static readonly v544 = API.fromSimpleString('5.4.4');
 	public static readonly v540 = API.fromSimpleString('5.4.0');
-	public static readonly v550 = API.fromSimpleString('5.5.0');
 	public static readonly v560 = API.fromSimpleString('5.6.0');
 	public static readonly v570 = API.fromSimpleString('5.7.0');
 

@@ -11,7 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { Extensions, IViewContainersRegistry, IViewsRegistry } from '../../../../../common/views.js';
+import { Extensions, IViewDescriptorService, IViewsRegistry } from '../../../../../common/views.js';
 import { VIEWLET_ID as debugContainerId } from '../../../../debug/common/debug.js';
 import { NOTEBOOK_VARIABLE_VIEW_ENABLED } from './notebookVariableContextKeys.js';
 import { NotebookVariablesView } from './notebookVariablesView.js';
@@ -36,7 +36,8 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 		@IEditorService private readonly editorService: IEditorService,
 		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
-		@INotebookService private readonly notebookDocumentService: INotebookService
+		@INotebookService private readonly notebookDocumentService: INotebookService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -50,20 +51,17 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 
 	private handleConfigChange(e: IConfigurationChangeEvent) {
 		if (e.affectsConfiguration(NotebookSetting.notebookVariablesView)) {
-			if (!this.configurationService.getValue(NotebookSetting.notebookVariablesView)) {
-				this.viewEnabled.set(false);
-			} else if (this.initialized) {
-				this.viewEnabled.set(true);
-			} else {
-				this.handleInitEvent();
-			}
+			this.handleInitEvent();
 		}
 	}
 
 	private handleInitEvent(notebook?: URI) {
-		if (this.configurationService.getValue(NotebookSetting.notebookVariablesView)
-			&& (!!notebook || this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook')) {
-
+		const enabled =
+			this.editorService.activeEditorPane?.getId() === 'workbench.editor.repl' ||
+			this.configurationService.getValue(NotebookSetting.notebookVariablesView) ||
+			// old setting key
+			this.configurationService.getValue('notebook.experimental.variablesView');
+		if (enabled && (!!notebook || this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook')) {
 			if (this.hasVariableProvider(notebook) && !this.initialized && this.initializeView()) {
 				this.viewEnabled.set(true);
 				this.initialized = true;
@@ -80,14 +78,14 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 	}
 
 	private initializeView() {
-		const debugViewContainer = Registry.as<IViewContainersRegistry>('workbench.registry.view.containers').get(debugContainerId);
+		const debugViewContainer = this.viewDescriptorService.getViewContainerById(debugContainerId);
 
 		if (debugViewContainer) {
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			const viewDescriptor = {
-				id: 'NOTEBOOK_VARIABLES', name: nls.localize2('notebookVariables', "Notebook Variables"),
+				id: 'workbench.notebook.variables', name: nls.localize2('notebookVariables', "Notebook Variables"),
 				containerIcon: variablesViewIcon, ctorDescriptor: new SyncDescriptor(NotebookVariablesView),
-				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: false, when: NOTEBOOK_VARIABLE_VIEW_ENABLED,
+				order: 50, weight: 5, canToggleVisibility: true, canMoveView: true, collapsed: false, when: NOTEBOOK_VARIABLE_VIEW_ENABLED
 			};
 
 			viewsRegistry.registerViews([viewDescriptor], debugViewContainer);

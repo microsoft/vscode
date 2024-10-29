@@ -26,7 +26,6 @@ import { IStateService } from '../../state/node/state.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { IWindowState } from '../../window/electron-main/window.js';
-import { isESM } from '../../../base/common/amd.js';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
 
@@ -165,7 +164,7 @@ export class ProcessMainService implements IProcessMainService {
 				});
 
 				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.${isESM ? 'esm.' : ''}html`).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.processExplorerWindow.on('close', () => {
@@ -329,7 +328,7 @@ export class ProcessMainService implements IProcessMainService {
 	}
 
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
-		const window = new BrowserWindow({
+		const browserWindowOptions: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 			fullscreen: false,
 			skipTaskbar: false,
 			resizable: true,
@@ -352,7 +351,8 @@ export class ProcessMainService implements IProcessMainService {
 			},
 			alwaysOnTop: options.alwaysOnTop,
 			experimentalDarkMode: true
-		} as BrowserWindowConstructorOptions & { experimentalDarkMode: boolean });
+		};
+		const window = new BrowserWindow(browserWindowOptions);
 
 		window.setMenuBarVisibility(false);
 

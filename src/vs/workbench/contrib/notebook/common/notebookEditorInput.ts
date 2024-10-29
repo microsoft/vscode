@@ -356,7 +356,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
-			return this.editorId === otherInput.editorId && isEqual(this.resource, otherInput.resource);
+			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
 		}
 		return false;
 	}

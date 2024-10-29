@@ -106,7 +106,7 @@ import { ExtensionDescriptionRegistry } from '../../services/extensions/common/e
 import { UIKind } from '../../services/extensions/common/extensionHostProtocol.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContextNew, TextSearchMatchNew } from '../../services/search/common/searchExtTypes.js';
+import { ExcludeSettingOptions, TextSearchCompleteMessageType, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
 import type * as vscode from 'vscode';
 import { ExtHostCodeMapper } from './extHostCodeMapper.js';
 
@@ -985,10 +985,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
-			findTextInFilesNew: (query: vscode.TextSearchQueryNew, options?: vscode.FindTextInFilesOptionsNew, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
-				checkProposedApiEnabled(extension, 'findTextInFilesNew');
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
-				return extHostWorkspace.findTextInFilesNew(query, options, extension.identifier, token);
+			findTextInFiles2: (query: vscode.TextSearchQuery2, options?: vscode.FindTextInFilesOptions2, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse => {
+				checkProposedApiEnabled(extension, 'findTextInFiles2');
+				checkProposedApiEnabled(extension, 'textSearchProvider2');
+				return extHostWorkspace.findTextInFiles2(query, options, extension.identifier, token);
 			},
 			save: (uri) => {
 				return extHostWorkspace.save(uri);
@@ -1139,18 +1139,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'textSearchProvider');
 				return extHostSearch.registerAITextSearchProviderOld(scheme, provider);
 			},
-			registerFileSearchProviderNew: (scheme: string, provider: vscode.FileSearchProviderNew) => {
-				checkProposedApiEnabled(extension, 'fileSearchProviderNew');
+			registerFileSearchProvider2: (scheme: string, provider: vscode.FileSearchProvider2) => {
+				checkProposedApiEnabled(extension, 'fileSearchProvider2');
 				return extHostSearch.registerFileSearchProvider(scheme, provider);
 			},
-			registerTextSearchProviderNew: (scheme: string, provider: vscode.TextSearchProviderNew) => {
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+			registerTextSearchProvider2: (scheme: string, provider: vscode.TextSearchProvider2) => {
+				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostSearch.registerTextSearchProvider(scheme, provider);
 			},
-			registerAITextSearchProviderNew: (scheme: string, provider: vscode.AITextSearchProviderNew) => {
+			registerAITextSearchProvider2: (scheme: string, provider: vscode.AITextSearchProvider2) => {
 				// there are some dependencies on textSearchProvider, so we need to check for both
-				checkProposedApiEnabled(extension, 'aiTextSearchProviderNew');
-				checkProposedApiEnabled(extension, 'textSearchProviderNew');
+				checkProposedApiEnabled(extension, 'aiTextSearchProvider2');
+				checkProposedApiEnabled(extension, 'textSearchProvider2');
 				return extHostSearch.registerAITextSearchProvider(scheme, provider);
 			},
 			registerRemoteAuthorityResolver: (authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver) => {
@@ -1454,7 +1454,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerChatParticipantDetectionProvider(provider: vscode.ChatParticipantDetectionProvider) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
-				return extHostChatAgents2.registerChatParticipantDetectionProvider(provider);
+				return extHostChatAgents2.registerChatParticipantDetectionProvider(extension, provider);
 			},
 		};
 
@@ -1491,18 +1491,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
 			},
-			registerTool(toolId: string, tool: vscode.LanguageModelTool) {
-				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
+			registerTool<T>(name: string, tool: vscode.LanguageModelTool<T>) {
+				return extHostLanguageModelTools.registerTool(extension, name, tool);
 			},
-			invokeTool(toolId: string, parameters: vscode.LanguageModelToolInvocationOptions, token: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'lmTools');
-				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
+			invokeTool<T>(name: string, parameters: vscode.LanguageModelToolInvocationOptions<T>, token?: vscode.CancellationToken) {
+				return extHostLanguageModelTools.invokeTool(name, parameters, token);
 			},
 			get tools() {
-				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.tools;
 			},
+			fileIsIgnored(uri: vscode.Uri, token: vscode.CancellationToken) {
+				return extHostLanguageModels.fileIsIgnored(extension, uri, token);
+			},
+			registerIgnoredFileProvider(provider: vscode.LanguageModelIgnoredFileProvider) {
+				return extHostLanguageModels.registerIgnoredFileProvider(extension, provider);
+			}
 		};
 
 		// namespace: speech
@@ -1513,6 +1516,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
@@ -1741,6 +1745,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
+			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,
 			DebugThread: extHostTypes.DebugThread,
@@ -1771,20 +1776,24 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
+			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
-			LanguageModelChatMessageToolResultPart: extHostTypes.LanguageModelToolResultPart,
-			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
-			LanguageModelChatResponseToolCallPart: extHostTypes.LanguageModelToolCallPart,
+			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,
+			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
+			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
+			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
+			LanguageModelChatToolMode: extHostTypes.LanguageModelChatToolMode,
+			LanguageModelPromptTsxPart: extHostTypes.LanguageModelPromptTsxPart,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
 			ExcludeSettingOptions: ExcludeSettingOptions,
-			TextSearchContextNew: TextSearchContextNew,
-			TextSearchMatchNew: TextSearchMatchNew,
+			TextSearchContext2: TextSearchContext2,
+			TextSearchMatch2: TextSearchMatch2,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
 		};
 	};

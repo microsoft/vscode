@@ -1,9 +1,6 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
-  - name: VSCODE_BUILD_AMD
-    type: boolean
-    default: false
 
 steps:
   - task: NodeTool@0
@@ -102,10 +99,6 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
-
-  - ${{ if eq(parameters.VSCODE_BUILD_AMD, true) }}:
-    - script: node migrate.mjs --disable-watch --enable-esm-to-amd
-      displayName: Migrate ESM -> AMD
 
   - template: common/install-builtin-extensions.yml@self
 

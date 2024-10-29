@@ -45,6 +45,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
 import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from '../../../services/preferences/common/preferencesModels.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
+import { EXPERIMENTAL_INDICATOR_DESCRIPTION, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -547,6 +548,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					}
 					const configuration = configurationRegistry[setting.key];
 					if (configuration) {
+						this.handleUnstableSettingConfiguration(setting, configuration, markerData);
 						if (this.handlePolicyConfiguration(setting, configuration, markerData)) {
 							continue;
 						}
@@ -565,7 +567,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 								break;
 						}
 					} else {
-						markerData.push(this.gemerateUnknownConfigurationMarker(setting));
+						markerData.push(this.generateUnknownConfigurationMarker(setting));
 					}
 				}
 			}
@@ -605,7 +607,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 					});
 				}
 			} else {
-				markerData.push(this.gemerateUnknownConfigurationMarker(setting));
+				markerData.push(this.generateUnknownConfigurationMarker(setting));
 			}
 		}
 	}
@@ -694,6 +696,14 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		}
 	}
 
+	private handleUnstableSettingConfiguration(setting: ISetting, configuration: IConfigurationPropertySchema, markerData: IMarkerData[]): void {
+		if (configuration.tags?.includes('preview')) {
+			markerData.push(this.generatePreviewSettingMarker(setting));
+		} else if (configuration.tags?.includes('experimental')) {
+			markerData.push(this.generateExperimentalSettingMarker(setting));
+		}
+	}
+
 	private generateUnsupportedApplicationSettingMarker(setting: ISetting): IMarkerData {
 		return {
 			severity: MarkerSeverity.Hint,
@@ -720,7 +730,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		};
 	}
 
-	private gemerateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
+	private generateUnknownConfigurationMarker(setting: ISetting): IMarkerData {
 		return {
 			severity: MarkerSeverity.Hint,
 			tags: [MarkerTag.Unnecessary],
@@ -739,6 +749,22 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 			diagnostics,
 			kind: CodeActionKind.QuickFix.value
 		}];
+	}
+
+	private generatePreviewSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			...setting.range,
+			message: PREVIEW_INDICATOR_DESCRIPTION
+		};
+	}
+
+	private generateExperimentalSettingMarker(setting: ISetting): IMarkerData {
+		return {
+			severity: MarkerSeverity.Hint,
+			...setting.range,
+			message: EXPERIMENTAL_INDICATOR_DESCRIPTION
+		};
 	}
 
 	private addCodeActions(range: IRange, codeActions: languages.CodeAction[]): void {
