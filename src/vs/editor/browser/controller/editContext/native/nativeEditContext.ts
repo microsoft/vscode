@@ -220,9 +220,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _emitTypeEvent(viewController: ViewController, e: TextUpdateEvent): void {
-		if (!this._editContext) {
-			return;
-		}
 		const model = this._context.viewModel.model;
 		const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
 		const offsetOfSelectionEnd = model.getOffsetAt(this._primarySelection.getEndPosition());
@@ -287,9 +284,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _handleTextFormatUpdate(e: TextFormatUpdateEvent): void {
-		if (!this._editContext) {
-			return;
-		}
 		const formats = e.getTextFormats();
 		const textStartPositionWithinEditor = this._textStartPositionWithinEditor;
 		const decorations: IModelDeltaDecoration[] = [];
