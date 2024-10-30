@@ -78,7 +78,6 @@ export class HoverService extends Disposable implements IHoverService {
 
 			// Check group identity, if it's the same skip the delay and show the hover immediately
 			if (this._currentHover && !this._currentHover.isDisposed && this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === groupId) {
-				console.log('group matches!', groupId);
 				return this.showHover({
 					...options,
 					appearance: {
@@ -98,7 +97,6 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const delay = this._configurationService.getValue<number>('workbench.hover.delay');
 		let wasShown = false;
-		console.log(`queue showing delayed hover (${delay}ms)`);
 		timeout(delay).then(() => {
 			if (hover && !hover.isDisposed) {
 				wasShown = true;
@@ -125,7 +123,6 @@ export class HoverService extends Disposable implements IHoverService {
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): HoverWidget | undefined {
 		this._currentDelayedHover = undefined;
 
-		console.log('HoverService.showHover');
 		if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
 			return undefined;
 		}
@@ -133,7 +130,6 @@ export class HoverService extends Disposable implements IHoverService {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
-		console.log('set options to', this._currentHoverOptions);
 		this._lastHoverOptions = options;
 		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
 		const activeElement = getActiveElement();
@@ -162,7 +158,6 @@ export class HoverService extends Disposable implements IHoverService {
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
 			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
-				console.trace('hover dispose, clear options', this._currentHoverOptions);
 				this._currentHoverOptions = undefined;
 			}
 			hoverDisposables.dispose();
@@ -218,7 +213,6 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	hideHover(): void {
-		console.log('hideHover');
 		if (this._currentHover?.isLocked || !this._currentHoverOptions) {
 			return;
 		}
@@ -226,7 +220,6 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private doHideHover(): void {
-		console.log('doHideHover');
 		this._currentHover = undefined;
 		this._currentHoverOptions = undefined;
 		this._contextViewHandler.hideContextView();
