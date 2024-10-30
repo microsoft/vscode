@@ -42,11 +42,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, `local` in {@link FileSearchProviderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, `local` in {@link FileSearchProviderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				global: boolean;
 			};
