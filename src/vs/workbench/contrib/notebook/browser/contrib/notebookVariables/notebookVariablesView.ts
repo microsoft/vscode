@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
-import { IAction } from '../../../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { ILocalizedString } from '../../../../../../platform/action/common/action.js';
-import { createAndFillInContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -121,7 +120,6 @@ export class NotebookVariablesView extends ViewPane {
 			language: element.language,
 			extensionId: element.extensionId
 		};
-		const actions: IAction[] = [];
 
 		const overlayedContext = this.contextKeyService.createOverlay([
 			[CONTEXT_VARIABLE_NAME.key, element.name],
@@ -131,8 +129,8 @@ export class NotebookVariablesView extends ViewPane {
 			[CONTEXT_VARIABLE_LANGUAGE.key, element.language],
 			[CONTEXT_VARIABLE_EXTENSIONID.key, element.extensionId]
 		]);
-		const menu = this.menuService.getMenuActions(MenuId.NotebookVariablesContext, overlayedContext, { arg, shouldForwardArgs: true });
-		createAndFillInContextMenuActions(menu, actions);
+		const menuActions = this.menuService.getMenuActions(MenuId.NotebookVariablesContext, overlayedContext, { arg, shouldForwardArgs: true });
+		const actions = getFlatContextMenuActions(menuActions);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions

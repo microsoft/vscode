@@ -32,7 +32,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { Action2, IAction2Options, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IViewDescriptorService, ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -370,8 +370,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	getActivityBarContextMenuActions(): IAction[] {
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
-		const positionActions: IAction[] = [];
-		createAndFillInContextMenuActions(activityBarPositionMenu, { primary: [], secondary: positionActions });
+		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
 		return [
 			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
 			toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) })

@@ -28,7 +28,7 @@ import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createAndFillInActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -269,8 +269,7 @@ export class BreakpointsView extends ViewPane {
 		this.breakpointSupportsCondition.set(conditionSupported);
 		this.breakpointIsDataBytes.set(element instanceof DataBreakpoint && element.src.type === DataBreakpointSetType.Address);
 
-		const secondary: IAction[] = [];
-		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+		const { secondary } = getContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }), 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
