@@ -271,7 +271,6 @@ export class HoverService extends Disposable implements IHoverService {
 	// TODO: Investigate performance of this function. There seems to be a lot of content created
 	//       and thrown away on start up
 	setupManagedHover(hoverDelegate: IHoverDelegate, targetElement: HTMLElement, content: IManagedHoverContentOrFactory, options?: IManagedHoverOptions | undefined): IManagedHover {
-
 		targetElement.setAttribute('custom-hover', 'true');
 
 		if (targetElement.title !== '') {
