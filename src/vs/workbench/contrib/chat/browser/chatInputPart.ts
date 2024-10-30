@@ -1039,6 +1039,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Working set
+		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
 			const list = this._chatEditList.object;
@@ -1068,7 +1069,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this._onDidFocus.fire();
 				}
 			}, true));
-			dom.append(innerContainer, list.getHTMLElement());
+			dom.append(workingSetContainer, list.getHTMLElement());
+			dom.append(innerContainer, workingSetContainer);
 		}
 
 		const maxItemsShown = 6;

@@ -310,6 +310,10 @@
 	top: 2px;
 }
 
+.interactive-item-container .value .rendered-markdown .chat-codeblock-pill-widget .codicon {
+	top: 0px;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
@@ -1116,6 +1120,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	padding: 4px 3px;
+
+	.monaco-icon-label {
+		padding: 0px 3px;
+	}
+}
+
+.interactive-session .chat-editing-session-list {
 
 	.monaco-icon-label {
 		padding: 0px 3px;
