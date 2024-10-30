@@ -494,8 +494,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const elementRect = element.getBoundingClientRect();
 
 		const topOffset = elementRect.top - containerRect.top;
-		// TODO: figure out why 20 is needed here, remove if possible
-		const bottomOffset = elementRect.bottom - containerRect.bottom + this.listContainer.clientHeight - 20;
+		const bottomOffset = elementRect.bottom - containerRect.bottom + containerRect.height - elementRect.height;
 
 		if (topOffset < 0) {
 			// Scroll up
