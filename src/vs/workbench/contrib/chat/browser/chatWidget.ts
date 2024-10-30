@@ -218,6 +218,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	readonly viewContext: IChatWidgetViewContext;
 
+	private _activeElement: HTMLElement | undefined;
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		_viewContext: IChatWidgetViewContext | undefined,
@@ -457,6 +459,36 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
 		this._register((this.chatWidgetService as ChatWidgetService).register(this));
+
+		this._setupFocusObserver();
+	}
+
+	private _setupFocusObserver(): void {
+		this.listContainer.addEventListener('focus', () => {
+			const element = dom.getActiveElement() as HTMLElement | null;
+			if (this._activeElement !== element && element !== null) {
+				this._activeElement = element;
+				this._scrollToActiveElement(this._activeElement);
+			}
+		}, true);
+	}
+
+
+	private _scrollToActiveElement(element: HTMLElement) {
+		const containerRect = this.listContainer.getBoundingClientRect();
+		const elementRect = element.getBoundingClientRect();
+
+		const topOffset = elementRect.top - containerRect.top;
+		// TODO: figure out why 20 is needed here, remove if possible
+		const bottomOffset = elementRect.bottom - containerRect.bottom + this.listContainer.clientHeight - 20;
+
+		if (topOffset < 0) {
+			// Scroll up
+			this.tree.scrollTop += topOffset;
+		} else if (bottomOffset > 0) {
+			// Scroll down
+			this.tree.scrollTop += bottomOffset;
+		}
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
