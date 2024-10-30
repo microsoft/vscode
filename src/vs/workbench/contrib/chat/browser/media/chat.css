@@ -310,6 +310,10 @@
 	top: 2px;
 }
 
+.interactive-item-container .value .rendered-markdown .chat-codeblock-pill-widget .codicon {
+	top: 0px;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
