@@ -142,6 +142,11 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		this._colorPicker?.layout();
 	}
 
+	public handleHide(): void {
+		this._colorPicker?.dispose();
+		this._colorPicker = undefined;
+	}
+
 	public isColorPickerVisible(): boolean {
 		return !!this._colorPicker;
 	}
