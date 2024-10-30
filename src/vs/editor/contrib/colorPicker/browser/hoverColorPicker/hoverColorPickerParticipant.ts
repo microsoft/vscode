@@ -11,11 +11,11 @@ import { IModelDecoration } from '../../../../common/model.js';
 import { DocumentColorProvider } from '../../../../common/languages.js';
 import { ColorDetector } from '../colorDetector.js';
 import { ColorPickerModel } from '../colorPickerModel.js';
-import { ColorPickerWidget } from './hoverColorPickerWidget.js';
+import { ColorPickerWidget } from '../colorPickerWidget.js';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../hover/browser/hoverTypes.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import * as nls from '../../../../../nls.js';
-import { BaseColor, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
+import { BaseColor, ColorPickerWidgetType, createColorHover, updateColorPresentations, updateEditorModel } from '../colorPickerParticipantUtils.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -105,7 +105,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		const colorHover = hoverParts[0];
 		const editorModel = editor.getModel();
 		const model = colorHover.model;
-		this._colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, false));
+		this._colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
 
 		let editorUpdatedByColorPicker = false;
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
@@ -140,6 +140,11 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 
 	public handleResize(): void {
 		this._colorPicker?.layout();
+	}
+
+	public handleHide(): void {
+		this._colorPicker?.dispose();
+		this._colorPicker = undefined;
 	}
 
 	public isColorPickerVisible(): boolean {

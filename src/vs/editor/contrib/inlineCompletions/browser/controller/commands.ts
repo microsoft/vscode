@@ -258,7 +258,7 @@ export class HideInlineCompletion extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		transaction(tx => {
-			controller?.model.get()?.stop(tx);
+			controller?.model.get()?.stop('explicitCancel', tx);
 		});
 	}
 }

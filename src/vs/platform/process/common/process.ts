@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { UriComponents } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { PerformanceInfo, SystemInfo } from '../../diagnostics/common/diagnostics.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -19,68 +18,11 @@ export interface WindowData {
 	zoomLevel: number;
 }
 
-export const enum OldIssueType {
-	Bug,
-	PerformanceIssue,
-	FeatureRequest
-}
-
 export enum IssueSource {
 	VSCode = 'vscode',
 	Extension = 'extension',
 	Marketplace = 'marketplace'
 }
-
-export interface OldIssueReporterStyles extends WindowStyles {
-	textLinkColor?: string;
-	textLinkActiveForeground?: string;
-	inputBackground?: string;
-	inputForeground?: string;
-	inputBorder?: string;
-	inputErrorBorder?: string;
-	inputErrorBackground?: string;
-	inputErrorForeground?: string;
-	inputActiveBorder?: string;
-	buttonBackground?: string;
-	buttonForeground?: string;
-	buttonHoverBackground?: string;
-	sliderBackgroundColor?: string;
-	sliderHoverColor?: string;
-	sliderActiveColor?: string;
-}
-
-export interface OldIssueReporterExtensionData {
-	name: string;
-	publisher: string | undefined;
-	version: string;
-	id: string;
-	isTheme: boolean;
-	isBuiltin: boolean;
-	displayName: string | undefined;
-	repositoryUrl: string | undefined;
-	bugsUrl: string | undefined;
-	extensionData?: string;
-	extensionTemplate?: string;
-	data?: string;
-	uri?: UriComponents;
-}
-
-export interface OldIssueReporterData extends WindowData {
-	styles: OldIssueReporterStyles;
-	enabledExtensions: OldIssueReporterExtensionData[];
-	issueType?: OldIssueType;
-	issueSource?: IssueSource;
-	extensionId?: string;
-	experiments?: string;
-	restrictedMode: boolean;
-	isUnsupported: boolean;
-	githubAccessToken: string;
-	issueTitle?: string;
-	issueBody?: string;
-	data?: string;
-	uri?: UriComponents;
-}
-
 export interface ISettingSearchResult {
 	extensionId: string;
 	key: string;
@@ -109,31 +51,8 @@ export interface ProcessExplorerData extends WindowData {
 	applicationName: string;
 }
 
-export interface OldIssueReporterWindowConfiguration extends ISandboxConfiguration {
-	disableExtensions: boolean;
-	data: OldIssueReporterData;
-	os: {
-		type: string;
-		arch: string;
-		release: string;
-	};
-}
-
 export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
 	data: ProcessExplorerData;
-}
-
-export const IIssueMainService = createDecorator<IIssueMainService>('issueService');
-
-export interface IIssueMainService {
-	readonly _serviceBrand: undefined;
-	// Used by the issue reporter
-	openReporter(data: OldIssueReporterData): Promise<void>;
-	$reloadWithExtensionsDisabled(): Promise<void>;
-	$showConfirmCloseDialog(): Promise<void>;
-	$showClipboardDialog(): Promise<boolean>;
-	$sendReporterMenu(extensionId: string, extensionName: string): Promise<OldIssueReporterData | undefined>;
-	$closeReporter(): Promise<void>;
 }
 
 export const IProcessMainService = createDecorator<IProcessMainService>('processService');

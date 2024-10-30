@@ -25,7 +25,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 
@@ -255,7 +255,7 @@ export class AcceptChanges extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits)
 				),
@@ -285,7 +285,7 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 2,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.MessagesAndEdits),
 					CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)
@@ -322,7 +322,7 @@ export class RerunAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 5,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.None)
 				)
@@ -465,7 +465,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CONTEXT_CHAT_INPUT_HAS_TEXT.toNegated(),
+					ChatContextKeys.inputHasText.toNegated(),
 					CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages),
 					CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.negate()
 				)
@@ -473,7 +473,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-				when: CONTEXT_IN_CHAT_INPUT
+				when: ChatContextKeys.inChatInput
 			}
 		});
 	}

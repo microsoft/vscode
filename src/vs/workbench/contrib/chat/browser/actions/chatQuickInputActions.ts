@@ -13,7 +13,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IQuickChatOpenOptions, IQuickChatService } from '../chat.js';
-import { CONTEXT_CHAT_ENABLED } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -103,7 +103,7 @@ class QuickChatGlobalAction extends Action2 {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
 			title: localize2('quickChat', 'Quick Chat'),
-			precondition: CONTEXT_CHAT_ENABLED,
+			precondition: ChatContextKeys.enabled,
 			icon: Codicon.commentDiscussion,
 			f1: false,
 			category: CHAT_CATEGORY,

@@ -30,7 +30,7 @@ import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../..
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { $ } from '../../../../base/browser/dom.js';
 import { HiddenItemStrategy, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -192,8 +192,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		}
 
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
-		const positionActions: IAction[] = [];
-		createAndFillInContextMenuActions(activityBarPositionMenu, { primary: [], secondary: positionActions });
+		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
 
 		actions.push(...[
 			new Separator(),
