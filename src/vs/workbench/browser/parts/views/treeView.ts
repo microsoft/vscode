@@ -367,34 +367,60 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
-					let children: ITreeItem[];
+				async getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined> {
+					const batches = await this.getChildrenBatch(element ? [element] : undefined);
+					return batches?.[0];
+				}
+
+				private updateEmptyState(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): void {
+					if ((nodes.length === 1) && (nodes[0] instanceof Root)) {
+						const oldEmpty = this._isEmpty;
+						this._isEmpty = childrenGroups[0].length === 0;
+						if (oldEmpty !== this._isEmpty) {
+							this._onDidChangeEmpty.fire();
+						}
+					}
+				}
+
+				private findCheckboxesUpdated(nodes: ITreeItem[], childrenGroups: ITreeItem[][]): ITreeItem[] {
 					const checkboxesUpdated: ITreeItem[] = [];
-					if (node && node.children) {
-						children = node.children;
-					} else {
-						node = node ?? self.root;
-						node.children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
-						children = node.children ?? [];
-						children.forEach(child => {
+
+					for (let i = 0; i < nodes.length; i++) {
+						const node = nodes[i];
+						const children = childrenGroups[i];
+						for (const child of children) {
 							child.parent = node;
 							if (!self.manuallyManageCheckboxes && (node?.checkbox?.isChecked === true) && (child.checkbox?.isChecked === false)) {
 								child.checkbox.isChecked = true;
 								checkboxesUpdated.push(child);
 							}
-						});
-					}
-					if (node instanceof Root) {
-						const oldEmpty = this._isEmpty;
-						this._isEmpty = children.length === 0;
-						if (oldEmpty !== this._isEmpty) {
-							this._onDidChangeEmpty.fire();
 						}
 					}
+					return checkboxesUpdated;
+				}
+
+				async getChildrenBatch(nodes?: ITreeItem[]): Promise<ITreeItem[][]> {
+					let childrenGroups: ITreeItem[][];
+					let checkboxesUpdated: ITreeItem[] = [];
+					if (nodes && nodes.every((node): node is Required<ITreeItem & { children: ITreeItem[] }> => !!node.children)) {
+						childrenGroups = nodes.map(node => node.children);
+					} else {
+						nodes = nodes ?? [self.root];
+						const batchedChildren = await (nodes.length === 1 && nodes[0] instanceof Root ? doGetChildrenOrBatch(dataProvider, undefined) : doGetChildrenOrBatch(dataProvider, nodes));
+						for (let i = 0; i < nodes.length; i++) {
+							const node = nodes[i];
+							node.children = batchedChildren ? batchedChildren[i] : undefined;
+						}
+						childrenGroups = batchedChildren ?? [];
+						checkboxesUpdated = this.findCheckboxesUpdated(nodes, childrenGroups);
+					}
+
+					this.updateEmptyState(nodes, childrenGroups);
+
 					if (checkboxesUpdated.length > 0) {
 						self._onDidChangeCheckboxState.fire(checkboxesUpdated);
 					}
-					return children;
+					return childrenGroups;
 				}
 			};
 			if (this._dataProvider.onDidChangeEmpty) {
@@ -662,9 +688,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const treeMenus = this.treeDisposables.add(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this.treeDisposables.add(this.instantiationService.createInstance(ResourceLabels, this));
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
-		const aligner = new Aligner(this.themeService);
+		const aligner = this.treeDisposables.add(new Aligner(this.themeService));
 		const checkboxStateHandler = this.treeDisposables.add(new CheckboxStateHandler());
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes);
+		const renderer = this.treeDisposables.add(this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes));
 		this.treeDisposables.add(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
 
 		const widgetAriaLabel = this._title;
@@ -724,7 +750,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
-		const actionRunner = new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection());
+		const actionRunner = this.treeDisposables.add(new MultipleSelectionActionRunner(this.notificationService, () => this.tree!.getSelection()));
 		renderer.actionRunner = actionRunner;
 
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
@@ -1138,6 +1164,18 @@ class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
 	}
 }
 
+async function doGetChildrenOrBatch(dataProvider: ITreeViewDataProvider, nodes: ITreeItem[] | undefined): Promise<ITreeItem[][] | undefined> {
+	if (dataProvider.getChildrenBatch) {
+		return dataProvider.getChildrenBatch(nodes);
+	} else {
+		if (nodes) {
+			return Promise.all(nodes.map(node => dataProvider.getChildren(node).then(children => children ?? [])));
+		} else {
+			return [await dataProvider.getChildren()].filter(children => children !== undefined);
+		}
+	}
+}
+
 class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 
 	constructor(
@@ -1150,18 +1188,37 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 		return !!this.treeView.dataProvider && (element.collapsibleState !== TreeItemCollapsibleState.None);
 	}
 
+	private batch: ITreeItem[] | undefined;
+	private batchPromise: Promise<ITreeItem[][] | undefined> | undefined;
 	async getChildren(element: ITreeItem): Promise<ITreeItem[]> {
-		let result: ITreeItem[] = [];
-		if (this.treeView.dataProvider) {
-			try {
-				result = (await this.withProgress(this.treeView.dataProvider.getChildren(element))) ?? [];
-			} catch (e) {
-				if (!(<string>e.message).startsWith('Bad progress location:')) {
-					throw e;
-				}
-			}
+		const dataProvider = this.treeView.dataProvider;
+		if (!dataProvider) {
+			return [];
 		}
-		return result;
+		if (this.batch === undefined) {
+			this.batch = [element];
+			this.batchPromise = undefined;
+		} else {
+			this.batch.push(element);
+		}
+		const indexInBatch = this.batch.length - 1;
+		return new Promise<ITreeItem[]>((resolve, reject) => {
+			setTimeout(async () => {
+				const batch = this.batch;
+				this.batch = undefined;
+				if (!this.batchPromise) {
+					this.batchPromise = this.withProgress(doGetChildrenOrBatch(dataProvider, batch));
+				}
+				try {
+					const result = await this.batchPromise;
+					resolve(result ? result[indexInBatch] : []);
+				} catch (e) {
+					if (!(<string>e.message).startsWith('Bad progress location:')) {
+						reject(e);
+					}
+				}
+			}, 0);
+		});
 	}
 }
 
