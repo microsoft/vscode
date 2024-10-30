@@ -17,6 +17,11 @@ export interface IHoverDelegate2 {
 	 * Shows a hover immediately, provided a hover with the same {@link options} object is not
 	 * already visible.
 	 *
+	 * Use this method when you want to:
+	 *
+	 * - Control showing the hover yourself.
+	 * - Show the hover immediately.
+	 *
 	 * @param options A set of options defining the characteristics of the hover.
 	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
 	 *
@@ -38,6 +43,11 @@ export interface IHoverDelegate2 {
 	 * Shows a hover after a delay, or immediately if the {@link groupId} matches the currently
 	 * shown hover.
 	 *
+	 * Use this method when you want to:
+	 *
+	 * - Control showing the hover yourself.
+	 * - Show the hover after the standard delay.
+	 *
 	 * @param options The options of the hover.
 	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
 	 * hover, the hover will be shown immediately, skipping the delay.
@@ -48,33 +58,44 @@ export interface IHoverDelegate2 {
 	): IDelayedHoverWidget | IHoverWidget | undefined;
 
 	/**
-	 * A simple wrapper around showDelayedHover that includes listening to the mouseover event of
-	 * the {@link target} element.
+	 * A simple wrapper around showDelayedHover that includes listening to events on the
+	 * {@link target} element that shows the hover.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Let the hover service handle showing the hover.
+	 * - Show the hover after the standard delay.
+	 * - Want the hover positioned beside the {@link target} element.
 	 *
 	 * @param target The target element to listener for mouseover events on.
 	 * @param hoverOptions The options of the hover.
-	 * @param lifecycleOptions The options of the delayed hover.
+	 * @param lifecycleOptions The options of the hover's lifecycle.
 	 */
 	setupDelayedHover(
 		target: HTMLElement,
-		// TODO: Support using a simple string (content) as options?
 		hoverOptions: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable;
 
 	/**
-	 * A simple wrapper around showDelayedHover that includes listening to the mouseover event of
-	 * the {@link target} element. This differs from {@link setupDelayedHover} in that the hover
-	 * will be shown at the mouse position instead of the target position, ignoring any
+	 * A simple wrapper around showDelayedHover that includes listening to events on the
+	 * {@link target} element that shows the hover. This differs from {@link setupDelayedHover} in
+	 * that the hover will be shown at the mouse position instead of the
+	 * {@link target target} element's position, ignoring any
 	 * {@link IHoverOptions.position position options} that are passed in.
+	 *
+	 * Use this method when you want to:
+	 *
+	 * - Let the hover service handle showing the hover.
+	 * - Show the hover after the standard delay.
+	 * - Want the hover positioned beside the mouse.
 	 *
 	 * @param target The target element to listener for mouseover events on.
 	 * @param hoverOptions The options of the hover.
-	 * @param lifecycleOptions The options of the delayed hover.
+	 * @param lifecycleOptions The options of the hover's lifecycle.
 	 */
 	setupDelayedHoverAtMouse(
 		target: HTMLElement,
-		// TODO: Support using a simple string (content) as options?
 		hoverOptions: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
 		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable;
@@ -103,6 +124,9 @@ export interface IHoverDelegate2 {
 	 * @param targetElement The target element to show the hover for.
 	 * @param content The content of the hover or a factory that creates it at the time it's shown.
 	 * @param options Additional options for the managed hover.
+	 *
+	 * @deprecated Use {@link setupDelayedHover} or {@link setupDelayedHoverAtMouse} instead where
+	 * possible.
 	 */
 	// TODO: The hoverDelegate parameter should be removed in favor of just a set of options. This
 	//       will avoid confusion around IHoverDelegate/IHoverDelegate2 as well as align more with
@@ -114,6 +138,9 @@ export interface IHoverDelegate2 {
 	 * Shows the hover for the given element if one has been setup.
 	 *
 	 * @param targetElement The target element of the hover, as set up in {@link setupManagedHover}.
+	 *
+	 * @deprecated Use {@link setupDelayedHover} or {@link setupDelayedHoverAtMouse} instead where
+	 * possible.
 	 */
 	showManagedHover(targetElement: HTMLElement): void;
 }
