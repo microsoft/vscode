@@ -269,7 +269,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			supportDescriptionHighlights: true,
 			supportIcons: true,
 			hoverDelegate: {
-				delay: 0,//this._configurationService.getValue<number>('workbench.hover.delay'),
+				delay: 0,
 				showHover: options => {
 					return this._hoverService.showDelayedHover({
 						...options,

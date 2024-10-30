@@ -53,6 +53,76 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
+		const hover = this._createHover(options, skipLastFocusedUpdate);
+		if (!hover) {
+			return undefined;
+		}
+		this._showHover(hover, options, focus);
+		return hover;
+	}
+
+	showDelayedHover(
+		options: IHoverOptions,
+		groupId?: number | string,
+	): IDelayedHoverWidget | IHoverWidget | undefined {
+		if (!this._currentDelayedHover || this._currentDelayedHover.wasShown) {
+			// Current hover is sticky, reject
+			if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
+				return undefined;
+			}
+
+			// Identity is the same, return current hover
+			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
+				return this._currentHover;
+			}
+
+			// Check group identity, if it's the same skip the delay and show the hover immediately
+			if (this._currentHover && !this._currentHover.isDisposed && this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === groupId) {
+				console.log('group matches!', groupId);
+				return this.showHover({
+					...options,
+					appearance: {
+						...options.appearance,
+						skipFadeInAnimation: true
+					}
+				});
+			}
+		}
+
+		const hover = this._createHover(options, undefined);
+		if (!hover) {
+			this._currentDelayedHover = undefined;
+			this._currentDelayedHoverGroupId = undefined;
+			return undefined;
+		}
+
+		const delay = this._configurationService.getValue<number>('workbench.hover.delay');
+		let wasShown = false;
+		console.log(`queue showing delayed hover (${delay}ms)`);
+		timeout(delay).then(() => {
+			if (hover && !hover.isDisposed) {
+				wasShown = true;
+				this._showHover(hover, options);
+			}
+		});
+
+		this._currentDelayedHover = {
+			dispose() {
+				hover?.dispose();
+			},
+			get isDisposed() {
+				return hover.isDisposed ?? true;
+			},
+			get wasShown() {
+				return wasShown;
+			}
+		};
+		this._currentDelayedHoverGroupId = groupId;
+
+		return this._currentDelayedHover;
+	}
+
+	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): HoverWidget | undefined {
 		this._currentDelayedHover = undefined;
 
 		console.log('HoverService.showHover');
@@ -103,12 +173,6 @@ export class HoverService extends Disposable implements IHoverService {
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
-		if (!dontShow) {
-			this._contextViewHandler.showContextView(
-				new HoverContextViewDelegate(hover, focus),
-				options.container
-			);
-		}
 		hover.onRequestLayout(() => this._contextViewHandler.layout(), undefined, hoverDisposables);
 		if (options.persistence?.sticky) {
 			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
@@ -146,68 +210,11 @@ export class HoverService extends Disposable implements IHoverService {
 		return hover;
 	}
 
-	showDelayedHover(
-		options: IHoverOptions,
-		groupId?: number | string,
-	): IDelayedHoverWidget | IHoverWidget | undefined {
-		if (!this._currentDelayedHover || this._currentDelayedHover.wasShown) {
-			// Current hover is sticky, reject
-			if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
-				return undefined;
-			}
-
-			// Identity is the same, return current hover
-			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
-				return this._currentHover;
-			}
-
-			// Check group identity, if it's the same skip the delay and show the hover immediately
-			if (this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === groupId) {
-				console.log('group matches!', groupId);
-				return this.showHover({
-					...options,
-					appearance: {
-						...options.appearance,
-						skipFadeInAnimation: true
-					}
-				});
-			}
-		}
-
-		const hover = this.showHover(options, undefined, undefined, true);
-		if (!hover) {
-			this._currentDelayedHover = undefined;
-			this._currentDelayedHoverGroupId = undefined;
-			return undefined;
-		}
-
-		const delay = this._configurationService.getValue<number>('workbench.hover.delay');
-		let wasShown = false;
-		console.log(`queue showing delayed hover (${delay}ms)`);
-		timeout(delay).then(() => {
-			if (hover && !hover.isDisposed) {
-				wasShown = true;
-				this._contextViewHandler.showContextView(
-					new HoverContextViewDelegate(hover as any),
-					options.container
-				);
-			}
-		});
-
-		this._currentDelayedHover = {
-			dispose() {
-				hover?.dispose();
-			},
-			get isDisposed() {
-				return hover.isDisposed ?? true;
-			},
-			get wasShown() {
-				return wasShown;
-			}
-		};
-		this._currentDelayedHoverGroupId = groupId;
-
-		return this._currentDelayedHover;
+	private _showHover(hover: HoverWidget, options: IHoverOptions, focus?: boolean) {
+		this._contextViewHandler.showContextView(
+			new HoverContextViewDelegate(hover, focus),
+			options.container
+		);
 	}
 
 	hideHover(): void {
