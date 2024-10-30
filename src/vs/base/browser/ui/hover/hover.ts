@@ -61,6 +61,7 @@ export interface IHoverDelegate2 {
 		// TODO: Support using a simple string (content) as options?
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		groupId: number | string | undefined,
+		setupKeyboardEvents?: boolean,
 	): IDisposable;
 
 	/**
@@ -79,6 +80,7 @@ export interface IHoverDelegate2 {
 		// TODO: Support using a simple string (content) as options?
 		options: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
 		groupId: number | string | undefined,
+		setupKeyboardEvents?: boolean,
 	): IDisposable;
 
 	/**

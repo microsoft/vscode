@@ -26,6 +26,7 @@ import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { isNumber } from '../../../../base/common/types.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -125,31 +126,50 @@ export class HoverService extends Disposable implements IHoverService {
 		target: HTMLElement,
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		groupId: number | string | undefined,
+		setupKeyboardEvents?: boolean,
 	): IDisposable {
-		return addDisposableListener(target, EventType.MOUSE_OVER, () => {
-			const resolvedOptions: IHoverOptions = {
-				...typeof options === 'function' ? options() : options,
-				target
-			};
-			this.showDelayedHover(resolvedOptions, groupId);
-		});
+		const resolveOptions = () => ({
+			...typeof options === 'function' ? options() : options,
+			target
+		} satisfies IHoverOptions);
+		return this._setupDelayedHover(target, resolveOptions, groupId, setupKeyboardEvents);
 	}
 
 	setupDelayedHoverAtMouse(
 		target: HTMLElement,
 		options: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
 		groupId: number | string | undefined,
+		setupKeyboardEvents?: boolean,
 	): IDisposable {
-		return addDisposableListener(target, EventType.MOUSE_OVER, e => {
-			const resolvedOptions: IHoverOptions = {
-				...typeof options === 'function' ? options() : options,
-				target: {
-					targetElements: [target],
-					x: e.x + 10,
+		const resolveOptions = (e?: MouseEvent) => ({
+			...typeof options === 'function' ? options() : options,
+			target: {
+				targetElements: [target],
+				x: e !== undefined ? e.x + 10 : undefined,
+			}
+		} satisfies IHoverOptions);
+		return this._setupDelayedHover(target, resolveOptions, groupId, setupKeyboardEvents);
+	}
+
+	private _setupDelayedHover(
+		target: HTMLElement,
+		resolveOptions: ((e?: MouseEvent) => IHoverOptions),
+		groupId: number | string | undefined,
+		setupKeyboardEvents?: boolean
+	) {
+		const store = new DisposableStore();
+		store.add(addDisposableListener(target, EventType.MOUSE_OVER, e => {
+			this.showDelayedHover(resolveOptions(e), groupId);
+		}));
+		if (setupKeyboardEvents) {
+			store.add(addDisposableListener(target, EventType.KEY_DOWN, e => {
+				const evt = new StandardKeyboardEvent(e);
+				if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {
+					this.showHover(resolveOptions(), true);
 				}
-			};
-			this.showDelayedHover(resolvedOptions, groupId);
-		});
+			}));
+		}
+		return store;
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): HoverWidget | undefined {
