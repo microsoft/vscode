@@ -13,7 +13,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { DEFAULT_TEXT_SEARCH_PREVIEW_OPTIONS } from './search.js';
-import { Range, FileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, AITextSearchProvider2, TextSearchCompleteMessage } from './searchExtTypes.js';
+import { Range, FileSearchProvider2, FileSearchProviderOptions, ProviderResult, TextSearchComplete2, TextSearchContext2, TextSearchMatch2, TextSearchProvider2, TextSearchProviderOptions, TextSearchQuery2, TextSearchResult2, TextSearchCompleteMessage } from './searchExtTypes.js';
 
 // old types that are retained for backward compatibility
 // TODO: delete this when search apis are adopted by all first-party extensions
@@ -372,23 +372,6 @@ export interface TextSearchProvider {
 	 */
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 }
-
-export interface AITextSearchProvider {
-	/**
-	 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.
-	 */
-	readonly name?: string;
-
-	/**
-	 * Provide results that match the given text pattern.
-	 * @param query The parameter for this query.
-	 * @param options A set of options to consider while searching.
-	 * @param progress A progress callback that must be invoked for all results.
-	 * @param token A cancellation token.
-	 */
-	provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
-}
-
 /**
  * Options that can be set on a findTextInFiles search.
  */
@@ -546,40 +529,6 @@ export class OldTextSearchProviderConverter implements TextSearchProvider2 {
 			return coalesce(await Promise.all(
 				newToOldTextProviderOptions(options).map(
 					o => this.provider.provideTextSearchResults(query, o, { report: (e) => progressShim(e) }, token))))
-				.reduce(
-					(prev, cur) => ({ limitHit: prev.limitHit || cur.limitHit }),
-					{ limitHit: false }
-				);
-		};
-		const oldResult = getResult();
-		return oldResult.then((e) => {
-			return {
-				limitHit: e.limitHit,
-				message: coalesce(asArray(e.message))
-			} satisfies TextSearchComplete2;
-		});
-	}
-}
-
-export class OldAITextSearchProviderConverter implements AITextSearchProvider2 {
-	public readonly name?: string;
-
-	constructor(private provider: AITextSearchProvider) {
-		this.name = this.provider.name;
-	}
-
-	provideAITextSearchResults(query: string, options: TextSearchProviderOptions, progress: IProgress<TextSearchResult2>, token: CancellationToken): ProviderResult<TextSearchComplete2> {
-		const progressShim = (oldResult: TextSearchResult) => {
-			if (!validateProviderResult(oldResult)) {
-				return;
-			}
-			progress.report(oldToNewTextSearchResult(oldResult));
-		};
-
-		const getResult = async () => {
-			return coalesce(await Promise.all(
-				newToOldTextProviderOptions(options).map(
-					o => this.provider.provideAITextSearchResults(query, o, { report: (e) => progressShim(e) }, token))))
 				.reduce(
 					(prev, cur) => ({ limitHit: prev.limitHit || cur.limitHit }),
 					{ limitHit: false }
