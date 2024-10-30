@@ -57,7 +57,8 @@ export interface IHoverDelegate2 {
 	 */
 	setupDelayedHover(
 		target: HTMLElement,
-		options: (() => IHoverOptions) | IHoverOptions,
+		// TODO: Support using a simple string (content) as options?
+		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		groupId: number | string | undefined,
 	): IDisposable;
 

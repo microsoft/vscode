@@ -258,7 +258,6 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		}));
 
 		this._register(this.hoverService.setupDelayedHover(this.container, () => ({
-			target: this.container,
 			content: this.computeTitle(),
 			position: {
 				hoverPosition: this.options.hoverOptions.position(),

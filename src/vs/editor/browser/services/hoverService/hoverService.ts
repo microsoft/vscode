@@ -122,11 +122,14 @@ export class HoverService extends Disposable implements IHoverService {
 
 	setupDelayedHover(
 		target: HTMLElement,
-		options: (() => IHoverOptions) | IHoverOptions,
+		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		groupId: number | string | undefined,
 	): IDisposable {
 		return addDisposableListener(target, EventType.MOUSE_OVER, () => {
-			this.showDelayedHover(typeof options === 'function' ? options() : options, groupId);
+			this.showDelayedHover({
+				...typeof options === 'function' ? options() : options,
+				target
+			}, groupId);
 		});
 	}
 
