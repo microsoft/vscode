@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
-import { IProcessMainService, IIssueMainService } from '../../../../platform/issue/common/issue.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
 
-registerMainProcessRemoteService(IIssueMainService, 'issue');
 registerMainProcessRemoteService(IProcessMainService, 'process');
 
