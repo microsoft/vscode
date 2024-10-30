@@ -273,7 +273,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				showHover: options => {
 					return this._hoverService.showDelayedHover({
 						...options,
-						groupId: 'terminal-tabs-list',
 						actions: context.hoverActions,
 						target: element,
 						persistence: {
@@ -285,7 +284,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 						position: {
 							hoverPosition: this._terminalConfigurationService.config.tabs.location === 'left' ? HoverPosition.RIGHT : HoverPosition.LEFT
 						}
-					});
+					}, 'terminal-tabs-list');
 				}
 			}
 		});

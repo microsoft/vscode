@@ -33,6 +33,7 @@ export class HoverService extends Disposable implements IHoverService {
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
 	private _currentDelayedHover: IDelayedHoverWidget | undefined;
+	private _currentDelayedHoverGroupId: number | string | undefined;
 	private _lastHoverOptions: IHoverOptions | undefined;
 
 	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
@@ -146,7 +147,8 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	showDelayedHover(
-		options: IHoverOptions
+		options: IHoverOptions,
+		groupId?: number | string,
 	): IDelayedHoverWidget | IHoverWidget | undefined {
 		if (!this._currentDelayedHover || this._currentDelayedHover.wasShown) {
 			// Current hover is sticky, reject
@@ -159,15 +161,9 @@ export class HoverService extends Disposable implements IHoverService {
 				return this._currentHover;
 			}
 
-			console.log('showDelayedHover');
-			console.log('  current options', this._currentHoverOptions);
-			console.log('  current group', this._currentHoverOptions?.groupId);
-			console.log('  new options', options);
-			console.log('  new group', options.groupId);
-
 			// Check group identity, if it's the same skip the delay and show the hover immediately
-			if (this._currentHoverOptions?.groupId !== undefined && this._currentHoverOptions?.groupId === options.groupId) {
-				console.log('group matches!', this._currentHoverOptions?.groupId);
+			if (this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === groupId) {
+				console.log('group matches!', groupId);
 				return this.showHover({
 					...options,
 					appearance: {
@@ -180,6 +176,8 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const hover = this.showHover(options, undefined, undefined, true);
 		if (!hover) {
+			this._currentDelayedHover = undefined;
+			this._currentDelayedHoverGroupId = undefined;
 			return undefined;
 		}
 
@@ -196,7 +194,7 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 		});
 
-		const delayedHover: IDelayedHoverWidget = {
+		this._currentDelayedHover = {
 			dispose() {
 				hover?.dispose();
 			},
@@ -207,8 +205,9 @@ export class HoverService extends Disposable implements IHoverService {
 				return wasShown;
 			}
 		};
-		this._currentDelayedHover = delayedHover;
-		return delayedHover;
+		this._currentDelayedHoverGroupId = groupId;
+
+		return this._currentDelayedHover;
 	}
 
 	hideHover(): void {

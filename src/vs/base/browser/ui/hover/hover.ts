@@ -35,7 +35,8 @@ export interface IHoverDelegate2 {
 	): IHoverWidget | undefined;
 
 	showDelayedHover(
-		options: IHoverOptions
+		options: IHoverOptions,
+		groupId?: number | string,
 	): IDelayedHoverWidget | IHoverWidget | undefined;
 
 	/**
@@ -122,14 +123,6 @@ export interface IHoverOptions {
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
 	 */
 	id?: number | string;
-
-	// TODO: Move delay stuff into showHover?
-	/**
-	 * An ID to associate with the hover that identifies a group of hovers. When a new hover target
-	 * is moused over, if it's within a time threshold of the last hover target and they are within
-	 * the same group the hover will be shown immediately.
-	 */
-	groupId?: number | string;
 
 	/**
 	 * A set of actions for the hover's "status bar".
