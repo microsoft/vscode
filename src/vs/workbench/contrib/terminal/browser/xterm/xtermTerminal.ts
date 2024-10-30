@@ -46,6 +46,7 @@ import { provideInlineCompletions } from '../../../../../editor/contrib/inlineCo
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { InlineCompletionTriggerKind } from '../../../../../editor/common/languages.js';
+import { StringBuilder } from '../../../../../editor/common/core/stringBuilder.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -312,9 +313,20 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// TODO: lang to shell type
 
 		const buffer = this.raw.buffer.active;
-		// TODO: Add rest of buffer
-		const lineContent = buffer.getLine(buffer.baseY + buffer.cursorY)!.translateToString(true, 0, this.raw.buffer.active.cursorX);
+
+		// Create virtual text model made up of the current terminal buffer
+		// TODO: Caching this would be a good idea
+		const lastLine = buffer.baseY + buffer.cursorY;
+		const lines = new StringBuilder(lastLine + 1);
+		for (let i = 0; i <= lastLine; i++) {
+			if (i !== 0) {
+				lines.appendString('\n');
+			}
+			lines.appendString(buffer.getLine(i)!.translateToString(true, 0, i === lastLine ? this.raw.buffer.active.cursorX : undefined));
+		}
+		const lineContent = lines.build();
 		const model = this._modelService.createModel(lineContent, { languageId: 'shellscript', onDidChange: Event.None });
+
 		// TODO: Provider change
 		const r = provideInlineCompletions(this._languageFeaturesService.inlineCompletionsProvider, new Position(1, lineContent.length + 1), model, {
 			triggerKind: InlineCompletionTriggerKind.Automatic,
