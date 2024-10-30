@@ -101,7 +101,11 @@
         "properties": {
           "microsoft.useMsal": {
             "type": "boolean",
-            "description": "%useMsal.description%"
+            "description": "%useMsal.description%",
+            "tags": [
+              "onExP",
+              "preview"
+            ]
           }
         }
       }

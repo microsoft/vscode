@@ -73,7 +73,7 @@ declare module 'vscode' {
 	 *
 	 * The FileSearchProvider will be invoked on every keypress in quickopen.
 	 */
-	export interface FileSearchProviderNew {
+	export interface FileSearchProvider2 {
 		/**
 		 * WARNING: VERY EXPERIMENTAL.
 		 *
@@ -96,6 +96,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerFileSearchProviderNew(scheme: string, provider: FileSearchProviderNew): Disposable;
+		export function registerFileSearchProvider2(scheme: string, provider: FileSearchProvider2): Disposable;
 	}
 }

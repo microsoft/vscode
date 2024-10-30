@@ -111,7 +111,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: viewContainerLocation }], added: [] });
 		}));
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._store)(() => this.onDidStorageChange()));
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.whenExtensionsRegistered());
 
@@ -782,6 +782,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							toggled: ContextKeyExpr.has(`${viewDescriptor.id}.visible`),
 							title: viewDescriptor.name,
+							metadata: {
+								description: localize2('toggleVisibilityDescription', 'Toggles the visibility of the {0} view if the view container it is located in is visible', viewDescriptor.name.value)
+							},
 							menu: [{
 								id: ViewsSubMenu,
 								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
@@ -813,6 +816,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							id: `${viewDescriptor.id}.removeView`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
 							title: localize('hideView', "Hide '{0}'", viewDescriptor.name.value),
+							metadata: {
+								description: localize2('hideViewDescription', 'Hides the {0} view if it is visible and the view container it is located in is visible', viewDescriptor.name.value)
+							},
 							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							menu: [{
 								id: MenuId.ViewTitleContext,
@@ -826,7 +832,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						});
 					}
 					async runInViewPaneContainer(serviceAccessor: ServicesAccessor, viewPaneContainer: ViewPaneContainer): Promise<void> {
-						viewPaneContainer.toggleViewVisibility(viewDescriptor.id);
+						if (viewPaneContainer.getView(viewDescriptor.id)?.isVisible()) {
+							viewPaneContainer.toggleViewVisibility(viewDescriptor.id);
+						}
 					}
 				}));
 			}

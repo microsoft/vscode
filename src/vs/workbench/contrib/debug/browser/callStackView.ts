@@ -23,7 +23,7 @@ import { posix } from '../../../../base/common/path.js';
 import { commonSuffixLength } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { ICommandActionTitle, Icon } from '../../../../platform/action/common/action.js';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createAndFillInActionBarActions, getContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -461,12 +461,9 @@ export class CallStackView extends ViewPane {
 			overlay = getStackFrameContextOverlay(element);
 		}
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 		const menu = this.menuService.getMenuActions(MenuId.DebugCallStackContext, contextKeyService, { arg: getContextForContributedActions(element), shouldForwardArgs: true });
-		createAndFillInContextMenuActions(menu, result, 'inline');
+		const result = getContextMenuActions(menu, 'inline');
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,

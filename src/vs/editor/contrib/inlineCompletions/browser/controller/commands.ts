@@ -171,9 +171,7 @@ export class AcceptInlineCompletion extends EditorAction {
 							SuggestContext.Visible.toNegated(),
 							EditorContextKeys.hoverFocused.toNegated(),
 
-							//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
-							InlineCompletionContextKeys.hasSelection.toNegated(),
-							InlineCompletionContextKeys.cursorAtInlineEdit,
+							InlineCompletionContextKeys.tabShouldAcceptInlineEdit,
 						)
 					),
 				},
@@ -220,12 +218,10 @@ export class JumpToNextInlineEdit extends EditorAction {
 				weight: 201,
 				kbExpr: ContextKeyExpr.and(
 					InlineCompletionContextKeys.inlineEditVisible,
-					//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
-					InlineCompletionContextKeys.hasSelection.toNegated(),
 					EditorContextKeys.tabMovesFocus.toNegated(),
 					SuggestContext.Visible.toNegated(),
 					EditorContextKeys.hoverFocused.toNegated(),
-					InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
+					InlineCompletionContextKeys.tabShouldJumpToInlineEdit,
 				),
 			}
 		});
@@ -258,7 +254,7 @@ export class HideInlineCompletion extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		transaction(tx => {
-			controller?.model.get()?.stop(tx);
+			controller?.model.get()?.stop('explicitCancel', tx);
 		});
 	}
 }

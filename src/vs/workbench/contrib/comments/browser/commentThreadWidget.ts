@@ -36,7 +36,6 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { LayoutableEditor } from './simpleCommentEditor.js';
-import { DomEmitter } from '../../../../base/browser/event.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
@@ -157,14 +156,6 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
-		this._register(new DomEmitter(this.container, 'keydown').event(e => {
-			if (dom.isKeyboardEvent(e) && e.key === 'Escape') {
-				if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
-					this._parentEditor.setSelection(this.commentThread.range);
-				}
-				this.collapse();
-			}
-		}));
 	}
 
 	private _setAriaLabel(): void {
@@ -384,6 +375,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	collapse() {
+		if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+			this._parentEditor.setSelection(this.commentThread.range);
+		}
 		this._containerDelegate.collapse();
 	}
 

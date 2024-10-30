@@ -16,7 +16,7 @@ import { IDiagnosticsMainService } from '../../diagnostics/electron-main/diagnos
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
-import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from '../common/issue.js';
+import { IProcessMainService, ProcessExplorerData, ProcessExplorerWindowConfiguration } from '../common/process.js';
 import { ILogService } from '../../log/common/log.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import product from '../../product/common/product.js';

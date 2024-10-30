@@ -19,7 +19,7 @@ import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -250,8 +250,7 @@ export async function openContextMenuForVariableTreeElement(parentContextKeyServ
 	const context: IVariablesContext = getVariablesContext(variable);
 	const menu = menuService.getMenuActions(menuId, contextKeyService, { arg: context, shouldForwardArgs: false });
 
-	const secondary: IAction[] = [];
-	createAndFillInContextMenuActions(menu, { primary: [], secondary }, 'inline');
+	const { secondary } = getContextMenuActions(menu, 'inline');
 	contextMenuService.showContextMenu({
 		getAnchor: () => e.anchor,
 		getActions: () => secondary
@@ -496,8 +495,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 		const context = viz.original ? getVariablesContext(viz.original) : undefined;
 		const menu = this.menuService.getMenuActions(MenuId.DebugVariablesContext, contextKeyService, { arg: context, shouldForwardArgs: false });
 
-		const primary: IAction[] = [];
-		createAndFillInContextMenuActions(menu, { primary, secondary: [] }, 'inline');
+		const { primary } = getContextMenuActions(menu, 'inline');
 
 		if (viz.original) {
 			const action = new Action('debugViz', localize('removeVisualizer', 'Remove Visualizer'), ThemeIcon.asClassName(Codicon.eye), true, () => this.debugService.getViewModel().setVisualizedExpression(viz.original!, undefined));
@@ -572,10 +570,9 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		const variable = expression as Variable;
 		const contextKeyService = getContextForVariableMenuBase(this.contextKeyService, variable);
 
-		const primary: IAction[] = [];
 		const context = getVariablesContext(variable);
 		const menu = this.menuService.getMenuActions(MenuId.DebugVariablesContext, contextKeyService, { arg: context, shouldForwardArgs: false });
-		createAndFillInContextMenuActions(menu, { primary, secondary: [] }, 'inline');
+		const { primary } = getContextMenuActions(menu, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;

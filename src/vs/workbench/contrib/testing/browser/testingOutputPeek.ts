@@ -74,11 +74,16 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 
 /** Iterates through every message in every result */
-function* allMessages(results: readonly ITestResult[]) {
-	for (const result of results) {
-		for (const test of result.tests) {
-			for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
-				for (let messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.length; messageIndex++) {
+function* allMessages([result]: readonly ITestResult[]) {
+	if (!result) {
+		return;
+	}
+
+	for (const test of result.tests) {
+		for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+			const messages = test.tasks[taskIndex].messages;
+			for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+				if (messages[messageIndex].type === TestMessageType.Error) {
 					yield { result, test, taskIndex, messageIndex };
 				}
 			}
@@ -280,7 +285,8 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		// and this test is not in any of the editors' models.
 		switch (cfg) {
 			case AutoOpenPeekViewWhen.FailureVisible: {
-				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+				const visibleEditors = this.editorService.visibleTextEditorControls;
+				const editorUris = new Set(visibleEditors.filter(isCodeEditor).map(e => e.getModel()?.uri.toString()));
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
 					return;
 				}

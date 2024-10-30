@@ -54,6 +54,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from '../../../common/theme.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
+import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -236,7 +237,8 @@ class ViewWelcomeController {
 			return;
 		}
 
-		for (const { content, precondition } of contents) {
+		let buttonsCount = 0;
+		for (const { content, precondition, renderSecondaryButtons } of contents) {
 			const lines = content.split('\n');
 
 			for (let line of lines) {
@@ -251,13 +253,14 @@ class ViewWelcomeController {
 				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
 					const node = linkedText.nodes[0];
 					const buttonContainer = append(this.element!, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, secondary: renderSecondaryButtons && buttonsCount > 0 ? true : false, ...defaultButtonStyles, });
 					button.label = node.label;
 					button.onDidClick(_ => {
 						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, this.renderDisposables);
 					this.renderDisposables.add(button);
+					buttonsCount++;
 
 					if (precondition) {
 						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
@@ -272,7 +275,7 @@ class ViewWelcomeController {
 
 					for (const node of linkedText.nodes) {
 						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
+							append(p, ...renderLabelWithIcons(node));
 						} else {
 							const link = this.renderDisposables.add(this.instantiationService.createInstance(Link, p, node, {}));
 

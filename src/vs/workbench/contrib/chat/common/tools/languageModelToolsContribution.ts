@@ -26,6 +26,12 @@ export interface IRawToolContribution {
 	when?: string;
 	tags?: string[];
 	userDescription?: string;
+	inputSchema?: IJSONSchema;
+
+	/**
+	 * TODO@API backwards compat, remove
+	 * @deprecated
+	 */
 	parametersSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
 }
@@ -47,10 +53,10 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				body: {
 					name: '${1}',
 					modelDescription: '${2}',
-					parametersSchema: {
+					inputSchema: {
 						type: 'object',
 						properties: {
-							'${3:paramName}': {
+							'${3:name}': {
 								type: 'string',
 								description: '${4:description}'
 							}
@@ -83,8 +89,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'
 				},
-				parametersSchema: {
-					description: localize('parametersSchema', "A JSON schema for the parameters this tool accepts. The parameters must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
+				inputSchema: {
+					description: localize('parametersSchema', "A JSON schema for the input this tool accepts. The input must be an object at the top level. A particular language model may not support all JSON schema features. See the documentation for the language model family you are using for more information."),
 					$ref: toolsParametersSchemaSchemaId,
 				},
 				canBeReferencedInPrompt: {
@@ -173,6 +179,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					const tool: IToolData = {
 						...rawTool,
+						inputSchema: rawTool.inputSchema ?? rawTool.parametersSchema, // BACKWARDS compatibility
 						id: rawTool.name,
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,

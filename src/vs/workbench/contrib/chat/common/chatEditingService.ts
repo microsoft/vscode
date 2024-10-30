@@ -33,6 +33,8 @@ export interface IChatEditingService {
 	readonly currentEditingSession: IChatEditingSession | null;
 	readonly currentAutoApplyOperation: CancellationTokenSource | null;
 
+	readonly editingSessionFileLimit: number;
+
 	startOrContinueEditingSession(chatSessionId: string, options?: { silent: boolean }): Promise<IChatEditingSession>;
 	triggerEditComputation(responseModel: IChatResponseModel): Promise<void>;
 	getEditingSession(resource: URI): IChatEditingSession | null;
@@ -103,6 +105,14 @@ export const decidedChatEditingResourceContextKey = new RawContextKey<string[]>(
 export const chatEditingResourceContextKey = new RawContextKey<string | undefined>('chatEditingResource', undefined);
 export const inChatEditingSessionContextKey = new RawContextKey<boolean | undefined>('inChatEditingSession', undefined);
 export const applyingChatEditsContextKey = new RawContextKey<boolean | undefined>('isApplyingChatEdits', undefined);
-export const isChatRequestCheckpointed = new RawContextKey<boolean | undefined>('isChatRequestCheckpointed', false);
 export const hasUndecidedChatEditingResourceContextKey = new RawContextKey<boolean | undefined>('hasUndecidedChatEditingResource', false);
 export const hasAppliedChatEditsContextKey = new RawContextKey<boolean | undefined>('hasAppliedChatEdits', false);
+export const applyingChatEditsFailedContextKey = new RawContextKey<boolean | undefined>('applyingChatEditsFailed', false);
+
+export const chatEditingMaxFileAssignmentName = 'chatEditingSessionFileLimit';
+export const defaultChatEditingMaxFileLimit = 10;
+
+export const enum ChatEditKind {
+	Created,
+	Modified,
+}

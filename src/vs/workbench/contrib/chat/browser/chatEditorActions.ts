@@ -70,7 +70,7 @@ abstract class AcceptDiscardAction extends Action2 {
 				: 'chatEditor.action.reject',
 			title: accept
 				? localize2('accept', 'Accept Chat Edit')
-				: localize2('reject', 'Reject Chat Edit'),
+				: localize2('discard', 'Discard Chat Edit'),
 			category: CHAT_CATEGORY,
 			icon: accept
 				? Codicon.check

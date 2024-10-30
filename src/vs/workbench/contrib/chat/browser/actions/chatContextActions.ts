@@ -31,6 +31,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { VIEW_ID as SEARCH_VIEW_ID } from '../../../../services/search/common/search.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
@@ -38,7 +39,7 @@ import { SearchView } from '../../../search/browser/searchView.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { IChatRequestVariableEntry } from '../../common/chatModel.js';
 import { ChatRequestAgentPart } from '../../common/chatParserTypes.js';
@@ -168,7 +169,7 @@ class AttachFileAction extends Action2 {
 			title: localize2('workbench.action.chat.attachFile.label', "Add File to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
@@ -199,7 +200,7 @@ class AttachSelectionAction extends Action2 {
 			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ActiveEditorContext.isEqualTo('workbench.editors.files.textFileEditor')),
 			menu: {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_chat',
@@ -230,10 +231,10 @@ export class AttachContextAction extends Action2 {
 
 	// used to enable/disable the keybinding and defined menu containment
 	protected static _cdt = ContextKeyExpr.or(
-		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel)),
-		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Editor)),
-		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Notebook)),
-		ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Terminal)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Editor)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Notebook)),
+		ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Terminal)),
 	);
 
 	constructor(desc: Readonly<IAction2Options> = {
@@ -241,21 +242,21 @@ export class AttachContextAction extends Action2 {
 		title: localize2('workbench.action.chat.attachContext.label', "Attach Context"),
 		icon: Codicon.attach,
 		category: CHAT_CATEGORY,
-		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession))),
+		precondition: ContextKeyExpr.or(AttachContextAction._cdt, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession))),
 		keybinding: {
-			when: CONTEXT_IN_CHAT_INPUT,
+			when: ChatContextKeys.inChatInput,
 			primary: KeyMod.CtrlCmd | KeyCode.Slash,
 			weight: KeybindingWeight.EditorContrib
 		},
 		menu: [
 			{
-				when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
+				when: ContextKeyExpr.or(ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), ContextKeyExpr.and(ContextKeyExpr.or(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)), AttachContextAction._cdt)),
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 2
 			},
 			{
-				when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
+				when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), AttachContextAction._cdt),
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 1
@@ -322,7 +323,7 @@ export class AttachContextAction extends Action2 {
 					isDynamic: true
 				});
 			} else if (isIOpenEditorsQuickPickItem(pick)) {
-				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput)) {
+				for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput)) {
 					const uri = editor instanceof DiffEditorInput ? editor.modified.resource : editor.resource;
 					if (uri) {
 						if (chatEditingService) {
@@ -545,7 +546,7 @@ export class AttachContextAction extends Action2 {
 				});
 			}
 		} else if (context.showFilesOnly) {
-			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput).length > 0) {
+			if (editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput).length > 0) {
 				quickPickItems.push({
 					kind: 'open-editors',
 					id: 'open-editors',
@@ -606,7 +607,7 @@ export class AttachContextAction extends Action2 {
 				}
 
 				if (isIOpenEditorsQuickPickItem(item)) {
-					for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput)) {
+					for (const editor of editorService.editors.filter(e => e instanceof FileEditorInput || e instanceof DiffEditorInput || e instanceof UntitledTextEditorInput)) {
 						// There is an open editor that hasn't yet been attached to the chat
 						if (editor.resource && !attachedContext.has(this._getFileContextId({ resource: editor.resource }))) {
 							return true;
@@ -624,7 +625,7 @@ export class AttachContextAction extends Action2 {
 				}
 
 				if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
-					return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
+					return [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(item.resource.scheme)
 						&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
 				}
 
@@ -659,7 +660,7 @@ registerAction2(class AttachFilesAction extends AttachContextAction {
 			title: localize2('workbench.action.chat.editing.attachFiles.label', "Add Files to Working Set"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)
+			precondition: ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)
 		});
 	}
 
