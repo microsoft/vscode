@@ -130,8 +130,13 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			},
 			{
 				createUntitledEditorInput: async ({ resource, options }) => {
-					if (resource && this.editorInputCache.has(resource)) {
-						return { editor: this.editorInputCache.get(resource)!, options };
+					if (resource) {
+						const editor = this.editorInputCache.get(resource);
+						if (editor && !editor.isDisposed()) {
+							return { editor, options };
+						} else if (editor) {
+							this.editorInputCache.delete(resource);
+						}
 					}
 					const scratchpad = this.configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'jupyter-notebook', { scratchpad, viewType: 'repl' });
