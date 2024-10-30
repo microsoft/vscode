@@ -34,7 +34,7 @@ import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
 import { convertItemsToStableObservables, ObservableContextKeyService } from '../utils.js';
 import { GhostTextView } from '../view/ghostText/ghostTextView.js';
-import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsView.js';
+import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsViewAndDiffProducer.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 
