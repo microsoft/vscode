@@ -13,7 +13,6 @@ import { Range } from '../../../common/core/range.js';
 import { IEditorContribution, IScrollEvent } from '../../../common/editorCommon.js';
 import { HoverStartMode, HoverStartSource } from './hoverOperation.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IHoverWidget } from './hoverTypes.js';
 import { InlineSuggestionHintsContentWidget } from '../../inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
@@ -35,11 +34,6 @@ interface IHoverSettings {
 	readonly hidingDelay: number;
 }
 
-interface IHoverState {
-	mouseDown: boolean;
-	activatedByDecoratorClick: boolean;
-}
-
 export class ContentHoverController extends Disposable implements IEditorContribution {
 
 	private readonly _onHoverContentsChanged = this._register(new Emitter<void>());
@@ -57,10 +51,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 
 	private _hoverSettings!: IHoverSettings;
-	private _hoverState: IHoverState = {
-		mouseDown: false,
-		activatedByDecoratorClick: false
-	};
+	private _isMouseDown: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -131,7 +122,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 
-		this._hoverState.mouseDown = true;
+		this._isMouseDown = true;
 
 		const shouldNotHideCurrentHoverWidget = this._shouldNotHideCurrentHoverWidget(mouseEvent);
 		if (shouldNotHideCurrentHoverWidget) {
@@ -154,7 +145,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onEditorMouseUp(): void {
-		this._hoverState.mouseDown = false;
+		this._isMouseDown = false;
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
@@ -241,29 +232,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!mouseEvent) {
 			return;
 		}
-
-		const target = mouseEvent.target;
-		const mouseOnDecorator = target.element?.classList.contains('colorpicker-color-decoration');
-		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
-
-		const enabled = this._hoverSettings.enabled;
-		const activatedByDecoratorClick = this._hoverState.activatedByDecoratorClick;
-		if (
-			(
-				mouseOnDecorator && (
-					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
-					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
-					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
-			) || (
-				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
-			)
-		) {
-			this._hideWidgets();
-			return;
-		}
-
-		const contentHoverShowsOrWillShow = this._tryShowHoverWidget(mouseEvent);
-		if (contentHoverShowsOrWillShow) {
+		const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
+		if (contentWidget.showsOrWillShow(mouseEvent)) {
 			return;
 		}
 
@@ -273,10 +243,6 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		this._hideWidgets();
 	}
 
-	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
-		const contentWidget: IHoverWidget = this._getOrCreateContentWidget();
-		return contentWidget.showsOrWillShow(mouseEvent);
-	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
 		if (!this._editor.hasModel()) {
@@ -317,12 +283,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return;
 		}
 		if ((
-			this._hoverState.mouseDown
+			this._isMouseDown
 			&& this._contentWidget?.isColorPickerVisible
 		) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
-		this._hoverState.activatedByDecoratorClick = false;
 		this._contentWidget?.hide();
 	}
 
@@ -342,10 +307,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		range: Range,
 		mode: HoverStartMode,
 		source: HoverStartSource,
-		focus: boolean,
-		activatedByColorDecoratorClick: boolean = false
+		focus: boolean
 	): void {
-		this._hoverState.activatedByDecoratorClick = activatedByColorDecoratorClick;
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 

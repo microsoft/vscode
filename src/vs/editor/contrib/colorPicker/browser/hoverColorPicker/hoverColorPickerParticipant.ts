@@ -20,6 +20,7 @@ import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Color } from '../../../../../base/common/color.js';
+import { HoverStartSource } from '../../../hover/browser/hoverOperation.js';
 
 export class ColorHover implements IHoverPart, BaseColor {
 
@@ -60,16 +61,19 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
 
-	public computeSync(_anchor: HoverAnchor, _lineDecorations: IModelDecoration[]): ColorHover[] {
+	public computeSync(_anchor: HoverAnchor, _lineDecorations: IModelDecoration[], source: HoverStartSource): ColorHover[] {
 		return [];
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<ColorHover> {
-		return AsyncIterableObject.fromPromise(this._computeAsync(anchor, lineDecorations, token));
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<ColorHover> {
+		return AsyncIterableObject.fromPromise(this._computeAsync(anchor, lineDecorations, source));
 	}
 
-	private async _computeAsync(_anchor: HoverAnchor, lineDecorations: IModelDecoration[], _token: CancellationToken): Promise<ColorHover[]> {
+	private async _computeAsync(_anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource): Promise<ColorHover[]> {
 		if (!this._editor.hasModel()) {
+			return [];
+		}
+		if (!this._isValidRequest(source)) {
 			return [];
 		}
 		const colorDetector = ColorDetector.get(this._editor);
@@ -89,6 +93,18 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 
 		}
 		return [];
+	}
+
+	private _isValidRequest(source: HoverStartSource): boolean {
+		const decoratorActivatedOn = this._editor.getOption(EditorOption.colorDecoratorsActivatedOn);
+		switch (source) {
+			case HoverStartSource.Mouse:
+				return decoratorActivatedOn === 'hover' || decoratorActivatedOn === 'clickAndHover';
+			case HoverStartSource.Click:
+				return decoratorActivatedOn === 'click' || decoratorActivatedOn === 'clickAndHover';
+			case HoverStartSource.Keyboard:
+				return true;
+		}
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverParts<ColorHover> {
