@@ -55,7 +55,7 @@ export interface IHoverDelegate2 {
 	showDelayedHover(
 		options: IHoverOptions,
 		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
-	): IDelayedHoverWidget | IHoverWidget | undefined;
+	): IHoverWidget | undefined;
 
 	/**
 	 * A simple wrapper around showDelayedHover that includes listening to events on the
@@ -150,15 +150,6 @@ export interface IHoverWidget extends IDisposable {
 	 * Whether the hover widget has been disposed.
 	 */
 	readonly isDisposed: boolean;
-}
-
-export interface IDelayedHoverWidget extends IDisposable {
-	/**
-	 * Whether the hover widget has been disposed.
-	 */
-	readonly isDisposed: boolean;
-
-	readonly wasShown: boolean;
 }
 
 export interface IHoverOptions {

@@ -20,7 +20,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
-import type { IHoverLifecycleOptions, IDelayedHoverWidget, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IHoverLifecycleOptions, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
@@ -34,7 +34,8 @@ export class HoverService extends Disposable implements IHoverService {
 	private _contextViewHandler: IContextViewProvider;
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
-	private _currentDelayedHover: IDelayedHoverWidget | undefined;
+	private _currentDelayedHover: HoverWidget | undefined;
+	private _currentDelayedHoverWasShown: boolean = false;
 	private _currentDelayedHoverGroupId: number | string | undefined;
 	private _lastHoverOptions: IHoverOptions | undefined;
 
@@ -66,8 +67,8 @@ export class HoverService extends Disposable implements IHoverService {
 	showDelayedHover(
 		options: IHoverOptions,
 		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
-	): IDelayedHoverWidget | IHoverWidget | undefined {
-		if (!this._currentDelayedHover || this._currentDelayedHover.wasShown) {
+	): IHoverWidget | undefined {
+		if (!this._currentDelayedHover || this._currentDelayedHoverWasShown) {
 			// Current hover is sticky, reject
 			if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
 				return undefined;
@@ -93,33 +94,24 @@ export class HoverService extends Disposable implements IHoverService {
 		const hover = this._createHover(options, undefined);
 		if (!hover) {
 			this._currentDelayedHover = undefined;
+			this._currentDelayedHoverWasShown = false;
 			this._currentDelayedHoverGroupId = undefined;
 			return undefined;
 		}
 
-		const delay = this._configurationService.getValue<number>('workbench.hover.delay');
-		let wasShown = false;
-		timeout(delay).then(() => {
+		this._currentDelayedHover = hover;
+		this._currentDelayedHoverWasShown = false;
+		this._currentDelayedHoverGroupId = lifecycleOptions?.groupId;
+
+		timeout(this._configurationService.getValue<number>('workbench.hover.delay')).then(() => {
 			if (hover && !hover.isDisposed) {
-				wasShown = true;
+				this._currentDelayedHoverWasShown = true;
+				this._currentDelayedHoverWasShown = true;
 				this._showHover(hover, options);
 			}
 		});
 
-		this._currentDelayedHover = {
-			dispose() {
-				hover?.dispose();
-			},
-			get isDisposed() {
-				return hover.isDisposed ?? true;
-			},
-			get wasShown() {
-				return wasShown;
-			}
-		};
-		this._currentDelayedHoverGroupId = lifecycleOptions?.groupId;
-
-		return this._currentDelayedHover;
+		return hover;
 	}
 
 	setupDelayedHover(
