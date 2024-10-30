@@ -25,6 +25,7 @@ import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/brow
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -125,11 +126,24 @@ export class HoverService extends Disposable implements IHoverService {
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		groupId: number | string | undefined,
 	): IDisposable {
-		return addDisposableListener(target, EventType.MOUSE_OVER, () => {
-			this.showDelayedHover({
+		return addDisposableListener(target, EventType.MOUSE_OVER, e => {
+			const resolvedOptions: IHoverOptions = {
 				...typeof options === 'function' ? options() : options,
 				target
-			}, groupId);
+			};
+			if (resolvedOptions.position?.hoverPosition === HoverPosition.MOUSE) {
+				resolvedOptions.target = {
+					targetElements: [target],
+					x: e.x + 10
+				};
+			}
+
+			// TODO: setupManagedHover forces pointer on element hovers, we don't want to force it though
+			// else { // element
+			// 	resolvedOptions.appearance ||= {};
+			// 	resolvedOptions.appearance.showPointer = true;
+			// }
+			this.showDelayedHover(resolvedOptions, groupId);
 		});
 	}
 

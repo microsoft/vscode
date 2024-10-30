@@ -627,7 +627,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._onDispose.fire();
 			this._hoverContainer.remove();
 			this._messageListeners.dispose();
-			this._target.dispose();
 			super.dispose();
 		}
 		this._isDisposed = true;

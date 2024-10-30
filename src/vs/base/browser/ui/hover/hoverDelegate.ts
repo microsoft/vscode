@@ -41,6 +41,8 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 		 * Position of the hover. The default is to show above the target. This option will be ignored
 		 * if there is not enough room to layout the hover in the specified position, unless the
 		 * forcePosition option is set.
+		 *
+		 * The value 'mouse'
 		 */
 		hoverPosition?: HoverPosition;
 	};

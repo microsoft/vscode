@@ -280,7 +280,7 @@ export interface IHoverAction {
 /**
  * A target for a hover.
  */
-export interface IHoverTarget extends IDisposable {
+export interface IHoverTarget {
 	/**
 	 * A set of target elements used to position the hover. If multiple elements are used the hover
 	 * will try to not overlap any target element. An example use case for this is show a hover for
