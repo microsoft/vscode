@@ -132,8 +132,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options.
