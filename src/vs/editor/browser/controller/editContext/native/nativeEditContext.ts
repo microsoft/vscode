@@ -29,6 +29,8 @@ import { PositionOffsetTransformer } from '../../../../common/core/positionToOff
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { EditContext } from './editContextFactory.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { CursorState } from '../../../../common/cursorCommon.js';
+import { CursorChangeReason } from '../../../../common/cursorEvents.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -113,7 +115,24 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'textformatupdate', (e) => this._handleTextFormatUpdate(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
-			this._emitTypeEvent(viewController, e);
+			const model = this._context.viewModel.model;
+			const offsetOfStartOfText = model.getOffsetAt(this._textStartPositionWithinEditor);
+			const offsetOfUpdateRangeStart = offsetOfStartOfText + e.updateRangeStart;
+			const offsetOfUpdateRangeEnd = offsetOfStartOfText + e.updateRangeEnd;
+			const positionOfUpdateRangeStart = model.getPositionAt(offsetOfUpdateRangeStart);
+			const positionOfUpdateRangeEnd = model.getPositionAt(offsetOfUpdateRangeEnd);
+			const text = model.getValueInRange(Range.fromPositions(positionOfUpdateRangeStart, positionOfUpdateRangeEnd), EndOfLinePreference.TextDefined);
+			if (e.text === text) {
+				const offsetOfSelectionStart = offsetOfStartOfText + e.selectionStart;
+				const offsetOfSelectionEnd = offsetOfStartOfText + e.selectionEnd;
+				const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
+				const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
+				const selection = Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+				const newCursorStates = CursorState.fromModelSelection(selection);
+				this._context.viewModel.setCursorStates('editContext', CursorChangeReason.Explicit, [newCursorStates]);
+			} else {
+				this._emitTypeEvent(viewController, e);
+			}
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
