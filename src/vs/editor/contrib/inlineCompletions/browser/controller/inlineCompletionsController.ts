@@ -91,10 +91,6 @@ export class InlineCompletionsController extends Disposable {
 		return cursorPos.column <= indentMaxColumn;
 	});
 
-	private readonly _shouldHideInlineEdit = derived(this, reader => {
-		return this._cursorIsInIndentation.read(reader);
-	});
-
 	private readonly optionPreview = this._editorObs.getOption(EditorOption.suggest).map(v => v.preview);
 	private readonly optionPreviewMode = this._editorObs.getOption(EditorOption.suggest).map(v => v.previewMode);
 	private readonly optionMode = this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.mode);
@@ -117,7 +113,6 @@ export class InlineCompletionsController extends Disposable {
 			this.optionMode,
 			this._enabled,
 			this.optionInlineEditsEnabled,
-			this._shouldHideInlineEdit,
 			this.editor,
 		);
 		return model;
