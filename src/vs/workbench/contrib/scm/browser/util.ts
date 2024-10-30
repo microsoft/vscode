@@ -6,7 +6,7 @@
 import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
 import { createActionViewItem, createAndFillInActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -86,13 +86,6 @@ export function connectPrimaryMenu(menu: IMenu, callback: (primary: IAction[], s
 	updateActions();
 
 	return menu.onDidChange(updateActions);
-}
-
-export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: ActionBar): IDisposable {
-	return connectPrimaryMenu(menu, (primary) => {
-		actionBar.clear();
-		actionBar.push(primary, { icon: true, label: false });
-	}, 'inline');
 }
 
 export function collectContextMenuActions(menu: IMenu): IAction[] {
