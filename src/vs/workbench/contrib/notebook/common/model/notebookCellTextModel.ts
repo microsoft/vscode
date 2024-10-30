@@ -433,7 +433,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	 * - internal metadata (conditionally)
 	 * - source
 	 */
-	fastEqual(b: ICellDto2, checkMetaData: boolean): boolean {
+	fastEqual(b: ICellDto2, ignoreMetadata: boolean): boolean {
 		if (this.language !== b.language) {
 			return false;
 		}
@@ -446,7 +446,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		if (checkMetaData) {
+		if (!ignoreMetadata) {
 			if (this.internalMetadata?.executionOrder !== b.internalMetadata?.executionOrder
 				|| this.internalMetadata?.lastRunSuccess !== b.internalMetadata?.lastRunSuccess
 				|| this.internalMetadata?.runStartTime !== b.internalMetadata?.runStartTime
