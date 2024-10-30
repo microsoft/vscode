@@ -735,7 +735,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
-			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverrride: widget });
+			const label = this._contextResourceLabels.create(widget, { supportIcons: true, hoverDelegate, hoverTargetOverride: widget });
 
 			let ariaLabel: string | undefined;
 
