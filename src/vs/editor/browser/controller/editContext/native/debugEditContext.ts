@@ -37,6 +37,10 @@ export class DebugEditContext {
 		return this._editContext.characterBoundsRangeStart;
 	}
 
+	get editContext(): EditContext {
+		return this._editContext;
+	}
+
 	updateText(rangeStart: number, rangeEnd: number, text: string): void {
 		this._editContext.updateText(rangeStart, rangeEnd, text);
 		this.renderDebug();
