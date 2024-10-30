@@ -20,10 +20,11 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
-import type { IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IDelayedHoverWidget, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
-import { TimeoutTimer } from '../../../../base/common/async.js';
+import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -31,12 +32,14 @@ export class HoverService extends Disposable implements IHoverService {
 	private _contextViewHandler: IContextViewProvider;
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
+	private _currentDelayedHover: IDelayedHoverWidget | undefined;
 	private _lastHoverOptions: IHoverOptions | undefined;
 
 	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -48,14 +51,18 @@ export class HoverService extends Disposable implements IHoverService {
 		this._contextViewHandler = this._register(new ContextViewHandler(this._layoutService));
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
-		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
-			return undefined;
-		}
+	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean, dontShow?: boolean): IHoverWidget | undefined {
+		this._currentDelayedHover = undefined;
+
+		console.log('HoverService.showHover');
 		if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
 			return undefined;
 		}
+		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
+			return undefined;
+		}
 		this._currentHoverOptions = options;
+		console.log('set options to', this._currentHoverOptions);
 		this._lastHoverOptions = options;
 		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
 		const activeElement = getActiveElement();
@@ -84,6 +91,7 @@ export class HoverService extends Disposable implements IHoverService {
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
 			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
+				console.trace('hover dispose, clear options', this._currentHoverOptions);
 				this._currentHoverOptions = undefined;
 			}
 			hoverDisposables.dispose();
@@ -94,10 +102,12 @@ export class HoverService extends Disposable implements IHoverService {
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
-		this._contextViewHandler.showContextView(
-			new HoverContextViewDelegate(hover, focus),
-			options.container
-		);
+		if (!dontShow) {
+			this._contextViewHandler.showContextView(
+				new HoverContextViewDelegate(hover, focus),
+				options.container
+			);
+		}
 		hover.onRequestLayout(() => this._contextViewHandler.layout(), undefined, hoverDisposables);
 		if (options.persistence?.sticky) {
 			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
@@ -135,7 +145,74 @@ export class HoverService extends Disposable implements IHoverService {
 		return hover;
 	}
 
+	showDelayedHover(
+		options: IHoverOptions
+	): IDelayedHoverWidget | IHoverWidget | undefined {
+		if (!this._currentDelayedHover || this._currentDelayedHover.wasShown) {
+			// Current hover is sticky, reject
+			if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
+				return undefined;
+			}
+
+			// Identity is the same, return current hover
+			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
+				return this._currentHover;
+			}
+
+			console.log('showDelayedHover');
+			console.log('  current options', this._currentHoverOptions);
+			console.log('  current group', this._currentHoverOptions?.groupId);
+			console.log('  new options', options);
+			console.log('  new group', options.groupId);
+
+			// Check group identity, if it's the same skip the delay and show the hover immediately
+			if (this._currentHoverOptions?.groupId !== undefined && this._currentHoverOptions?.groupId === options.groupId) {
+				console.log('group matches!', this._currentHoverOptions?.groupId);
+				return this.showHover({
+					...options,
+					appearance: {
+						...options.appearance,
+						skipFadeInAnimation: true
+					}
+				});
+			}
+		}
+
+		const hover = this.showHover(options, undefined, undefined, true);
+		if (!hover) {
+			return undefined;
+		}
+
+		const delay = this._configurationService.getValue<number>('workbench.hover.delay');
+		let wasShown = false;
+		console.log(`queue showing delayed hover (${delay}ms)`);
+		timeout(delay).then(() => {
+			if (hover && !hover.isDisposed) {
+				wasShown = true;
+				this._contextViewHandler.showContextView(
+					new HoverContextViewDelegate(hover as any),
+					options.container
+				);
+			}
+		});
+
+		const delayedHover: IDelayedHoverWidget = {
+			dispose() {
+				hover?.dispose();
+			},
+			get isDisposed() {
+				return hover.isDisposed ?? true;
+			},
+			get wasShown() {
+				return wasShown;
+			}
+		};
+		this._currentDelayedHover = delayedHover;
+		return delayedHover;
+	}
+
 	hideHover(): void {
+		console.log('hideHover');
 		if (this._currentHover?.isLocked || !this._currentHoverOptions) {
 			return;
 		}
@@ -143,6 +220,7 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private doHideHover(): void {
+		console.log('doHideHover');
 		this._currentHover = undefined;
 		this._currentHoverOptions = undefined;
 		this._contextViewHandler.hideContextView();

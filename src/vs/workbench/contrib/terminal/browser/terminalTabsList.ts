@@ -254,7 +254,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -270,10 +269,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			supportDescriptionHighlights: true,
 			supportIcons: true,
 			hoverDelegate: {
-				delay: this._configurationService.getValue<number>('workbench.hover.delay'),
+				delay: 0,//this._configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: options => {
-					return this._hoverService.showHover({
+					return this._hoverService.showDelayedHover({
 						...options,
+						groupId: 'terminal-tabs-list',
 						actions: context.hoverActions,
 						target: element,
 						persistence: {

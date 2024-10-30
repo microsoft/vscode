@@ -111,14 +111,16 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
-		this._hover = this._register(new BaseHoverWidget());
-		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
+		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
-		if (options.appearance?.skipFadeInAnimation) {
-			this._hover.containerDomNode.classList.add('skip-fade-in');
-		}
+		// if (options.appearance?.skipFadeInAnimation) {
+		// 	this._hover.containerDomNode.classList.add('skip-fade-in');
+		// } else {
+		// 	this._hover.containerDomNode.classList.add('fade-in');
+		// }
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
@@ -303,6 +305,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	public render(container: HTMLElement): void {
+		console.log('render!');
 		container.appendChild(this._hoverContainer);
 		const hoverFocused = this._hoverContainer.contains(this._hoverContainer.ownerDocument.activeElement);
 		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
@@ -396,7 +399,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 			this.setHoverPointerPosition(targetRect);
 		}
-
+		console.log('dimensions', this._x, this._y, this._hover.containerDomNode.clientWidth, this._hover.containerDomNode.clientHeight);
 		this._hover.onContentsChanged();
 	}
 
@@ -622,6 +625,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	public override dispose(): void {
+		console.trace('HoverWidget.dispose');
 		if (!this._isDisposed) {
 			this._onDispose.fire();
 			this._hoverContainer.remove();

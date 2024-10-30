@@ -23,11 +23,12 @@ export class HoverWidget extends Disposable {
 	public readonly contentsDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;
 
-	constructor() {
+	constructor(fadeIn: boolean) {
 		super();
 
 		this.containerDomNode = document.createElement('div');
 		this.containerDomNode.className = 'monaco-hover';
+		this.containerDomNode.classList.toggle('fade-in', !!fadeIn);
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 

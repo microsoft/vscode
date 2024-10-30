@@ -14,7 +14,8 @@ import type { IDisposable } from '../../../common/lifecycle.js';
  */
 export interface IHoverDelegate2 {
 	/**
-	 * Shows a hover, provided a hover with the same {@link options} object is not already visible.
+	 * Shows a hover immediately, provided a hover with the same {@link options} object is not
+	 * already visible.
 	 *
 	 * @param options A set of options defining the characteristics of the hover.
 	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
@@ -32,6 +33,10 @@ export interface IHoverDelegate2 {
 		options: IHoverOptions,
 		focus?: boolean
 	): IHoverWidget | undefined;
+
+	showDelayedHover(
+		options: IHoverOptions
+	): IDelayedHoverWidget | IHoverWidget | undefined;
 
 	/**
 	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
@@ -79,6 +84,15 @@ export interface IHoverWidget extends IDisposable {
 	readonly isDisposed: boolean;
 }
 
+export interface IDelayedHoverWidget extends IDisposable {
+	/**
+	 * Whether the hover widget has been disposed.
+	 */
+	readonly isDisposed: boolean;
+
+	readonly wasShown: boolean;
+}
+
 export interface IHoverOptions {
 	/**
 	 * The content to display in the primary section of the hover. The type of text determines the
@@ -108,6 +122,14 @@ export interface IHoverOptions {
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
 	 */
 	id?: number | string;
+
+	// TODO: Move delay stuff into showHover?
+	/**
+	 * An ID to associate with the hover that identifies a group of hovers. When a new hover target
+	 * is moused over, if it's within a time threshold of the last hover target and they are within
+	 * the same group the hover will be shown immediately.
+	 */
+	groupId?: number | string;
 
 	/**
 	 * A set of actions for the hover's "status bar".
