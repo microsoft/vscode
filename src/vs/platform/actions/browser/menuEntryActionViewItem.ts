@@ -31,10 +31,10 @@ import { defaultSelectBoxStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable, selectBorder } from '../../theme/common/colorRegistry.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
-import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
+import { IMenuService, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import './menuEntryActionViewItem.css';
 
-interface PrimaryAndSecondaryActions {
+export interface PrimaryAndSecondaryActions {
 	primary: IAction[];
 	secondary: IAction[];
 }
@@ -67,49 +67,36 @@ function getContextMenuActionsImpl(
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 }
 
-export function createAndFillInActionBarActions(
-	menu: IMenu,
-	options: IMenuActionOptions | undefined,
-	target: IAction[] | PrimaryAndSecondaryActions,
-	primaryGroup?: string | ((actionGroup: string) => boolean),
-	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
-	useSeparatorsInPrimaryActions?: boolean
-): void;
-export function createAndFillInActionBarActions(
-	menu: [string, Array<MenuItemAction | SubmenuItemAction>][],
-	target: IAction[] | PrimaryAndSecondaryActions,
-	primaryGroup?: string | ((actionGroup: string) => boolean),
-	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
-	useSeparatorsInPrimaryActions?: boolean
-): void;
-export function createAndFillInActionBarActions(
-	menu: IMenu | [string, Array<MenuItemAction | SubmenuItemAction>][],
-	optionsOrTarget: IMenuActionOptions | undefined | IAction[] | PrimaryAndSecondaryActions,
-	targetOrPrimaryGroup?: IAction[] | PrimaryAndSecondaryActions | string | ((actionGroup: string) => boolean),
-	primaryGroupOrShouldInlineSubmenu?: string | ((actionGroup: string) => boolean) | ((action: SubmenuAction, group: string, groupSize: number) => boolean),
-	shouldInlineSubmenuOrUseSeparatorsInPrimaryActions?: ((action: SubmenuAction, group: string, groupSize: number) => boolean) | boolean,
-	useSeparatorsInPrimaryActionsOrUndefined?: boolean
-): void {
-	let target: IAction[] | PrimaryAndSecondaryActions;
-	let primaryGroup: string | ((actionGroup: string) => boolean) | undefined;
-	let shouldInlineSubmenu: ((action: SubmenuAction, group: string, groupSize: number) => boolean) | undefined;
-	let useSeparatorsInPrimaryActions: boolean | undefined;
-	let groups: [string, Array<MenuItemAction | SubmenuItemAction>][];
-	if (Array.isArray(menu)) {
-		groups = menu;
-		target = optionsOrTarget as IAction[] | PrimaryAndSecondaryActions;
-		primaryGroup = targetOrPrimaryGroup as string | ((actionGroup: string) => boolean) | undefined;
-		shouldInlineSubmenu = primaryGroupOrShouldInlineSubmenu as (action: SubmenuAction, group: string, groupSize: number) => boolean;
-		useSeparatorsInPrimaryActions = shouldInlineSubmenuOrUseSeparatorsInPrimaryActions as boolean | undefined;
-	} else {
-		const options: IMenuActionOptions | undefined = optionsOrTarget as IMenuActionOptions | undefined;
-		groups = menu.getActions(options);
-		target = targetOrPrimaryGroup as IAction[] | PrimaryAndSecondaryActions;
-		primaryGroup = primaryGroupOrShouldInlineSubmenu as string | ((actionGroup: string) => boolean) | undefined;
-		shouldInlineSubmenu = shouldInlineSubmenuOrUseSeparatorsInPrimaryActions as (action: SubmenuAction, group: string, groupSize: number) => boolean;
-		useSeparatorsInPrimaryActions = useSeparatorsInPrimaryActionsOrUndefined;
-	}
 
+export function getActionBarActions(
+	groups: [string, Array<MenuItemAction | SubmenuItemAction>][],
+	primaryGroup?: string | ((actionGroup: string) => boolean),
+	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
+	useSeparatorsInPrimaryActions?: boolean
+): PrimaryAndSecondaryActions {
+	const target: PrimaryAndSecondaryActions = { primary: [], secondary: [] };
+	fillInActionBarActions(groups, target, primaryGroup, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
+	return target;
+}
+
+export function getFlatActionBarActions(
+	groups: [string, Array<MenuItemAction | SubmenuItemAction>][],
+	primaryGroup?: string | ((actionGroup: string) => boolean),
+	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
+	useSeparatorsInPrimaryActions?: boolean
+): IAction[] {
+	const target: IAction[] = [];
+	fillInActionBarActions(groups, target, primaryGroup, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
+	return target;
+}
+
+export function fillInActionBarActions(
+	groups: [string, Array<MenuItemAction | SubmenuItemAction>][],
+	target: IAction[] | PrimaryAndSecondaryActions,
+	primaryGroup?: string | ((actionGroup: string) => boolean),
+	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
+	useSeparatorsInPrimaryActions?: boolean
+): void {
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
@@ -117,7 +104,8 @@ export function createAndFillInActionBarActions(
 }
 
 function fillInActions(
-	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | PrimaryAndSecondaryActions,
+	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>,
+	target: IAction[] | PrimaryAndSecondaryActions,
 	useAlternativeActions: boolean,
 	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,

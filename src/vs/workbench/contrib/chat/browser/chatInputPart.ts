@@ -44,7 +44,7 @@ import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
 import { DropdownWithPrimaryActionViewItem, IDropdownWithPrimaryActionViewItemOptions } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { createAndFillInActionBarActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions, IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -1216,8 +1216,7 @@ class ChatSubmitDropdownActionItem extends DropdownWithPrimaryActionViewItem {
 			accessibilityService);
 		const menu = menuService.createMenu(MenuId.ChatExecuteSecondary, contextKeyService);
 		const setActions = () => {
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, secondary);
+			const secondary = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			const secondaryAgent = chatAgentService.getSecondaryAgent();
 			if (secondaryAgent) {
 				secondary.forEach(a => {

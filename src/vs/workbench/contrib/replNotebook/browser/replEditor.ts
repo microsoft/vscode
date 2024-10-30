@@ -33,8 +33,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { NotebookOptions } from '../../notebook/browser/notebookOptions.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { createActionViewItem, createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { createActionViewItem, getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { SelectionClipboardContributionID } from '../../codeEditor/browser/selectionClipboard.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
@@ -205,11 +204,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			renderDropdownAsChildElement: true
 		}));
 
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		const { primary, secondary } = getActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		this._runbuttonToolbar.setActions([...primary, ...secondary]);
 	}
 

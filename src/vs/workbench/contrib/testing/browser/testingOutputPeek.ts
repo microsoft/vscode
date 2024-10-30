@@ -31,7 +31,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { IPeekViewService, PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -732,7 +732,7 @@ class TestResultsPeek extends PeekViewWidget {
 		const actionBar = this._actionbarWidget!;
 		this._disposables.add(menu.onDidChange(() => {
 			actions.length = 0;
-			createAndFillInActionBarActions(menu, undefined, actions);
+			fillInActionBarActions(menu.getActions(), actions);
 			while (actionBar.getAction(1)) {
 				actionBar.pull(0); // remove all but the view's default "close" button
 			}
@@ -740,7 +740,7 @@ class TestResultsPeek extends PeekViewWidget {
 		}));
 
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, undefined, actions);
+		fillInActionBarActions(menu.getActions(), actions);
 		actionBar.push(actions, { label: false, icon: true, index: 0 });
 	}
 
