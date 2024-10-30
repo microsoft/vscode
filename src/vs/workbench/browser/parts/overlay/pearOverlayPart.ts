@@ -59,6 +59,10 @@ export class PearOverlayPart extends Part {
 		this.initialize();
 	}
 
+	isVisible(): boolean {
+		return this.state === "open";
+	}
+
 	private async initialize() {
 		const extensionDescription: WebviewExtensionDescription = {
 			id: new ExtensionIdentifier(PEAROVERLAY_ID),
