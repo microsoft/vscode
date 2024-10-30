@@ -93,8 +93,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 *
 		 * @example
