@@ -257,22 +257,20 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 			}, 800); // delayed to prevent focus feedback from showing on mouse up
 		}));
 
-		this._register(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
-			this.hoverService.showDelayedHover({
-				target: this.container,
-				content: this.computeTitle(),
-				position: {
-					hoverPosition: this.options.hoverOptions.position(),
-				},
-				persistence: {
-					hideOnKeyDown: true,
-				},
-				appearance: {
-					showPointer: true,
-					compact: true,
-				}
-			}, 'composite-bar-actions');
-		}, true));
+		this._register(this.hoverService.setupDelayedHover(this.container, () => ({
+			target: this.container,
+			content: this.computeTitle(),
+			position: {
+				hoverPosition: this.options.hoverOptions.position(),
+			},
+			persistence: {
+				hideOnKeyDown: true,
+			},
+			appearance: {
+				showPointer: true,
+				compact: true,
+			}
+		}), 'composite-bar-actions'));
 
 		// Label
 		this.label = append(container, $('a'));

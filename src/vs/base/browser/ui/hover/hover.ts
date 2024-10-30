@@ -48,6 +48,20 @@ export interface IHoverDelegate2 {
 	): IDelayedHoverWidget | IHoverWidget | undefined;
 
 	/**
+	 * A simple wrapper around showDelayedHover that includes listening to the mouseover event of
+	 * the {@link target} element.
+	 * @param target The target element to listener for mouseover events on.
+	 * @param options The options of the hover.
+	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
+	 * hover, the hover will be shown immediately, skipping the delay.
+	 */
+	setupDelayedHover(
+		target: HTMLElement,
+		options: (() => IHoverOptions) | IHoverOptions,
+		groupId: number | string | undefined,
+	): IDisposable;
+
+	/**
 	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
 	 * "locked" via the alt/option key.
 	 */

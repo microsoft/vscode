@@ -120,6 +120,16 @@ export class HoverService extends Disposable implements IHoverService {
 		return this._currentDelayedHover;
 	}
 
+	setupDelayedHover(
+		target: HTMLElement,
+		options: (() => IHoverOptions) | IHoverOptions,
+		groupId: number | string | undefined,
+	): IDisposable {
+		return addDisposableListener(target, EventType.MOUSE_OVER, () => {
+			this.showDelayedHover(typeof options === 'function' ? options() : options, groupId);
+		});
+	}
+
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): HoverWidget | undefined {
 		this._currentDelayedHover = undefined;
 
