@@ -269,7 +269,7 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 				showPointer: true,
 				compact: true,
 			}
-		}), 'composite-bar-actions'));
+		}), { groupId: 'composite-bar-actions' }));
 
 		// Label
 		this.label = append(container, $('a'));

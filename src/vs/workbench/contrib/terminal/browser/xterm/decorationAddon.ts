@@ -323,7 +323,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _createHover(element: HTMLElement, command: ITerminalCommand | undefined, hoverMessage?: string) {
 		return this._hoverService.setupDelayedHover(element, () => ({
 			content: new MarkdownString(getTerminalDecorationHoverContent(command, hoverMessage))
-		}), undefined);
+		}));
 	}
 
 	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {

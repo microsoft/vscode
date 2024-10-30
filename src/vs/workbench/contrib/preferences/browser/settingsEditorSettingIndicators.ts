@@ -485,7 +485,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 							language
 						});
 					}
-				}), undefined, true));
+				}), { setupKeyboardEvents: true }));
 			}
 		}
 		this.render();

@@ -52,16 +52,14 @@ export interface IHoverDelegate2 {
 	 * the {@link target} element.
 	 *
 	 * @param target The target element to listener for mouseover events on.
-	 * @param options The options of the hover.
-	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
-	 * hover, the hover will be shown immediately, skipping the delay.
+	 * @param hoverOptions The options of the hover.
+	 * @param delayedHoverOptions The options of the delayed hover.
 	 */
 	setupDelayedHover(
 		target: HTMLElement,
 		// TODO: Support using a simple string (content) as options?
-		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
-		groupId: number | string | undefined,
-		setupKeyboardEvents?: boolean,
+		hoverOptions: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
+		delayedHoverOptions?: IDelayedHoverOptions,
 	): IDisposable;
 
 	/**
@@ -71,16 +69,14 @@ export interface IHoverDelegate2 {
 	 * {@link IHoverOptions.position position options} that are passed in.
 	 *
 	 * @param target The target element to listener for mouseover events on.
-	 * @param options The options of the hover.
-	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
-	 * hover, the hover will be shown immediately, skipping the delay.
+	 * @param hoverOptions The options of the hover.
+	 * @param delayedHoverOptions The options of the delayed hover.
 	 */
 	setupDelayedHoverAtMouse(
 		target: HTMLElement,
 		// TODO: Support using a simple string (content) as options?
-		options: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
-		groupId: number | string | undefined,
-		setupKeyboardEvents?: boolean,
+		hoverOptions: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
+		delayedHoverOptions?: IDelayedHoverOptions,
 	): IDisposable;
 
 	/**
@@ -206,6 +202,20 @@ export interface IHoverOptions {
 	 * Options that define how the hover looks.
 	 */
 	appearance?: IHoverAppearanceOptions;
+}
+
+export interface IDelayedHoverOptions {
+	/**
+	 * The group ID of the hover. If the group ID is the same as the currently shown hover, the
+	 * hover will be shown immediately, skipping the delay.
+	 */
+	groupId?: number | string;
+
+	/**
+	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when
+	 * the hover's target is focused it will show and focus the hover.
+	 */
+	setupKeyboardEvents?: boolean;
 }
 
 export interface IHoverPositionOptions {
