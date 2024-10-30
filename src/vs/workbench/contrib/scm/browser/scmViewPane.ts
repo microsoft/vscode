@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from '../../../../base/common/actions.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common/themeService.js';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode } from './util.js';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from '../../../../base/common/async.js';
@@ -417,7 +417,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 interface ResourceGroupTemplate {
 	readonly name: HTMLElement;
 	readonly count: CountBadge;
-	readonly actionBar: ActionBar;
+	readonly actionBar: WorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -429,7 +429,13 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	constructor(
 		private actionViewItemProvider: IActionViewItemProvider,
-		@ISCMViewService private scmViewService: ISCMViewService
+		@ICommandService private commandService: ICommandService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMenuService private menuService: IMenuService,
+		@ISCMViewService private scmViewService: ISCMViewService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
@@ -439,7 +445,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
+		const actionBar = new WorkbenchToolBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const disposables = combinedDisposable(actionBar);
@@ -450,12 +456,13 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	renderElement(node: ITreeNode<ISCMResourceGroup, FuzzyScore>, index: number, template: ResourceGroupTemplate): void {
 		const group = node.element;
 		template.name.textContent = group.label;
-		template.actionBar.clear();
-		template.actionBar.context = group;
 		template.count.setCount(group.resources.length);
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(group.provider);
-		template.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceGroupMenu(group), template.actionBar));
+		template.elementDisposables.add(connectPrimaryMenu(menus.getResourceGroupMenu(group), primary => {
+			template.actionBar.setActions(primary);
+		}, 'inline'));
+		template.actionBar.context = group;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMResourceGroup>, FuzzyScore>, index: number, templateData: ResourceGroupTemplate, height: number | undefined): void {
