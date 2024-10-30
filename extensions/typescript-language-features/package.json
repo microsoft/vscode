@@ -1098,6 +1098,7 @@
           "properties": {
             "caseSensitivity": {
               "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.caseSensitivity%",
               "enum": [
                 "auto",
                 "caseInsensitive",
@@ -1112,6 +1113,7 @@
             },
             "typeOrder": {
               "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.typeOrder%",
               "enum": [
                 "auto",
                 "last",
@@ -1128,6 +1130,7 @@
             },
             "unicodeCollation": {
               "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.unicodeCollation%",
               "enum": [
                 "ordinal",
                 "unicode"
@@ -1157,6 +1160,11 @@
                 "default",
                 "upper",
                 "lower"
+              ],
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.caseFirst.default%",
+                "%typescript.preferences.organizeImports.caseFirst.upper%",
+                "%typescript.preferences.organizeImports.caseFirst.lower%"
               ],
               "default": "default"
             }
@@ -1168,6 +1176,7 @@
           "properties": {
             "caseSensitivity": {
               "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.caseSensitivity%",
               "enum": [
                 "auto",
                 "caseInsensitive",
@@ -1182,6 +1191,7 @@
             },
             "typeOrder": {
               "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.typeOrder%",
               "enum": [
                 "auto",
                 "last",
@@ -1198,6 +1208,7 @@
             },
             "unicodeCollation": {
               "type": "string",
+              "markdownDescription": "%typescript.preferences.organizeImports.unicodeCollation%",
               "enum": [
                 "ordinal",
                 "unicode"
@@ -1227,6 +1238,11 @@
                 "default",
                 "upper",
                 "lower"
+              ],
+              "markdownEnumDescriptions": [
+                "%typescript.preferences.organizeImports.caseFirst.default%",
+                "%typescript.preferences.organizeImports.caseFirst.upper%",
+                "%typescript.preferences.organizeImports.caseFirst.lower%"
               ],
               "default": "default"
             }
