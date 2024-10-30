@@ -14,7 +14,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IRequestService, asText } from '../../../../platform/request/common/request.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CONTEXT_CHAT_INSTALL_ENTITLED } from './chatContextKeys.js';
+import { ChatContextKeys } from './chatContextKeys.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 
@@ -34,7 +34,7 @@ class ChatInstallEntitlementContribution extends Disposable implements IWorkbenc
 
 	private static readonly CHAT_EXTENSION_INSTALLED_KEY = 'chat.extensionInstalled';
 
-	private readonly chatInstallEntitledContextKey = CONTEXT_CHAT_INSTALL_ENTITLED.bindTo(this.contextService);
+	private readonly chatInstallEntitledContextKey = ChatContextKeys.installEntitled.bindTo(this.contextService);
 
 	private resolvedEntitlement: boolean | undefined = undefined;
 
