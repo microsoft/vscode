@@ -557,6 +557,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	align-content: center;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
@@ -570,6 +571,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: nowrap;
 	gap: 6px;
 	align-items: center;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions {
+	margin: 3px 0px;
 }
 
 .interactive-session .chat-editing-session .monaco-button {
