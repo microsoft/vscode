@@ -281,7 +281,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 						position: {
 							hoverPosition: this._terminalConfigurationService.config.tabs.location === 'left' ? HoverPosition.RIGHT : HoverPosition.LEFT
 						}
-					}, 'terminal-tabs-list');
+					}, { groupId: 'terminal-tabs-list' });
 				}
 			}
 		});

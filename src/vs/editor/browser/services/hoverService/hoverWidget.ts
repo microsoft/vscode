@@ -132,7 +132,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = !options.position?.hoverPosition || !isNumber(options.position.hoverPosition) ? HoverPosition.ABOVE : options.position.hoverPosition;
+		this._hoverPosition = options.position?.hoverPosition === undefined || !isNumber(options.position.hoverPosition) ? HoverPosition.ABOVE : options.position.hoverPosition;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.

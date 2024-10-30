@@ -65,7 +65,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 	showDelayedHover(
 		options: IHoverOptions,
-		groupId?: number | string,
+		lifecycleOptions: Pick<IHoverLifecycleOptions, 'groupId'>,
 	): IDelayedHoverWidget | IHoverWidget | undefined {
 		if (!this._currentDelayedHover || this._currentDelayedHover.wasShown) {
 			// Current hover is sticky, reject
@@ -79,7 +79,7 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 
 			// Check group identity, if it's the same skip the delay and show the hover immediately
-			if (this._currentHover && !this._currentHover.isDisposed && this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === groupId) {
+			if (this._currentHover && !this._currentHover.isDisposed && this._currentDelayedHoverGroupId !== undefined && this._currentDelayedHoverGroupId === lifecycleOptions?.groupId) {
 				return this.showHover({
 					...options,
 					appearance: {
@@ -117,7 +117,7 @@ export class HoverService extends Disposable implements IHoverService {
 				return wasShown;
 			}
 		};
-		this._currentDelayedHoverGroupId = groupId;
+		this._currentDelayedHoverGroupId = lifecycleOptions?.groupId;
 
 		return this._currentDelayedHover;
 	}
@@ -156,7 +156,9 @@ export class HoverService extends Disposable implements IHoverService {
 	) {
 		const store = new DisposableStore();
 		store.add(addDisposableListener(target, EventType.MOUSE_OVER, e => {
-			this.showDelayedHover(resolveHoverOptions(e), lifecycleOptions?.groupId);
+			this.showDelayedHover(resolveHoverOptions(e), {
+				groupId: lifecycleOptions?.groupId
+			});
 		}));
 		if (lifecycleOptions?.setupKeyboardEvents) {
 			store.add(addDisposableListener(target, EventType.KEY_DOWN, e => {
