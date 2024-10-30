@@ -527,7 +527,7 @@ export interface TextSearchCompleteMessage {
 /**
  * An AITextSearchProvider provides additional AI text search results in the workspace.
  */
-export interface AITextSearchProvider2 {
+export interface AITextSearchProvider {
 
 	/**
 	 * The name of the AI searcher. Will be displayed as `{name} Results` in the Search View.

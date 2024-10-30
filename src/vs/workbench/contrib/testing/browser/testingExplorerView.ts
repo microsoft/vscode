@@ -772,7 +772,19 @@ class TestingExplorerViewModel extends Disposable {
 			filterState.text.onDidChange,
 			filterState.fuzzy.onDidChange,
 			testService.excluded.onTestExclusionsChanged,
-		)(this.tree.refilter, this.tree));
+		)(() => {
+			if (!filterState.text.value) {
+				return this.tree.refilter();
+			}
+
+			const items = this.filter.lastIncludedTests = new Set();
+			this.tree.refilter();
+			this.filter.lastIncludedTests = undefined;
+
+			for (const test of items) {
+				this.tree.expandTo(test);
+			}
+		}));
 
 		this._register(this.tree.onDidOpen(e => {
 			if (e.element instanceof TestItemTreeElement && !e.element.children.size && e.element.test.item.uri) {
@@ -1125,6 +1137,8 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IU
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	private documentUris: URI[] = [];
 
+	public lastIncludedTests?: Set<TestExplorerTreeElement>;
+
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
@@ -1152,6 +1166,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			case FilterResult.Exclude:
 				return TreeVisibility.Hidden;
 			case FilterResult.Include:
+				this.lastIncludedTests?.add(element);
 				return TreeVisibility.Visible;
 			default:
 				return TreeVisibility.Recurse;

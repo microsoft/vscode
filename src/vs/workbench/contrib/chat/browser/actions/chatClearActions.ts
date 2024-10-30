@@ -16,7 +16,7 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatAgentLocation } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_SESSION } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, WorkingSetEntryState } from '../../common/chatEditingService.js';
 import { CHAT_VIEW_ID, EDITS_VIEW_ID, IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -36,7 +36,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				icon: Codicon.plus,
 				f1: false,
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
@@ -58,7 +58,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession)),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession)),
 				f1: true,
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -66,7 +66,7 @@ export function registerNewChatActions() {
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
-					when: CONTEXT_IN_CHAT_SESSION
+					when: ChatContextKeys.inChatSession
 				},
 				menu: [{
 					id: MenuId.ChatContext,
@@ -108,7 +108,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.newEdits.label', "New Edit Session"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ChatContext,
@@ -206,11 +206,11 @@ export function registerNewChatActions() {
 				id: 'workbench.action.chat.done',
 				title: localize2('chat.done.label', "Done"),
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: false,
 				menu: [{
 					id: MenuId.ChatEditingWidgetToolbar,
-					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession)),
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey.negate(), hasAppliedChatEditsContextKey, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession)),
 					group: 'navigation',
 					order: 0
 				}]
@@ -252,7 +252,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.undoEdit.label', "Undo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_UNDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
@@ -284,7 +284,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.redoEdit.label', "Redo Last Edit"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_EDITING_CAN_REDO, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
@@ -316,16 +316,16 @@ export function registerNewChatActions() {
 				title: localize2('chat.openEdits.label', "Open {0}", 'Copilot Edits'),
 				category: CHAT_CATEGORY,
 				icon: Codicon.goToEditingSession,
-				precondition: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', CHAT_VIEW_ID), ChatContextKeys.editingParticipantRegistered),
 					group: 'navigation',
 					order: 1
 				}, {
 					id: MenuId.ChatCommandCenter,
-					when: CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED,
+					when: ChatContextKeys.editingParticipantRegistered,
 					group: 'a_chatEdit',
 					order: 1
 				}],
@@ -335,7 +335,7 @@ export function registerNewChatActions() {
 					linux: {
 						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
 					},
-					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', EDITS_VIEW_ID), CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED)
+					when: ContextKeyExpr.and(ContextKeyExpr.notEquals('view', EDITS_VIEW_ID), ChatContextKeys.editingParticipantRegistered)
 				}
 			});
 		}
