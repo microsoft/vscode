@@ -299,6 +299,8 @@ export class InlineCompletionsController extends Disposable {
 			const s = m?.state?.read(reader);
 			return s?.kind === 'inlineEdit' && s.cursorAtInlineEdit;
 		})));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldAcceptInlineEdit, this.model.map((m, r) => !!m?.tabShouldAcceptInlineEdit.read(r))));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldJumpToInlineEdit, this.model.map((m, r) => !!m?.tabShouldJumpToInlineEdit.read(r))));
 	}
 
 	public playAccessibilitySignal(tx: ITransaction) {

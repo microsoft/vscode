@@ -13,6 +13,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { EditOperation } from '../../../../common/core/editOperation.js';
 import { LineRange } from '../../../../common/core/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
@@ -47,6 +48,8 @@ export class InlineCompletionsModel extends Disposable {
 
 	private _isAcceptingPartially = false;
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
+
+	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -401,6 +404,44 @@ export class InlineCompletionsModel extends Disposable {
 		const v = this.inlineCompletionState.read(reader);
 		if (!v) { return undefined; }
 		return v?.primaryGhostText;
+	});
+
+	private readonly _tabShouldIndent = derived(this, reader => {
+		function isMultiLine(range: Range): boolean {
+			return range.startLineNumber !== range.endLineNumber;
+		}
+
+		function getNonIndentationRange(model: ITextModel, lineNumber: number): Range {
+			const columnStart = model.getLineIndentColumn(lineNumber);
+			const lastNonWsColumn = model.getLineLastNonWhitespaceColumn(lineNumber);
+			const columnEnd = Math.max(lastNonWsColumn, columnStart);
+			return new Range(lineNumber, columnStart, lineNumber, columnEnd);
+		}
+
+		const selections = this._editorObs.selections.read(reader);
+		return selections?.some(s => {
+			if (s.isEmpty()) {
+				return this.textModel.getLineLength(s.startLineNumber) === 0;
+			} else {
+				return isMultiLine(s) || s.containsRange(getNonIndentationRange(this.textModel, s.startLineNumber));
+			}
+		});
+	});
+
+	public readonly tabShouldJumpToInlineEdit = derived(this, reader => {
+		if (this._tabShouldIndent.read(reader)) { return false; }
+
+		const s = this.inlineEditState.read(reader);
+		if (!s) { return false; }
+		return !s.cursorAtInlineEdit;
+	});
+
+	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
+		if (this._tabShouldIndent.read(reader)) { return false; }
+
+		const s = this.inlineEditState.read(reader);
+		if (!s) { return false; }
+		return s.cursorAtInlineEdit;
 	});
 
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
