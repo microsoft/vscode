@@ -25,7 +25,7 @@ import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/brow
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 export class HoverService extends Disposable implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -126,23 +126,28 @@ export class HoverService extends Disposable implements IHoverService {
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		groupId: number | string | undefined,
 	): IDisposable {
-		return addDisposableListener(target, EventType.MOUSE_OVER, e => {
+		return addDisposableListener(target, EventType.MOUSE_OVER, () => {
 			const resolvedOptions: IHoverOptions = {
 				...typeof options === 'function' ? options() : options,
 				target
 			};
-			if (resolvedOptions.position?.hoverPosition === HoverPosition.MOUSE) {
-				resolvedOptions.target = {
-					targetElements: [target],
-					x: e.x + 10
-				};
-			}
+			this.showDelayedHover(resolvedOptions, groupId);
+		});
+	}
 
-			// TODO: setupManagedHover forces pointer on element hovers, we don't want to force it though
-			// else { // element
-			// 	resolvedOptions.appearance ||= {};
-			// 	resolvedOptions.appearance.showPointer = true;
-			// }
+	setupDelayedHoverAtMouse(
+		target: HTMLElement,
+		options: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
+		groupId: number | string | undefined,
+	): IDisposable {
+		return addDisposableListener(target, EventType.MOUSE_OVER, e => {
+			const resolvedOptions: IHoverOptions = {
+				...typeof options === 'function' ? options() : options,
+				target: {
+					targetElements: [target],
+					x: e.x + 10,
+				}
+			};
 			this.showDelayedHover(resolvedOptions, groupId);
 		});
 	}
@@ -175,6 +180,15 @@ export class HoverService extends Disposable implements IHoverService {
 		if (options.persistence?.sticky) {
 			hover.isLocked = true;
 		}
+
+		// Adjust target position when a mouse event is provided as the hover position
+		if (options.position?.hoverPosition && !isNumber(options.position.hoverPosition)) {
+			options.target = {
+				targetElements: isHTMLElement(options.target) ? [options.target] : options.target.targetElements,
+				x: options.position.hoverPosition.x + 10
+			};
+		}
+
 		hover.onDispose(() => {
 			const hoverWasFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode);
 			if (hoverWasFocused) {

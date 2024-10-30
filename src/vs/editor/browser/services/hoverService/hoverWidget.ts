@@ -24,6 +24,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import type { IHoverOptions, IHoverTarget, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { TimeoutTimer } from '../../../../base/common/async.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 type TargetRect = {
@@ -131,7 +132,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = options.position?.hoverPosition ?? HoverPosition.ABOVE;
+		this._hoverPosition = !options.position?.hoverPosition || !isNumber(options.position.hoverPosition) ? HoverPosition.ABOVE : options.position.hoverPosition;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.

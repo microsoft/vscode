@@ -50,6 +50,7 @@ export interface IHoverDelegate2 {
 	/**
 	 * A simple wrapper around showDelayedHover that includes listening to the mouseover event of
 	 * the {@link target} element.
+	 *
 	 * @param target The target element to listener for mouseover events on.
 	 * @param options The options of the hover.
 	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
@@ -59,6 +60,24 @@ export interface IHoverDelegate2 {
 		target: HTMLElement,
 		// TODO: Support using a simple string (content) as options?
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
+		groupId: number | string | undefined,
+	): IDisposable;
+
+	/**
+	 * A simple wrapper around showDelayedHover that includes listening to the mouseover event of
+	 * the {@link target} element. This differs from {@link setupDelayedHover} in that the hover
+	 * will be shown at the mouse position instead of the target position, ignoring any
+	 * {@link IHoverOptions.position position options} that are passed in.
+	 *
+	 * @param target The target element to listener for mouseover events on.
+	 * @param options The options of the hover.
+	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
+	 * hover, the hover will be shown immediately, skipping the delay.
+	 */
+	setupDelayedHoverAtMouse(
+		target: HTMLElement,
+		// TODO: Support using a simple string (content) as options?
+		options: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
 		groupId: number | string | undefined,
 	): IDisposable;
 
@@ -193,7 +212,7 @@ export interface IHoverPositionOptions {
 	 * if there is not enough room to layout the hover in the specified position, unless the
 	 * forcePosition option is set.
 	 */
-	hoverPosition?: HoverPosition;
+	hoverPosition?: HoverPosition | MouseEvent;
 
 	/**
 	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
