@@ -12,10 +12,6 @@ import { Position } from './position.js';
 import { Range } from './range.js';
 import { AbstractText, SingleTextEdit, TextEdit } from './textEdit.js';
 
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
- *--------------------------------------------------------------------------------------------*/
-
 
 export class LineEdit {
 	public static readonly empty = new LineEdit([]);

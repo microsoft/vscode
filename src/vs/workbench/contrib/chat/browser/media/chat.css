@@ -305,6 +305,11 @@
 	margin: 8px 0 16px 0;
 }
 
+.interactive-item-container .value .rendered-markdown .codicon {
+	position: relative;
+	top: 2px;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
@@ -692,6 +697,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars :first-child {
 	margin-right: auto;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	min-width: 0px;
+
+	.chat-modelPicker-item {
+		min-width: 0px;
+
+		.chat-model-label {
+			min-width: 0px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.codicon {
+			flex-shrink: 0;
+		}
+	}
 }
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {

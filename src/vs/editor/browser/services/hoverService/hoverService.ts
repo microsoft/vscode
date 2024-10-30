@@ -83,7 +83,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
-			if (this._currentHoverOptions === options) {
+			if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 				this._currentHoverOptions = undefined;
 			}
 			hoverDisposables.dispose();
@@ -231,25 +231,25 @@ export class HoverService extends Disposable implements IHoverService {
 			}, delay);
 		};
 
+		const store = new DisposableStore();
 		let isMouseDown = false;
-		const mouseDownEmitter = addDisposableListener(targetElement, EventType.MOUSE_DOWN, () => {
+		store.add(addDisposableListener(targetElement, EventType.MOUSE_DOWN, () => {
 			isMouseDown = true;
 			hideHover(true, true);
-		}, true);
-		const mouseUpEmitter = addDisposableListener(targetElement, EventType.MOUSE_UP, () => {
+		}, true));
+		store.add(addDisposableListener(targetElement, EventType.MOUSE_UP, () => {
 			isMouseDown = false;
-		}, true);
-		const mouseLeaveEmitter = addDisposableListener(targetElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
+		}, true));
+		store.add(addDisposableListener(targetElement, EventType.MOUSE_LEAVE, (e: MouseEvent) => {
 			isMouseDown = false;
 			hideHover(false, (<any>e).fromElement === targetElement);
-		}, true);
-
-		const onMouseOver = (e: MouseEvent) => {
+		}, true));
+		store.add(addDisposableListener(targetElement, EventType.MOUSE_OVER, (e: MouseEvent) => {
 			if (hoverPreparation) {
 				return;
 			}
 
-			const toDispose: DisposableStore = new DisposableStore();
+			const mouseOverStore: DisposableStore = new DisposableStore();
 
 			const target: IHoverDelegateTarget = {
 				targetElements: [targetElement],
@@ -263,18 +263,17 @@ export class HoverService extends Disposable implements IHoverService {
 						hideHover(true, true);
 					}
 				};
-				toDispose.add(addDisposableListener(targetElement, EventType.MOUSE_MOVE, onMouseMove, true));
+				mouseOverStore.add(addDisposableListener(targetElement, EventType.MOUSE_MOVE, onMouseMove, true));
 			}
 
-			hoverPreparation = toDispose;
+			hoverPreparation = mouseOverStore;
 
 			if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target as HTMLElement, targetElement) !== targetElement) {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 
-			toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
-		};
-		const mouseOverDomEmitter = addDisposableListener(targetElement, EventType.MOUSE_OVER, onMouseOver, true);
+			mouseOverStore.add(triggerShowHover(hoverDelegate.delay, false, target));
+		}, true));
 
 		const onFocus = () => {
 			if (isMouseDown || hoverPreparation) {
@@ -292,9 +291,8 @@ export class HoverService extends Disposable implements IHoverService {
 		};
 
 		// Do not show hover when focusing an input or textarea
-		let focusDomEmitter: undefined | IDisposable;
 		if (!isEditableElement(targetElement)) {
-			focusDomEmitter = addDisposableListener(targetElement, EventType.FOCUS, onFocus, true);
+			store.add(addDisposableListener(targetElement, EventType.FOCUS, onFocus, true));
 		}
 
 		const hover: IManagedHover = {
@@ -311,11 +309,7 @@ export class HoverService extends Disposable implements IHoverService {
 			},
 			dispose: () => {
 				this._managedHovers.delete(targetElement);
-				mouseOverDomEmitter.dispose();
-				mouseLeaveEmitter.dispose();
-				mouseDownEmitter.dispose();
-				mouseUpEmitter.dispose();
-				focusDomEmitter?.dispose();
+				store.dispose();
 				hideHover(true, true);
 			}
 		};

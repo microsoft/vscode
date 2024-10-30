@@ -128,6 +128,9 @@
 .monaco-hover .hover-row.status-bar .actions .action-container {
 	margin-right: 16px;
 	cursor: pointer;
+	overflow: hidden;
+	text-wrap: nowrap;
+	text-overflow: ellipsis;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {

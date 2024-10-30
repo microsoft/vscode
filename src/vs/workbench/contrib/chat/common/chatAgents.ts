@@ -23,7 +23,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED } from './chatContextKeys.js';
+import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
@@ -255,9 +255,9 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._hasDefaultAgent = CONTEXT_CHAT_ENABLED.bindTo(this.contextKeyService);
-		this._defaultAgentRegistered = CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
-		this._editingAgentRegistered = CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED.bindTo(this.contextKeyService);
+		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
+		this._defaultAgentRegistered = ChatContextKeys.panelParticipantRegistered.bindTo(this.contextKeyService);
+		this._editingAgentRegistered = ChatContextKeys.editingParticipantRegistered.bindTo(this.contextKeyService);
 		this._register(contextKeyService.onDidChangeContext((e) => {
 			if (e.affectsSome(this._agentsContextKeys)) {
 				this._updateContextKeys();

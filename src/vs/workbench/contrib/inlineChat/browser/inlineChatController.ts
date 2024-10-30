@@ -48,7 +48,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IInlineChatSavingService } from './inlineChatSavingService.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
-import { CONTEXT_RESPONSE, CONTEXT_RESPONSE_ERROR } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -153,8 +153,8 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxResponseType = CTX_INLINE_CHAT_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxRequestInProgress = CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
-		this._ctxResponse = CONTEXT_RESPONSE.bindTo(contextKeyService);
-		CONTEXT_RESPONSE_ERROR.bindTo(contextKeyService);
+		this._ctxResponse = ChatContextKeys.isResponse.bindTo(contextKeyService);
+		ChatContextKeys.responseHasError.bindTo(contextKeyService);
 
 		this._ui = new Lazy(() => {
 
@@ -403,7 +403,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		// hide/cancel inline completions when invoking IE
-		InlineCompletionsController.get(this._editor)?.hide();
+		InlineCompletionsController.get(this._editor)?.reject();
 
 		this._sessionStore.clear();
 

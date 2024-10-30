@@ -42,11 +42,11 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				 * Use ignore files at the parent directory. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use ignore files at the parent directory. If set, `local` in {@link FileSearchProviderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				parent: boolean;
 				/**
-				 * Use global ignore files. If set, {@link FileSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+				 * Use global ignore files. If set, `local` in {@link FileSearchProviderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				global: boolean;
 			};
@@ -73,7 +73,7 @@ declare module 'vscode' {
 	 *
 	 * The FileSearchProvider will be invoked on every keypress in quickopen.
 	 */
-	export interface FileSearchProviderNew {
+	export interface FileSearchProvider2 {
 		/**
 		 * WARNING: VERY EXPERIMENTAL.
 		 *
@@ -96,6 +96,6 @@ declare module 'vscode' {
 		 * @param provider The provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerFileSearchProviderNew(scheme: string, provider: FileSearchProviderNew): Disposable;
+		export function registerFileSearchProvider2(scheme: string, provider: FileSearchProvider2): Disposable;
 	}
 }

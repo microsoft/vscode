@@ -14,7 +14,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_INPUT, CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsContextKey, IChatEditingService } from '../../common/chatEditingService.js';
 import { chatAgentLeader, extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatService } from '../../common/chatService.js';
@@ -42,9 +42,9 @@ export class SubmitAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.send,
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.requestInProgress.negate(), ContextKeyExpr.or(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
 			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
+				when: ChatContextKeys.inChatInput,
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -57,7 +57,7 @@ export class SubmitAction extends Action2 {
 				{
 					id: MenuId.ChatExecute,
 					order: 4,
-					when: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), ContextKeyExpr.or(CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
+					when: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ContextKeyExpr.or(ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession), ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey.toNegated()))),
 					group: 'navigation',
 				},
 			]
@@ -83,11 +83,11 @@ class SubmitWithoutDispatchingAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				CONTEXT_CHAT_INPUT_HAS_TEXT,
-				CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
-				ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel))),
+				ChatContextKeys.inputHasText,
+				ChatContextKeys.requestInProgress.negate(),
+				ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel))),
 			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
+				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -119,11 +119,11 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	order: 3,
 	group: 'navigation',
 	when: ContextKeyExpr.and(
-		CONTEXT_LANGUAGE_MODELS_ARE_USER_SELECTABLE,
+		ChatContextKeys.languageModelsAreUserSelectable,
 		ContextKeyExpr.or(
-			ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.Panel),
-			ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.EditingSession),
-			ContextKeyExpr.equals(CONTEXT_CHAT_LOCATION.key, ChatAgentLocation.Editor)
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditingSession),
+			ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor)
 		)
 	),
 });
@@ -135,14 +135,14 @@ export class ChatSubmitSecondaryAgentAction extends Action2 {
 		super({
 			id: ChatSubmitSecondaryAgentAction.ID,
 			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.inputHasText, ChatContextKeys.inputHasAgent.negate(), ChatContextKeys.requestInProgress.negate()),
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 3
 			},
 			keybinding: {
-				when: CONTEXT_IN_CHAT_INPUT,
+				when: ChatContextKeys.inChatInput,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -177,19 +177,19 @@ class SendToChatEditingAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.sendToChatEditing',
 			title: localize2('chat.sendToChatEditing.label', "Send to Copilot Edits"),
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CONTEXT_CHAT_INPUT_HAS_AGENT.negate(), CONTEXT_CHAT_INPUT_HAS_TEXT),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.inputHasAgent.negate(), ChatContextKeys.inputHasText),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_1',
 				order: 4,
-				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
 			},
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
-				when: ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_EDITING_PARTICIPANT_REGISTERED, CONTEXT_CHAT_LOCATION.notEqualsTo(ChatAgentLocation.EditingSession))
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered, ChatContextKeys.location.notEqualsTo(ChatAgentLocation.EditingSession))
 			}
 		});
 	}
@@ -252,7 +252,7 @@ class SendToNewChatAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.sendToNewChat',
 			title: localize2('chat.newChat.label', "Send to New Chat"),
-			precondition: ContextKeyExpr.and(CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(), CONTEXT_CHAT_INPUT_HAS_TEXT),
+			precondition: ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.inputHasText),
 			category: CHAT_CATEGORY,
 			f1: false,
 			menu: {
@@ -262,7 +262,7 @@ class SendToNewChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-				when: CONTEXT_IN_CHAT_INPUT,
+				when: ChatContextKeys.inChatInput,
 			}
 		});
 	}
@@ -292,7 +292,7 @@ export class CancelAction extends Action2 {
 			icon: Codicon.stopCircle,
 			menu: {
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)),
+				when: ContextKeyExpr.or(ChatContextKeys.requestInProgress, ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditingSession), applyingChatEditsContextKey)),
 				order: 4,
 				group: 'navigation',
 			},

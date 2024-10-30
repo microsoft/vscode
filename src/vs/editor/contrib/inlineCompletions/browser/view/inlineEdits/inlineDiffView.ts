@@ -131,7 +131,5 @@ function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boole
 		return false;
 	}
 	return mapping.innerChanges.every(c =>
-		(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange))
-		|| c.originalRange.equalsRange(new Range(1, 1, 1, 1))
-	);
+		(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange)));
 }

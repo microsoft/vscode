@@ -652,6 +652,9 @@ class ExtensionsScanner extends Disposable {
 					manifest.publisher = UNDEFINED_PUBLISHER;
 				}
 				metadata = metadata ?? manifest.__metadata;
+				if (metadata && !metadata?.size && manifest.__metadata?.size) {
+					metadata.size = manifest.__metadata?.size;
+				}
 				delete manifest.__metadata;
 				const id = getGalleryExtensionId(manifest.publisher, manifest.name);
 				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
