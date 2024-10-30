@@ -36,7 +36,8 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	eval $(apt-config shell APT_TRUSTED_PARTS Dir::Etc::trustedparts/d)
 	CODE_TRUSTED_PART=${APT_TRUSTED_PARTS}microsoft.gpg
 
-	RET=''
+	# RET seems to be true by default even after db_get is called on a first install.
+	RET='true'
 	if [ -e '/usr/share/debconf/confmodule' ]; then
 		. /usr/share/debconf/confmodule
 		db_get @@NAME@@/add-microsoft-repo || true
@@ -59,9 +60,6 @@ if [ "@@NAME@@" != "code-oss" ]; then
 	elif apt-cache policy | grep -q "https://packages.microsoft.com/repos/code"; then
 		# The user is already on the new repository
 		WRITE_SOURCE='no'
-	elif [ "$RET" = 'true' ]; then
-		# The user specified in debconf to add the Microsoft repository
-		WRITE_SOURCE='yes'
 	elif [ ! -f $CODE_SOURCE_PART ] && [ ! -f /etc/rpi-issue ]; then
 		# Source list does not exist and we're not running on Raspberry Pi OS
 		WRITE_SOURCE='ask'
