@@ -23,6 +23,7 @@ import { IEditorWorkerService } from '../../../../common/services/editorWorker.j
 import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from './standaloneColorPickerParticipant.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { InsertButton } from '../colorPickerParts/colorPickerInsertButton.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 class StandaloneColorPickerResult {
 	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
@@ -58,6 +59,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
@@ -166,7 +168,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 
 	private _render(colorHover: StandaloneColorPickerHover, foundInEditor: boolean) {
 		const fragment = document.createDocumentFragment();
-		const statusBar = this._register(new EditorHoverStatusBar(this._keybindingService));
+		const statusBar = this._register(new EditorHoverStatusBar(this._keybindingService, this._hoverService));
 
 		const context: IEditorHoverRenderContext = {
 			fragment,
