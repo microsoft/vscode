@@ -219,6 +219,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly viewContext: IChatWidgetViewContext;
 
 	private _activeElement: HTMLElement | undefined;
+	private _lastEventWasFromKeyboard: boolean = false;
 
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
@@ -464,11 +465,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _setupFocusObserver(): void {
-		this.listContainer.addEventListener('focus', () => {
+		// Listen for mousedown events
+		this.listContainer.addEventListener('mousedown', () => {
+			this._lastEventWasFromKeyboard = false;
+		});
+
+		// Listen for keydown events
+		this.listContainer.addEventListener('keydown', () => {
+			this._lastEventWasFromKeyboard = true;
+		});
+
+		// Listen for focus events
+		this.listContainer.addEventListener('focus', (e) => {
 			const element = dom.getActiveElement() as HTMLElement | null;
 			if (this._activeElement !== element && element !== null) {
-				this._activeElement = element;
-				this._scrollToActiveElement(this._activeElement);
+				// Ensure the event was from the keyboard
+				if (this._lastEventWasFromKeyboard) {
+					this._activeElement = element;
+					this._scrollToActiveElement(this._activeElement);
+				}
 			}
 		}, true);
 	}
