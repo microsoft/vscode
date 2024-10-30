@@ -9,7 +9,7 @@ import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actio
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
-import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, createAndFillInActionBarActions, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -96,10 +96,7 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 }
 
 export function collectContextMenuActions(menu: IMenu): IAction[] {
-	const primary: IAction[] = [];
-	const actions: IAction[] = [];
-	createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, 'inline');
-	return actions;
+	return getContextMenuActions(menu.getActions({ shouldForwardArgs: true }), 'inline').secondary;
 }
 
 export class StatusBarAction extends Action {

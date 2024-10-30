@@ -33,7 +33,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import './media/views.css';
 import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { localize } from '../../../../nls.js';
-import { createActionViewItem, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem, getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -1665,10 +1665,7 @@ class TreeMenus implements IDisposable {
 
 			const menuData = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			const result = { primary, secondary };
-			createAndFillInContextMenuActions(menuData, result, 'inline');
+			const result = getContextMenuActions(menuData, 'inline');
 			if (i === 0) {
 				primaryGroups = this.createGroups(result.primary);
 				secondaryGroups = this.createGroups(result.secondary);

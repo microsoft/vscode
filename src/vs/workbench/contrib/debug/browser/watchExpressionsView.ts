@@ -10,12 +10,11 @@ import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectTyp
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeMouseEvent, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { localize } from '../../../../nls.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -219,10 +218,9 @@ export class WatchExpressionsView extends ViewPane {
 		const selection = this.tree.getSelection();
 
 		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
-		const actions: IAction[] = [];
 		const attributes = element instanceof Variable ? element.presentationHint?.attributes : undefined;
 		this.variableReadonly.set(!!attributes && attributes.indexOf('readOnly') >= 0 || !!element?.presentationHint?.lazy);
-		createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
+		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: element, shouldForwardArgs: true }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
@@ -379,8 +377,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		const context = expression;
 		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: context, shouldForwardArgs: false });
 
-		const primary: IAction[] = [];
-		createAndFillInContextMenuActions(menu, { primary, secondary: [] }, 'inline');
+		const { primary } = getContextMenuActions(menu, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;

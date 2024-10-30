@@ -39,7 +39,7 @@ import { IViewDescriptorService } from '../../../common/views.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { createAndFillInContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -1317,12 +1317,7 @@ class TimelinePaneCommands extends Disposable {
 		]);
 
 		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, result, 'inline');
-
-		return result;
+		return getContextMenuActions(menu, 'inline');
 	}
 
 	private updateTimelineSourceFilters() {
