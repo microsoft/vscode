@@ -21,6 +21,7 @@ import { localize } from '../../../../nls.js';
 import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -41,7 +42,8 @@ export class RenderedContentHover extends Disposable {
 		hoverResult: ContentHoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		context: IEditorHoverContext,
-		keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super();
 		const parts = hoverResult.hoverParts;
@@ -49,8 +51,9 @@ export class RenderedContentHover extends Disposable {
 			editor,
 			participants,
 			parts,
+			context,
 			keybindingService,
-			context
+			hoverService
 		));
 		const contentHoverComputerOptions = hoverResult.options;
 		const anchor = contentHoverComputerOptions.anchor;
@@ -225,13 +228,14 @@ class RenderedContentHoverParts extends Disposable {
 		editor: ICodeEditor,
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		hoverParts: IHoverPart[],
-		keybindingService: IKeybindingService,
-		context: IEditorHoverContext
+		context: IEditorHoverContext,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super();
 		this._context = context;
 		this._fragment = document.createDocumentFragment();
-		this._register(this._renderParts(participants, hoverParts, context, keybindingService));
+		this._register(this._renderParts(participants, hoverParts, context, keybindingService, hoverService));
 		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._createEditorDecorations(editor, hoverParts));
 		this._updateMarkdownAndColorParticipantInfo(participants);
@@ -256,8 +260,8 @@ class RenderedContentHoverParts extends Disposable {
 		});
 	}
 
-	private _renderParts(participants: IEditorHoverParticipant<IHoverPart>[], hoverParts: IHoverPart[], hoverContext: IEditorHoverContext, keybindingService: IKeybindingService): IDisposable {
-		const statusBar = new EditorHoverStatusBar(keybindingService);
+	private _renderParts(participants: IEditorHoverParticipant<IHoverPart>[], hoverParts: IHoverPart[], hoverContext: IEditorHoverContext, keybindingService: IKeybindingService, hoverService: IHoverService): IDisposable {
+		const statusBar = new EditorHoverStatusBar(keybindingService, hoverService);
 		const hoverRenderingContext: IEditorHoverRenderContext = {
 			fragment: this._fragment,
 			statusBar,
