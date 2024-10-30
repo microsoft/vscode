@@ -11,7 +11,7 @@ import { toDisposable, DisposableStore, MutableDisposable } from '../../../base/
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IThemeService, IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { NumberBadge, IBadge, IActivity, ProgressBadge, IconBadge } from '../../services/activity/common/activity.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { DelayedDragHandler } from '../../../base/browser/dnd.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -27,6 +27,9 @@ import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { URI } from '../../../base/common/uri.js';
 import { badgeBackground, badgeForeground, contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import type { IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
+import { Action2, IAction2Options } from '../../../platform/actions/common/actions.js';
+import { ViewContainerLocation } from '../../common/views.js';
+import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 
 export interface ICompositeBar {
 
@@ -796,5 +799,38 @@ export class ToggleCompositeBadgeAction extends Action {
 	override async run(context: string): Promise<void> {
 		const id = this.compositeBarActionItem ? this.compositeBarActionItem.id : context;
 		this.compositeBar.toggleBadgeEnablement(id);
+	}
+}
+
+export class SwitchCompositeViewAction extends Action2 {
+	constructor(
+		desc: Readonly<IAction2Options>,
+		private readonly location: ViewContainerLocation,
+		private readonly offset: number
+	) {
+		super(desc);
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
+
+		const activeComposite = paneCompositeService.getActivePaneComposite(this.location);
+		if (!activeComposite) {
+			return;
+		}
+
+		let targetCompositeId: string | undefined;
+
+		const visibleCompositeIds = paneCompositeService.getVisiblePaneCompositeIds(this.location);
+		for (let i = 0; i < visibleCompositeIds.length; i++) {
+			if (visibleCompositeIds[i] === activeComposite.getId()) {
+				targetCompositeId = visibleCompositeIds[(i + visibleCompositeIds.length + this.offset) % visibleCompositeIds.length];
+				break;
+			}
+		}
+
+		if (typeof targetCompositeId !== 'undefined') {
+			await paneCompositeService.openPaneComposite(targetCompositeId, this.location, true);
+		}
 	}
 }
