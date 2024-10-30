@@ -645,6 +645,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return undefined;
 			}
 		}));
+		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
@@ -1257,8 +1258,7 @@ class ModelPickerActionViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const model = this._languageModelsService.lookupLanguageModel(this.currentLanguageModel);
 			if (model) {
-				this.label.textContent = model.name;
-				dom.reset(this.label, ...renderLabelWithIcons(`${model.name}$(chevron-down)`));
+				dom.reset(this.label, dom.$('span.chat-model-label', undefined, model.name), ...renderLabelWithIcons(`$(chevron-down)`));
 			}
 		}
 	}
