@@ -161,6 +161,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IRenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
+	handleHide?(): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
