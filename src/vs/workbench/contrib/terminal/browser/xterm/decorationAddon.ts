@@ -23,9 +23,11 @@ import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from '../terminalIcons.js';
-import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from './decorationStyles.js';
+import { DecorationSelector, getTerminalDecorationHoverContent, updateLayout } from './decorationStyles.js';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from '../../common/terminalColorRegistry.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -36,7 +38,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
-	private _terminalDecorationHoverManager: TerminalDecorationHoverManager;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -55,7 +56,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IHoverService private readonly _hoverService: IHoverService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -74,7 +76,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._capabilities.onDidAddCapabilityType(c => this._createCapabilityDisposables(c)));
 		this._register(this._capabilities.onDidRemoveCapabilityType(c => this._removeCapabilityDisposables(c)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
-		this._terminalDecorationHoverManager = this._register(instantiationService.createInstance(TerminalDecorationHoverManager));
 	}
 
 	private _removeCapabilityDisposables(c: TerminalCapability): void {
@@ -181,7 +182,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _dispose(): void {
-		this._terminalDecorationHoverManager.dispose();
 		for (const disposable of this._capabilityDisposables.values()) {
 			dispose(disposable);
 		}
@@ -315,9 +315,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command?.exitCode === undefined && !command?.markProperties) {
 			return [];
 		} else if (command?.markProperties || markProperties) {
-			return [this._terminalDecorationHoverManager.createHover(element, command || markProperties, markProperties?.hoverMessage)];
+			return [this._createHover(element, command || markProperties, markProperties?.hoverMessage)];
 		}
-		return [...this._createContextMenu(element, command), this._terminalDecorationHoverManager.createHover(element, command)];
+		return [...this._createContextMenu(element, command), this._createHover(element, command)];
+	}
+
+	private _createHover(element: HTMLElement, command: ITerminalCommand | undefined, hoverMessage?: string) {
+		return this._hoverService.setupDelayedHover(element, () => ({
+			target: element,
+			content: new MarkdownString(getTerminalDecorationHoverContent(command, hoverMessage))
+		}), undefined);
 	}
 
 	private _updateClasses(element?: HTMLElement, exitCode?: number, markProperties?: IMarkProperties): void {
@@ -359,13 +366,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}),
 			dom.addDisposableListener(element, dom.EventType.CLICK, async (e) => {
 				e.stopImmediatePropagation();
-				this._terminalDecorationHoverManager.hideHover();
 				const actions = await this._getCommandActions(command);
 				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
 			}),
 			dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async (e) => {
 				e.stopImmediatePropagation();
-				this._terminalDecorationHoverManager.hideHover();
 				const actions = this._getContextMenuActions();
 				this._contextMenuService.showContextMenu({ getAnchor: () => element, getActions: () => actions });
 			}),
