@@ -73,7 +73,7 @@ export interface IHoverDelegate2 {
 	 */
 	setupDelayedHover(
 		target: HTMLElement,
-		hoverOptions: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
+		hoverOptions: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
 		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable;
 
@@ -96,7 +96,7 @@ export interface IHoverDelegate2 {
 	 */
 	setupDelayedHoverAtMouse(
 		target: HTMLElement,
-		hoverOptions: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
+		hoverOptions: (() => IDelayedHoverAtMouseOptions) | IDelayedHoverAtMouseOptions,
 		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable;
 
@@ -221,6 +221,13 @@ export interface IHoverOptions {
 	 */
 	appearance?: IHoverAppearanceOptions;
 }
+
+// `target` is ignored for delayed hover methods as it's included in the method and added
+// automatically when the hover options get resolved.
+export type IDelayedHoverOptions = Omit<IHoverOptions, 'target'>;
+
+// `position` is ignored for delayed at mouse hover methods as it's overwritten by the mouse event.
+export type IDelayedHoverAtMouseOptions = Omit<IDelayedHoverOptions, 'position'>;
 
 export interface IHoverLifecycleOptions {
 	/**
