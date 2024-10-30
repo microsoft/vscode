@@ -275,9 +275,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 						...options,
 						actions: context.hoverActions,
 						target: element,
-						persistence: {
-							hideOnHover: true
-						},
 						appearance: {
 							showPointer: true
 						},
