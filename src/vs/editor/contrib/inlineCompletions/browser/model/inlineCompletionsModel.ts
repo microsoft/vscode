@@ -59,7 +59,6 @@ export class InlineCompletionsModel extends Disposable {
 		private readonly _inlineSuggestMode: IObservable<'prefix' | 'subword' | 'subwordSmart'>,
 		private readonly _enabled: IObservable<boolean>,
 		private readonly _inlineEditsEnabled: IObservable<boolean>,
-		private readonly _shouldHideInlineEdit: IObservable<boolean>,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -291,9 +290,6 @@ export class InlineCompletionsModel extends Disposable {
 
 			const cursorPos = this._primaryPosition.read(reader);
 			const cursorAtInlineEdit = LineRange.fromRangeInclusive(edit.range).addMargin(1, 1).contains(cursorPos.lineNumber);
-
-			const shouldShow = this._alwaysShowInlineEdit.read(reader);
-			if (!shouldShow && item.inlineEditCompletion.request.context.triggerKind === InlineCompletionTriggerKind.Automatic && this._shouldHideInlineEdit.read(reader) && !cursorAtInlineEdit) { return undefined; }
 
 			const cursorDist = LineRange.fromRange(edit.range).distanceToLine(this._primaryPosition.read(reader).lineNumber);
 			const disableCollapsing = true;
