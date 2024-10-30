@@ -20,7 +20,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { ContextViewHandler } from '../../../../platform/contextview/browser/contextViewService.js';
-import type { IDelayedHoverOptions, IDelayedHoverWidget, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import type { IHoverLifecycleOptions, IDelayedHoverWidget, IHoverOptions, IHoverWidget, IManagedHover, IManagedHoverContentOrFactory, IManagedHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateTarget } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../../base/common/async.js';
@@ -125,19 +125,19 @@ export class HoverService extends Disposable implements IHoverService {
 	setupDelayedHover(
 		target: HTMLElement,
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
-		delayedHoverOptions?: IDelayedHoverOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable {
 		const resolveHoverOptions = () => ({
 			...typeof options === 'function' ? options() : options,
 			target
 		} satisfies IHoverOptions);
-		return this._setupDelayedHover(target, resolveHoverOptions, delayedHoverOptions);
+		return this._setupDelayedHover(target, resolveHoverOptions, lifecycleOptions);
 	}
 
 	setupDelayedHoverAtMouse(
 		target: HTMLElement,
 		options: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
-		delayedHoverOptions?: IDelayedHoverOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable {
 		const resolveHoverOptions = (e?: MouseEvent) => ({
 			...typeof options === 'function' ? options() : options,
@@ -146,19 +146,19 @@ export class HoverService extends Disposable implements IHoverService {
 				x: e !== undefined ? e.x + 10 : undefined,
 			}
 		} satisfies IHoverOptions);
-		return this._setupDelayedHover(target, resolveHoverOptions, delayedHoverOptions);
+		return this._setupDelayedHover(target, resolveHoverOptions, lifecycleOptions);
 	}
 
 	private _setupDelayedHover(
 		target: HTMLElement,
 		resolveHoverOptions: ((e?: MouseEvent) => IHoverOptions),
-		delayedHoverOptions?: IDelayedHoverOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
 	) {
 		const store = new DisposableStore();
 		store.add(addDisposableListener(target, EventType.MOUSE_OVER, e => {
-			this.showDelayedHover(resolveHoverOptions(e), delayedHoverOptions?.groupId);
+			this.showDelayedHover(resolveHoverOptions(e), lifecycleOptions?.groupId);
 		}));
-		if (delayedHoverOptions?.setupKeyboardEvents) {
+		if (lifecycleOptions?.setupKeyboardEvents) {
 			store.add(addDisposableListener(target, EventType.KEY_DOWN, e => {
 				const evt = new StandardKeyboardEvent(e);
 				if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {

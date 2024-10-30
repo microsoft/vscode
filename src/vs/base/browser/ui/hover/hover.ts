@@ -53,13 +53,13 @@ export interface IHoverDelegate2 {
 	 *
 	 * @param target The target element to listener for mouseover events on.
 	 * @param hoverOptions The options of the hover.
-	 * @param delayedHoverOptions The options of the delayed hover.
+	 * @param lifecycleOptions The options of the delayed hover.
 	 */
 	setupDelayedHover(
 		target: HTMLElement,
 		// TODO: Support using a simple string (content) as options?
 		hoverOptions: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
-		delayedHoverOptions?: IDelayedHoverOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable;
 
 	/**
@@ -70,13 +70,13 @@ export interface IHoverDelegate2 {
 	 *
 	 * @param target The target element to listener for mouseover events on.
 	 * @param hoverOptions The options of the hover.
-	 * @param delayedHoverOptions The options of the delayed hover.
+	 * @param lifecycleOptions The options of the delayed hover.
 	 */
 	setupDelayedHoverAtMouse(
 		target: HTMLElement,
 		// TODO: Support using a simple string (content) as options?
 		hoverOptions: (() => Omit<IHoverOptions, 'target' | 'position'>) | Omit<IHoverOptions, 'target' | 'position'>,
-		delayedHoverOptions?: IDelayedHoverOptions,
+		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable;
 
 	/**
@@ -204,7 +204,7 @@ export interface IHoverOptions {
 	appearance?: IHoverAppearanceOptions;
 }
 
-export interface IDelayedHoverOptions {
+export interface IHoverLifecycleOptions {
 	/**
 	 * The group ID of the hover. If the group ID is the same as the currently shown hover, the
 	 * hover will be shown immediately, skipping the delay.
