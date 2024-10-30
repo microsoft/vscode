@@ -75,8 +75,6 @@ declare module 'vscode' {
 	 */
 	export interface FileSearchProvider2 {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param pattern The search pattern to match against file paths.
 		 * @param options A set of options to consider while searching files.
