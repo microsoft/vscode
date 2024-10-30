@@ -8058,8 +8058,8 @@ declare module 'vscode' {
 		};
 
 		/**
-		 * A storage utility for secrets. Secrets are persisted across reloads and are independent of the
-		 * current opened {@link workspace.workspaceFolders workspace}.
+		 * A secret storage object that stores state independent
+		 * of the current opened {@link workspace.workspaceFolders workspace}.
 		 */
 		readonly secrets: SecretStorage;
 
@@ -8232,8 +8232,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents a storage utility for secrets, information that is
-	 * sensitive.
+	 * Represents a storage utility for secrets (or any information that is sensitive)
+	 * that will be stored encrypted. The implementation of the secret storage will
+	 * be different on each platform and the secrets will not be synced across
+	 * machines.
 	 */
 	export interface SecretStorage {
 		/**
