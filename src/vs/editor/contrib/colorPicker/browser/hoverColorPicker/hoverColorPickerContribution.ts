@@ -49,7 +49,7 @@ export class HoverColorPickerContribution extends Disposable implements IEditorC
 			return;
 		}
 		const range = new Range(targetRange.startLineNumber, targetRange.startColumn + 1, targetRange.endLineNumber, targetRange.endColumn + 1);
-		hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
+		hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Click, false);
 	}
 }
 
