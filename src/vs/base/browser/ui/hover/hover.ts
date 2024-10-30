@@ -34,9 +34,17 @@ export interface IHoverDelegate2 {
 		focus?: boolean
 	): IHoverWidget | undefined;
 
+	/**
+	 * Shows a hover after a delay, or immediately if the {@link groupId} matches the currently
+	 * shown hover.
+	 *
+	 * @param options The options of the hover.
+	 * @param groupId The group ID of the hover. If the group ID is the same as the currently shown
+	 * hover, the hover will be shown immediately, skipping the delay.
+	 */
 	showDelayedHover(
 		options: IHoverOptions,
-		groupId?: number | string,
+		groupId: number | string | undefined,
 	): IDelayedHoverWidget | IHoverWidget | undefined;
 
 	/**
