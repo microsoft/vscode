@@ -226,7 +226,8 @@ export interface IHoverOptions {
 export type IDelayedHoverOptions = Omit<IHoverOptions, 'target'>;
 
 // `position` is ignored for delayed at mouse hover methods as it's overwritten by the mouse event.
-export type IDelayedHoverAtMouseOptions = Omit<IDelayedHoverOptions, 'position'>;
+// `showPointer` is always false when using mouse positioning
+export type IDelayedHoverAtMouseOptions = Omit<IDelayedHoverOptions, 'position' | 'appearance'> & Omit<IHoverAppearanceOptions, 'showPointer'>;
 
 export interface IHoverLifecycleOptions {
 	/**
