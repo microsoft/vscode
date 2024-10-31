@@ -26,7 +26,6 @@ import { IProgress, Progress } from '../../../../platform/progress/common/progre
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource, filtersAction, mayIncludeActionsOfKind } from '../common/types.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { raceTimeout } from '../../../../base/common/async.js';
 
 
 
