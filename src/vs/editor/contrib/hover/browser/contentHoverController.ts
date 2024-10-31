@@ -133,8 +133,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (!this._contentWidget) {
 			return false;
 		}
-		const contentWidgetNode = this._contentWidget.getDomNode();
-		return isMousePositionWithinElement(contentWidgetNode, mouseEvent.event.posx, mouseEvent.event.posy);
+		return isMousePositionWithinElement(this._contentWidget.getDomNode(), mouseEvent.event.posx, mouseEvent.event.posy);
 	}
 
 	private _onEditorMouseUp(): void {
@@ -200,11 +199,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			return false;
 		}
 		this._mouseMoveEvent = mouseEvent;
-		if (!this._contentWidget || this._contentWidget.isFocused || this._contentWidget.isResizing || this._isMouseDown && this._contentWidget.isColorPickerVisible) {
+		if (this._contentWidget && (this._contentWidget.isFocused || this._contentWidget.isResizing || this._isMouseDown && this._contentWidget.isColorPickerVisible)) {
 			return false;
 		}
 		const sticky = this._hoverSettings.sticky;
-		if (sticky && this._contentWidget.isVisibleFromKeyboard) {
+		if (sticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
 			return false;
@@ -252,7 +251,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _isPotentialKeyboardShortcut(e: IKeyboardEvent): boolean {
-		if (!this._editor.hasModel()) {
+		if (!this._editor.hasModel() || !this._contentWidget) {
 			return false;
 		}
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
@@ -260,7 +259,8 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		const isHoverAction = resolvedKeyboardEvent.kind === ResultKind.KbFound
 			&& (resolvedKeyboardEvent.commandId === SHOW_OR_FOCUS_HOVER_ACTION_ID
 				|| resolvedKeyboardEvent.commandId === INCREASE_HOVER_VERBOSITY_ACTION_ID
-				|| resolvedKeyboardEvent.commandId === DECREASE_HOVER_VERBOSITY_ACTION_ID);
+				|| resolvedKeyboardEvent.commandId === DECREASE_HOVER_VERBOSITY_ACTION_ID)
+			&& this._contentWidget.isVisible;
 		return moreChordsAreNeeded || isHoverAction;
 	}
 
