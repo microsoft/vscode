@@ -81,9 +81,6 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
-			return this._handleVSCodeSequence(data);
-		}));
 		this._register(xterm.onData(async e => {
 			this._lastUserDataTimestamp = Date.now();
 		}));
