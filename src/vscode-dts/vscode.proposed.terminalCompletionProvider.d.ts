@@ -16,8 +16,18 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return A list of completions.
 		 */
+		// TODO: return TerminalCompletionItem | TermimalDirectoryFilesCompletionItem
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | Thenable<T[] | undefined>>;
 	}
+
+	// export class TerminalDirectoryFilesCompletionItem {
+	// 	constructor(dir: string, includeFiles: boolean) {
+	// 	}
+
+	// `cd ` (should find src/, but not package.json)
+	// `get-content ` (should find all files and directories, since since the file could be in an inner dir)
+	// `cd src/ (should find folders within <cwd>/src)
+	// }
 
 	export class TerminalCompletionItem {
 
@@ -56,6 +66,7 @@ declare module 'vscode' {
 
 	export interface TerminalCompletionContext {
 		commandLine: string;
+		// TODO: add trigger characters here
 	}
 
 	export namespace window {

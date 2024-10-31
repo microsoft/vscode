@@ -30,13 +30,12 @@ import { LineContext, SimpleCompletionModel } from '../../../../services/suggest
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
 import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalSuggestionService.js';
-import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, PosixShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
+// #region pwsh
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
 	CompletionsPwshCommands = 'CompletionsPwshCommands',
-	CompletionsBash = 'CompletionsBash',
-	CompletionsBashFirstWord = 'CompletionsBashFirstWord'
 }
 
 export type CompressedPwshCompletion = [
@@ -52,7 +51,6 @@ export type PwshCompletion = {
 	ToolTip?: string;
 	CustomIcon?: string;
 };
-
 
 /**
  * A map of the pwsh result type enum's value to the corresponding icon to use in completions.
@@ -92,6 +90,8 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 	12: Codicon.symbolKeyword,
 	13: Codicon.symbolKeyword
 };
+
+// #endregion
 
 export interface ISuggestController {
 	isPasting: boolean;
@@ -183,9 +183,11 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
+		// #region pwsh
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
 		}));
+		// #endregion
 		this._register(xterm.onData(async e => {
 			this._lastUserData = e;
 			this._lastUserDataTimestamp = Date.now();
@@ -283,7 +285,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._screen = screen;
 	}
 
-	private _requestCompletions(): void {
+	private async _requestCompletions(): Promise<void> {
 		if (!this._promptInputModel) {
 			return;
 		}
@@ -292,56 +294,61 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		if (this._shellType === 'zsh' || this._shellType === 'bash') {
-			this._handleExtensionProviders(this._terminal);
-			return;
-		}
+		switch (this._shellType) {
+			case PosixShellType.Zsh:
+			case PosixShellType.Bash: {
+				// TODO: await this, have max timeout
+				await this._handleExtensionProviders(this._terminal);
+				break;
+			}
+			case GeneralShellType.PowerShell: {
+				// #region pwsh
+				const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
+				if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
+					this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);
+					this._codeCompletionsRequested = true;
+				}
+				if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
+					this._onAcceptedCompletion.fire(SuggestAddon.requestEnableGitCompletionsSequence);
+					this._gitCompletionsRequested = true;
+				}
 
-		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
-		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);
-			this._codeCompletionsRequested = true;
-		}
-		if (!this._gitCompletionsRequested && builtinCompletionsConfig.pwshGit) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableGitCompletionsSequence);
-			this._gitCompletionsRequested = true;
-		}
 
+				// Request global pwsh completions if there are none cached
+				if (this._cachedPwshCommands.size === 0) {
+					this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
+				}
 
-		// Request global completions if there are none cached
-		if (this._cachedPwshCommands.size === 0) {
-			this._requestGlobalCompletions();
+				// Ensure that a key has been pressed since the last accepted completion in order to prevent
+				// completions being requested again right after accepting a completion
+				if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
+					this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
+					this._onDidRequestCompletions.fire();
+				}
+				break;
+				// #endregion pwsh
+			}
 		}
-
-		// Ensure that a key has been pressed since the last accepted completion in order to prevent
-		// completions being requested again right after accepting a completion
-		if (this._lastUserDataTimestamp > this._lastAcceptedCompletionTimestamp) {
-			this._onAcceptedCompletion.fire(SuggestAddon.requestCompletionsSequence);
-			this._onDidRequestCompletions.fire();
-		}
-	}
-
-	private _requestGlobalCompletions(): void {
-		this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 	}
 
 	private async _sync(promptInputState: IPromptInputModelState): Promise<void> {
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
-		if (this._shellType === 'zsh' || this._shellType === 'bash') {
-			await this._handleExtensionProviders(this._terminal);
-		}
 		if (!this._mostRecentPromptInputState || promptInputState.cursorIndex > this._mostRecentPromptInputState.cursorIndex) {
 			// If input has been added
 			let sent = false;
 
+			// #region Includes shell-specific configuration - provider declares this as a property?
 			// Quick suggestions
 			if (!this._terminalSuggestWidgetVisibleContextKey.get()) {
 				if (config.quickSuggestions) {
+					// TODO: Make the regex code generic
+					// TODO: Don't use `\[` in bash/zsh
+					// If first character or first character after a space (or `[` in pwsh), request completions
 					if (promptInputState.cursorIndex === 1 || promptInputState.prefix.match(/([\s\[])[^\s]$/)) {
 						// Never request completions if the last key sequence was up or down as the user was likely
 						// navigating history
 						if (!this._lastUserData?.match(/^\x1b[\[O]?[A-D]$/)) {
-							this._requestCompletions();
+							await this._requestCompletions();
 							sent = true;
 						}
 					}
@@ -359,12 +366,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 					// with git branches in particular
 					this._isFilteringDirectories && prefix?.match(/[\\\/]$/)
 				) {
-					if (this._shellType === 'pwsh') {
-						this._requestCompletions();
-					}
+					await this._requestCompletions();
 					sent = true;
 				}
+				// TODO: eventually add an appropriate trigger char check for other shells
 			}
+			// #endregion
 		}
 
 		this._mostRecentPromptInputState = promptInputState;
@@ -415,6 +422,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 	}
 
+	// #region pwsh only
 	private _handleVSCodeSequence(data: string): boolean | Promise<boolean> {
 		if (!this._terminal) {
 			return false;
@@ -426,19 +434,18 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			case VSCodeSuggestOscPt.Completions:
 				this._handleCompletionsSequence(this._terminal, data, command, args);
 				return true;
-			case VSCodeSuggestOscPt.CompletionsBash:
-				this._handleCompletionsBashSequence(this._terminal, data, command, args);
-				return true;
-			case VSCodeSuggestOscPt.CompletionsBashFirstWord:
-				return this._handleCompletionsBashFirstWordSequence(this._terminal, data, command, args);
 		}
 
 		// Unrecognized sequence
 		return false;
 	}
+	// #endregion pwsh only
+
+	// TODO: Needs to be returned by the provider, I think?
 	private _replacementIndex: number = 0;
 	private _replacementLength: number = 0;
 
+	// #region pwsh only
 	private _handleCompletionsSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
 		this._onDidReceiveCompletions.fire();
 
@@ -508,103 +515,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		this._showCompletions(model);
 	}
-
-	// TODO: These aren't persisted across reloads
-	// TODO: Allow triggering anywhere in the first word based on the cached completions
-	private _cachedBashAliases: Set<SimpleCompletionItem> = new Set();
-	private _cachedBashBuiltins: Set<SimpleCompletionItem> = new Set();
-	private _cachedBashCommands: Set<SimpleCompletionItem> = new Set();
-	private _cachedBashKeywords: Set<SimpleCompletionItem> = new Set();
-	private _cachedFirstWord?: SimpleCompletionItem[];
-	private _handleCompletionsBashFirstWordSequence(terminal: Terminal, data: string, command: string, args: string[]): boolean {
-		const type = args[0];
-		const completionList: string[] = data.slice(command.length + type.length + 2/*semi-colons*/).split(';');
-		let set: Set<SimpleCompletionItem>;
-		switch (type) {
-			case 'alias': set = this._cachedBashAliases; break;
-			case 'builtin': set = this._cachedBashBuiltins; break;
-			case 'command': set = this._cachedBashCommands; break;
-			case 'keyword': set = this._cachedBashKeywords; break;
-			default: return false;
-		}
-		set.clear();
-		const distinctLabels: Set<string> = new Set();
-		for (const label of completionList) {
-			distinctLabels.add(label);
-		}
-		for (const label of distinctLabels) {
-			set.add(new SimpleCompletionItem({
-				label,
-				icon: Codicon.symbolString,
-				detail: type
-			}));
-		}
-		// Invalidate compound list cache
-		this._cachedFirstWord = undefined;
-		return true;
-	}
-
-	private _handleCompletionsBashSequence(terminal: Terminal, data: string, command: string, args: string[]): void {
-		// Nothing to handle if the terminal is not attached
-		if (!terminal.element) {
-			return;
-		}
-
-		let replacementIndex = parseInt(args[0]);
-		const replacementLength = parseInt(args[1]);
-		if (!args[2]) {
-			this._onBell.fire();
-			return;
-		}
-
-		const completionList: string[] = data.slice(command.length + args[0].length + args[1].length + args[2].length + 4/*semi-colons*/).split(';');
-		// TODO: Create a trigger suggest command which encapsulates sendSequence and uses cached if available
-		let completions: SimpleCompletionItem[];
-		// TODO: This 100 is a hack just for the prototype, this should get it based on some terminal input model
-		if (replacementIndex !== 100 && completionList.length > 0) {
-			completions = completionList.map(label => {
-				return new SimpleCompletionItem({
-					label: label,
-					icon: Codicon.symbolProperty
-				});
-			});
-		} else {
-			replacementIndex = 0;
-			if (!this._cachedFirstWord) {
-				this._cachedFirstWord = [
-					...this._cachedBashAliases,
-					...this._cachedBashBuiltins,
-					...this._cachedBashCommands,
-					...this._cachedBashKeywords
-				];
-				this._cachedFirstWord.sort((a, b) => {
-					const aCode = a.completion.label.charCodeAt(0);
-					const bCode = b.completion.label.charCodeAt(0);
-					const isANonAlpha = aCode < 65 || aCode > 90 && aCode < 97 || aCode > 122 ? 1 : 0;
-					const isBNonAlpha = bCode < 65 || bCode > 90 && bCode < 97 || bCode > 122 ? 1 : 0;
-					if (isANonAlpha !== isBNonAlpha) {
-						return isANonAlpha - isBNonAlpha;
-					}
-					return a.completion.label.localeCompare(b.completion.label);
-				});
-			}
-			completions = this._cachedFirstWord;
-		}
-		if (completions.length === 0) {
-			return;
-		}
-
-		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
-		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
-		if (completions.length === 1) {
-			const insertText = completions[0].completion.label.substring(replacementLength);
-			if (insertText.length === 0) {
-				this._onBell.fire();
-				return;
-			}
-		}
-		this._showCompletions(model);
-	}
+	// #endregion pwsh only
 
 	private _getTerminalDimensions(): { width: number; height: number } {
 		const cssCellDims = (this._terminal as any as { _core: IXtermCore })._core._renderService.dimensions.css.cell;

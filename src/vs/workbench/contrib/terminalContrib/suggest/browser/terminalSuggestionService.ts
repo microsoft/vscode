@@ -45,7 +45,10 @@ export enum TerminalCompletionItemKind {
 	Method = 3
 }
 
+// TODO: Make this generic; pwsh native one should implement this
 export interface ITerminalCompletionProvider {
+	// TODO: Trigger chat props? etc.
+
 	provideCompletions(value: string): Promise<ITerminalCompletion[] | undefined>;
 }
 
@@ -55,14 +58,11 @@ export interface ITerminalCompletionService {
 	provideCompletions(promptValue: string): Promise<ITerminalCompletion[] | undefined>;
 }
 
+// TODO: make name consistent
 export class TerminalSuggestionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
 
-	constructor(
-	) {
-		super();
-	}
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable {
 		let extMap = this._providers.get(extensionIdentifier);
 		if (!extMap) {

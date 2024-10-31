@@ -64,6 +64,9 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 			return;
 		}
 
+		// TODO: Leverage shellType when available https://github.com/microsoft/vscode/issues/230165
+		//       terminal.state.shellType
+
 		const commandsInPath = await getCommandsInPath();
 		const specs = await getCompletionSpecs(commandsInPath);
 		builtinCommands.forEach(command => commandsInPath.add(command));
