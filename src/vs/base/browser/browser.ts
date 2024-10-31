@@ -98,15 +98,29 @@ export function isFullscreen(targetWindow: Window): boolean {
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 
-const userAgent = navigator.userAgent;
+export const BrowserType = {
+  FIREFOX: "Firefox",
+  WEBKIT: "AppleWebKit",
+  CHROME: "Chrome",
+  SAFARI: "Safari",
+  ELECTRON: "Electron/",
+  ANDROID: "Android",
+} as const
 
-export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
-export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);
-export const isChrome = (userAgent.indexOf('Chrome') >= 0);
-export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
-export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
-export const isElectron = (userAgent.indexOf('Electron/') >= 0);
-export const isAndroid = (userAgent.indexOf('Android') >= 0);
+const userAgent = navigator.userAgent
+
+const userAgentContains = (type: string) => userAgent.indexOf(type) >= 0
+
+export const { isFirefox, isWebKit, isChrome, isSafari, isElectron, isAndroid } = {
+  isFirefox: userAgentContains(BrowserType.FIREFOX),
+  isWebKit: userAgentContains(BrowserType.WEBKIT),
+  isChrome: userAgentContains(BrowserType.CHROME),
+  isSafari: !userAgentContains(BrowserType.CHROME) && userAgentContains(BrowserType.SAFARI),
+  isElectron: userAgentContains(BrowserType.ELECTRON),
+  isAndroid: userAgentContains(BrowserType.ANDROID),
+}
+
+export const isWebkitWebView = isWebKit && !isChrome && !isSafari
 
 let standalone = false;
 if (typeof mainWindow.matchMedia === 'function') {
