@@ -124,9 +124,8 @@ export async function getCodeActions(
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
 		try {
-			const codeActionsPromise = Promise.resolve(provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token));
-
-			const providedCodeActions = await raceTimeout(codeActionsPromise, 1250, () => progress.report(provider));
+			progress.report(provider);
+			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
 
 			if (providedCodeActions) {
 				disposables.add(providedCodeActions);
