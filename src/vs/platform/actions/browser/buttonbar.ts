@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
-import { createAndFillInActionBarActions } from './menuEntryActionViewItem.js';
+import { getActionBarActions } from './menuEntryActionViewItem.js';
 import { IToolBarRenderOptions } from './toolbar.js';
 import { MenuId, IMenuService, MenuItemAction, IMenuActionOptions } from '../common/actions.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -187,16 +187,12 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 
 			this.clear();
 
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
-			createAndFillInActionBarActions(
-				menu,
-				options?.menuOptions,
-				{ primary, secondary },
+			const actions = getActionBarActions(
+				menu.getActions(options?.menuOptions),
 				options?.toolbarOptions?.primaryGroup
 			);
 
-			super.update(primary, secondary);
+			super.update(actions.primary, actions.secondary);
 		};
 		this._store.add(menu.onDidChange(update));
 		update();

@@ -34,7 +34,7 @@ import { InlineCompletionsModel } from '../model/inlineCompletionsModel.js';
 import { SuggestWidgetAdaptor } from '../model/suggestWidgetAdaptor.js';
 import { convertItemsToStableObservables, ObservableContextKeyService } from '../utils.js';
 import { GhostTextView } from '../view/ghostText/ghostTextView.js';
-import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsView.js';
+import { InlineEditsViewAndDiffProducer } from '../view/inlineEdits/inlineEditsViewAndDiffProducer.js';
 import { inlineSuggestCommitId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 
@@ -299,6 +299,8 @@ export class InlineCompletionsController extends Disposable {
 			const s = m?.state?.read(reader);
 			return s?.kind === 'inlineEdit' && s.cursorAtInlineEdit;
 		})));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldAcceptInlineEdit, this.model.map((m, r) => !!m?.tabShouldAcceptInlineEdit.read(r))));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.tabShouldJumpToInlineEdit, this.model.map((m, r) => !!m?.tabShouldJumpToInlineEdit.read(r))));
 	}
 
 	public playAccessibilitySignal(tx: ITransaction) {

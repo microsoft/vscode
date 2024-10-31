@@ -310,6 +310,10 @@
 	top: 2px;
 }
 
+.interactive-item-container .value .rendered-markdown .chat-codeblock-pill-widget .codicon {
+	top: 0px;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
@@ -557,6 +561,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	align-content: center;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
@@ -570,6 +575,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: nowrap;
 	gap: 6px;
 	align-items: center;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions {
+	margin: 3px 0px;
 }
 
 .interactive-session .chat-editing-session .monaco-button {
@@ -697,6 +706,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars :first-child {
 	margin-right: auto;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	min-width: 0px;
+
+	.chat-modelPicker-item {
+		min-width: 0px;
+
+		.chat-model-label {
+			min-width: 0px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.codicon {
+			flex-shrink: 0;
+		}
+	}
 }
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
@@ -1093,6 +1120,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	padding: 4px 3px;
+
+	.monaco-icon-label {
+		padding: 0px 3px;
+	}
+}
+
+.interactive-session .chat-editing-session-list {
 
 	.monaco-icon-label {
 		padding: 0px 3px;

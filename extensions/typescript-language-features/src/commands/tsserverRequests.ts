@@ -16,7 +16,7 @@ export class TSServerRequestCommand implements Command {
 		private readonly lazyClientHost: Lazy<TypeScriptServiceClientHost>
 	) { }
 
-	public execute(requestID: keyof TypeScriptRequests, args?: any, config?: any) {
+	public execute(command: keyof TypeScriptRequests, args?: any, config?: any) {
 		// A cancellation token cannot be passed through the command infrastructure
 		const token = nulToken;
 
@@ -36,8 +36,11 @@ export class TSServerRequestCommand implements Command {
 			'completionInfo'
 		];
 
-		if (!allowList.includes(requestID)) { return; }
-		return this.lazyClientHost.value.serviceClient.execute(requestID, args, token, config);
+		if (!allowList.includes(command) || command.startsWith('_')) {
+			return;
+		}
+
+		return this.lazyClientHost.value.serviceClient.execute(command, args, token, config);
 	}
 }
 
