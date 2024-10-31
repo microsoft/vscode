@@ -41,8 +41,6 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 		 * Position of the hover. The default is to show above the target. This option will be ignored
 		 * if there is not enough room to layout the hover in the specified position, unless the
 		 * forcePosition option is set.
-		 *
-		 * The value 'mouse'
 		 */
 		hoverPosition?: HoverPosition;
 	};
@@ -67,7 +65,7 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 }
 
 export interface IHoverDelegate {
-	showHover(options: IHoverDelegateOptions, focus?: boolean): Promise<IHoverWidget | undefined> | IHoverWidget | undefined;
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
 	onDidHideHover?: () => void;
 	delay: number;
 	placement?: 'mouse' | 'element';

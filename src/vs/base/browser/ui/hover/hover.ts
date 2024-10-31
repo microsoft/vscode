@@ -180,7 +180,7 @@ export interface IHoverOptions {
 	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
 	 */
-	id?: number | string;
+	id?: string;
 
 	/**
 	 * A set of actions for the hover's "status bar".
@@ -234,7 +234,7 @@ export interface IHoverLifecycleOptions {
 	 * The group ID of the hover. If the group ID is the same as the currently shown hover, the
 	 * hover will be shown immediately, skipping the delay.
 	 */
-	groupId?: number | string;
+	groupId?: string;
 
 	/**
 	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when
