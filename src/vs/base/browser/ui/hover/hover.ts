@@ -175,6 +175,9 @@ export interface IHoverOptions {
 	 * An ID to associate with the hover to be used as an equality check. Normally when calling
 	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
+	 *
+	 * When `undefined`, this will default to a serialized version of {@link content}. In this case
+	 * it will remain `undefined` if {@link content} is a `HTMLElement`.
 	 */
 	id?: string;
 

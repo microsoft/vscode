@@ -186,6 +186,16 @@ export class HoverService extends Disposable implements IHoverService {
 				this._lastFocusedElementBeforeOpen = undefined;
 			}
 		}
+
+		// Set `id` to default if it's undefined
+		if (options.id === undefined) {
+			options.id = isHTMLElement(options.content)
+				? undefined
+				: typeof options.content === 'string'
+					? options.content.toString()
+					: options.content.value;
+		}
+
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		if (options.persistence?.sticky) {
