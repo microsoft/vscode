@@ -30,7 +30,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, createActionViewItem, getActionBarActions, getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -374,7 +374,6 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		const menuActions: IAction[] = [];
 		const contextKeys: [string, unknown][] = [];
 		// allow extension author to define context for when to show the test menu actions for run or debug menus
 		if (group === TestRunProfileBitset.Run) {
@@ -390,7 +389,7 @@ export class TestingExplorerView extends ViewPane {
 		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
 
 		// fill if there are any actions
-		createAndFillInContextMenuActions(menu, menuActions);
+		const menuActions = getFlatContextMenuActions(menu);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -1612,13 +1611,9 @@ const getActionableElementActions = (
 		shouldForwardArgs: true,
 	});
 
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-	createAndFillInActionBarActions(menu, result, 'inline');
+	const actions = getActionBarActions(menu, 'inline');
 
-	return { actions: result, contextOverlay };
-
+	return { actions, contextOverlay };
 };
 
 registerThemingParticipant((theme, collector) => {

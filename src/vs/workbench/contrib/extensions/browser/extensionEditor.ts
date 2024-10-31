@@ -946,14 +946,14 @@ export class ExtensionEditor extends EditorPane {
 		this.contentDisposables.add(toDisposable(removeLayoutParticipant));
 		this.contentDisposables.add(scrollableContent);
 
-		this.renderCategories(content, extension);
-		this.renderExtensionResources(content, extension);
-		if (extension.gallery) {
-			this.renderMarketplaceInfo(content, extension);
-		}
 		if (extension.local) {
 			this.renderInstallInfo(content, extension.local);
 		}
+		if (extension.gallery) {
+			this.renderMarketplaceInfo(content, extension);
+		}
+		this.renderCategories(content, extension);
+		this.renderExtensionResources(content, extension);
 
 		append(container, scrollableContent.getDomNode());
 		scrollableContent.scanDomNode();

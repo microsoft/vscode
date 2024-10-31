@@ -152,11 +152,11 @@ export interface TextSearchProviderFolderOptions {
 		 */
 		local: boolean;
 		/**
-		 * Use ignore files at the parent directory. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 * Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 		 */
 		parent: boolean;
 		/**
-		 * Use global ignore files. If set, {@link TextSearchProviderOptions.useIgnoreFiles.local} should also be `true`.
+		 * Use global ignore files. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 		 */
 		global: boolean;
 	};
@@ -440,7 +440,7 @@ export interface TextSearchProvider2 {
 export interface TextSearchComplete2 {
 	/**
 	 * Whether the search hit the limit on the maximum number of search results.
-	 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+	 * `maxResults` on {@link TextSearchOptions} specifies the max number of results.
 	 * - If exactly that number of matches exist, this should be false.
 	 * - If `maxResults` matches are returned and more exist, this should be true.
 	 * - If search hits an internal limit which is less than `maxResults`, this should be true.

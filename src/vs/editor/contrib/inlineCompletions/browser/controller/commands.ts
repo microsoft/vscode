@@ -171,9 +171,7 @@ export class AcceptInlineCompletion extends EditorAction {
 							SuggestContext.Visible.toNegated(),
 							EditorContextKeys.hoverFocused.toNegated(),
 
-							//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
-							InlineCompletionContextKeys.hasSelection.toNegated(),
-							InlineCompletionContextKeys.cursorAtInlineEdit,
+							InlineCompletionContextKeys.tabShouldAcceptInlineEdit,
 						)
 					),
 				},
@@ -220,12 +218,10 @@ export class JumpToNextInlineEdit extends EditorAction {
 				weight: 201,
 				kbExpr: ContextKeyExpr.and(
 					InlineCompletionContextKeys.inlineEditVisible,
-					//InlineCompletionContextKeys.cursorInIndentation.toNegated(),
-					InlineCompletionContextKeys.hasSelection.toNegated(),
 					EditorContextKeys.tabMovesFocus.toNegated(),
 					SuggestContext.Visible.toNegated(),
 					EditorContextKeys.hoverFocused.toNegated(),
-					InlineCompletionContextKeys.cursorAtInlineEdit.toNegated(),
+					InlineCompletionContextKeys.tabShouldJumpToInlineEdit,
 				),
 			}
 		});
