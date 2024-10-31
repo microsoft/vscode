@@ -117,11 +117,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
-		// if (options.appearance?.skipFadeInAnimation) {
-		// 	this._hover.containerDomNode.classList.add('skip-fade-in');
-		// } else {
-		// 	this._hover.containerDomNode.classList.add('fade-in');
-		// }
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
@@ -132,6 +127,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
+		// Default to position above when the position is unspecified or a mouse event
 		this._hoverPosition = options.position?.hoverPosition === undefined || !isNumber(options.position.hoverPosition) ? HoverPosition.ABOVE : options.position.hoverPosition;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will

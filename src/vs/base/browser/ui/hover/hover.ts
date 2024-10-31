@@ -128,10 +128,6 @@ export interface IHoverDelegate2 {
 	 * @deprecated Use {@link setupDelayedHover} or {@link setupDelayedHoverAtMouse} instead where
 	 * possible.
 	 */
-	// TODO: The hoverDelegate parameter should be removed in favor of just a set of options. This
-	//       will avoid confusion around IHoverDelegate/IHoverDelegate2 as well as align more with
-	//       the design of the hover service.
-	// TODO: Align prototype closer to showHover, deriving options from IHoverOptions if possible.
 	setupManagedHover(hoverDelegate: IHoverDelegate, targetElement: HTMLElement, content: IManagedHoverContentOrFactory, options?: IManagedHoverOptions): IManagedHover;
 
 	/**
@@ -254,6 +250,9 @@ export interface IHoverLifecycleOptions {
 	/**
 	 * Whether to set up space and enter keyboard events for the hover, when these are pressed when
 	 * the hover's target is focused it will show and focus the hover.
+	 *
+	 * Typically this should _not_ be used when the space or enter events are already handled by
+	 * something else.
 	 */
 	setupKeyboardEvents?: boolean;
 }

@@ -18,7 +18,6 @@ export const enum HoverPosition {
 	RIGHT,
 	BELOW,
 	ABOVE,
-	MOUSE,
 }
 
 export class HoverWidget extends Disposable {

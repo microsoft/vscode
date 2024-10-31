@@ -64,7 +64,7 @@ export class ManagedHoverWidget implements IDisposable {
 		this.show(resolvedContent, focus, options);
 	}
 
-	private async show(content: IManagedHoverResolvedContent, focus?: boolean, options?: IManagedHoverOptions): Promise<void> {
+	private show(content: IManagedHoverResolvedContent, focus?: boolean, options?: IManagedHoverOptions): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
@@ -84,7 +84,7 @@ export class ManagedHoverWidget implements IDisposable {
 				},
 			};
 
-			this._hoverWidget = await this.hoverDelegate.showHover(hoverOptions, focus);
+			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions, focus);
 		}
 		oldHoverWidget?.dispose();
 	}

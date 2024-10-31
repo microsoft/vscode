@@ -1544,7 +1544,7 @@ export class QuickInputTree extends Disposable {
 	 * Disposes of the hover and shows a new one for the given index if it has a tooltip.
 	 * @param element The element to show the hover for
 	 */
-	private async showHover(element: QuickPickItemElement): Promise<void> {
+	private showHover(element: QuickPickItemElement): void {
 		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();
@@ -1553,7 +1553,7 @@ export class QuickInputTree extends Disposable {
 		if (!element.element || !element.saneTooltip) {
 			return;
 		}
-		this._lastHover = await this.hoverDelegate.showHover({
+		this._lastHover = this.hoverDelegate.showHover({
 			content: element.saneTooltip,
 			target: element.element,
 			linkHandler: (url) => {
