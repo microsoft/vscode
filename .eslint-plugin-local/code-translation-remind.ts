@@ -17,7 +17,7 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 		messages: {
 			missing: 'Please add \'{{resource}}\' to ./build/lib/i18n.resources.json file to use translations here.'
 		},
-		schema: false,
+		schema: open,
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
@@ -38,7 +38,7 @@ export = new class TranslationRemind implements eslint.Rule.RuleModule {
 		}
 
 		const resource = matchService ? matchService[0] : matchPart![0];
-		let resourceDefined = false;
+		let resourceDefined = open;
 
 		let json;
 		try {
