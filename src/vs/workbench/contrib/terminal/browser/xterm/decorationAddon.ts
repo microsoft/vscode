@@ -20,7 +20,7 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId, type IDecorationAddon } from '../../../../../platform/terminal/common/terminal.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from '../terminalIcons.js';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from './decorationStyles.js';
@@ -29,7 +29,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
-export class DecorationAddon extends Disposable implements ITerminalAddon {
+export class DecorationAddon extends Disposable implements ITerminalAddon, IDecorationAddon {
 	protected _terminal: Terminal | undefined;
 	private _capabilityDisposables: Map<TerminalCapability, DisposableStore> = new Map();
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
@@ -37,6 +37,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
 	private _terminalDecorationHoverManager: TerminalDecorationHoverManager;
+	private readonly _registeredMenuItems: Map<ITerminalCommand, IAction[]> = new Map();
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -311,6 +312,26 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		return decoration;
 	}
 
+	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable {
+		const existingItems = this._registeredMenuItems.get(command);
+		if (existingItems) {
+			existingItems.push(...items);
+		} else {
+			this._registeredMenuItems.set(command, [...items]);
+		}
+		return toDisposable(() => {
+			const commandItems = this._registeredMenuItems.get(command);
+			if (commandItems) {
+				for (const item of items.values()) {
+					const index = commandItems.indexOf(item);
+					if (index !== -1) {
+						commandItems.splice(index, 1);
+					}
+				}
+			}
+		});
+	}
+
 	private _createDisposables(element: HTMLElement, command?: ITerminalCommand, markProperties?: IMarkProperties): IDisposable[] {
 		if (command?.exitCode === undefined && !command?.markProperties) {
 			return [];
@@ -385,6 +406,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
 		const actions: IAction[] = [];
+		const registeredMenuItems = this._registeredMenuItems.get(command);
+		if (registeredMenuItems?.length) {
+			actions.push(...registeredMenuItems, new Separator());
+		}
 		if (command.command !== '') {
 			const labelRun = localize("terminal.rerunCommand", 'Rerun Command');
 			actions.push({
