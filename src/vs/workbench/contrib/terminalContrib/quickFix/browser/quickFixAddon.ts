@@ -5,7 +5,7 @@
 
 import type { ITerminalAddon } from '@xterm/headless';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, type IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -65,7 +65,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _quickFixes: ITerminalAction[] | undefined;
 
-	private _decoration: IDecoration | undefined;
+	private readonly _decoration: MutableDisposable<IDecoration> = this._register(new MutableDisposable());
+	private readonly _decorationDisposables: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private _currentRenderContext: { quickFixes: ITerminalAction[]; anchor: IAnchor; parentElement: HTMLElement } | undefined;
 
@@ -228,8 +229,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			quickFixId: id,
 			ranQuickFix: this._didRun
 		});
-		this._decoration?.dispose();
-		this._decoration = undefined;
+		this._decoration.clear();
+		this._decorationDisposables.clear();
 		this._quickFixes = undefined;
 		this._lastQuickFixId = undefined;
 		this._didRun = false;
@@ -242,24 +243,23 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (!this._terminal) {
 			return;
 		}
-		if (!this._quickFixes) {
+
+		this._decoration.clear();
+		this._decorationDisposables.clear();
+		const quickFixes = this._quickFixes;
+		if (!quickFixes || quickFixes.length === 0) {
 			return;
 		}
 		const marker = this._terminal.registerMarker();
 		if (!marker) {
 			return;
 		}
-		const decoration = this._terminal.registerDecoration({ marker, width: 2, layer: 'top' });
+		const decoration = this._decoration.value = this._terminal.registerDecoration({ marker, width: 2, layer: 'top' });
 		if (!decoration) {
 			return;
 		}
-		this._decoration = decoration;
-		const fixes = this._quickFixes;
-		if (!fixes) {
-			decoration.dispose();
-			return;
-		}
-		decoration?.onRender((e: HTMLElement) => {
+		const store = this._decorationDisposables.value = new DisposableStore();
+		store.add(decoration.onRender(e => {
 			const rect = e.getBoundingClientRect();
 			const anchor = {
 				x: rect.x,
@@ -277,7 +277,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}
 
 			e.classList.add(...quickFixClasses);
-			const isExplainOnly = fixes.every(e => e.kind === 'explain');
+			const isExplainOnly = quickFixes.every(e => e.kind === 'explain');
 			if (isExplainOnly) {
 				e.classList.add('explainOnly');
 			}
@@ -291,10 +291,10 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				return;
 			}
 
-			this._currentRenderContext = { quickFixes: fixes, anchor, parentElement };
+			this._currentRenderContext = { quickFixes, anchor, parentElement };
 			this._register(dom.addDisposableListener(e, dom.EventType.CLICK, () => this.showMenu()));
-		});
-		decoration.onDispose(() => this._currentRenderContext = undefined);
+		}));
+		store.add(decoration.onDispose(() => this._currentRenderContext = undefined));
 		this._quickFixes = undefined;
 	}
 }
