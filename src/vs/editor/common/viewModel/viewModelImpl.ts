@@ -97,6 +97,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingInfo = options.get(EditorOption.wrappingInfo);
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 			const wordBreak = options.get(EditorOption.wordBreak);
+			const wrapOnEscapedLineFeeds = options.get(EditorOption.wrapOnEscapedLineFeeds);
 
 			this._lines = new ViewModelLinesFromProjectedModel(
 				this._editorId,
@@ -108,7 +109,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				wrappingStrategy,
 				wrappingInfo.wrappingColumn,
 				wrappingIndent,
-				wordBreak
+				wordBreak,
+				wrapOnEscapedLineFeeds
 			);
 		}
 
@@ -1256,7 +1258,7 @@ class HiddenAreasModel {
 }
 
 function mergeLineRangeArray(arr1: Range[], arr2: Range[]): Range[] {
-	const result = [];
+	const result: Range[] = [];
 	let i = 0;
 	let j = 0;
 	while (i < arr1.length && j < arr2.length) {

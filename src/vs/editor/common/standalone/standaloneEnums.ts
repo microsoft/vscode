@@ -318,14 +318,15 @@ export enum EditorOption {
 	wrappingStrategy = 142,
 	showDeprecated = 143,
 	inlayHints = 144,
-	editorClassName = 145,
-	pixelRatio = 146,
-	tabFocusMode = 147,
-	layoutInfo = 148,
-	wrappingInfo = 149,
-	defaultColorDecorators = 150,
-	colorDecoratorsActivatedOn = 151,
-	inlineCompletionsAccessibilityVerbose = 152
+	wrapOnEscapedLineFeeds = 145,
+	editorClassName = 146,
+	pixelRatio = 147,
+	tabFocusMode = 148,
+	layoutInfo = 149,
+	wrappingInfo = 150,
+	defaultColorDecorators = 151,
+	colorDecoratorsActivatedOn = 152,
+	inlineCompletionsAccessibilityVerbose = 153
 }
 
 /**

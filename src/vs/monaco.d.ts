@@ -3379,6 +3379,11 @@ declare namespace monaco.editor {
 		 */
 		wrappingStrategy?: 'simple' | 'advanced';
 		/**
+		 * Create a softwrap on every quoted "\n" literal.
+		 * Defaults to false.
+		 */
+		wrapOnEscapedLineFeeds?: boolean;
+		/**
 		 * Configure word wrapping characters. A break will be introduced before these characters.
 		 */
 		wordWrapBreakBeforeCharacters?: string;
@@ -5019,14 +5024,15 @@ declare namespace monaco.editor {
 		wrappingStrategy = 142,
 		showDeprecated = 143,
 		inlayHints = 144,
-		editorClassName = 145,
-		pixelRatio = 146,
-		tabFocusMode = 147,
-		layoutInfo = 148,
-		wrappingInfo = 149,
-		defaultColorDecorators = 150,
-		colorDecoratorsActivatedOn = 151,
-		inlineCompletionsAccessibilityVerbose = 152
+		wrapOnEscapedLineFeeds = 145,
+		editorClassName = 146,
+		pixelRatio = 147,
+		tabFocusMode = 148,
+		layoutInfo = 149,
+		wrappingInfo = 150,
+		defaultColorDecorators = 151,
+		colorDecoratorsActivatedOn = 152,
+		inlineCompletionsAccessibilityVerbose = 153
 	}
 
 	export const EditorOptions: {
@@ -5175,6 +5181,7 @@ declare namespace monaco.editor {
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
 		wordWrapOverride1: IEditorOption<EditorOption.wordWrapOverride1, 'on' | 'off' | 'inherit'>;
 		wordWrapOverride2: IEditorOption<EditorOption.wordWrapOverride2, 'on' | 'off' | 'inherit'>;
+		wrapOnEscapedLineFeeds: IEditorOption<EditorOption.wrapOnEscapedLineFeeds, boolean>;
 		editorClassName: IEditorOption<EditorOption.editorClassName, string>;
 		defaultColorDecorators: IEditorOption<EditorOption.defaultColorDecorators, boolean>;
 		pixelRatio: IEditorOption<EditorOption.pixelRatio, number>;
