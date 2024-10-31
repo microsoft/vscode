@@ -936,7 +936,8 @@ class InputWithButton implements IDisposable {
 			this._disposables.add(getBaseLayerHoverDelegate().setupDelayedHover(this._buttonNode, () => ({
 				content: this._buttonHoverContent,
 				appearance: {
-					showPointer: true
+					showPointer: true,
+					compact: true,
 				}
 			})));
 

@@ -128,7 +128,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		// Default to position above when the position is unspecified or a mouse event
-		this._hoverPosition = options.position?.hoverPosition === undefined || !isNumber(options.position.hoverPosition) ? HoverPosition.ABOVE : options.position.hoverPosition;
+		this._hoverPosition = options.position?.hoverPosition === undefined
+			? HoverPosition.ABOVE
+			: isNumber(options.position.hoverPosition)
+				? options.position.hoverPosition
+				: HoverPosition.BELOW;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
