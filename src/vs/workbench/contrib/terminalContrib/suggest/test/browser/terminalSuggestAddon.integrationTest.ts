@@ -14,7 +14,7 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import type { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { ShellIntegrationAddon } from '../../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { TerminalContextKeys } from '../../../../terminal/common/terminalContextKey.js';
-import { parseCompletionsFromShell, SuggestAddon } from '../../browser/terminalSuggestAddon.js';
+import { SuggestAddon } from '../../browser/terminalSuggestAddon.js';
 import { TerminalSuggestCommandId } from '../../common/terminal.suggest.js';
 import type { ITerminalSuggestConfiguration } from '../../common/terminalSuggestConfiguration.js';
 import { workbenchInstantiationService, type TestTerminalConfigurationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -29,7 +29,6 @@ import { events as windows11_pwsh_type_before_prompt } from './recordings/window
 import { events as windows11_pwsh_writehost_multiline_nav_up } from './recordings/windows11_pwsh_writehost_multiline_nav_up.js';
 import { events as windows11_pwsh_writehost_multiline } from './recordings/windows11_pwsh_writehost_multiline.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
-import { testRawPwshCompletions } from './testRawPwshCompletions.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
 
@@ -104,7 +103,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
-		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, undefined, new Set(parseCompletionsFromShell(testRawPwshCompletions)), shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
+		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, undefined, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
 
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);

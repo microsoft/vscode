@@ -6,6 +6,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CompletionItemLabel } from '../../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -35,8 +36,11 @@ export interface ITerminalCompletion {
 	 * A human-readable string that represents a doc-comment.
 	 */
 	documentation?: string | MarkdownString;
-}
 
+	replacementIndex?: number;
+
+	replacementLength?: number;
+}
 
 export enum TerminalCompletionItemKind {
 	File = 0,
@@ -55,11 +59,11 @@ export interface ITerminalCompletionProvider {
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
-	provideCompletions(promptValue: string): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
 }
 
 // TODO: make name consistent
-export class TerminalSuggestionService extends Disposable implements ITerminalCompletionService {
+export class TerminalCompletionService extends Disposable implements ITerminalCompletionService {
 	declare _serviceBrand: undefined;
 	private readonly _providers: Map</*ext id*/string, Map</*provider id*/string, ITerminalCompletionProvider>> = new Map();
 
@@ -73,7 +77,7 @@ export class TerminalSuggestionService extends Disposable implements ITerminalCo
 		return toDisposable(() => this._providers.delete(id));
 	}
 
-	async provideCompletions(value: string): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
 		const result: ITerminalCompletion[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {

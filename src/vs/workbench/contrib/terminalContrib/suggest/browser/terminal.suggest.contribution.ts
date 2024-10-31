@@ -15,9 +15,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import { ShellIntegrationOscPs } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
@@ -26,16 +25,17 @@ import { TERMINAL_CONFIG_SECTION, type ITerminalConfiguration } from '../../../t
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalSuggestCommandId } from '../common/terminal.suggest.js';
 import { terminalSuggestConfigSection, TerminalSuggestSettingId, type ITerminalSuggestConfiguration } from '../common/terminalSuggestConfiguration.js';
-import { ITerminalCompletionService, TerminalSuggestionService } from './terminalSuggestionService.js';
+import { ITerminalCompletionService, TerminalCompletionService } from './terminalSuggestionService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { parseCompletionsFromShell, SuggestAddon, VSCodeSuggestOscPt, type CompressedPwshCompletion, type PwshCompletion } from './terminalSuggestAddon.js';
+import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
+import { TerminalPwshCompletionProvider } from './terminalPwshCompletionProvider.js';
 
 const enum Constants {
 	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
 }
 
-registerSingleton(ITerminalCompletionService, TerminalSuggestionService, InstantiationType.Delayed);
+registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
 // #region Terminal Contributions
 
@@ -46,7 +46,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		return instance.getContribution<TerminalSuggestContribution>(TerminalSuggestContribution.ID);
 	}
 
-	private _xterm?: RawXtermTerminal;
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
@@ -61,6 +60,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ITerminalCompletionService private readonly _completionService: ITerminalCompletionService
 	) {
 		super();
 		this.add(toDisposable(() => this._addon?.dispose()));
@@ -82,50 +82,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 				this.clearSuggestCache();
 			}
 		}));
-	}
-
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		this._xterm = xterm.raw;
-		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
-		const enabled = config.enabled;
-		if (!enabled) {
-			return;
-		}
-		this.add(xterm.raw.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
-			return this._handleVSCodeSequence(data);
-		}));
-	}
-
-	private _handleVSCodeSequence(data: string): boolean | Promise<boolean> {
-		if (!this._xterm) {
-			return false;
-		}
-
-		// Pass the sequence along to the capability
-		const [command, ...args] = data.split(';');
-		switch (command) {
-			case VSCodeSuggestOscPt.CompletionsPwshCommands:
-				return this._handleCompletionsPwshCommandsSequence(this._xterm, data, command, args);
-		}
-
-		// Unrecognized sequence
-		return false;
-	}
-
-	private async _handleCompletionsPwshCommandsSequence(terminal: RawXtermTerminal, data: string, command: string, args: string[]): Promise<boolean> {
-		const type = args[0];
-		const rawCompletions: PwshCompletion | PwshCompletion[] | CompressedPwshCompletion[] | CompressedPwshCompletion = JSON.parse(data.slice(command.length + type.length + 2/*semi-colons*/));
-		const completions = parseCompletionsFromShell(rawCompletions);
-
-		const set = TerminalSuggestContribution._cachedPwshCommands;
-		set.clear();
-		for (const c of completions) {
-			set.add(c);
-		}
-
-		this._storageService.store(Constants.CachedPwshCommandsStorageKey, JSON.stringify(Array.from(set.values())), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		return true;
 	}
 
 	clearSuggestCache(): void {
@@ -162,8 +118,15 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
-			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, TerminalSuggestContribution._cachedPwshCommands, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
+			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(addon);
+			let pwshCompletionProviderAddon: TerminalPwshCompletionProvider | undefined;
+			if (this._ctx.instance.shellType === 'pwsh') {
+				pwshCompletionProviderAddon = this._instantiationService.createInstance(TerminalPwshCompletionProvider, TerminalSuggestContribution._cachedPwshCommands);
+				xterm.loadAddon(pwshCompletionProviderAddon);
+				this.add(pwshCompletionProviderAddon);
+				this._completionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon);
+			}
 			if (this._ctx.instance.target === TerminalLocation.Editor) {
 				addon.setContainerWithOverflow(xterm.element!);
 			} else {
@@ -189,10 +152,12 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			// TODO: This should be based on the OS of the pty host, not the client
 			if (!isWindows) {
 				let barrier: AutoOpenBarrier | undefined;
-				this.add(addon.onDidRequestCompletions(() => {
-					barrier = new AutoOpenBarrier(2000);
-					this._ctx.instance.pauseInputEvents(barrier);
-				}));
+				if (pwshCompletionProviderAddon) {
+					this.add(pwshCompletionProviderAddon.onDidRequestCompletions(() => {
+						barrier = new AutoOpenBarrier(2000);
+						this._ctx.instance.pauseInputEvents(barrier);
+					}));
+				}
 				this.add(addon.onDidReceiveCompletions(() => {
 					barrier?.open();
 					barrier = undefined;
