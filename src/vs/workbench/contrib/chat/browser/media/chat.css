@@ -24,10 +24,6 @@
 	-webkit-user-select: text;
 }
 
-.interactive-item-container.disabled {
-	filter: blur(2px);
-}
-
 .interactive-item-container .header {
 	display: flex;
 	align-items: center;
@@ -309,6 +305,15 @@
 	margin: 8px 0 16px 0;
 }
 
+.interactive-item-container .value .rendered-markdown .codicon {
+	position: relative;
+	top: 2px;
+}
+
+.interactive-item-container .value .rendered-markdown .chat-codeblock-pill-widget .codicon {
+	top: 0px;
+}
+
 .interactive-item-container .value .rendered-markdown p {
 	line-height: 1.5em;
 }
@@ -556,6 +561,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	align-content: center;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .monaco-progress-container {
@@ -569,6 +575,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-wrap: nowrap;
 	gap: 6px;
 	align-items: center;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-toolbar-actions {
+	margin: 3px 0px;
 }
 
 .interactive-session .chat-editing-session .monaco-button {
@@ -696,6 +706,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars :first-child {
 	margin-right: auto;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	min-width: 0px;
+
+	.chat-modelPicker-item {
+		min-width: 0px;
+
+		.chat-model-label {
+			min-width: 0px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.codicon {
+			flex-shrink: 0;
+		}
+	}
 }
 
 .interactive-session .chat-input-toolbars .chat-modelPicker-item .action-label {
@@ -1043,21 +1071,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin: 0;
 }
 
-.disabled-overlay {
-	display: none;
-}
-
-.disabled-overlay.disabled {
-	position: absolute;
-	width: 100%;
-	height: 100%;
-	background-color: rgba(64, 64, 64, 0.2);
-	pointer-events: none;
-	display: flex;
-	cursor: default;
-	z-index: 1;
-}
-
 .interactive-response  .interactive-response-codicon-details {
 	display: flex;
 	align-items: start;
@@ -1107,6 +1120,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	padding: 4px 3px;
+
+	.monaco-icon-label {
+		padding: 0px 3px;
+	}
+}
+
+.interactive-session .chat-editing-session-list {
 
 	.monaco-icon-label {
 		padding: 0px 3px;

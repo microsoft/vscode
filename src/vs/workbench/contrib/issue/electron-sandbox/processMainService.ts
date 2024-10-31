@@ -3,5 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `issue reporter`-submenu contribution point
-// https://github.com/microsoft/vscode/issues/196863
+import { registerMainProcessRemoteService } from '../../../../platform/ipc/electron-sandbox/services.js';
+import { IProcessMainService } from '../../../../platform/process/common/process.js';
+
+registerMainProcessRemoteService(IProcessMainService, 'process');
+

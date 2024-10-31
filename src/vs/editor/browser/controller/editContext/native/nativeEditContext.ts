@@ -105,7 +105,7 @@ export class NativeEditContext extends AbstractEditContext {
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
-				this._onType(viewController, { text: this._context.viewModel.model.getEOL(), replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
+				this._onType(viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
 		}));
 
@@ -178,9 +178,16 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public isFocused(): boolean { return this._focusTracker.isFocused; }
 
-	public focus(): void { this._focusTracker.focus(); }
+	public focus(): void {
+		this._focusTracker.focus();
 
-	public refreshFocusState(): void { }
+		// If the editor is off DOM, focus cannot be really set, so let's double check that we have managed to set the focus
+		this.refreshFocusState();
+	}
+
+	public refreshFocusState(): void {
+		this._focusTracker.refreshFocusState();
+	}
 
 	// TODO: added as a workaround fix for https://github.com/microsoft/vscode/issues/229825
 	// When this issue will be fixed the following should be removed.

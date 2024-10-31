@@ -1028,13 +1028,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue;
 			}
 
+			// Make sure to skip duplicates from the editors LRU
+			if (editor.resource) {
+				const historyEntryId = `${editor.resource.toString()}/${editor.editorId}`;
+				if (handledEditors.has(historyEntryId)) {
+					continue; // already added
+				}
+
+				handledEditors.add(historyEntryId);
+			}
+
 			// Add into history
 			this.addToHistory(editor);
-
-			// Remember as added
-			if (editor.resource) {
-				handledEditors.add(`${editor.resource.toString()}/${editor.editorId}`);
-			}
 		}
 
 		// Add remaining from storage if not there already

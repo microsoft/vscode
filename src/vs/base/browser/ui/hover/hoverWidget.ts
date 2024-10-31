@@ -53,7 +53,9 @@ export class HoverAction extends Disposable {
 	public readonly actionLabel: string;
 	public readonly actionKeybindingLabel: string | null;
 
-	private readonly actionContainer: HTMLElement;
+	public readonly actionRenderedLabel: string;
+	public readonly actionContainer: HTMLElement;
+
 	private readonly action: HTMLElement;
 
 	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
@@ -70,8 +72,9 @@ export class HoverAction extends Disposable {
 		if (actionOptions.iconClass) {
 			dom.append(this.action, $(`span.icon.${actionOptions.iconClass}`));
 		}
+		this.actionRenderedLabel = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		const label = dom.append(this.action, $('span'));
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+		label.textContent = this.actionRenderedLabel;
 
 		this._store.add(new ClickAction(this.actionContainer, actionOptions.run));
 		this._store.add(new KeyDownAction(this.actionContainer, actionOptions.run, [KeyCode.Enter, KeyCode.Space]));

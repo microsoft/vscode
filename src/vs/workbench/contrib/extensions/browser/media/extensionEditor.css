@@ -308,11 +308,17 @@
 	margin-bottom: 0px;
 }
 
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry > .link {
+	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry > .link,
 .extension-editor > .header > .details > .pre-release-text a,
 .extension-editor > .header > .details > .actions-status-container > .status a {
 	color: var(--vscode-textLink-foreground)
 }
 
+.extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info > .more-info-entry .link:hover,
 .extension-editor > .header > .details > .pre-release-text a:hover,
 .extension-editor > .header > .details > .actions-status-container > .status a:hover {
 	text-decoration: underline;

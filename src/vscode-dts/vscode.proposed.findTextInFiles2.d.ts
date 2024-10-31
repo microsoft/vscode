@@ -7,20 +7,20 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/59924
 
-	export interface FindTextInFilesOptionsNew {
+	export interface FindTextInFilesOptions2 {
 		/**
-		 * An array of {@link GlobPattern GlobPattern} that defines the files to search for.
-		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link baseUri GlobPattern.baseUri} if applicable.
-		 * Use a {@link RelativePattern RelativePattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
+		 * An array of {@link GlobPattern} that defines the files to search for.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link GlobPattern}'s `baseUri` if applicable.
+		 * Use a {@link RelativePattern} to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 *
 		 * If more than one value is used, the values are combined with a logical OR.
 		 *
 		 * For example, consider the following code:
 		 *
 		 * ```ts
-		 * const ab = findTextInFilesNew('foo', {include: ['*.ts', '*.js']});
-		 * const a = findTextInFilesNew('foo', {include: ['*.ts']});
-		 * const b = findTextInFilesNew('foo', {include: ['*.js']});
+		 * const ab = findTextInFiles2('foo', {include: ['*.ts', '*.js']});
+		 * const a = findTextInFiles2('foo', {include: ['*.ts']});
+		 * const b = findTextInFiles2('foo', {include: ['*.js']});
 		 * ```
 		 *
 		 * In this, `ab` will be the union of results from `a` and `b`.
@@ -28,16 +28,16 @@ declare module 'vscode' {
 		include?: GlobPattern[];
 
 		/**
-		 * An array of {@link GlobPattern GlobPattern} that defines files to exclude.
-		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
+		 * An array of {@link GlobPattern} that defines files to exclude.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern}'s `baseUri` if applicable.
 		 *
 		 * If more than one value is used, the values are combined with a logical AND.
 		 * For example, consider the following code:
 		 *
 		 * ```ts
-		 * const ab = findTextInFilesNew('foo', {exclude: ['*.ts', '*.js']});
-		 * const a = findTextInFilesNew('foo', {exclude: ['*.ts']});
-		 * const b = findTextInFilesNew('foo', {exclude: ['*.js']});
+		 * const ab = findTextInFiles2('foo', {exclude: ['*.ts', '*.js']});
+		 * const a = findTextInFiles2('foo', {exclude: ['*.ts']});
+		 * const b = findTextInFiles2('foo', {exclude: ['*.js']});
 		 * ```
 		 *
 		 * In this, `ab` will be the intersection of results from `a` and `b`.
@@ -45,7 +45,7 @@ declare module 'vscode' {
 		exclude?: GlobPattern[];
 
 		/**
-		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
+		 * Which settings to follow when searching for files. Defaults to `ExcludeSettingOptions.searchAndFilesExclude`.
 		 */
 		useExcludeSettings?: ExcludeSettingOptions;
 
@@ -73,12 +73,12 @@ declare module 'vscode' {
 			 */
 			local?: boolean;
 			/**
-			 * Use ignore files at the parent directory. When set to `true`, {@link FindTextInFilesOptionsNew.useIgnoreFiles.local} must be `true`.
+			 * Use ignore files at the parent directory. When set to `true`, `local` in {@link FindTextInFilesOptions2.useIgnoreFiles} must be `true`.
 			 * May default to `search.useParentIgnoreFiles` setting if not set.
 			 */
 			parent?: boolean;
 			/**
-			 * Use global ignore files. When set to `true`, {@link FindTextInFilesOptionsNew.useIgnoreFiles.local} must also be `true`.
+			 * Use global ignore files. When set to `true`, `local` in {@link FindTextInFilesOptions2.useIgnoreFiles} must also be `true`.
 			 * May default to `search.useGlobalIgnoreFiles` setting if not set.
 			 */
 			global?: boolean;
@@ -123,42 +123,22 @@ declare module 'vscode' {
 		/**
 		 * The results of the text search, in batches. To get completion information, wait on the `complete` property.
 		 */
-		results: AsyncIterable<TextSearchResultNew>;
+		results: AsyncIterable<TextSearchResult2>;
 		/**
 		 * The text search completion information. This resolves on completion.
 		 */
-		complete: Thenable<TextSearchCompleteNew>;
-	}
-
-	/**
-	 * Options for following search.exclude and files.exclude settings.
-	 */
-	export enum ExcludeSettingOptions {
-		/**
-		 * Don't use any exclude settings.
-		 */
-		None = 1,
-		/**
-		 * Use the `files.exclude` setting
-		 */
-		FilesExclude = 2,
-		/**
-		 * Use the `files.exclude` and `search.exclude` settings
-		 */
-		SearchAndFilesExclude = 3
+		complete: Thenable<TextSearchComplete2>;
 	}
 
 	export namespace workspace {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
 		 * @param options An optional set of query options.
-		 * @param callback A callback, called for each {@link TextSearchResultNew result}. This can be a direct match, or context that surrounds a match.
+		 * @param callback A callback, called for each {@link TextSearchResult2 result}. This can be a direct match, or context that surrounds a match.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFilesNew(query: TextSearchQueryNew, options?: FindTextInFilesOptionsNew, token?: CancellationToken): FindTextInFilesResponse;
+		export function findTextInFiles2(query: TextSearchQuery2, options?: FindTextInFilesOptions2, token?: CancellationToken): FindTextInFilesResponse;
 	}
 }

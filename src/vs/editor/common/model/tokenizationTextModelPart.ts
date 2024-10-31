@@ -59,12 +59,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	) {
 		super();
 
-		this._register(this._languageConfigurationService.onDidChange(e => {
-			if (e.affects(this._languageId)) {
-				this._onDidChangeLanguageConfiguration.fire({});
-			}
-		}));
-
 		// We just look at registry changes to determine whether to use tree sitter.
 		// This means that removing a language from the setting will not cause a switch to textmate and will require a reload.
 		// Adding a language to the setting will not need a reload, however.
