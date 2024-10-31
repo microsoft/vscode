@@ -21,4 +21,3 @@ vscode.db
 product.overrides.json
 *.snap.actual
 .vscode-test
-extensions/terminal-suggest/src/autocomplete/
