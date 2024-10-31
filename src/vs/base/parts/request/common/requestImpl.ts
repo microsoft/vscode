@@ -6,9 +6,9 @@
 import { bufferToStream, VSBuffer } from '../../../common/buffer.js';
 import { CancellationToken } from '../../../common/cancellation.js';
 import { canceled } from '../../../common/errors.js';
-import { IHeaders, IRequestContext, IRequestOptions, OfflineError } from '../common/request.js';
+import { IHeaders, IRequestContext, IRequestOptions, OfflineError } from './request.js';
 
-export async function request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+export async function request(options: IRequestOptions, token: CancellationToken, isOnline?: () => boolean): Promise<IRequestContext> {
 	if (token.isCancellationRequested) {
 		throw canceled();
 	}
@@ -35,7 +35,7 @@ export async function request(options: IRequestOptions, token: CancellationToken
 			stream: bufferToStream(VSBuffer.wrap(new Uint8Array(await res.arrayBuffer()))),
 		};
 	} catch (err) {
-		if (!navigator.onLine) {
+		if (isOnline && !isOnline()) {
 			throw new OfflineError();
 		}
 		if (err?.name === 'AbortError') {
@@ -52,7 +52,7 @@ export async function request(options: IRequestOptions, token: CancellationToken
 
 function getRequestHeaders(options: IRequestOptions) {
 	if (options.headers || options.user || options.password || options.proxyAuthorization) {
-		const headers: HeadersInit = new Headers();
+		const headers = new Headers();
 		outer: for (const k in options.headers) {
 			switch (k.toLowerCase()) {
 				case 'user-agent':
