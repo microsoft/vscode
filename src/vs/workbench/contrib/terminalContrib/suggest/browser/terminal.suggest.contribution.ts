@@ -111,33 +111,33 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		let pwshCompletionProviderAddon: TerminalPwshCompletionProvider | undefined;
-		if (this._ctx.instance.shellType === 'pwsh') {
-			pwshCompletionProviderAddon = this._instantiationService.createInstance(TerminalPwshCompletionProvider, TerminalSuggestContribution._cachedPwshCommands);
-			xterm.raw.loadAddon(pwshCompletionProviderAddon);
-			this.add(pwshCompletionProviderAddon);
-			this._completionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon);
-			// If completions are requested, pause and queue input events until completions are
-			// received. This fixing some problems in PowerShell, particularly enter not executing
-			// when typing quickly and some characters being printed twice. On Windows this isn't
-			// needed because inputs are _not_ echoed when not handled immediately.
-			// TODO: This should be based on the OS of the pty host, not the client
-			if (!isWindows) {
-				let barrier: AutoOpenBarrier | undefined;
-				if (pwshCompletionProviderAddon) {
-					this.add(pwshCompletionProviderAddon.onDidRequestCompletions(() => {
-						barrier = new AutoOpenBarrier(2000);
-						this._ctx.instance.pauseInputEvents(barrier);
-					}));
-				}
-				if (this._addon.value) {
-					this.add(this._addon.value.onDidReceiveCompletions(() => {
-						barrier?.open();
-						barrier = undefined;
-					}));
-				} else {
-					throw Error('no addon');
-				}
+		if (this._ctx.instance.shellType !== 'pwsh') {
+			return;
+		}
+		const pwshCompletionProviderAddon = this._instantiationService.createInstance(TerminalPwshCompletionProvider, TerminalSuggestContribution._cachedPwshCommands);
+		xterm.raw.loadAddon(pwshCompletionProviderAddon);
+		this.add(pwshCompletionProviderAddon);
+		this._completionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon);
+		// If completions are requested, pause and queue input events until completions are
+		// received. This fixing some problems in PowerShell, particularly enter not executing
+		// when typing quickly and some characters being printed twice. On Windows this isn't
+		// needed because inputs are _not_ echoed when not handled immediately.
+		// TODO: This should be based on the OS of the pty host, not the client
+		if (!isWindows) {
+			let barrier: AutoOpenBarrier | undefined;
+			if (pwshCompletionProviderAddon) {
+				this.add(pwshCompletionProviderAddon.onDidRequestCompletions(() => {
+					barrier = new AutoOpenBarrier(2000);
+					this._ctx.instance.pauseInputEvents(barrier);
+				}));
+			}
+			if (this._addon.value) {
+				this.add(this._addon.value.onDidReceiveCompletions(() => {
+					barrier?.open();
+					barrier = undefined;
+				}));
+			} else {
+				throw Error('no addon');
 			}
 		}
 	}
