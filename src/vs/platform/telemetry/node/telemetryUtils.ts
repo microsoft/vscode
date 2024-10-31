@@ -7,7 +7,7 @@ import { isMacintosh } from '../../../base/common/platform.js';
 import { getMachineId, getSqmMachineId, getdevDeviceId } from '../../../base/node/id.js';
 import { ILogService } from '../../log/common/log.js';
 import { IStateReadService } from '../../state/node/state.js';
-import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry.js';
+import { machineIdKey, sqmIdKey } from '../common/telemetry.js';
 
 
 export async function resolveMachineId(stateService: IStateReadService, logService: ILogService): Promise<string> {
@@ -30,11 +30,7 @@ export async function resolveSqmId(stateService: IStateReadService, logService: 
 	return sqmId;
 }
 
-export async function resolvedevDeviceId(stateService: IStateReadService, logService: ILogService): Promise<string> {
-	let devDeviceId = stateService.getItem<string>(devDeviceIdKey);
-	if (typeof devDeviceId !== 'string') {
-		devDeviceId = await getdevDeviceId(logService.error.bind(logService));
-	}
-
+export async function resolvedevDeviceId(logService: ILogService): Promise<string> {
+	const devDeviceId = await getdevDeviceId(logService.error.bind(logService));
 	return devDeviceId;
 }

@@ -5,7 +5,7 @@
 
 import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
-import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry.js';
+import { machineIdKey, sqmIdKey } from '../common/telemetry.js';
 import { resolveMachineId as resolveNodeMachineId, resolveSqmId as resolveNodeSqmId, resolvedevDeviceId as resolveNodedevDeviceId } from '../node/telemetryUtils.js';
 
 export async function resolveMachineId(stateService: IStateService, logService: ILogService): Promise<string> {
@@ -22,7 +22,6 @@ export async function resolveSqmId(stateService: IStateService, logService: ILog
 }
 
 export async function resolvedevDeviceId(stateService: IStateService, logService: ILogService): Promise<string> {
-	const devDeviceId = await resolveNodedevDeviceId(stateService, logService);
-	stateService.setItem(devDeviceIdKey, devDeviceId);
+	const devDeviceId = await resolveNodedevDeviceId(logService);
 	return devDeviceId;
 }
