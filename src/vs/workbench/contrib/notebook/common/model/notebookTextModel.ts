@@ -21,7 +21,7 @@ import { FindMatch, ITextModel } from '../../../../../editor/common/model.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { ILanguageDetectionService } from '../../../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IPosition } from '../../../../../editor/common/core/position.js';
+import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { SearchParams } from '../../../../../editor/common/model/textModelSearch.js';
 import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
@@ -1194,8 +1194,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	//#region Find
-	// TODO: enable wrapping through cell indices -- could do this with a wrapped flag
-	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, searchEnd?: { cellIndex: number; position: IPosition }): { cell: NotebookCellTextModel; match: FindMatch } | null {
+	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: Position }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, searchEnd?: { cellIndex: number; position: Position }): { cell: NotebookCellTextModel; match: FindMatch } | null {
 		// check if search cell index is valid
 		this._assertIndex(searchStart.cellIndex);
 		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
@@ -1214,7 +1213,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cell = this._cells[cellIndex];
 
 			// if we have wrapped back to the point of the initial search cell, we search from beginning to the provided searchEnd position
-			const wrapFlag = searchEnd && cellIndex === searchEnd.cellIndex && (searchStartPosition.lineNumber < searchEnd.position.lineNumber || (searchStartPosition.lineNumber === searchEnd.position.lineNumber && searchStartPosition.column < searchEnd.position.column));
+			const wrapFlag = searchEnd && cellIndex === searchEnd.cellIndex && searchStartPosition.isBefore(searchEnd.position);
 			const searchRange = new Range(
 				searchStartPosition.lineNumber,
 				searchStartPosition.column,
@@ -1238,7 +1237,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				searchEndCell = searchEnd.cellIndex + 1;
 			}
 
-			searchStartPosition = { lineNumber: 1, column: 1 }; // Reset position to start of the next cell
+			searchStartPosition = new Position(1, 1); // Reset position to start of the next cell
 		}
 
 		return null;
