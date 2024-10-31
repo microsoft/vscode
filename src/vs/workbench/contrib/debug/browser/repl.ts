@@ -39,7 +39,7 @@ import { ITextResourcePropertiesService } from '../../../../editor/common/servic
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -772,8 +772,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {
-		const actions: IAction[] = [];
-		createAndFillInContextMenuActions(this.menu, { arg: e.element, shouldForwardArgs: false }, actions);
+		const actions = getFlatContextMenuActions(this.menu.getActions({ arg: e.element, shouldForwardArgs: false }));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,

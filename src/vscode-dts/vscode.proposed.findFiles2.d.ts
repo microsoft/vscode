@@ -9,8 +9,8 @@ declare module 'vscode' {
 
 	export interface FindFiles2Options {
 		/**
-		 * An array of {@link GlobPattern GlobPattern} that defines files to exclude.
-		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern.baseUri} if applicable.
+		 * An array of {@link GlobPattern} that defines files to exclude.
+		 * The glob patterns will be matched against the file paths of files relative to their workspace or {@link RelativePattern}'s `baseUri` if applicable.
 		 *
 		 * If more than one value is used, the values are combined with a logical AND.
 		 * For example, consider the following code:
@@ -26,7 +26,7 @@ declare module 'vscode' {
 		exclude?: GlobPattern[];
 
 		/**
-		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
+		 * Which settings to follow when searching for files. Defaults to `ExcludeSettingOptions.searchAndFilesExclude`.
 		 */
 		useExcludeSettings?: ExcludeSettingOptions;
 
@@ -93,8 +93,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 		/**
-		 * WARNING: VERY EXPERIMENTAL.
-		 *
 		 * Find files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 *
 		 * @example

@@ -27,7 +27,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { createAndFillInContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -161,10 +161,8 @@ export class PanelPart extends AbstractPaneCompositePart {
 	private fillExtraContextMenuActions(actions: IAction[]): void {
 		const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
 		const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
-		const positionActions: IAction[] = [];
-		const alignActions: IAction[] = [];
-		createAndFillInContextMenuActions(panelPositionMenu, { primary: [], secondary: positionActions });
-		createAndFillInContextMenuActions(panelAlignMenu, { primary: [], secondary: alignActions });
+		const positionActions = getContextMenuActions(panelPositionMenu).secondary;
+		const alignActions = getContextMenuActions(panelAlignMenu).secondary;
 
 		const panelShowLabels = this.configurationService.getValue<boolean | undefined>('workbench.panel.showLabels');
 		const toggleShowLabelsAction = toAction({

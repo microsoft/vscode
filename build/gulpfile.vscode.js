@@ -101,9 +101,6 @@ const vscodeResourceIncludes = [
 
 	// Tree Sitter highlights
 	'out-build/vs/editor/common/languages/highlights/*.scm',
-
-	// Issue Reporter
-	'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.html'
 ];
 
 const vscodeResources = [
@@ -144,8 +141,6 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 				fileContentMapper: filePath => {
 					if (
 						filePath.endsWith('vs/code/electron-sandbox/workbench/workbench.js') ||
-						// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop
-						filePath.endsWith('vs/workbench/contrib/issue/electron-sandbox/issueReporter.js') ||
 						filePath.endsWith('vs/code/electron-sandbox/processExplorer/processExplorer.js')) {
 						return async (content) => {
 							const bootstrapWindowContent = await fs.promises.readFile(path.join(root, 'out-build', 'bootstrap-window.js'), 'utf-8');
@@ -156,8 +151,6 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 				},
 				skipTSBoilerplateRemoval: entryPoint =>
 					entryPoint === 'vs/code/electron-sandbox/workbench/workbench' ||
-					// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop
-					entryPoint === 'vs/workbench/contrib/issue/electron-sandbox/issueReporter' ||
 					entryPoint === 'vs/code/electron-sandbox/processExplorer/processExplorer',
 			}
 		}

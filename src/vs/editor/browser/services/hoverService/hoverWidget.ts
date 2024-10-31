@@ -24,6 +24,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import type { IHoverOptions, IHoverTarget, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { TimeoutTimer } from '../../../../base/common/async.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 type TargetRect = {
@@ -111,13 +112,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
-		this._hover = this._register(new BaseHoverWidget());
-		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
+		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
-		}
-		if (options.appearance?.skipFadeInAnimation) {
-			this._hover.containerDomNode.classList.add('skip-fade-in');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
@@ -129,7 +127,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = options.position?.hoverPosition ?? HoverPosition.ABOVE;
+		// Default to position above when the position is unspecified or a mouse event
+		this._hoverPosition = options.position?.hoverPosition === undefined
+			? HoverPosition.ABOVE
+			: isNumber(options.position.hoverPosition)
+				? options.position.hoverPosition
+				: HoverPosition.BELOW;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -396,7 +399,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 			this.setHoverPointerPosition(targetRect);
 		}
-
 		this._hover.onContentsChanged();
 	}
 
@@ -626,7 +628,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._onDispose.fire();
 			this._hoverContainer.remove();
 			this._messageListeners.dispose();
-			this._target.dispose();
 			super.dispose();
 		}
 		this._isDisposed = true;
