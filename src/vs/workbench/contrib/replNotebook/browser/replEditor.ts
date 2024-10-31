@@ -58,6 +58,7 @@ import { ReplEditorInput } from './replEditorInput.js';
 import { ReplInputHintContentWidget } from '../../interactive/browser/replInputHintContentWidget.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize } from '../../../../nls.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -276,6 +277,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			...editorOptions,
 			...editorOptionsOverride,
 			...{
+				ariaLabel: localize('replEditorInput', "REPL Input"),
 				glyphMargin: true,
 				padding: {
 					top: INPUT_EDITOR_PADDING,
