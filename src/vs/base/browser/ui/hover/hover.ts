@@ -233,6 +233,21 @@ export interface IHoverLifecycleOptions {
 	/**
 	 * The group ID of the hover. If the group ID is the same as the currently shown hover, the
 	 * hover will be shown immediately, skipping the delay.
+	 *
+	 * @example Use a UUID to set a unique `groupId` for related hovers
+	 *
+	 * ```typescript
+	 * const groupId = generateUuid();
+	 * showDelayedHover({ content: 'Button 1', target: someElement1 }, { groupId });
+	 * showDelayedHover({ content: 'Button 2', target: someElement2 }, { groupId });
+	 * ```
+	 *
+	 * @example Use a feature-specific string to set a unqiue `groupId` for related hovers
+	 *
+	 * ```typescript
+	 * showDelayedHover({ content: 'Button 1', target: someElement1 }, { groupId: 'my-feature-items' });
+	 * showDelayedHover({ content: 'Button 2', target: someElement2 }, { groupId: 'my-feature-items' });
+	 * ```
 	 */
 	groupId?: string;
 
