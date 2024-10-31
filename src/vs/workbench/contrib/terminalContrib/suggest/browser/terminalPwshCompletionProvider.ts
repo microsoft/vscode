@@ -80,6 +80,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	}
 
 	activate(xterm: Terminal): void {
+		console.log('activate');
 		this._terminal = xterm;
 		this._register(xterm.onData(async e => {
 			this._lastUserDataTimestamp = Date.now();
@@ -87,6 +88,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		console.log('xterm ready');
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		const enabled = config.enabled;
 		if (!enabled) {
