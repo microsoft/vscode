@@ -1210,7 +1210,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		let searchEndCell = this._cells.length;
 
-		do {
+		while (cellIndex < searchEndCell) {
 			const cell = this._cells[cellIndex];
 
 			// if we have wrapped back to the point of the initial search cell, we search from beginning to the provided searchEnd position
@@ -1239,7 +1239,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}
 
 			searchStartPosition = { lineNumber: 1, column: 1 }; // Reset position to start of the next cell
-		} while (cellIndex < searchEndCell);
+		}
 
 		return null;
 	}
