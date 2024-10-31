@@ -122,8 +122,8 @@ export async function getCodeActions(
 
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {
+		const handle = setTimeout(() => progress.report(provider), 1250);
 		try {
-			progress.report(provider);
 			const providedCodeActions = await provider.provideCodeActions(model, rangeOrSelection, codeActionContext, cts.token);
 
 			if (providedCodeActions) {
@@ -146,6 +146,8 @@ export async function getCodeActions(
 			}
 			onUnexpectedExternalError(err);
 			return emptyCodeActionsResponse;
+		} finally {
+			clearTimeout(handle);
 		}
 	});
 
