@@ -58,7 +58,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 
 (vscode as any).window.registerTerminalCompletionProvider({
 	id: 'terminal-suggest',
-	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string }, token: vscode.CancellationToken) {
+	async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: { commandLine: string }, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionProviderResult | undefined> {
 		// Early cancellation check
 		if (token.isCancellationRequested) {
 			return;
@@ -70,7 +70,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 		const commandsInPath = await getCommandsInPath();
 		const specs = await getCompletionSpecs(commandsInPath);
 		builtinCommands.forEach(command => commandsInPath.add(command));
-		const result: vscode.TerminalCompletionItem[] = [];
+		const result: vscode.SimpleTerminalCompletion[] = [];
 		for (const spec of specs) {
 			let name: string | undefined;
 			if ('displayName' in spec) {
@@ -84,7 +84,9 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 			if (name) {
 				result.push({
 					label: name,
-					kind: (vscode as any).TerminalCompletionItemKind.Method,
+					// kind: (vscode as any).TerminalCompletionItemKind.Method,
+					isFile: false,
+					isDirectory: false,
 					detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
 					// TODO: pass in suggestions and if generators, file type so VS Code handles it
 				});
@@ -94,7 +96,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 		}
 		console.log(result.length);
 		// Return the completion results or undefined if no results
-		return result.length ? result : undefined;
+		return result.length ? { items: result } : undefined;
 	}
 });
 

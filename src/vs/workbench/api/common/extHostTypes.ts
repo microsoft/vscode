@@ -2108,22 +2108,49 @@ export class TerminalProfile implements vscode.TerminalProfile {
 	}
 }
 
-export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
-	label: string | vscode.CompletionItemLabel;
-	kind: vscode.TerminalCompletionItemKind;
-	detail?: string | undefined;
-	documentation?: string | vscode.MarkdownString | undefined;
-	constructor(label: string | vscode.CompletionItemLabel, kind: vscode.TerminalCompletionItemKind) {
-		this.label = label;
-		this.kind = kind;
+export interface SimpleTerminalCompletion {
+	/**
+	 * The completion's label which appears on the left beside the icon.
+	 */
+	label: string;
+	/**
+	 * The completion's icon to show on the left of the suggest widget.
+	 */
+	icon?: ThemeIcon;
+	/**
+	 * The completion's detail which appears on the right of the list.
+	 */
+	detail?: string;
+	/**
+	 * Whether the completion is a file. Files with the same score will be sorted against each other
+	 * first by extension length and then certain extensions will get a boost based on the OS.
+	 */
+	isFile?: boolean;
+	/**
+	 * Whether the completion is a directory.
+	 */
+	isDirectory?: boolean;
+	/**
+	 * Whether the completion is a keyword.
+	 */
+	isKeyword?: boolean;
+}
+
+export class TerminalCompletionProviderResult {
+	items: SimpleTerminalCompletion[];
+	replacementIndex?: number;
+	replacementLength?: number;
+	constructor(items: SimpleTerminalCompletion[], replacementIndex?: number, replacementLength?: number) {
+		this.items = items;
+		this.replacementIndex = replacementIndex;
+		this.replacementLength = replacementLength;
 	}
 }
 
-export enum TerminalCompletionItemKind {
-	File = 0,
-	Folder = 1,
-	Flag = 2,
-	Method = 3
+
+export class SimpleTerminalCompletion {
+	constructor(label: string, icon?: ThemeIcon, detail?: string, isFile?: boolean, isDirectory?: boolean, isKeyword?: boolean) {
+	}
 }
 
 export enum TaskRevealKind {

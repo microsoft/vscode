@@ -24,8 +24,7 @@ import { ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariabl
 import { ITerminalLinkProviderService } from '../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService, ITerminalQuickFix, TerminalQuickFixType } from '../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { TerminalCapability } from '../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalCompletion, ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalSuggestionService.js';
-import { MarkdownString } from '../../../base/common/htmlContent.js';
+import { ITerminalCompletionService } from '../../contrib/terminalContrib/suggest/browser/terminalSuggestionService.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -272,20 +271,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// Proxy completion provider requests through the extension host
 		this._completionProviders.set(id, this._terminalCompletionService.registerTerminalCompletionProvider(extensionIdentifier, id, {
 			provideCompletions: async (commandLine) => {
-				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine });
-				const converted: ITerminalCompletion[] = [];
-				if (!completions?.length) {
-					return;
-				}
-				for (const s of completions) {
-					converted.push({
-						label: s.label,
-						kind: s.kind,
-						detail: s.detail,
-						documentation: s.documentation ? new MarkdownString(s.documentation.toString()) : undefined,
-					});
-				}
-				return converted;
+				return await this._proxy.$provideTerminalCompletions(id, { commandLine });
 			}
 		}));
 	}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalCompletion, ITerminalCompletionProvider, TerminalCompletionItemKind } from './terminalSuggestionService.js';
+import { ICompletionProviderResult, ITerminalCompletionProvider } from './terminalSuggestionService.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import type { ITerminalAddon, Terminal, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ShellIntegrationOscPs } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
@@ -13,7 +13,6 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { sep } from '../../../../../base/common/path.js';
 import { normalizePathSeparator, SuggestAddon } from './terminalSuggestAddon.js';
-import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
@@ -64,7 +63,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 
 	isPasting: boolean = false;
 
-	private _completionsResolver: ((result: ITerminalCompletion[] | undefined) => void) | null = null;
+	private _completionsResolver: ((result: ICompletionProviderResult | undefined) => void) | null = null;
 
 	static requestCompletionsSequence = '\x1b[24~e'; // F12,e
 	static requestGlobalCompletionsSequence = '\x1b[24~f'; // F12,f
@@ -182,14 +181,16 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
-		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
+		// const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
+		// const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		// this._showCompletions(model);
 		// TODO: fix this type, dont use kind instead use isFile, isDirectory, etc.
-		this._notifyCompletions(model.items.map(e => { return { label: e.completion.label, kind: TerminalCompletionItemKind.File, replacementIndex, replacementLength }; }));
+		this._notifyCompletions({
+			items: completions.map(c => { return { ...c, label: c.completion.label }; }), replacementIndex, replacementLength
+		});
 	}
 
-	private _notifyCompletions(result: ITerminalCompletion[] | undefined) {
+	private _notifyCompletions(result: ICompletionProviderResult | undefined) {
 		if (this._completionsResolver) {
 			this._completionsResolver(result);
 			// Resolved, clear the resolver
@@ -197,13 +198,13 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		}
 	}
 
-	private _waitForCompletions(): Promise<ITerminalCompletion[] | undefined> {
-		return new Promise<ITerminalCompletion[] | undefined>((resolve) => {
+	private _waitForCompletions(): Promise<ICompletionProviderResult | undefined> {
+		return new Promise<ICompletionProviderResult | undefined>((resolve) => {
 			this._completionsResolver = resolve;
 		});
 	}
 
-	async provideCompletions(value: string): Promise<ITerminalCompletion[] | undefined> {
+	async provideCompletions(value: string): Promise<ICompletionProviderResult | undefined> {
 		const builtinCompletionsConfig = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection).builtinCompletions;
 		if (!this._codeCompletionsRequested && builtinCompletionsConfig.pwshCode) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestEnableCodeCompletionsSequence);

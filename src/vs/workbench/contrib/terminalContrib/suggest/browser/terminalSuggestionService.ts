@@ -2,44 +2,42 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { CompletionItemLabel } from '../../../../../editor/common/languages.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
-
-
-export interface ITerminalCompletion {
-
+export interface ISimpleTerminalCompletion {
 	/**
-	 * The label of this completion item. By default
-	 * this is also the text that is inserted when selecting
-	 * this completion.
+	 * The completion's label which appears on the left beside the icon.
 	 */
-	label: string | CompletionItemLabel;
-
+	label: string;
 	/**
-	 * The kind of this completion item. Based on the kind,
-	 * an icon is chosen.
+	 * The completion's icon to show on the left of the suggest widget.
 	 */
-	kind: TerminalCompletionItemKind;
-
+	icon?: ThemeIcon;
 	/**
-	 * A human-readable string with additional information
-	 * about this item.
+	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
-
 	/**
-	 * A human-readable string that represents a doc-comment.
+	 * Whether the completion is a file. Files with the same score will be sorted against each other
+	 * first by extension length and then certain extensions will get a boost based on the OS.
 	 */
-	documentation?: string | MarkdownString;
+	isFile?: boolean;
+	/**
+	 * Whether the completion is a directory.
+	 */
+	isDirectory?: boolean;
+	/**
+	 * Whether the completion is a keyword.
+	 */
+	isKeyword?: boolean;
+}
 
-	replacementIndex?: number;
-
-	replacementLength?: number;
+export interface ICompletionProviderResult {
+	items: ISimpleTerminalCompletion[]; replacementIndex?: number; replacementLength?: number;
 }
 
 export enum TerminalCompletionItemKind {
@@ -53,13 +51,13 @@ export enum TerminalCompletionItemKind {
 export interface ITerminalCompletionProvider {
 	// TODO: Trigger chat props? etc.
 
-	provideCompletions(value: string): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(value: string): Promise<ICompletionProviderResult | undefined>;
 }
 
 export interface ITerminalCompletionService {
 	_serviceBrand: undefined;
 	registerTerminalCompletionProvider(extensionIdentifier: string, id: string, provider: ITerminalCompletionProvider): IDisposable;
-	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined>;
+	provideCompletions(promptValue: string, shellType: TerminalShellType): Promise<ICompletionProviderResult[] | undefined>;
 }
 
 // TODO: make name consistent
@@ -77,13 +75,13 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		return toDisposable(() => this._providers.delete(id));
 	}
 
-	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ITerminalCompletion[] | undefined> {
-		const result: ITerminalCompletion[] = [];
+	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ICompletionProviderResult[] | undefined> {
+		const result: ICompletionProviderResult[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {
 				const completions = await provider.provideCompletions(value);
 				if (completions) {
-					result.push(...completions);
+					result.push(completions);
 				}
 			}
 		}

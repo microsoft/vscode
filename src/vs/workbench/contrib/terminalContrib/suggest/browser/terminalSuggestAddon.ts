@@ -10,7 +10,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { sep } from '../../../../../base/common/path.js';
 import { commonPrefixLength } from '../../../../../base/common/strings.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { editorSuggestWidgetSelectedBackground } from '../../../../../editor/contrib/suggest/browser/suggestWidget.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -28,7 +27,7 @@ import { SimpleCompletionItem, type ISimpleCompletion } from '../../../../servic
 import { LineContext, SimpleCompletionModel } from '../../../../services/suggest/browser/simpleCompletionModel.js';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from '../../../../services/suggest/browser/simpleSuggestWidget.js';
 import type { ISimpleSuggestWidgetFontInfo } from '../../../../services/suggest/browser/simpleSuggestWidgetRenderer.js';
-import { ITerminalCompletionService, TerminalCompletionItemKind } from './terminalSuggestionService.js';
+import { ITerminalCompletionService } from './terminalSuggestionService.js';
 import { TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export interface ISuggestController {
@@ -153,15 +152,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._onDidReceiveCompletions.fire();
 
-		const completions: SimpleCompletionItem[] = [];
-		for (const c of providedCompletions) {
-			completions.push(new SimpleCompletionItem({
-				label: typeof c.label === 'string' ? c.label : c.label.label,
-				icon: getIconForKind(c.kind),
-				detail: c.detail,
-				isDirectory: c.kind === TerminalCompletionItemKind.Folder,
-			}));
-		}
+		const completions = providedCompletions.map(p => p.items).flat();
 		if (!completions?.length) {
 			return;
 		}
@@ -182,8 +173,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			replacementLength = providedCompletions[0].replacementLength ?? 0;
 		}
 
-		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.completion.isDirectory)) {
-			completions.push(new SimpleCompletionItem(this._mostRecentCompletion));
+		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {
+			completions.push({ ...new SimpleCompletionItem(this._mostRecentCompletion), label: this._mostRecentCompletion.label + this._pathSeparator });
 		}
 		this._mostRecentCompletion = undefined;
 
@@ -196,14 +187,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		// - Using `\` or `/` will request new completions. It's important that this only occurs
 		//   when a directory is present, if not completions like git branches could be requested
 		//   which leads to flickering
-		this._isFilteringDirectories = completions.some(e => e.completion.isDirectory);
+		this._isFilteringDirectories = completions.some(e => e.isDirectory);
 		if (this._isFilteringDirectories) {
-			const firstDir = completions.find(e => e.completion.isDirectory);
-			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
+			const firstDir = completions.find(e => e.isDirectory);
+			this._pathSeparator = firstDir?.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
+		const model = new SimpleCompletionModel(completions.map(c => new SimpleCompletionItem(c)), lineContext, replacementIndex, replacementLength);
 		this._showCompletions(model);
 	}
 
@@ -532,17 +523,4 @@ export function normalizePathSeparator(path: string, sep: string): string {
 		return path.replaceAll('\\', '/');
 	}
 	return path.replaceAll('/', '\\');
-}
-
-function getIconForKind(kind: TerminalCompletionItemKind): ThemeIcon {
-	switch (kind) {
-		case TerminalCompletionItemKind.File:
-			return Codicon.file;
-		case TerminalCompletionItemKind.Folder:
-			return Codicon.folder;
-		case TerminalCompletionItemKind.Flag:
-			return Codicon.symbolKey;
-		case TerminalCompletionItemKind.Method:
-			return Codicon.symbolMethod;
-	}
 }

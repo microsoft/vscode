@@ -10,7 +10,7 @@ import { createDecorator } from '../../../platform/instantiation/common/instanti
 import { URI } from '../../../base/common/uri.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { IDisposable, DisposableStore, Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason, CompletionItemLabel } from './extHostTypes.js';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, TerminalExitReason } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { NotSupportedError } from '../../../base/common/errors.js';
@@ -56,7 +56,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
 	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
-	registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable;
+	registerTerminalCompletionProvider<T extends vscode.TerminalCompletionProviderResult>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable;
 }
 
 interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
@@ -398,7 +398,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
-	private readonly _completionProviders: Map<string, vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>> = new Map();
+	private readonly _completionProviders: Map<string, vscode.TerminalCompletionProvider<vscode.TerminalCompletionProviderResult>> = new Map();
 	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
 	private readonly _quickFixProviders: Map<string, vscode.TerminalQuickFixProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
@@ -734,7 +734,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletionItem>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable {
+	public registerTerminalCompletionProvider<T extends vscode.TerminalCompletionProviderResult>(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<T>): vscode.Disposable {
 		if (this._completionProviders.has(provider.id)) {
 			throw new Error(`Terminal completion provider "${provider.id}" already registered`);
 		}
@@ -771,31 +771,23 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalCompletions(id: string, options: { commandLine: string }): Promise<ITerminalCompletion[] | undefined> {
+	public async $provideTerminalCompletions(id: string, options: { commandLine: string }): Promise<vscode.TerminalCompletionProviderResult | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested || !this.activeTerminal) {
-			return [];
+			return;
 		}
 		const provider = this._completionProviders.get(id);
 		if (!provider) {
-			return [];
+			return;
 		}
 		// todo
 		const completions = await provider.provideTerminalCompletions(this.activeTerminal, options, token);
-		if (completions === null || completions === undefined || (Array.isArray(completions) && completions.length === 0)) {
-			return [];
+		console.log(completions?.items);
+		if (completions === null || completions === undefined) {
+			return;
 		}
 
-		const result: ITerminalCompletion[] = [];
-		for (const completion of completions) {
-			result.push({
-				label: completion.label,
-				detail: completion.detail,
-				documentation: completion.documentation,
-				kind: completion.kind,
-			});
-		}
-		return result;
+		return completions;
 	}
 
 	public async $provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto): Promise<(ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto)[] | ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto | undefined> {
@@ -1264,32 +1256,4 @@ function convertMutator(mutator: IEnvironmentVariableMutator): vscode.Environmen
 	newMutator.options = newMutator.options ?? undefined;
 	delete (newMutator as any).variable;
 	return newMutator as vscode.EnvironmentVariableMutator;
-}
-
-
-export interface ITerminalCompletion {
-
-	/**
-	 * The label of this completion item. By default
-	 * this is also the text that is inserted when selecting
-	 * this completion.
-	 */
-	label: string | CompletionItemLabel;
-
-	/**
-	 * The kind of this completion item. Based on the kind,
-	 * an icon is chosen.
-	 */
-	kind: vscode.TerminalCompletionItemKind;
-
-	/**
-	 * A human-readable string with additional information
-	 * about this item.
-	 */
-	detail?: string;
-
-	/**
-	 * A human-readable string that represents a doc-comment.
-	 */
-	documentation?: string | vscode.MarkdownString;
 }

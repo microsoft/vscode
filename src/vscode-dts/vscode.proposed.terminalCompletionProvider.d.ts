@@ -7,7 +7,11 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/226562
 
-	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
+	export interface TerminalCompletionProviderResult {
+		items: SimpleTerminalCompletion[]; replacementIndex?: number; replacementLength?: number;
+	}
+
+	export interface TerminalCompletionProvider<T extends TerminalCompletionProviderResult> {
 		id: string;
 		/**
 		 * Provide completions for the given position and document.
@@ -17,7 +21,7 @@ declare module 'vscode' {
 		 * @return A list of completions.
 		 */
 		// TODO: return TerminalCompletionItem | TermimalDirectoryFilesCompletionItem
-		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | Thenable<T[] | undefined>>;
+		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T | Thenable<T | undefined>>;
 	}
 
 	// export class TerminalDirectoryFilesCompletionItem {
@@ -29,40 +33,35 @@ declare module 'vscode' {
 	// `cd src/ (should find folders within <cwd>/src)
 	// }
 
-	export class TerminalCompletionItem {
 
+	export interface SimpleTerminalCompletion {
 		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
+		 * The completion's label which appears on the left beside the icon.
 		 */
-		label: string | CompletionItemLabel;
-
+		label: string;
 		/**
-		 * The kind of this completion item. Based on the kind,
-		 * an icon is chosen.
+		 * The completion's icon to show on the left of the suggest widget.
 		 */
-		kind: TerminalCompletionItemKind;
-
+		icon?: ThemeIcon;
 		/**
-		 * A human-readable string with additional information
-		 * about this item.
+		 * The completion's detail which appears on the right of the list.
 		 */
 		detail?: string;
-
 		/**
-		 * A human-readable string that represents a doc-comment.
+		 * Whether the completion is a file. Files with the same score will be sorted against each other
+		 * first by extension length and then certain extensions will get a boost based on the OS.
 		 */
-		documentation?: string | MarkdownString;
-
-		constructor(label: string, kind: TerminalCompletionItemKind);
+		isFile?: boolean;
+		/**
+		 * Whether the completion is a directory.
+		 */
+		isDirectory?: boolean;
+		/**
+		 * Whether the completion is a keyword.
+		 */
+		isKeyword?: boolean;
 	}
 
-	export enum TerminalCompletionItemKind {
-		File = 0,
-		Folder = 1,
-		Flag = 2,
-	}
 
 	export interface TerminalCompletionContext {
 		commandLine: string;
@@ -76,6 +75,6 @@ declare module 'vscode' {
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionProviderResult>(provider: TerminalCompletionProvider<T>): Disposable;
 	}
 }
