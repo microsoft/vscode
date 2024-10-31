@@ -1195,7 +1195,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	//#region Find
 	// TODO: enable wrapping through cell indices -- could do this with a wrapped flag
-	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null): { cell: NotebookCellTextModel; match: FindMatch } | null {
+	findNextMatch(searchString: string, searchStart: { cellIndex: number; position: IPosition }, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, searchEnd?: { cellIndex: number; position: IPosition }): { cell: NotebookCellTextModel; match: FindMatch } | null {
 		// check if search cell index is valid
 		this._assertIndex(searchStart.cellIndex);
 		const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
@@ -1208,24 +1208,38 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let cellIndex = searchStart.cellIndex;
 		let searchStartPosition = searchStart.position;
 
-		while (cellIndex < this._cells.length) {
+		let searchEndCell = this._cells.length;
+
+		do {
 			const cell = this._cells[cellIndex];
+
+			// if we have wrapped back to the point of the initial search cell, we search from beginning to the provided searchEnd position
+			const wrapFlag = searchEnd && cellIndex === searchEnd.cellIndex && (searchStartPosition.lineNumber < searchEnd.position.lineNumber || (searchStartPosition.lineNumber === searchEnd.position.lineNumber && searchStartPosition.column < searchEnd.position.column));
 			const searchRange = new Range(
 				searchStartPosition.lineNumber,
 				searchStartPosition.column,
-				cell.textBuffer.getLineCount(),
-				cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount())
+				(wrapFlag) ? searchEnd.position.lineNumber : cell.textBuffer.getLineCount(),
+				(wrapFlag) ? searchEnd.position.column : cell.textBuffer.getLineMaxColumn(cell.textBuffer.getLineCount())
 			);
 
 			const result = cell.textBuffer.findMatchesLineByLine(searchRange, searchData, false, 1);
 			if (result.length > 0) {
 				return { cell, match: result[0] };
+			} else if (wrapFlag) { // this means there are no more valid matches in the notebook
+				break;
 			}
 
 			// Move to the next cell
 			cellIndex++;
+
+			// wrap if a searchEnd is provided and we are past the end of the notebook
+			if (searchEnd && cellIndex >= this._cells.length) {
+				cellIndex = 0;
+				searchEndCell = searchEnd.cellIndex + 1;
+			}
+
 			searchStartPosition = { lineNumber: 1, column: 1 }; // Reset position to start of the next cell
-		}
+		} while (cellIndex < searchEndCell);
 
 		return null;
 	}
