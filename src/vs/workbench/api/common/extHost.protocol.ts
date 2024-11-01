@@ -2395,9 +2395,7 @@ export interface IFunctionBreakpointDto extends IBreakpointDto {
 export interface IDataBreakpointDto extends IBreakpointDto {
 	type: 'data';
 	source: vscode.DataBreakpointSource;
-	canPersist: boolean;
-	label: string;
-	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+	resolution: vscode.DataBreakpointResolution;
 	accessType: DebugProtocol.DataBreakpointAccessType;
 	mode?: string;
 }

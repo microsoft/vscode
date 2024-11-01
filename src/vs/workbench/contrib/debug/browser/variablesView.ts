@@ -774,7 +774,11 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
+			await debugService.addDataBreakpoint({
+				src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! },
+				resolution: { description: dataBreakpointInfoResponse.description, dataId: dataBreakpointInfoResponse.dataId!, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes },
+				accessType: 'write'
+			});
 		}
 	}
 });
@@ -785,7 +789,11 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
+			await debugService.addDataBreakpoint({
+				src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! },
+				resolution: { description: dataBreakpointInfoResponse.description, dataId: dataBreakpointInfoResponse.dataId!, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes },
+				accessType: 'readWrite'
+			});
 		}
 	}
 });
@@ -796,7 +804,11 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
+			await debugService.addDataBreakpoint({
+				src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! },
+				resolution: { description: dataBreakpointInfoResponse.description, dataId: dataBreakpointInfoResponse.dataId!, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes },
+				accessType: 'read'
+			});
 		}
 	}
 });

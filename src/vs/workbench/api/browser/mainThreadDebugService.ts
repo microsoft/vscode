@@ -20,6 +20,7 @@ import { IDebugVisualizerService } from '../../contrib/debug/common/debugVisuali
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { Event } from '../../../base/common/event.js';
 import { isDefined } from '../../../base/common/types.js';
+import { AddressDataBreakpointSource, ExpressionDataBreakpointSource, FrameScopedDataBreakpointSource, ResolvedDataBreakpointSource, VariableScopedDataBreakpointSource } from '../common/extHostTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -233,20 +234,18 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				}, dto.id);
 			} else if (dto.type === 'data') {
 				this.debugService.addDataBreakpoint({
-					description: dto.label,
-					src: dto.source.type === 'variable' ? { type: DataBreakpointSetType.Variable, dataId: dto.source.dataId }
-						: dto.source.type === 'address' ? { type: DataBreakpointSetType.Address, address: dto.source.address, bytes: dto.source.bytes }
-							: dto.source.type === 'expression' ? { type: DataBreakpointSetType.Expression, expression: dto.source.expression }
-								: dto.source.frameId ? { type: DataBreakpointSetType.Scoped, expression: dto.source.expression, frameId: dto.source.frameId }
-									: dto.source.variablesReference ? { type: DataBreakpointSetType.Scoped, variable: dto.source.variable, variablesReference: dto.source.variablesReference }
-										: { type: DataBreakpointSetType.Variable, dataId: '' }, // should not happen
+					src: dto.source instanceof ResolvedDataBreakpointSource ? { type: DataBreakpointSetType.Variable, ...dto.source }
+						: dto.source instanceof AddressDataBreakpointSource ? { type: DataBreakpointSetType.Address, ...dto.source }
+							: dto.source instanceof ExpressionDataBreakpointSource ? { type: DataBreakpointSetType.Expression, ...dto.source }
+								: dto.source instanceof FrameScopedDataBreakpointSource ? { type: DataBreakpointSetType.FrameScoped, ...dto.source }
+									: dto.source instanceof VariableScopedDataBreakpointSource ? { type: DataBreakpointSetType.VariableScoped, ...dto.source }
+										: { type: DataBreakpointSetType.Variable, dataId: '-1' }, // should not happen
 					condition: dto.condition,
 					enabled: dto.enabled,
 					hitCondition: dto.hitCondition,
-					canPersist: dto.canPersist,
-					accessTypes: dto.accessTypes,
-					accessType: dto.accessType,
 					logMessage: dto.logMessage,
+					resolution: dto.resolution,
+					accessType: dto.accessType,
 					mode: dto.mode
 				});
 			}
@@ -467,19 +466,18 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return {
 					type: 'data',
 					id: dbp.getId(),
-					source: dbp.src.type === DataBreakpointSetType.Variable ? { type: 'variable', dataId: dbp.src.dataId }
-						: dbp.src.type === DataBreakpointSetType.Address ? { type: 'address', address: dbp.src.address, bytes: dbp.src.bytes }
-							: dbp.src.type === DataBreakpointSetType.Expression ? { type: 'expression', expression: dbp.src.expression }
-								: dbp.src.frameId ? { type: 'scoped', expression: dbp.src.expression, frameId: dbp.src.frameId }
-									: dbp.src.variablesReference ? { type: 'scoped', variable: dbp.src.variable, variablesReference: dbp.src.variablesReference }
-										: { type: 'variable', dataId: '' }, // should not happen
+					source: dbp.src.type === DataBreakpointSetType.Variable ? new ResolvedDataBreakpointSource(dbp.src.dataId, dbp.src.canPersist)
+						: dbp.src.type === DataBreakpointSetType.Address ? new AddressDataBreakpointSource(dbp.src.address, dbp.src.bytes)
+							: dbp.src.type === DataBreakpointSetType.Expression ? new ExpressionDataBreakpointSource(dbp.src.expression)
+								: dbp.src.type === DataBreakpointSetType.FrameScoped ? new FrameScopedDataBreakpointSource(dbp.src.frameId, dbp.src.expression)
+									: dbp.src.type === DataBreakpointSetType.VariableScoped ? new VariableScopedDataBreakpointSource(dbp.src.variablesReference, dbp.src.variable)
+										: new ResolvedDataBreakpointSource('-1'), // should not happen
 					enabled: dbp.enabled,
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,
 					logMessage: dbp.logMessage,
 					accessType: dbp.accessType,
-					label: dbp.description,
-					canPersist: dbp.canPersist,
+					resolution: dbp.resolution,
 					mode: dbp.mode
 				} satisfies IDataBreakpointDto;
 			} else if ('uri' in bp) {

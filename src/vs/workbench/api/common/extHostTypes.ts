@@ -3075,23 +3075,80 @@ export class FunctionBreakpoint extends Breakpoint {
 
 @es5ClassCompat
 export class DataBreakpoint extends Breakpoint {
-	readonly label: string;
+	private _resolution?: vscode.DataBreakpointResolution;
+
 	readonly source: vscode.DataBreakpointSource;
-	readonly canPersist: boolean;
 	readonly accessType: vscode.DataBreakpointAccessType;
 
-	constructor(source: vscode.DataBreakpointSource | string, accessType: vscode.DataBreakpointAccessType, canPersist?: boolean, label?: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+	constructor(source: vscode.DataBreakpointSource, accessType: vscode.DataBreakpointAccessType, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
 		super(enabled, condition, hitCondition, logMessage, mode);
-		this.source = typeof source === 'string' ? { type: 'variable', dataId: source } : source;
+		this.source = source;
 		this.accessType = accessType;
-		this.canPersist = canPersist ?? false;
-		this.label = label ? label
-			: this.source.type === 'variable' ? `DataId '${this.source.dataId}'`
-				: this.source.type === 'address' ? `Address '${this.source.address}${this.source.bytes ? `,${this.source.bytes}'` : ''}`
-					: this.source.type === 'expression' ? `Expression '${this.source.expression}'`
-						: this.source.frameId ? `Scoped '${this.source.expression}@${this.source.frameId}'`
-							: this.source.variablesReference ? `Scoped '${this.source.variable}@${this.source.variablesReference}'`
-								: `Unknown data breakpoint`;
+		if (source instanceof ResolvedDataBreakpointSource) {
+			this.set({ ...this.source });
+		}
+	}
+
+	protected async info(session: vscode.DebugSession): Promise<vscode.DataBreakpointResolution> {
+		// ResolvedDataBreakpointSource is already handled in the constructor
+		if (this.source instanceof AddressDataBreakpointSource) {
+			return session.customRequest('dataBreakpointInfo', { name: this.source.address, bytes: this.source.bytes, asAddress: true }) as Promise<vscode.DataBreakpointResolution>;
+		}
+		if (this.source instanceof ExpressionDataBreakpointSource) {
+			return session.customRequest('dataBreakpointInfo', { name: this.source.expression }) as Promise<vscode.DataBreakpointResolution>;
+		}
+		if (this.source instanceof VariableScopedDataBreakpointSource) {
+			return session.customRequest('dataBreakpointInfo', { name: this.source.variable, variablesReference: this.source.variablesReference }) as Promise<vscode.DataBreakpointResolution>;
+		}
+		if (this.source instanceof FrameScopedDataBreakpointSource) {
+			return session.customRequest('dataBreakpointInfo', { name: this.source.expression, frameId: this.source.frameId }) as Promise<vscode.DataBreakpointResolution>;
+		}
+		throw Error('Unknown data breakpoint source');
+	}
+
+	set(resolution: vscode.DataBreakpointResolution): this {
+		if (!this.resolution) {
+			this._resolution = resolution;
+		}
+		return this;
+	}
+
+	async resolve(session: vscode.DebugSession): Promise<this> {
+		return this.set(await this.info(session));
+	}
+
+	get resolution(): vscode.DataBreakpointResolution | undefined {
+		return this._resolution;
+	}
+}
+
+@es5ClassCompat
+export class ResolvedDataBreakpointSource {
+	constructor(public readonly dataId: string, public readonly canPersist: boolean = false, public readonly accessTypes?: vscode.DataBreakpointAccessType[], public readonly description: string = `DataId '${dataId}'`) {
+	}
+}
+
+@es5ClassCompat
+export class AddressDataBreakpointSource {
+	constructor(public readonly address: string, public readonly bytes?: number, public readonly description: string = `Address '${address}${bytes ? `,${bytes}'` : ''}`) {
+	}
+}
+
+@es5ClassCompat
+export class ExpressionDataBreakpointSource {
+	constructor(public readonly expression: string, public readonly description: string = `Expression '${expression}'`) {
+	}
+}
+
+@es5ClassCompat
+export class VariableScopedDataBreakpointSource {
+	constructor(public readonly variablesReference: number, public readonly variable: string, public readonly description: string = `Scoped '${variable}@${variablesReference}'`) {
+	}
+}
+
+@es5ClassCompat
+export class FrameScopedDataBreakpointSource {
+	constructor(public readonly frameId: number, public readonly expression: string, public readonly description: string = `Scoped '${expression}@${frameId}'`) {
 	}
 }
 

@@ -647,59 +647,88 @@ export const enum DataBreakpointSetType {
 	Variable,
 	Address,
 	Expression,
-	Scoped
+	FrameScoped,
+	VariableScoped
 }
+
+export interface DataBreakpointResolution {
+	/** An identifier for the data on which a data breakpoint can be registered. */
+	dataId?: string;
+
+	/** UI string that describes on what data the breakpoint is set on or why a data breakpoint is not available. */
+	description: string;
+
+	/** Attribute lists the available access types for a potential data breakpoint. */
+	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+
+	/** Attribute indicates that a potential data breakpoint could be persisted across sessions. */
+	canPersist?: boolean;
+}
+
+type ResolvedDataBreakpointSource = {
+	type: DataBreakpointSetType.Variable;
+	/** An identifier for the data. If it was retrieved using a `variablesReference` it may only be valid in the current suspended state, otherwise it's valid indefinitely. */
+	dataId: string;
+	/** Attribute indicates that a potential data breakpoint could be persisted across sessions. */
+	canPersist?: boolean;
+	/** A human-readable label for the data breakpoint source. */
+	description?: string;
+	/** Attribute lists the available access types for a potential data breakpoint. */
+	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+};
+
+type AddressDataBreakpointSource = {
+	/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.Address;
+	/** A memory address as a decimal value, or hex value if it is prefixed with `0x`. */
+	address: string;
+	/** If specified, returns information for the range of memory extending `bytes` number of bytes from the address. */
+	bytes?: number;
+	/** A human-readable label for the data breakpoint source. */
+	description?: string;
+};
+
+type ExpressionDataBreakpointSource = {
+	/** The source type for expression-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.Expression;
+	/** A global expression that is first evaluated when the breakpoint is activated. */
+	expression: string;
+	/** A human-readable label for the data breakpoint source. */
+	description?: string;
+};
+
+type FrameScopedDataBreakpointSource = {
+	/** The source type for frame scoped-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.FrameScoped;
+	/** Reference to the stack frame to which the expression is scoped. */
+	frameId: number;
+	/** The name of the expression that is used for resolution. */
+	expression: string;
+	/** A human-readable label for the data breakpoint source. */
+	description: string;
+};
+
+type VariableScopedDataBreakpointSource = {
+	/** The source type for frame scoped-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+	type: DataBreakpointSetType.VariableScoped;
+	/** Reference to the variable container that has the variable named `variable`. */
+	variablesReference: number;
+	/** The name of the variable that is used for resolution. */
+	variable: string;
+	/** A human-readable label for the data breakpoint source. */
+	description?: string;
+};
 
 /**
  * Source for a data breakpoint. A data breakpoint on a variable always has a
  * `dataId` because it cannot reference that variable globally, but addresses
  * can request info repeated and use session-specific data.
  */
-export type DataBreakpointSource =
-	| {
-		/** The source type for variable-based data breakpoints. */
-		type: DataBreakpointSetType.Variable;
-		/** An identifier for the data. If it was retrieved using a `variablesReference` it may only be valid in the current suspended state, otherwise it's valid indefinitely. */
-		dataId: string;
-	}
-	| {
-		/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
-		type: DataBreakpointSetType.Address;
-		/** A memory address as a decimal value, or hex value if it is prefixed with `0x`. */
-		address: string;
-		/** If specified, returns information for the range of memory extending `bytes` number of bytes from the address. */
-		bytes?: number;
-	}
-	| {
-		/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
-		type: DataBreakpointSetType.Expression;
-		/** A global expression that is first evaluated when the breakpoint is activated. */
-		expression: string;
-	}
-	| {
-		/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
-		type: DataBreakpointSetType.Scoped;
-	} & (
-		| {
-			/** The name of the variable that is used for resolution. */
-			variable: string;
-			/** Reference to the variable container that has the variable named `variable`. */
-			variablesReference: number;
-			frameId?: never;
-		}
-		| {
-			/** The name of the expression that is used for resolution. */
-			expression: string;
-			/** Reference to the stack frame to which the expression is scoped. */
-			frameId: number;
-			variablesReference?: never;
-		}
-	);
+export type DataBreakpointSource = ResolvedDataBreakpointSource | AddressDataBreakpointSource | ExpressionDataBreakpointSource | FrameScopedDataBreakpointSource | VariableScopedDataBreakpointSource;
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
-	readonly description: string;
-	readonly canPersist: boolean;
 	readonly src: DataBreakpointSource;
+	readonly resolution: DataBreakpointResolution;
 	readonly accessType: DebugProtocol.DataBreakpointAccessType;
 	toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined>;
 }

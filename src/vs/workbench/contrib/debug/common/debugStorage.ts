@@ -149,7 +149,7 @@ export class DebugStorage extends Disposable {
 			this.storageService.remove(DEBUG_FUNCTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE);
 		}
 
-		const dataBreakpoints = debugModel.getDataBreakpoints().filter(dbp => dbp.canPersist);
+		const dataBreakpoints = debugModel.getDataBreakpoints().filter(dbp => dbp.resolution.canPersist);
 		if (dataBreakpoints.length) {
 			this.storageService.store(DEBUG_DATA_BREAKPOINTS_KEY, JSON.stringify(dataBreakpoints), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		} else {

@@ -22,7 +22,7 @@ import * as nls from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEditorPane } from '../../../common/editor.js';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from './debug.js';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointResolution, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from './debug.js';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from './debugSource.js';
 import { DebugStorage } from './debugStorage.js';
 import { IDebugVisualizerService } from './debugVisualizers.js';
@@ -1166,21 +1166,14 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 }
 
 export interface IDataBreakpointOptions extends IBaseBreakpointOptions {
-	description: string;
 	src: DataBreakpointSource;
-	canPersist: boolean;
-	initialSessionData?: { session: IDebugSession; dataId: string };
-	accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined;
+	resolution: DataBreakpointResolution;
 	accessType: DebugProtocol.DataBreakpointAccessType;
 }
 
 export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
-	private readonly sessionDataId = new WeakMap<IDebugSession, string | null>();
-
-	public readonly description: string;
 	public readonly src: DataBreakpointSource;
-	public readonly canPersist: boolean;
-	public readonly accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined;
+	public readonly resolution: DataBreakpointResolution;
 	public readonly accessType: DebugProtocol.DataBreakpointAccessType;
 
 	constructor(
@@ -1188,59 +1181,17 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		id = generateUuid()
 	) {
 		super(id, opts);
-		this.description = opts.description;
 		if ('dataId' in opts) { //  back compat with old saved variables in 1.87
 			opts.src = { type: DataBreakpointSetType.Variable, dataId: opts.dataId as string };
 		}
 		this.src = opts.src;
-		this.canPersist = opts.canPersist;
-		this.accessTypes = opts.accessTypes;
 		this.accessType = opts.accessType;
-		if (opts.initialSessionData) {
-			this.sessionDataId.set(opts.initialSessionData.session, opts.initialSessionData.dataId);
-		}
+		this.resolution = opts.resolution;
 	}
 
 	async toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined> {
-		let dataId = this.sessionDataId.get(session);
-		if (!dataId) {
-			if (this.src.type === DataBreakpointSetType.Variable) {
-				dataId = this.src.dataId;
-			} else if (this.src.type === DataBreakpointSetType.Address) {
-				const sessionDataId = (await session.dataBytesBreakpointInfo(this.src.address, this.src.bytes))?.dataId;
-				if (sessionDataId) {
-					this.sessionDataId.set(session, sessionDataId);
-					dataId = sessionDataId;
-				}
-			} else if (this.src.type === DataBreakpointSetType.Expression) {
-				const sessionDataId = (await session.dataBreakpointInfo(this.src.expression))?.dataId;
-				if (sessionDataId) {
-					this.sessionDataId.set(session, sessionDataId);
-					dataId = sessionDataId;
-				}
-			} else {
-				// type === DataBreakpointSetType.Scoped
-				if (this.src.frameId) {
-					const sessionDataId = (await session.dataBreakpointInfo(this.src.expression, undefined, this.src.frameId))?.dataId;
-					if (sessionDataId) {
-						this.sessionDataId.set(session, sessionDataId);
-						dataId = sessionDataId;
-					}
-				} else if (this.src.variablesReference) {
-					const sessionDataId = (await session.dataBreakpointInfo(this.src.variable, this.src.variablesReference))?.dataId;
-					if (sessionDataId) {
-						this.sessionDataId.set(session, sessionDataId);
-						dataId = sessionDataId;
-					}
-				}
-			}
-		}
-		if (!dataId) {
-			return;
-		}
-
-		return {
-			dataId,
+		return !this.resolution.dataId ? undefined : {
+			dataId: this.resolution.dataId,
 			accessType: this.accessType,
 			condition: this.condition,
 			hitCondition: this.hitCondition,
@@ -1250,24 +1201,18 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	override toJSON(): IDataBreakpointOptions & { id: string } {
 		return {
 			...super.toJSON(),
-			description: this.description,
+			resolution: this.resolution,
 			src: this.src,
-			accessTypes: this.accessTypes,
-			accessType: this.accessType,
-			canPersist: this.canPersist,
+			accessType: this.accessType
 		};
 	}
 
 	get supported(): boolean {
-		if (!this.data) {
-			return true;
-		}
-
-		return this.data.supportsDataBreakpoints;
+		return !this.data || this.data.supportsDataBreakpoints;
 	}
 
 	override toString(): string {
-		return this.description;
+		return this.resolution.description;
 	}
 }
 

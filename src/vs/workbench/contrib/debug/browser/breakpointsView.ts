@@ -787,7 +787,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 
 	renderElement(dataBreakpoint: DataBreakpoint, _index: number, data: IDataBreakpointTemplateData): void {
 		data.context = dataBreakpoint;
-		data.name.textContent = dataBreakpoint.description;
+		data.name.textContent = dataBreakpoint.resolution.description;
 		const { icon, message } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), dataBreakpoint, this.labelService, this.debugService.getModel());
 		data.icon.className = ThemeIcon.asClassName(icon);
 		data.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.icon, message ? message : ''));
@@ -1481,15 +1481,7 @@ abstract class MemoryBreakpointAction extends Action2 {
 		if (existingBreakpoint) {
 			await debugService.removeDataBreakpoints(existingBreakpoint.getId());
 		}
-
-		await debugService.addDataBreakpoint({
-			description: info.description,
-			src,
-			canPersist: true,
-			accessTypes: info.accessTypes,
-			accessType: accessType,
-			initialSessionData: { session, dataId: info.dataId }
-		});
+		await debugService.addDataBreakpoint({ src, resolution: { ...info, dataId: info.dataId }, accessType });
 	}
 
 	private getRange(quickInput: IQuickInputService, defaultValue?: string) {

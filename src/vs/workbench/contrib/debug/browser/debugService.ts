@@ -740,7 +740,7 @@ export class DebugService implements IDebugService {
 				}
 
 				// Data breakpoints that can not be persisted should be cleared when a session ends
-				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
+				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.resolution.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 
 				if (this.configurationService.getValue<IDebugConfiguration>('debug').console.closeOnEnd) {

@@ -1780,6 +1780,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextSearchContextNew: TextSearchContextNew,
 			TextSearchMatchNew: TextSearchMatchNew,
 			TextSearchCompleteMessageTypeNew: TextSearchCompleteMessageType,
+			ResolvedDataBreakpointSource: extHostTypes.ResolvedDataBreakpointSource,
+			AddressDataBreakpointSource: extHostTypes.AddressDataBreakpointSource,
+			ExpressionDataBreakpointSource: extHostTypes.ExpressionDataBreakpointSource,
+			VariableScopedDataBreakpointSource: extHostTypes.VariableScopedDataBreakpointSource,
+			FrameScopedDataBreakpointSource: extHostTypes.FrameScopedDataBreakpointSource,
 		};
 	};
 }
