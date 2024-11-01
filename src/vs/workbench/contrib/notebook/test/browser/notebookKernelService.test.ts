@@ -46,6 +46,7 @@ suite('NotebookKernelService', () => {
 			override onDidAddNotebookDocument = onDidAddNotebookDocument.event;
 			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
+			override getNotebookTextModel() { return undefined; }
 		});
 		instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
 			override createMenu() {
