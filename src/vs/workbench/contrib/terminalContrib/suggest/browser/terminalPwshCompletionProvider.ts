@@ -100,8 +100,6 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 
 	activate(xterm: Terminal): void {
 		this._terminal = xterm;
-		console.log(this._terminal !== undefined);
-		console.log('activate');
 		this._register(xterm.onData(() => {
 			this._lastUserDataTimestamp = Date.now();
 		}));
@@ -120,14 +118,12 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	}
 
 	private _handleVSCodeSequence(data: string): boolean | Promise<boolean> {
-		console.log(this._terminal !== undefined, ' handle sequence');
 		if (!this._terminal) {
 			return false;
 		}
 
 		// Pass the sequence along to the capability
 		const [command, ...args] = data.split(';');
-		console.log(data);
 		switch (command) {
 			case VSCodeSuggestOscPt.Completions:
 
@@ -144,14 +140,12 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 
 		// Nothing to handle if the terminal is not attached
 		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
-			console.log('returning');
 			this._notifyCompletions(undefined);
 			return;
 		}
 
 		// Only show the suggest widget if the terminal is focused
 		if (!dom.isAncestorOfActiveElement(terminal.element)) {
-			console.log('returning');
 			this._notifyCompletions(undefined);
 			return;
 		}
@@ -209,7 +203,6 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		// const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		// this._showCompletions(model);
 		// TODO: fix this type, dont use kind instead use isFile, isDirectory, etc.
-		console.log(completions.length, ' completions');
 		this._notifyCompletions({
 			items: completions.map(c => { return { ...c, label: c.completion.label }; }), replacementIndex, replacementLength
 		});
