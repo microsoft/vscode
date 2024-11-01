@@ -380,6 +380,12 @@ export class PaneCompositeBar extends Disposable {
 			this.hideComposite(viewContainer.id);
 		} else {
 			this.addComposite(viewContainer);
+
+			// Activate if this is the active pane composite
+			const activePaneComposite = this.paneCompositePart.getActivePaneComposite();
+			if (activePaneComposite?.getId() === viewContainer.id) {
+				this.compositeBar.activateComposite(viewContainer.id);
+			}
 		}
 	}
 
@@ -451,6 +457,11 @@ export class PaneCompositeBar extends Disposable {
 	getVisiblePaneCompositeIds(): string[] {
 		return this.compositeBar.getVisibleComposites()
 			.filter(v => this.paneCompositePart.getActivePaneComposite()?.getId() === v.id || this.compositeBar.isPinned(v.id))
+			.map(v => v.id);
+	}
+
+	getPaneCompositeIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
 			.map(v => v.id);
 	}
 

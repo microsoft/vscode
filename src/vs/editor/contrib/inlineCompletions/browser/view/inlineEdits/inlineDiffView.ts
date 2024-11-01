@@ -93,7 +93,7 @@ export class OriginalEditorInlineDiffView extends Disposable {
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'char-delete',
-									(i.originalRange.isEmpty() && showEmptyDecorations) && 'diff-range-empty'
+									(i.originalRange.isEmpty() && showEmptyDecorations && !useInlineDiff) && 'diff-range-empty'
 								),
 								inlineClassName: useInlineDiff ? 'strike-through' : null,
 								zIndex: 1
@@ -131,7 +131,5 @@ function allowsTrueInlineDiffRendering(mapping: DetailedLineRangeMapping): boole
 		return false;
 	}
 	return mapping.innerChanges.every(c =>
-		(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange))
-		|| c.originalRange.equalsRange(new Range(1, 1, 1, 1))
-	);
+		(rangeIsSingleLine(c.modifiedRange) && rangeIsSingleLine(c.originalRange)));
 }

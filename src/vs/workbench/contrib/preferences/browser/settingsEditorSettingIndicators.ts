@@ -474,22 +474,18 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					isTrusted: false,
 					supportHtml: false
 				};
-				const showHover = (focus: boolean) => {
-					return this.hoverService.showHover({
-						...this.defaultHoverOptions,
-						content,
-						linkHandler: (url: string) => {
-							const [scope, language] = decodeURIComponent(url).split(':');
-							onDidClickOverrideElement.fire({
-								settingKey: element.setting.key,
-								scope: scope as ScopeString,
-								language
-							});
-						},
-						target: this.scopeOverridesIndicator.element
-					}, focus);
-				};
-				this.addHoverDisposables(this.scopeOverridesIndicator.disposables, this.scopeOverridesIndicator.element, showHover);
+				this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, () => ({
+					...this.defaultHoverOptions,
+					content,
+					linkHandler: (url: string) => {
+						const [scope, language] = decodeURIComponent(url).split(':');
+						onDidClickOverrideElement.fire({
+							settingKey: element.setting.key,
+							scope: scope as ScopeString,
+							language
+						});
+					}
+				}), { setupKeyboardEvents: true }));
 			}
 		}
 		this.render();
@@ -579,6 +575,13 @@ function getAccessibleScopeDisplayMidSentenceText(completeScope: string, languag
 
 export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement, configurationService: IWorkbenchConfigurationService, userDataProfilesService: IUserDataProfilesService, languageService: ILanguageService): string {
 	const ariaLabelSections: string[] = [];
+
+	// Add preview or experimental indicator text
+	if (element.tags?.has('preview')) {
+		ariaLabelSections.push(localize('previewLabel', "Preview"));
+	} else if (element.tags?.has('experimental')) {
+		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
+	}
 
 	// Add workspace trust text
 	if (element.isUntrusted) {

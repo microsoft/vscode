@@ -18,7 +18,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -34,7 +33,7 @@ import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatAgentLocation, IChatAgentService } from '../../common/chatAgents.js';
-import { CONTEXT_CHAT_ENABLED, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INSTALL_ENTITLED, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
@@ -48,6 +47,8 @@ import { clearChatEditor } from './chatClear.js';
 import product from '../../../../../platform/product/common/product.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -95,7 +96,7 @@ class OpenChatGlobalAction extends Action2 {
 			title: OpenChatGlobalAction.TITLE,
 			icon: defaultChat.icon,
 			f1: true,
-			precondition: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED,
+			precondition: ChatContextKeys.panelParticipantRegistered,
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -159,7 +160,7 @@ class ChatHistoryAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.history,
 			f1: true,
-			precondition: CONTEXT_CHAT_ENABLED
+			precondition: ChatContextKeys.enabled
 		});
 	}
 
@@ -264,7 +265,7 @@ class OpenChatEditorAction extends Action2 {
 			title: localize2('interactiveSession.open', "Open Editor"),
 			f1: true,
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_CHAT_ENABLED
+			precondition: ChatContextKeys.enabled
 		});
 	}
 
@@ -285,7 +286,7 @@ class ChatAddAction extends Action2 {
 			category: CHAT_CATEGORY,
 			menu: {
 				id: MenuId.ChatInput,
-				when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
+				when: ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 				group: 'navigation',
 				order: 1
 			}
@@ -330,7 +331,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearInputHistory',
 				title: localize2('interactiveSession.clearHistory.label', "Clear Input History"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -346,7 +347,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.clearHistory',
 				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
-				precondition: CONTEXT_CHAT_ENABLED,
+				precondition: ChatContextKeys.enabled,
 				category: CHAT_CATEGORY,
 				f1: true,
 			});
@@ -380,23 +381,23 @@ export function registerChatActions() {
 			super({
 				id: 'chat.action.focus',
 				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
-				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT),
+				precondition: ContextKeyExpr.and(ChatContextKeys.inChatInput),
 				category: CHAT_CATEGORY,
 				keybinding: [
 					// On mac, require that the cursor is at the top of the input, to avoid stealing cmd+up to move the cursor to the top
 					{
-						when: ContextKeyExpr.and(CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.and(ChatContextKeys.inputCursorAtTop, ChatContextKeys.inQuickChat.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
 					// On win/linux, ctrl+up can always focus the chat list
 					{
-						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.and(ContextKeyExpr.or(IsWindowsContext, IsLinuxContext), ChatContextKeys.inQuickChat.negate()),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.EditorContrib,
 					},
 					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_QUICK_CHAT),
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inQuickChat),
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}
@@ -423,10 +424,10 @@ export function registerChatActions() {
 					{
 						primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT.negate()),
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate(), ChatContextKeys.inQuickChat.negate()),
 					},
 					{
-						when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate(), CONTEXT_IN_QUICK_CHAT),
+						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatInput.negate(), ChatContextKeys.inQuickChat),
 						primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 						weight: KeybindingWeight.WorkbenchContrib,
 					}
@@ -461,7 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	icon: defaultChat.icon,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('config.chat.commandCenter.enabled'),
-		ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_INSTALL_ENTITLED)
+		ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.installEntitled)
 	),
 	order: 10001,
 });
@@ -474,7 +475,7 @@ registerAction2(class ToggleChatControl extends ToggleTitleBarConfigAction {
 			localize('toggle.chatControlsDescription', "Toggle visibility of the Chat Controls in title bar"), 3, false,
 			ContextKeyExpr.and(
 				ContextKeyExpr.has('config.window.commandCenter'),
-				ContextKeyExpr.or(CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED, CONTEXT_CHAT_INSTALL_ENTITLED)
+				ContextKeyExpr.or(ChatContextKeys.panelParticipantRegistered, ChatContextKeys.installEntitled)
 			)
 		);
 	}
@@ -532,20 +533,43 @@ export class ChatCommandCenterRendering implements IWorkbenchContribution {
 
 abstract class BaseInstallChatAction extends Action2 {
 
-	protected abstract getJustification(): string | undefined;
+	protected abstract getJustification(productService: IProductService): string | undefined;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const commandService = accessor.get(ICommandService);
 		const productService = accessor.get(IProductService);
+		const telemetryService = accessor.get(ITelemetryService);
 
-		await extensionsWorkbenchService.install(defaultChat.extensionId, {
-			justification: this.getJustification(),
-			enable: true,
-			installPreReleaseVersion: productService.quality !== 'stable'
-		}, ProgressLocation.Notification);
+		type InstallChatClassification = {
+			owner: 'bpasero';
+			comment: 'Provides insight into chat installation.';
+			installResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the extension was installed successfully, cancelled or failed to install.' };
+			hasJustification: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of window error to understand the nature of the error better.' };
+		};
+		type InstallChatEvent = {
+			hasJustification: boolean;
+			installResult: 'installed' | 'cancelled' | 'failed';
+		};
 
-		await commandService.executeCommand(CHAT_OPEN_ACTION_ID);
+		const justification = this.getJustification(productService);
+
+		let installResult: 'installed' | 'cancelled' | 'failed';
+		try {
+			await extensionsWorkbenchService.install(defaultChat.extensionId, {
+				justification,
+				enable: true,
+				installPreReleaseVersion: productService.quality !== 'stable'
+			}, ProgressLocation.Notification);
+
+			installResult = 'installed';
+		} catch (error) {
+			installResult = isCancellationError(error) ? 'cancelled' : 'failed';
+		}
+
+		telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', {
+			installResult,
+			hasJustification: !!justification
+		});
 	}
 }
 
@@ -563,8 +587,8 @@ class InstallChatWithPromptAction extends BaseInstallChatAction {
 		});
 	}
 
-	protected getJustification(): string {
-		return localize('installChatGlobalAction.justification', "AI support requires this extension.");
+	protected getJustification(productService: IProductService): string {
+		return localize('installChatGlobalAction.justification', "AI features in {0} require this extension. Your account already has access to {1}.", productService.nameShort, defaultChat.name);
 	}
 }
 
@@ -582,7 +606,7 @@ class InstallChatWithoutPromptAction extends BaseInstallChatAction {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 1,
-				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
+				when: ChatContextKeys.panelParticipantRegistered.negate()
 			}
 		});
 	}
@@ -606,12 +630,12 @@ class LearnMoreChatAction extends Action2 {
 				id: MenuId.ChatCommandCenter,
 				group: 'a_atfirst',
 				order: 2,
-				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED.negate()
+				when: ChatContextKeys.panelParticipantRegistered.negate()
 			}, {
 				id: MenuId.ChatCommandCenter,
 				group: 'z_atlast',
 				order: 1,
-				when: CONTEXT_CHAT_PANEL_PARTICIPANT_REGISTERED
+				when: ChatContextKeys.panelParticipantRegistered
 			}]
 		});
 	}

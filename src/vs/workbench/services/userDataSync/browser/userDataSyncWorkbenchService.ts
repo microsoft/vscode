@@ -151,11 +151,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async waitAndInitialize(): Promise<void> {
-		/* wait */
-		await Promise.all([this.extensionService.whenInstalledExtensionsRegistered(), this.userDataInitializationService.whenInitializationFinished()]);
-
-		/* initialize */
 		try {
+			/* wait */
+			await Promise.all([this.extensionService.whenInstalledExtensionsRegistered(), this.userDataInitializationService.whenInitializationFinished()]);
+
+			/* initialize */
 			await this.initialize();
 		} catch (error) {
 			// Do not log if the current window is running extension tests
@@ -181,7 +181,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}
 		}
 
-		await this.update();
+		await this.update('initialize');
 
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
 
@@ -189,12 +189,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			Event.any(
 				this.authenticationService.onDidRegisterAuthenticationProvider,
 				this.authenticationService.onDidUnregisterAuthenticationProvider,
-			), info => this.isSupportedAuthenticationProviderId(info.id))(() => this.update()));
+			), info => this.isSupportedAuthenticationProviderId(info.id))(() => this.update('authentication provider change')));
 
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, isSuccessive => !isSuccessive)(() => this.update('token failure')));
 
 		this._register(Event.filter(this.authenticationService.onDidChangeSessions, e => this.isSupportedAuthenticationProviderId(e.providerId))(({ event }) => this.onDidChangeSessions(event)));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, UserDataSyncWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._store)(() => this.onDidChangeStorage()));
 		this._register(Event.filter(this.userDataSyncAccountService.onTokenFailed, bailout => bailout)(() => this.onDidAuthFailure()));
 		this.hasConflicts.set(this.userDataSyncService.conflicts.length > 0);
 		this._register(this.userDataSyncService.onDidChangeConflicts(conflicts => {
@@ -213,11 +213,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}));
 	}
 
-	private async update(reason?: string): Promise<void> {
-
-		if (reason) {
-			this.logService.info(`Settings Sync: Updating due to ${reason}`);
-		}
+	private async update(reason: string): Promise<void> {
+		this.logService.info(`Settings Sync: Updating due to ${reason}`);
 
 		this.updateAuthenticationProviders();
 		await this.updateCurrentAccount();
@@ -254,7 +251,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			try {
 				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.trace('Settings Sync: Token updated for the account', current.accountName);
+				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -266,7 +263,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -548,6 +545,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (authenticationProvider) {
 			await this.doSignIn(authenticationProvider);
 		} else {
+			if (!this.authenticationProviders.length) {
+				throw new Error(localize('no authentication providers during signin', "Cannot sign in because there are no authentication providers available."));
+			}
 			await this.pick();
 		}
 	}
@@ -688,7 +688,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.currentAuthenticationProviderId = accountOrAuthProvider.authenticationProviderId;
 		}
 		this.currentSessionId = sessionId;
-		await this.update();
+		await this.update('sign in');
 	}
 
 	private async onDidAuthFailure(): Promise<void> {

@@ -2827,7 +2827,6 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 			{
 				'editor.lightbulb.enabled': {
 					type: 'string',
-					tags: ['experimental'],
 					enum: [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On],
 					default: defaults.enabled,
 					enumDescriptions: [
@@ -2890,8 +2889,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor."),
-					tags: ['experimental']
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
@@ -4154,14 +4152,20 @@ export interface IInlineSuggestOptions {
 	edits?: {
 		experimental?: {
 			enabled?: boolean;
+			// side-by-side, mixed lines diff, interleaved lines diff
+			useMixedLinesDiff?: 'never' | 'whenPossible';
 		};
 	};
 }
 
+type RequiredRecursive<T> = {
+	[P in keyof T]-?: T[P] extends object | undefined ? RequiredRecursive<T[P]> : T[P];
+};
+
 /**
  * @internal
  */
-export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+export type InternalInlineSuggestOptions = Readonly<RequiredRecursive<IInlineSuggestOptions>>;
 
 /**
  * Configuration options for inline suggestions
@@ -4179,6 +4183,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			edits: {
 				experimental: {
 					enabled: true,
+					useMixedLinesDiff: 'never',
 				},
 			},
 		};
@@ -4219,8 +4224,14 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				},
 				'editor.inlineSuggest.edits.experimental.enabled': {
 					type: 'boolean',
-					default: defaults.edits!.experimental!.enabled!,
+					default: defaults.edits.experimental.enabled,
 					description: nls.localize('inlineSuggest.edits.experimental.enabled', "Controls whether to enable experimental edits in inline suggestions.")
+				},
+				'editor.inlineSuggest.edits.experimental.useMixedLinesDiff': {
+					type: 'string',
+					default: defaults.edits.experimental.useMixedLinesDiff,
+					description: nls.localize('inlineSuggest.edits.experimental.useMixedLinesDiff', "Controls whether to enable experimental edits in inline suggestions."),
+					enum: ['never', 'whenPossible'],
 				},
 			}
 		);
@@ -4241,7 +4252,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			edits: {
 				experimental: {
-					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental!.enabled!),
+					enabled: boolean(input.edits?.experimental?.enabled, this.defaultValue.edits.experimental.enabled),
+					useMixedLinesDiff: stringSet(input.edits?.experimental?.useMixedLinesDiff, this.defaultValue.edits.experimental.useMixedLinesDiff, ['never', 'whenPossible']),
 				},
 			},
 		};
@@ -5928,7 +5940,7 @@ export const EditorOptions = {
 		250, 0, 2000,
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
-			tags: ['experimental']
+			tags: ['preview']
 		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(

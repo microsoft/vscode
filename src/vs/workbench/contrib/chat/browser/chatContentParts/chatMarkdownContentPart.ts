@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -18,7 +17,7 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { createAndFillInContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -78,6 +77,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text, raw) => {
 				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || raw?.endsWith('```');
+				if ((!text || (text.startsWith('<vscode_codeblock_uri>') && !text.includes('\n'))) && !isCodeBlockComplete && rendererOptions.renderCodeBlockPills) {
+					const hideEmptyCodeblock = $('div');
+					hideEmptyCodeblock.style.display = 'none';
+					return hideEmptyCodeblock;
+				}
 				const index = codeBlockIndex++;
 				let textModel: Promise<IResolvedTextEditorModel>;
 				let range: Range | undefined;
@@ -94,15 +98,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				} else {
 					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
 					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
+					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, index, { text, languageId });
 					vulns = modelEntry.vulns;
-					codemapperUri = modelEntry.codemapperUri;
+					codemapperUri = fastUpdateModelEntry.codemapperUri;
 					textModel = modelEntry.model;
 				}
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const codeBlockInfo = { languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns, codemapperUri };
 
-				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest) {
+				if (!rendererOptions.renderCodeBlockPills || element.isCompleteAddedRequest || !codemapperUri) {
 					const ref = this.renderCodeBlock(codeBlockInfo, text, currentWidth, rendererOptions.editableCodeBlock);
 					this.allRefs.push(ref);
 
@@ -151,7 +156,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						readonly codeBlockIndex = index;
 						readonly element = element;
 						readonly isStreaming = isStreaming;
-						codemapperUri = undefined; // will be set async
+						readonly codemapperUri = codemapperUri;
 						public get uri() {
 							return undefined;
 						}
@@ -302,9 +307,7 @@ class CollapsedCodeBlock extends Disposable {
 				getAnchor: () => event,
 				getActions: () => {
 					const menu = this.menuService.getMenuActions(MenuId.ChatEditingCodeBlockContext, this.contextKeyService, { arg: { sessionId, requestId, uri: this.uri } });
-					const primary: IAction[] = [];
-					createAndFillInContextMenuActions(menu, primary);
-					return primary;
+					return getFlatContextMenuActions(menu);
 				},
 			});
 		}));

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../base/common/arrays.js';
 import { assert, assertFn, checkAdjacentItems } from '../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength, splitLines } from '../../../base/common/strings.js';
@@ -188,6 +189,10 @@ export class TextEdit {
 			}
 		}
 		return new SingleTextEdit(Range.fromPositions(startPos, endPos), newText);
+	}
+
+	equals(other: TextEdit): boolean {
+		return equals(this.edits, other.edits, (a, b) => a.equals(b));
 	}
 }
 

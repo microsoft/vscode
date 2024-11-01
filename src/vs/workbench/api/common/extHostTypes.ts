@@ -5,11 +5,13 @@
 
 /* eslint-disable local/code-no-native-private */
 
+import type * as vscode from 'vscode';
 import { asArray, coalesceInPlace, equals } from '../../../base/common/arrays.js';
 import { illegalArgument } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes, normalizeMimeType } from '../../../base/common/mime.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
@@ -18,9 +20,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
-import { IRelativePatternDto } from './extHost.protocol.js';
 import { CellEditType, ICellMetadataEdit, IDocumentMetadataEdit, isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
-import type * as vscode from 'vscode';
+import { IRelativePatternDto } from './extHost.protocol.js';
 
 /**
  * @deprecated
@@ -4520,13 +4521,12 @@ export class ChatResponseTextEditPart {
 }
 
 export class ChatRequestTurn implements vscode.ChatRequestTurn {
-	toolReferences?: vscode.ChatLanguageModelToolReference[];
-
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
+		readonly toolReferences: vscode.ChatLanguageModelToolReference[]
 	) { }
 }
 
@@ -4598,38 +4598,77 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | LanguageModelToolResultPart, name?: string): LanguageModelChatMessage {
-		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
-		value.content2 = [content];
-		return value;
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string, name?: string): LanguageModelChatMessage {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
-	content: string;
-	content2: (string | vscode.LanguageModelToolResultPart | vscode.LanguageModelToolCallPart)[];
+
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] = [];
+
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[]) {
+		if (typeof value === 'string') {
+			// we changed this and still support setting content with a string property. this keep the API runtime stable
+			// despite the breaking change in the type definition.
+			this._content = [new LanguageModelTextPart(value)];
+		} else {
+			this._content = value;
+		}
+	}
+
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
+		return this._content;
+	}
+
+	// Temp to avoid breaking changes
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined) {
+		if (value) {
+			this.content = value.map(part => {
+				if (typeof part === 'string') {
+					return new LanguageModelTextPart(part);
+				}
+				return part;
+			});
+		}
+	}
+
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[] | undefined {
+		return this.content.map(part => {
+			if (part instanceof LanguageModelTextPart) {
+				return part.value;
+			}
+			return part;
+		});
+	}
+
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
-		this.content2 = [content];
 		this.name = name;
 	}
 }
 
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
-	name: string;
 	callId: string;
+	name: string;
+	input: any;
+
+	/** @deprecated */
 	parameters: any;
 
-	constructor(name: string, toolCallId: string, parameters: any) {
+	constructor(callId: string, name: string, input: any) {
+		this.callId = callId;
 		this.name = name;
-		this.callId = toolCallId;
-		this.parameters = parameters;
+
+		this.input = input;
+		// TODO@API backwards compat, remove
+		this.parameters = input;
 	}
 }
 
@@ -4639,15 +4678,27 @@ export class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	constructor(value: string) {
 		this.value = value;
 	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelTextPart,
+			value: this.value,
+		};
+	}
 }
 
 export class LanguageModelPromptTsxPart {
 	value: unknown;
-	mime: string;
 
-	constructor(value: unknown, mime: string) {
+	constructor(value: unknown) {
 		this.value = value;
-		this.mime = mime;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelPromptTsxPart,
+			value: this.value,
+		};
 	}
 }
 
@@ -4713,7 +4764,14 @@ export class LanguageModelError extends Error {
 }
 
 export class LanguageModelToolResult {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.LanguageModelToolResult,
+			content: this.content,
+		};
+	}
 }
 
 export enum LanguageModelChatToolMode {
