@@ -81,7 +81,12 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 			} else {
 				name = spec.name[0];
 			}
-			if (name) {
+			if (!name || !commandsInPath.has(name)) {
+				continue;
+			}
+
+			const lastWord = terminalContext.commandLine.trim().split(' ').pop() || '';
+			if ((terminalContext.commandLine.endsWith(' ') || terminalContext.commandLine === '') || lastWord && name.startsWith(lastWord)) {
 				result.push({
 					label: name,
 					// kind: (vscode as any).TerminalCompletionItemKind.Method,
@@ -90,8 +95,6 @@ async function getCompletionSpecs(commands: Set<string>): Promise<Fig.Spec[]> {
 					detail: 'description' in spec && spec.description ? spec.description ?? '' : '',
 					// TODO: pass in suggestions and if generators, file type so VS Code handles it
 				});
-			} else {
-				console.warn('No name found in completion spec:', spec);
 			}
 		}
 		console.log(result.length);

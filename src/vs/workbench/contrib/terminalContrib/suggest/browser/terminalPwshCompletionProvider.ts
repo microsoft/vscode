@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalSuggestContribution } from './terminal.suggest.contribution.js';
+import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -41,6 +42,7 @@ export type PwshCompletion = {
 };
 
 export class TerminalPwshCompletionProvider extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
+	public shellTypes = [GeneralShellType.PowerShell];
 	static readonly ID = 'terminal.pwshCompletionProvider';
 	private _codeCompletionsRequested: boolean = false;
 	private _gitCompletionsRequested: boolean = false;

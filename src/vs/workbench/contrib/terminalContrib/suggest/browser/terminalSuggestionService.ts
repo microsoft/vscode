@@ -50,7 +50,7 @@ export enum TerminalCompletionItemKind {
 // TODO: Make this generic; pwsh native one should implement this
 export interface ITerminalCompletionProvider {
 	// TODO: Trigger chat props? etc.
-
+	shellTypes?: TerminalShellType[];
 	provideCompletions(value: string): Promise<ICompletionProviderResult | undefined>;
 }
 
@@ -79,6 +79,9 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const result: ICompletionProviderResult[] = [];
 		for (const providers of this._providers.values()) {
 			for (const provider of providers.values()) {
+				if (provider.shellTypes && !provider.shellTypes.includes(shellType)) {
+					continue;
+				}
 				const completions = await provider.provideCompletions(value);
 				if (completions) {
 					result.push(completions);
