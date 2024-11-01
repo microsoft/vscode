@@ -69,6 +69,8 @@ const CORE_TYPES = [
 	'RequestInit',
 	'Headers',
 	'Response',
+	'Body',
+	'__type',
 	'__global',
 	'PerformanceMark',
 	'PerformanceObserver',

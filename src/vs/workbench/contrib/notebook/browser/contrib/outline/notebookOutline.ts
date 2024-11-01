@@ -42,7 +42,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { Action2, IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { MenuEntryActionViewItem, createAndFillInActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem, getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { NotebookSectionArgs } from '../../controller/sectionActions.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
@@ -250,14 +250,8 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 }
 
 function getOutlineToolbarActions(menu: IMenu, args?: NotebookSectionArgs): { primary: IAction[]; secondary: IAction[] } {
-	const primary: IAction[] = [];
-	const secondary: IAction[] = [];
-	const result = { primary, secondary };
-
 	// TODO: @Yoyokrazy bring the "inline" back when there's an appropriate run in section icon
-	createAndFillInActionBarActions(menu, { shouldForwardArgs: true, arg: args }, result); //, g => /^inline/.test(g));
-
-	return result;
+	return getActionBarActions(menu.getActions({ shouldForwardArgs: true, arg: args })); //, g => /^inline/.test(g));
 }
 
 class NotebookOutlineAccessibility implements IListAccessibilityProvider<OutlineEntry> {

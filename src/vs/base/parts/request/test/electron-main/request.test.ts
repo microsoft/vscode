@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns
 import * as http from 'http';
-// eslint-disable-next-line local/code-import-patterns
 import { AddressInfo } from 'net';
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
-import { request } from '../../browser/request.js';
+import { request } from '../../common/requestImpl.js';
 import { streamToBuffer } from '../../../../common/buffer.js';
-import { flakySuite } from '../../../../test/common/testUtils.js';
 
-flakySuite('Request', () => {
+
+suite('Request', () => {
 
 	let port: number;
 	let server: http.Server;
