@@ -147,7 +147,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(this._promptInputModel.value, this._shellType);
-		console.log('provided completions', providedCompletions?.length);
 		if (!providedCompletions?.length) {
 			return;
 		}

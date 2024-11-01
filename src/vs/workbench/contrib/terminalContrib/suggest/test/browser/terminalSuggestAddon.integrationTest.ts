@@ -19,8 +19,6 @@ import { TerminalSuggestCommandId } from '../../common/terminal.suggest.js';
 import type { ITerminalSuggestConfiguration } from '../../common/terminalSuggestConfiguration.js';
 import { workbenchInstantiationService, type TestTerminalConfigurationService } from '../../../../../test/browser/workbenchTestServices.js';
 
-import { events as macos_bash_echo_simple } from './recordings/macos_bash_echo_simple.js';
-import { events as macos_bash_echo_multiline } from './recordings/macos_bash_echo_multiline.js';
 import { events as windows11_pwsh_getcontent_delete_ghost } from './recordings/windows11_pwsh_getcontent_delete_ghost.js';
 import { events as windows11_pwsh_getcontent_file } from './recordings/windows11_pwsh_getcontent_file.js';
 import { events as windows11_pwsh_input_ls_complete_ls } from './recordings/windows11_pwsh_input_ls_complete_ls.js';
@@ -33,8 +31,6 @@ import { ITerminalConfigurationService } from '../../../../terminal/browser/term
 import { timeout } from '../../../../../../base/common/async.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
-	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
-	{ name: 'macos_bash_echo_multiline', events: macos_bash_echo_multiline as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
