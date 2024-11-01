@@ -95,7 +95,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		this.undoRedoService.pushElement({
 			type: UndoRedoElementType.Resource,
 			resource: _model.uri,
-			label: 'Paste Image',
+			label: tempDisplayName,
 			code: 'pasteImage',
 			undo: () => {
 				widget.attachmentModel.delete(imageContext.id);
@@ -107,7 +107,6 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 		return;
 	}
-
 }
 
 async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string): Promise<IChatRequestVariableEntry | undefined> {
