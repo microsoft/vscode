@@ -5,10 +5,10 @@
 
 import { ICompletionProviderResult, ITerminalCompletionProvider } from './terminalSuggestionService.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import type { ITerminalAddon, Terminal, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { ITerminalAddon, Terminal } from '@xterm/xterm';
+import { Event, Emitter } from '../../../../../base/common/event.js';
 import { ShellIntegrationOscPs } from '../../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
 import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IPromptInputModel, IPromptInputModelState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { sep } from '../../../../../base/common/path.js';
@@ -17,10 +17,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalSuggestContribution } from './terminal.suggest.contribution.js';
 import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -80,39 +80,57 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
-	constructor(_ctx: ITerminalContributionContext, @IConfigurationService private readonly _configurationService: IConfigurationService) {
+	constructor(private readonly _ctx: ITerminalContributionContext, @IConfigurationService private readonly _configurationService: IConfigurationService) {
 		super();
-	}
 
-	activate(xterm: Terminal): void {
-		console.log('activate');
-		this._terminal = xterm;
-		this._register(xterm.onData(async e => {
-			this._lastUserDataTimestamp = Date.now();
+		this._register(Event.runAndSubscribe(Event.any(
+			_ctx.instance.capabilities.onDidAddCapabilityType,
+			_ctx.instance.capabilities.onDidRemoveCapabilityType
+		), () => {
+			const commandDetection = _ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
+			if (commandDetection) {
+				if (this._promptInputModel !== commandDetection.promptInputModel) {
+					this._promptInputModel = commandDetection.promptInputModel;
+				}
+			} else {
+				this._promptInputModel = undefined;
+			}
 		}));
 	}
 
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
-		console.log('xterm ready');
+	activate(xterm: Terminal): void {
+		this._terminal = xterm;
+		console.log(this._terminal !== undefined);
+		console.log('activate');
+		this._register(xterm.onData(() => {
+			this._lastUserDataTimestamp = Date.now();
+		}));
+		this.onAcceptedCompletion(async text => {
+			this._ctx.instance.focus();
+			this._ctx.instance.sendText(text, false);
+		});
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		const enabled = config.enabled;
 		if (!enabled) {
 			return;
 		}
-		this._register(xterm.raw.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => {
 			return this._handleVSCodeSequence(data);
 		}));
 	}
 
 	private _handleVSCodeSequence(data: string): boolean | Promise<boolean> {
+		console.log(this._terminal !== undefined, ' handle sequence');
 		if (!this._terminal) {
 			return false;
 		}
 
 		// Pass the sequence along to the capability
 		const [command, ...args] = data.split(';');
+		console.log(data);
 		switch (command) {
 			case VSCodeSuggestOscPt.Completions:
+
 				this._handleCompletionsSequence(this._terminal, data, command, args);
 				return true;
 		}
@@ -126,12 +144,14 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 
 		// Nothing to handle if the terminal is not attached
 		if (!terminal.element || !this._enableWidget || !this._promptInputModel) {
+			console.log('returning');
 			this._notifyCompletions(undefined);
 			return;
 		}
 
 		// Only show the suggest widget if the terminal is focused
 		if (!dom.isAncestorOfActiveElement(terminal.element)) {
+			console.log('returning');
 			this._notifyCompletions(undefined);
 			return;
 		}
@@ -189,6 +209,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		// const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
 		// this._showCompletions(model);
 		// TODO: fix this type, dont use kind instead use isFile, isDirectory, etc.
+		console.log(completions.length, ' completions');
 		this._notifyCompletions({
 			items: completions.map(c => { return { ...c, label: c.completion.label }; }), replacementIndex, replacementLength
 		});

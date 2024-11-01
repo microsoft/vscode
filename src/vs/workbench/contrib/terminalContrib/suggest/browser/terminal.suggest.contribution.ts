@@ -134,8 +134,8 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 					this._ctx.instance.pauseInputEvents(barrier);
 				}));
 			}
-			if (this._addon.value) {
-				this.add(this._addon.value.onDidReceiveCompletions(() => {
+			if (this._pwshAddon.value) {
+				this.add(this._pwshAddon.value.onDidReceiveCompletions(() => {
 					barrier?.open();
 					barrier = undefined;
 				}));
@@ -148,8 +148,9 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 	private _loadSuggestAddons(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
 		// TODO: experimental setting @meganrogge for zsh/bash?
-		if (sendingKeybindingsToShell || !this._ctx.instance.shellType || !['pwsh', 'zsh', 'bash'].includes(this._ctx.instance.shellType)) {
+		if (sendingKeybindingsToShell || !this._ctx.instance.shellType) {
 			this._addon.clear();
+			this._pwshAddon.clear();
 			return;
 		}
 		if (this._terminalSuggestWidgetVisibleContextKey) {
