@@ -153,7 +153,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		const info = this.editor.getLayoutInfo();
 		let width = info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth);
-		width = Math.min(640, width);
+		width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);
@@ -213,7 +213,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	override updatePositionAndHeight(position: Position): void {
 		const revealZone = this._createZoneAndScrollRestoreFn(position);
-		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
+		super.updatePositionAndHeight(position, !this._usesResizeHeight ? this._computeHeight().linesValue : undefined);
 		revealZone();
 	}
 
