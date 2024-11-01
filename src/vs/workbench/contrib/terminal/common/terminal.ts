@@ -157,7 +157,6 @@ export interface ITerminalConfiguration {
 	mouseWheelScrollSensitivity: number;
 	tabStopWidth: number;
 	sendKeybindingsToShell: boolean;
-	// fontLigatures: boolean;
 	fontSize: number;
 	letterSpacing: number;
 	lineHeight: number;
@@ -210,6 +209,7 @@ export interface ITerminalConfiguration {
 	rescaleOverlappingGlyphs: boolean;
 	experimental?: {
 		windowsUseConptyDll?: boolean;
+		fontLigatures?: boolean;
 	};
 }
 

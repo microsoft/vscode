@@ -14,7 +14,7 @@ import type { ClipboardAddon as ClipboardAddonType, ClipboardSelectionType } fro
 import * as dom from '../../../../../base/browser/dom.js';
 import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalFont, ITerminalConfiguration } from '../../common/terminal.js';
@@ -112,7 +112,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
-	private _ligaturesAddon?: LigaturesAddonType;
+	private readonly _ligaturesAddon: MutableDisposable<LigaturesAddonType> = this._register(new MutableDisposable());
 
 	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
@@ -340,17 +340,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 		}
 
+		this._refreshLigaturesAddon();
+
 		if (!this.raw.element || !this.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
-
-		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
-			if (this._store.isDisposed) {
-				return;
-			}
-			this._ligaturesAddon = this._instantiationService.createInstance(LigaturesAddon);
-			this.raw.loadAddon(this._ligaturesAddon);
-		});
 
 		const ad = this._attachedDisposables;
 		ad.clear();
@@ -715,6 +709,26 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _disableWebglForThisSession() {
 		XtermTerminal._suggestedRendererType = 'dom';
 		this._disposeOfWebglRenderer();
+	}
+
+	@debounce(100)
+	private async _refreshLigaturesAddon(): Promise<void> {
+		if (!this.raw.element) {
+			return;
+		}
+		if (this._terminalConfigurationService.config.experimental?.fontLigatures) {
+			if (!this._ligaturesAddon.value) {
+				this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
+					if (this._store.isDisposed) {
+						return;
+					}
+					this._ligaturesAddon.value = this._instantiationService.createInstance(LigaturesAddon);
+					this.raw.loadAddon(this._ligaturesAddon.value);
+				});
+			}
+		} else {
+			this._ligaturesAddon.clear();
+		}
 	}
 
 	@debounce(100)
