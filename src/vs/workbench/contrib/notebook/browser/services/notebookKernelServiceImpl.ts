@@ -298,6 +298,18 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		}
 	}
 
+	preselectKernelForRepl(notebook: INotebookTextModelLike): void {
+		const preferredKernels = this._notebookService.getNotebookTextModel(notebook.uri)?.preferredReplKernels;
+		const preferredId = preferredKernels?.values().next().value;
+		if (preferredId && preferredKernels.size === 1) {
+			const kernel = this._kernels.get(preferredId);
+
+			if (kernel) {
+				this.preselectKernelForNotebook(kernel.kernel, notebook);
+			}
+		}
+	}
+
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
 		const info = this._kernels.get(kernel.id);
 		if (!info) {
@@ -308,7 +320,16 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		} else {
 			info.notebookPriorities.set(notebook, preference);
 		}
+		this.setReplKernelAffinity(kernel, notebook, preference);
 		this._onDidChangeNotebookAffinity.fire();
+	}
+
+	setReplKernelAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
+		if (preference === 2) {
+			this._notebookService.getNotebookTextModel(notebook)?.preferredReplKernels.add(kernel.id);
+		} else {
+			this._notebookService.getNotebookTextModel(notebook)?.preferredReplKernels.delete(kernel.id);
+		}
 	}
 
 	getRunningSourceActions(notebook: INotebookTextModelLike) {

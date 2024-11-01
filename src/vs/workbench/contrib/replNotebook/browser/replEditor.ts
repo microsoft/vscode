@@ -59,6 +59,7 @@ import { ReplInputHintContentWidget } from '../../interactive/browser/replInputH
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
 
@@ -397,6 +398,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 			this._inputCellContainer.style.width = `${this._lastLayoutDimensions.dimension.width}px`;
 		}
 
+		this.setKernel({ uri: input.resource, notebookType: input.viewType });
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 		if (this._runbuttonToolbar) {
@@ -526,6 +528,13 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._syncWithKernel();
 	}
 
+	private setKernel(notebookInfo: { uri: URI; notebookType: string }) {
+		const { selected } = this._notebookKernelService.getMatchingKernel(notebookInfo);
+		if (!selected) {
+			this._notebookKernelService.preselectKernelForRepl(notebookInfo);
+		}
+	}
+
 	override setOptions(options: INotebookEditorOptions | undefined): void {
 		this._notebookWidget.value?.setOptions(options);
 		super.setOptions(options);
@@ -565,19 +574,17 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 
 		if (notebook && textModel) {
 			const info = this._notebookKernelService.getMatchingKernel(notebook);
-			const selectedOrSuggested = info.selected
-				?? (info.suggestions.length === 1 ? info.suggestions[0] : undefined)
-				?? (info.all.length === 1 ? info.all[0] : undefined);
+			const selected = info.selected ?? info.all.length === 1 ? info.all[0] : undefined;
 
-			if (selectedOrSuggested) {
-				const language = selectedOrSuggested.supportedLanguages[0];
+			if (selected) {
+				const language = selected.supportedLanguages[0];
 				// All kernels will initially list plaintext as the supported language before they properly initialized.
 				if (language && language !== 'plaintext') {
 					const newMode = this._languageService.createById(language).languageId;
 					textModel.setLanguage(newMode);
 				}
 
-				NOTEBOOK_KERNEL.bindTo(this._contextKeyService).set(selectedOrSuggested.id);
+				NOTEBOOK_KERNEL.bindTo(this._contextKeyService).set(selected.id);
 			}
 		}
 	}

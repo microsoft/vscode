@@ -186,6 +186,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private readonly _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
 	private _defaultCollapseConfig: NotebookCellDefaultCollapseConfig | undefined;
+	private _preferredKernels: Set<string> = new Set();
 
 	metadata: NotebookDocumentMetadata = {};
 	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} };
@@ -221,6 +222,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	get notebookType() {
 		return this.viewType;
+	}
+
+	get preferredReplKernels() {
+		return this._preferredKernels;
 	}
 
 	constructor(
