@@ -88,6 +88,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	static readonly id: string = 'notebook.multiCursorController';
 
 	private word: string = '';
+	private startPosition: {
+		cellIndex: number;
+		position: Position;
+	} | undefined;
 	private trackedMatches: TrackedMatch[] = [];
 
 	private readonly _onDidChangeAnchorCell = this._register(new Emitter<void>());
@@ -439,6 +443,8 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		this.cursorsDisposables.clear();
 		this.cursorsControllers.clear();
 		this.trackedMatches = [];
+		this.startPosition = undefined;
+		this.word = '';
 	}
 
 	public async findAndTrackNextSelection(cell: ICellViewModel): Promise<void> {
@@ -454,6 +460,16 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return;
 			}
 			this.word = word.word;
+
+			const index = this.notebookEditor.getCellIndex(cell);
+			if (index === undefined) {
+				return;
+			}
+
+			this.startPosition = {
+				cellIndex: index,
+				position: new Position(inputSelection.startLineNumber, word.startColumn),
+			};
 
 			const newSelection = new Selection(
 				inputSelection.startLineNumber,
@@ -501,12 +517,16 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
 			const notebookTextModel = this.notebookEditor.textModel;
 			if (!notebookTextModel) {
-				return;
+				return; // should not happen
 			}
 
 			const index = this.notebookEditor.getCellIndex(cell);
 			if (index === undefined) {
-				return;
+				return; // should not happen
+			}
+
+			if (!this.startPosition) {
+				return; // should not happen
 			}
 
 			const findResult = notebookTextModel.findNextMatch(
@@ -514,10 +534,12 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				{ cellIndex: index, position: cell.getSelections()[cell.getSelections().length - 1].getEndPosition() },
 				false,
 				true,
-				USUAL_WORD_SEPARATORS //! might want to get these from the editor config
+				USUAL_WORD_SEPARATORS,
+				this.startPosition,
 			);
 			if (!findResult) {
-				return; //todo: some sort of message to the user alerting them that there are no more matches? editor does not do this
+				this.state = NotebookMultiCursorState.Editing;
+				return;
 			}
 
 			const resultCellViewModel = this.notebookEditor.getCellByHandle(findResult.cell.handle);
@@ -525,7 +547,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 				return;
 			}
 
-			let newMatch: TrackedMatch;
+			let newMatch: TrackedMatch | undefined;
 			if (findResult.cell.handle === cell.handle) { // match is in the same cell, find tracked entry, update and set selections in viewmodel and cursorController
 				newMatch = this.trackedMatches.find(match => match.cellViewModel.handle === findResult.cell.handle)!;
 				newMatch.wordSelections.push(Selection.fromRange(findResult.match.range, SelectionDirection.LTR));
@@ -537,7 +559,6 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					return;
 				}
 				controller.setSelections(new ViewModelEventsCollector(), undefined, newMatch.wordSelections, CursorChangeReason.Explicit);
-
 			} else if (findResult.cell.handle !== cell.handle) {	// result is in a different cell, move focus there and apply selection, then update anchor
 				await this.notebookEditor.revealRangeInViewAsync(resultCellViewModel, findResult.match.range);
 				this.notebookEditor.focusNotebookCell(resultCellViewModel, 'editor');
@@ -566,17 +587,29 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 					cursorSmoothCaretAnimation: rawEditorOptions.cursorSmoothCaretAnimation!
 				};
 
-				newMatch = {
-					cellViewModel: resultCellViewModel,
-					initialSelection: initialSelection,
-					wordSelections: [newSelection],
-					editorConfig: editorConfig,
-					cursorConfig: cursorConfig,
-					decorationIds: [],
-					undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
-				} satisfies TrackedMatch;
-				this.trackedMatches.push(newMatch);
-
+				newMatch = this.trackedMatches.find(match => match.cellViewModel.handle === findResult.cell.handle);
+				if (newMatch) {
+					newMatch.wordSelections.push(Selection.fromRange(findResult.match.range, SelectionDirection.LTR));
+					this.clearDecorations(newMatch); // clear old decorations for this cell, since we are active here again
+					resultCellViewModel.setSelections(newMatch.wordSelections);
+					const controller = this.cursorsControllers.get(newMatch.cellViewModel.uri);
+					if (!controller) {
+						// should not happen
+						return;
+					}
+					controller.setSelections(new ViewModelEventsCollector(), undefined, newMatch.wordSelections, CursorChangeReason.Explicit);
+				} else {
+					newMatch = {
+						cellViewModel: resultCellViewModel,
+						initialSelection: initialSelection,
+						wordSelections: [newSelection],
+						editorConfig: editorConfig,
+						cursorConfig: cursorConfig,
+						decorationIds: [],
+						undoRedoHistory: this.undoRedoService.getElements(resultCellViewModel.uri)
+					} satisfies TrackedMatch;
+					this.trackedMatches.push(newMatch);
+				}
 				this._onDidChangeAnchorCell.fire();
 
 				// we set the decorations manually for the cell we have just departed, since it blurs
@@ -696,7 +729,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 	 *
 	 * @param match -- match object containing the viewmodel + selections
 	 */
-	private initializeMultiSelectDecorations(match: TrackedMatch | undefined, isCurrentWord?: boolean) {
+	private initializeMultiSelectDecorations(match: TrackedMatch | undefined) {
 		if (!match) {
 			return;
 		}
