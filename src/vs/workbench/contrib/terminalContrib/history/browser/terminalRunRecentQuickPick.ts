@@ -155,20 +155,27 @@ export async function showRunRecentQuickPick(
 
 		// Gather shell file history
 		const shellFileHistory = await instantiationService.invokeFunction(getShellFileHistory, instance.shellType);
-		const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
-		for (const label of shellFileHistory) {
-			if (!commandMap.has(label)) {
-				dedupedShellFileItems.unshift({
-					label: formatLabel(label),
-					rawLabel: label
-				});
+		if (shellFileHistory !== undefined) {
+			const dedupedShellFileItems: (IQuickPickItem & { rawLabel: string })[] = [];
+			for (const label of shellFileHistory.commands) {
+				if (!commandMap.has(label)) {
+					dedupedShellFileItems.unshift({
+						label: formatLabel(label),
+						rawLabel: label
+					});
+				}
 			}
-		}
-		if (dedupedShellFileItems.length > 0) {
-			items.push(
-				{ type: 'separator', label: localize('shellFileHistoryCategory', '{0} history', instance.shellType) },
-				...dedupedShellFileItems,
-			);
+			if (dedupedShellFileItems.length > 0) {
+				items.push(
+					{
+						type: 'separator',
+						label: shellFileHistory.source === undefined
+							? localize('shellFileHistoryCategory', '{0} history', instance.shellType)
+							: shellFileHistory.source
+					},
+					...dedupedShellFileItems,
+				);
+			}
 		}
 	} else {
 		placeholder = isMacintosh
