@@ -481,10 +481,6 @@ export class DebugSession implements IDebugSession, IDisposable {
 		if (breakpointsToSend.length && !rawSource.adapterData) {
 			rawSource.adapterData = breakpointsToSend[0].adapterData;
 		}
-		// Normalize all drive letters going out from vscode to debug adapters so we are consistent with our resolving #43959
-		if (rawSource.path) {
-			rawSource.path = normalizeDriveLetter(rawSource.path);
-		}
 
 		const response = await this.raw.setBreakpoints({
 			source: rawSource,
@@ -1506,10 +1502,17 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	private getRawSource(uri: URI): DebugProtocol.Source {
 		const source = this.getSourceForUri(uri);
+		const data = Source.getEncodedDebugData(uri);
+
 		if (source) {
+			if (source.raw.path) {
+				// Always use normalized canonical path for consistency #232088
+				// Normalize all drive letters going out from vscode to debug adapters so we are consistent with our resolving #43959
+				source.raw.path = normalizeDriveLetter(data.path);
+			}
+
 			return source.raw;
 		} else {
-			const data = Source.getEncodedDebugData(uri);
 			return { name: data.name, path: data.path, sourceReference: data.sourceReference };
 		}
 	}
