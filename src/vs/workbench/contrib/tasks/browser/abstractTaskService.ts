@@ -619,8 +619,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const hasLoggedTypeActivation = type && !this._activatedTaskProviders.has(type);
-		if (hasLoggedTypeActivation) {
+		const hasLoggedActivation = this._activatedTaskProviders.has(type ?? 'all');
+		if (!hasLoggedActivation) {
 			this._log('Activating task providers ' + (type ?? 'all'));
 		}
 		const result = await raceTimeout(
@@ -628,8 +628,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			5000,
 			() => console.warn('Timed out activating extensions for task providers')
 		);
-		if (result && !hasLoggedTypeActivation) {
-			this._activatedTaskProviders.add(type!);
+		if (result) {
+			this._activatedTaskProviders.add(type ?? 'all');
 		}
 	}
 
