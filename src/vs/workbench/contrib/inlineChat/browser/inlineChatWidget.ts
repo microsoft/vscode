@@ -116,9 +116,6 @@ export class InlineChatWidget {
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
-	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
-	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
-
 	private readonly _requestInProgress = observableValue(this, false);
 	readonly requestInProgress: IObservable<boolean> = this._requestInProgress;
 
