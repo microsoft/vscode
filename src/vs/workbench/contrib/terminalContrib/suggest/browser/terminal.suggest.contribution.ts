@@ -15,9 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
-import { SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
@@ -30,10 +28,6 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
 import { TerminalPwshCompletionProvider } from './terminalPwshCompletionProvider.js';
-
-const enum Constants {
-	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
-}
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -52,43 +46,19 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
-
-	static readonly cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
+	get pwshAddon(): TerminalPwshCompletionProvider | undefined { return this._pwshAddon.value; }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalCompletionService private readonly _completionService: ITerminalCompletionService
 	) {
 		super();
 		this.add(toDisposable(() => this._addon?.dispose()));
 		this.add(toDisposable(() => this._pwshAddon?.dispose()));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
-
-		// Attempt to load cached pwsh commands if not already loaded
-		if (TerminalSuggestContribution.cachedPwshCommands.size === 0) {
-			const config = this._storageService.get(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION, undefined);
-			if (config !== undefined) {
-				const completions = JSON.parse(config);
-				for (const c of completions) {
-					TerminalSuggestContribution.cachedPwshCommands.add(c);
-				}
-			}
-		}
-
-		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
-				this.clearSuggestCache();
-			}
-		}));
-	}
-
-	clearSuggestCache(): void {
-		TerminalSuggestContribution.cachedPwshCommands.clear();
-		this._storageService.remove(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION);
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -285,7 +255,7 @@ registerActiveInstanceAction({
 	id: TerminalSuggestCommandId.ClearSuggestCache,
 	title: localize2('workbench.action.terminal.clearSuggestCache', 'Clear Suggest Cache'),
 	f1: true,
-	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.clearSuggestCache()
+	run: (activeInstance) => TerminalSuggestContribution.get(activeInstance)?.pwshAddon?.clearSuggestCache()
 });
 
 // #endregion

@@ -15,12 +15,12 @@ import { sep } from '../../../../../base/common/path.js';
 import { normalizePathSeparator, SuggestAddon } from './terminalSuggestAddon.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
+import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
-import { TerminalSuggestContribution } from './terminal.suggest.contribution.js';
 import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -40,6 +40,10 @@ export type PwshCompletion = {
 	ToolTip?: string;
 	CustomIcon?: string;
 };
+
+const enum Constants {
+	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
+}
 
 export class TerminalPwshCompletionProvider extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	public shellTypes = [GeneralShellType.PowerShell];
@@ -80,7 +84,13 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
-	constructor(private readonly _ctx: ITerminalContributionContext, @IConfigurationService private readonly _configurationService: IConfigurationService) {
+	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
+
+	constructor(
+		private readonly _ctx: ITerminalContributionContext,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IStorageService private readonly _storageService: IStorageService
+	) {
 		super();
 
 		this._register(Event.runAndSubscribe(Event.any(
@@ -96,6 +106,28 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 				this._promptInputModel = undefined;
 			}
 		}));
+
+		// Attempt to load cached pwsh commands if not already loaded
+		if (this._cachedPwshCommands.size === 0) {
+			const config = this._storageService.get(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION, undefined);
+			if (config !== undefined) {
+				const completions = JSON.parse(config);
+				for (const c of completions) {
+					this._cachedPwshCommands.add(c);
+				}
+			}
+		}
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSuggestSettingId.Enabled)) {
+				this.clearSuggestCache();
+			}
+		}));
+	}
+
+	clearSuggestCache(): void {
+		this._cachedPwshCommands.clear();
+		this._storageService.remove(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION);
 	}
 
 	activate(xterm: Terminal): void {
@@ -176,7 +208,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		}
 		// This is a global command, add cached commands list to completions
 		else {
-			completions.push(...TerminalSuggestContribution.cachedPwshCommands);
+			completions.push(...this._cachedPwshCommands);
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.completion.isDirectory)) {
@@ -234,7 +266,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		}
 
 		// Request global pwsh completions if there are none cached
-		if (TerminalSuggestContribution.cachedPwshCommands.size === 0) {
+		if (this._cachedPwshCommands.size === 0) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 		}
 
