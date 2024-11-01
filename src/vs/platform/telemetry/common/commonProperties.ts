@@ -34,7 +34,7 @@ export function resolveCommonProperties(
 	result['common.machineId'] = machineId;
 	// __GDPR__COMMON__ "common.sqmId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
 	result['common.sqmId'] = sqmId;
-	// __GDPR__COMMON__ "common.devDeviceId" : { "endPoint": "SqmUserId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
+	// __GDPR__COMMON__ "common.devDeviceId" : { "endPoint": "SqmMachineId", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight" }
 	result['common.devDeviceId'] = devDeviceId;
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = generateUuid() + Date.now();

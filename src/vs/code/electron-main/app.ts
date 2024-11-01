@@ -146,8 +146,7 @@ export class CodeApplication extends Disposable {
 		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService
 	) {
 		super();
 
@@ -1377,7 +1376,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Validate Device ID is up to date
-		validatedevDeviceId(this.stateService, this.logService, this.telemetryService);
+		validatedevDeviceId(this.stateService, this.logService);
 	}
 
 	private async installMutex(): Promise<void> {
