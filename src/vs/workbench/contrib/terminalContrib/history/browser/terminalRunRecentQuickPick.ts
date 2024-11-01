@@ -130,7 +130,11 @@ export async function showRunRecentQuickPick(
 			});
 		}
 		if (items.length > 0) {
-			items.unshift({ type: 'separator', buttons: [], label: terminalStrings.currentSessionCategory });
+			items.unshift({
+				type: 'separator',
+				buttons: [], // HACK: Force full sized separators as there's no flag currently
+				label: terminalStrings.currentSessionCategory
+			});
 		}
 
 		// Gather previous session history
@@ -150,7 +154,11 @@ export async function showRunRecentQuickPick(
 
 		if (previousSessionItems.length > 0) {
 			items.push(
-				{ type: 'separator', buttons: [], label: terminalStrings.previousSessionCategory },
+				{
+					type: 'separator',
+					buttons: [], // HACK: Force full sized separators as there's no flag currently
+					label: terminalStrings.previousSessionCategory
+				},
 				...previousSessionItems,
 			);
 		}
