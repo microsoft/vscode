@@ -12,7 +12,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
@@ -119,6 +119,9 @@ export class InlineChatWidget {
 	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
 
+	private readonly _requestInProgress = observableValue(this, false);
+	readonly requestInProgress: IObservable<boolean> = this._requestInProgress;
+
 	private _isLayouting: boolean = false;
 
 	readonly scopedContextKeyService: IContextKeyService;
@@ -157,17 +160,16 @@ export class InlineChatWidget {
 				renderFollowups: true,
 				supportsFileReferences: true,
 				filter: item => {
-					if (isResponseVM(item) && item.isComplete && !item.errorDetails) {
-						// filter responses that
-						// - are just text edits(prevents the "Made Edits")
-						// - are all empty
-						if (item.response.value.length > 0 && item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
-							return false;
-						}
-						if (item.response.value.length === 0) {
-							return false;
-						}
+					if (!isResponseVM(item) || item.errorDetails) {
+						// show all requests and errors
 						return true;
+					}
+					const emptyResponse = item.response.value.length === 0;
+					if (emptyResponse) {
+						return false;
+					}
+					if (item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+						return false;
 					}
 					return true;
 				},
@@ -212,6 +214,8 @@ export class InlineChatWidget {
 			}));
 
 			viewModelStore.add(viewModel.onDidChange(() => {
+
+				this._requestInProgress.set(viewModel.requestInProgress, undefined);
 
 				const last = viewModel.getItems().at(-1);
 				toolbar2.context = last;

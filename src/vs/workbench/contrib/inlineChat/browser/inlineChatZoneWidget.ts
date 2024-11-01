@@ -5,6 +5,7 @@
 import { addDisposableListener, Dimension } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -111,6 +112,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 
 		this.create();
+
+		this._disposables.add(autorun(r => {
+			const isBusy = this.widget.requestInProgress.read(r);
+			this.domNode.firstElementChild?.classList.toggle('busy', isBusy);
+		}));
 
 		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
 			if (!this.editor.hasWidgetFocus() && !this.widget.hasFocus()) {

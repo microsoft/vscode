@@ -75,6 +75,7 @@ export interface IChatRequestViewModel {
 	readonly workingSet?: ReadonlyArray<URI>;
 	readonly confirmation?: string;
 	readonly isHidden: boolean;
+	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 }
 
@@ -331,7 +332,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
-		return this.id + `_${ChatModelInitState[this._model.session.initState]}_${hash(this.variables)}`;
+		return this.id + `_${ChatModelInitState[this._model.session.initState]}_${hash(this.variables)}_${hash(this.isComplete)}`;
 	}
 
 	get sessionId() {
@@ -372,6 +373,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get confirmation() {
 		return this._model.confirmation;
+	}
+
+	get isComplete() {
+		return this._model.response?.isComplete ?? false;
 	}
 
 	get isCompleteAddedRequest() {
