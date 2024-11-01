@@ -219,7 +219,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	readonly viewContext: IChatWidgetViewContext;
 
 	private _activeElement: HTMLElement | undefined;
-	private _lastEventWasFromKeyboard: boolean = false;
 
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
