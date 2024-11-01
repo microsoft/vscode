@@ -490,18 +490,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 
 	private _scrollToActiveElement(element: HTMLElement) {
-		const containerRect = this.listContainer.getBoundingClientRect();
+		const containerRect = this.tree.getHTMLElement().getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
 		const topOffset = elementRect.top - containerRect.top;
-		const bottomOffset = elementRect.bottom - containerRect.bottom + containerRect.height - elementRect.height;
 
 		if (topOffset < 0) {
 			// Scroll up
 			this.tree.scrollTop += topOffset;
-		} else if (bottomOffset > 0) {
+		} else if (element.offsetTop > this.listContainer.clientHeight) {
 			// Scroll down
-			this.tree.scrollTop += bottomOffset;
+			this.tree.scrollTop += topOffset;
 		}
 	}
 
