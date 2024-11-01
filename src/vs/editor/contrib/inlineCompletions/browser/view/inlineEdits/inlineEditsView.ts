@@ -74,13 +74,12 @@ export class InlineEditsView extends Disposable {
 			left: '0px',
 		},
 	}, [
+		svgElem('svg@svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, []),
 		h('div.editorContainer@editorContainer', { style: { position: 'absolute' } }, [
 			h('div.preview@editor', { style: {} }),
 			h('div.toolbar@toolbar', { style: {} }),
 		]),
-		svgElem('svg@svg', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, [
-
-		]),
+		svgElem('svg@svg2', { style: { overflow: 'visible', pointerEvents: 'none', position: 'absolute' }, }, []),
 	]);
 
 	private readonly _diffPresentationMode = observableCodeEditor(this._editor).getOption(EditorOption.inlineSuggest).map(s => s.edits.experimental.useMixedLinesDiff);
@@ -143,6 +142,12 @@ export class InlineEditsView extends Disposable {
 			pathBuilder3.moveTo(layoutInfo.code1);
 			pathBuilder3.lineTo(layoutInfo.code2);
 
+			const pathBuilder4 = new PathBuilder();
+			pathBuilder4.moveTo(layoutInfo.code1);
+			pathBuilder4.lineTo(layoutInfo.code1.deltaX(1000));
+			pathBuilder4.lineTo(layoutInfo.code2.deltaX(1000));
+			pathBuilder4.lineTo(layoutInfo.code2);
+
 			const path1 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path1.setAttribute('d', pathBuilder1.build());
 			path1.style.fill = 'var(--vscode-inlineEdit-originalBackground, transparent)';
@@ -155,12 +160,22 @@ export class InlineEditsView extends Disposable {
 			path2.style.stroke = 'var(--vscode-inlineEdit-border)';
 			path2.style.strokeWidth = '1px';
 
+			const pathModifiedBackground = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			pathModifiedBackground.setAttribute('d', pathBuilder2.build());
+			pathModifiedBackground.style.fill = 'var(--vscode-editor-background, transparent)';
+			pathModifiedBackground.style.strokeWidth = '1px';
+
 			const path3 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 			path3.setAttribute('d', pathBuilder3.build());
 			path3.style.stroke = 'var(--vscode-inlineEdit-border)';
 			path3.style.strokeWidth = '1px';
 
-			this._elements.svg.replaceChildren(path1, path2, path3);
+			const path4 = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+			path4.setAttribute('d', pathBuilder4.build());
+			path4.style.fill = 'var(--vscode-editor-background, transparent)';
+
+			this._elements.svg.replaceChildren(path4, pathModifiedBackground);
+			this._elements.svg2.replaceChildren(path1, path2, path3);
 
 			this._elements.editorContainer.style.top = `${topEdit.y}px`;
 			this._elements.editorContainer.style.left = `${topEdit.x}px`;
@@ -348,7 +363,13 @@ export class InlineEditsView extends Disposable {
 		const maxLeft = maxLeftInRange(this._editorObs, state.originalDisplayRange, reader);
 		const contentLeft = this._editorObs.layoutInfoContentLeft.read(reader);
 
-		return { left: contentLeft + maxLeft };
+		const editorLayoutInfo = this._editorObs.layoutInfo.read(reader);
+
+		const minLeft = (editorLayoutInfo.width - editorLayoutInfo.minimap.minimapWidth) * 0.65;
+
+		const scrollLeft = this._editorObs.scrollLeft.read(reader);
+
+		return { left: Math.min(contentLeft + maxLeft, minLeft + scrollLeft) };
 	});
 
 	/**
