@@ -173,6 +173,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private scrollLock = true;
 
+	private _isScrolling = false;
+
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 	private set viewModel(viewModel: ChatViewModel | undefined) {
@@ -459,30 +461,82 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.instantiationService.createInstance(ChatDragAndDrop, this.container, this.inputPart, this.styles));
 		this._register((this.chatWidgetService as ChatWidgetService).register(this));
-
-		this._setupFocusObserver();
 	}
 
 	private _setupFocusObserver(): void {
+		let isObserverEnabled = true;
+		this._isScrolling = false;
+
+		// Define the callback function for the Intersection Observer
+		const callback = (entries: IntersectionObserverEntry[]) => {
+			entries.forEach(entry => {
+				if (!entry.isIntersecting && !this._isScrolling) {
+					// If the element goes out of view, scroll to it
+					// This prevents recursion
+					this._isScrolling = true;
+					this._scrollToActiveElement(entry.target as HTMLElement);
+				}
+			});
+		};
+
+		const observer = new IntersectionObserver(callback, {
+			root: this.listContainer.querySelector('.monaco-scrollable-element'),
+			threshold: 0,
+		});
+
+		const observeActiveElement = () => {
+			// Enable observer only for the active element if it is not already observed
+			if (this._activeElement && isObserverEnabled) {
+				observer.observe(this._activeElement);
+			}
+		};
+
+		// Disconnect observer on mousedown or scroll to avoid interference
+		const disableObserver = () => {
+			if (isObserverEnabled) {
+				observer.disconnect();
+				isObserverEnabled = false;
+			}
+		};
+
+		// Re-enable observer on keyboard interaction only if disabled
+		const enableObserverOnKeydown = () => {
+			if (!isObserverEnabled) {
+				isObserverEnabled = true;
+				observeActiveElement();
+			}
+		};
+
+		this.listContainer.addEventListener('scroll', disableObserver);
+		this.listContainer.addEventListener('mousedown', disableObserver);
+		dom.getActiveWindow().addEventListener('keydown', enableObserverOnKeydown);
+
+		// Listen for changes in the active (focused) element
 		this.listContainer.addEventListener('focus', () => {
 			const element = dom.getActiveElement() as HTMLElement | null;
 			if (this._activeElement !== element && element !== null) {
+				// Unobserve the previous element, if any
+				if (this._activeElement) {
+					observer.unobserve(this._activeElement);
+				}
+
+				// Update the active element and observe it if the observer is enabled
 				this._activeElement = element;
-				this._scrollToActiveElement(this._activeElement);
+				if (isObserverEnabled) {
+					observeActiveElement();
+				}
 			}
 		}, true);
 	}
 
-
 	private _scrollToActiveElement(element: HTMLElement) {
 		const containerRect = this.tree.getHTMLElement().getBoundingClientRect();
-		// the list container does not overflow below, so we have to use the monaco list rows to get the
-		// relative position below
 		const fullScrollRect = this.listContainer.querySelector('.monaco-list-rows')!.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
 		const topOffset = elementRect.top - containerRect.top;
 		const fullBottom = fullScrollRect.bottom - elementRect.bottom;
+
 		if (topOffset < 0) {
 			// Scroll up
 			this.tree.scrollTop += topOffset;
@@ -490,7 +544,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Scroll down
 			this.tree.scrollTop = this.tree.scrollHeight - this.tree.renderHeight - fullBottom;
 		}
+
+		// Allow observer to work again after the scroll is complete
+		setTimeout(() => {
+			this._isScrolling = false;
+		}, 100);
 	}
+
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
 		return this.contribs.find(c => c.id === id) as T;
@@ -589,6 +649,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			} else {
 				this.renderFollowups(undefined);
 			}
+			this._setupFocusObserver();
 		}
 	}
 
