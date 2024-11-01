@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IDataTransferItem, IReadonlyVSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { IRange } from '../../../../editor/common/core/range.js';
-import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
+import { DocumentPasteContext, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -17,6 +17,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../common/chatModel.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
+import { IUndoRedoService, UndoRedoElementType } from '../../../../platform/undoRedo/common/undoRedo.js';
+
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
 
@@ -25,7 +27,8 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	public readonly pasteMimeTypes = ['image/*'];
 	constructor(
 		private readonly chatWidgetService: IChatWidgetService,
-		private readonly extensionService: IExtensionService
+		private readonly extensionService: IExtensionService,
+		private readonly undoRedoService: IUndoRedoService
 	) { }
 
 	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -89,23 +92,20 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 
 		widget.attachmentModel.addContext(imageContext);
 
-		const textEntry = dataTransfer.get(mimeType);
-		if (!textEntry) {
-			return;
-		}
+		this.undoRedoService.pushElement({
+			type: UndoRedoElementType.Resource,
+			resource: _model.uri,
+			label: 'Paste Image',
+			code: 'pasteImage',
+			undo: () => {
+				widget.attachmentModel.delete(imageContext.id);
+			},
+			redo: () => {
+				widget.attachmentModel.addContext(imageContext);
+			}
+		});
 
-		const insertText = await textEntry.asString();
-		const edit: DocumentPasteEdit = {
-			handledMimeType: mimeType,
-			title: localize('text.label', "Insert Plain Text"),
-			insertText: `${insertText} inserted text`,
-			kind: this.kind,
-		};
-
-		return {
-			edits: [{ insertText: edit.insertText, title: edit.title, kind: edit.kind, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo }],
-			dispose() { },
-		};
+		return;
 	}
 
 }
@@ -157,9 +157,10 @@ export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
-		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, undoRedoService)));
 	}
 }
