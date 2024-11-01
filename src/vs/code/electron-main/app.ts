@@ -170,18 +170,17 @@ export class CodeApplication extends Disposable {
 		]);
 
 		const allowedPermissionsInCore = new Set([
-			'media'
+			'media',
+			'local-fonts',
 		]);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
-
 			if (isUrlFromWindow(details.requestingUrl)) {
 				return callback(allowedPermissionsInCore.has(permission));
 			}
-
 			return callback(false);
 		});
 

@@ -6,6 +6,7 @@
 import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
+import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
@@ -77,7 +78,7 @@ export interface IXtermTerminalOptions {
 	/** Whether to disable shell integration telemetry reporting. */
 	disableShellIntegrationReporting?: boolean;
 	/** The object that imports xterm addons, set this to inject an importer in tests. */
-	xtermAddonImpoter?: XtermAddonImporter;
+	xtermAddonImporter?: XtermAddonImporter;
 }
 
 /**
@@ -111,6 +112,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 	private _imageAddon?: ImageAddonType;
+	private _ligaturesAddon?: LigaturesAddonType;
 
 	private readonly _attachedDisposables = this._register(new DisposableStore());
 	private readonly _anyTerminalFocusContextKey: IContextKey<boolean>;
@@ -176,7 +178,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	) {
 		super();
 
-		this._xtermAddonLoader = options.xtermAddonImpoter ?? new XtermAddonImporter();
+		this._xtermAddonLoader = options.xtermAddonImporter ?? new XtermAddonImporter();
 		this._xtermColorProvider = options.xtermColorProvider;
 		this._capabilities = options.capabilities;
 
@@ -341,6 +343,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element || !this.raw.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
+
+		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._ligaturesAddon = this._instantiationService.createInstance(LigaturesAddon);
+			this.raw.loadAddon(this._ligaturesAddon);
+		});
 
 		const ad = this._attachedDisposables;
 		ad.clear();

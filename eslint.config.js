@@ -833,6 +833,7 @@ export default tseslint.config(
 						'worker_threads',
 						'@xterm/addon-clipboard',
 						'@xterm/addon-image',
+						'@xterm/addon-ligatures',
 						'@xterm/addon-search',
 						'@xterm/addon-serialize',
 						'@xterm/addon-unicode11',
