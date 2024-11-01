@@ -2097,6 +2097,82 @@ export class CommandCenter {
 		return Promise.all(promises);
 	}
 
+	@command('git.clonePeers', { repository: false })
+	async clonePeers(): Promise<void> {
+		const url = await window.showInputBox({
+			prompt: localize('peerurl', "Peer Repository URL"),
+			ignoreFocusOut: true
+		});
+
+		if (!url) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
+		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
+
+		const uris = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri: Uri.file(defaultCloneDirectory),
+			openLabel: localize('selectFolder', "Select Repository Location")
+		});
+
+		if (!uris || uris.length === 0) {
+			return;
+		}
+
+		const uri = uris[0];
+		const parentPath = uri.fsPath;
+
+		try {
+			const opts = {
+				location: ProgressLocation.Notification,
+				title: localize('cloning', "Cloning peer repository '{0}'...", url),
+				cancellable: true
+			};
+
+			const repositoryPath = await window.withProgress(
+				opts,
+				(_, token) => this.git.clone(url!, parentPath, token)
+			);
+
+			const choices = [];
+			let message = localize('proposeopen', "Would you like to open the cloned peer repository?");
+			const open = localize('openrepo', "Open Repository");
+			choices.push(open);
+
+			const addToWorkspace = localize('add', "Add to Workspace");
+			if (workspace.workspaceFolders) {
+				message = localize('proposeopen2', "Would you like to open the cloned peer repository, or add it to the current workspace?");
+				choices.push(addToWorkspace);
+			}
+
+			const result = await window.showInformationMessage(message, ...choices);
+
+			const openFolder = result === open;
+			const uri = Uri.file(repositoryPath);
+
+			if (openFolder) {
+				commands.executeCommand('vscode.openFolder', uri);
+			} else if (result === addToWorkspace) {
+				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
+			}
+		} catch (err) {
+			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
+				window.showErrorMessage(localize('directory_not_empty', "The directory is not empty."));
+			} else if (/Cancelled/i.test(err && (err.message || err.stderr || ''))) {
+				return;
+			} else {
+				window.showErrorMessage(localize('clone_error', "An error occurred while cloning the repository."));
+			}
+
+			throw err;
+		}
+	}
+
 	dispose(): void {
 		this.disposables.forEach(d => d.dispose());
 	}

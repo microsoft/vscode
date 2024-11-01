@@ -13,7 +13,8 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "*",
+    "onCommand:git.clonePeers"
   ],
   "main": "./out/main",
   "icon": "resources/icons/git.png",
@@ -369,6 +370,11 @@
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
         "category": "Git"
+      },
+      {
+        "command": "git.clonePeers",
+        "title": "Clone Peers",
+        "category": "Git"
       }
     ],
     "menus": {
@@ -604,6 +610,10 @@
         {
           "command": "git.stashApplyLatest",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.clonePeers",
+          "when": "config.git.enabled"
         }
       ],
       "scm/title": [
