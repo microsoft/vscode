@@ -179,6 +179,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	private _arrow: Arrow | null = null;
 	private _overlayWidget: OverlayWidgetDelegate | null = null;
 	private _resizeSash: Sash | null = null;
+	private _isSashResizeHeight: boolean = false;
 	private readonly _positionMarkerId: IEditorDecorationsCollection;
 
 	protected _viewZone: ViewZoneDelegate | null = null;
@@ -354,6 +355,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 		this._arrow?.hide();
 		this._positionMarkerId.clear();
+		this._isSashResizeHeight = false;
 	}
 
 	protected _decoratingElementsHeight(): number {
@@ -512,12 +514,13 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._resizeSash.state = SashState.Disabled;
 		}
 
-		let data: { startY: number; heightInLines: number } | undefined;
+		let data: { startY: number; heightInLines: number; minLines: number; maxLines: number } | undefined;
 		this._disposables.add(this._resizeSash.onDidStart((e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
 					startY: e.startY,
 					heightInLines: this._viewZone.heightInLines,
+					... this._getResizeBounds()
 				};
 			}
 		}));
@@ -532,11 +535,20 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				const roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);
 				const newHeightInLines = data.heightInLines + roundedLineDelta;
 
-				if (newHeightInLines > 5 && newHeightInLines < 35) {
+				if (newHeightInLines > data.minLines && newHeightInLines < data.maxLines) {
+					this._isSashResizeHeight = true;
 					this._relayout(newHeightInLines);
 				}
 			}
 		}));
+	}
+
+	protected get _usesResizeHeight(): boolean {
+		return this._isSashResizeHeight;
+	}
+
+	protected _getResizeBounds(): { readonly minLines: number; readonly maxLines: number } {
+		return { minLines: 5, maxLines: 35 };
 	}
 
 	getHorizontalSashLeft() {

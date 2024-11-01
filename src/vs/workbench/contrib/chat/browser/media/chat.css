@@ -455,6 +455,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-grow: 1;
 }
 
+.interactive-item-container.interactive-request.minimal .rendered-markdown .chat-animated-ellipsis {
+	display: inline-flex;
+}
+
 .interactive-item-container.minimal .user > .username {
 	display: none;
 }
