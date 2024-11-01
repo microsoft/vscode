@@ -465,25 +465,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _setupFocusObserver(): void {
-		// Listen for mousedown events
-		this.listContainer.addEventListener('mousedown', () => {
-			this._lastEventWasFromKeyboard = false;
-		});
-
-		// Listen for keydown events
-		this.listContainer.addEventListener('keydown', () => {
-			this._lastEventWasFromKeyboard = true;
-		});
-
-		// Listen for focus events
-		this.listContainer.addEventListener('focus', (e) => {
+		this.listContainer.addEventListener('focus', () => {
 			const element = dom.getActiveElement() as HTMLElement | null;
 			if (this._activeElement !== element && element !== null) {
-				// Ensure the event was from the keyboard
-				if (this._lastEventWasFromKeyboard) {
-					this._activeElement = element;
-					this._scrollToActiveElement(this._activeElement);
-				}
+				this._activeElement = element;
+				this._scrollToActiveElement(this._activeElement);
 			}
 		}, true);
 	}
