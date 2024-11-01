@@ -10,7 +10,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { StableEditorBottomScrollState } from '../../../../editor/browser/stableEditorScroll.js';
-import { EditorLayoutInfo, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
@@ -266,10 +266,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
 		// noop
-	}
-
-	protected override _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimap.minimapWidth;
 	}
 
 	override hide(): void {
