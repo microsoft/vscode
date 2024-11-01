@@ -476,6 +476,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _scrollToActiveElement(element: HTMLElement) {
 		const containerRect = this.tree.getHTMLElement().getBoundingClientRect();
+		// the list container does not overflow below, so we have to use the monaco list rows to get the
+		// relative position below
 		const fullScrollRect = this.listContainer.querySelector('.monaco-list-rows')!.getBoundingClientRect();
 		const elementRect = element.getBoundingClientRect();
 
