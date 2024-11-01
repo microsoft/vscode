@@ -1394,6 +1394,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._domElement;
 	}
 
+	public getTextAreaDomNode(): HTMLTextAreaElement | undefined {
+		return this._modelData?.view.getTextAreaDomNode();
+	}
+
 	public getDomNode(): HTMLElement | null {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return null;
