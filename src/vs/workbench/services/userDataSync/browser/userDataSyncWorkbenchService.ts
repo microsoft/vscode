@@ -251,7 +251,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			try {
 				this.logService.trace('Settings Sync: Updating the token for the account', current.accountName);
 				const token = current.token;
-				this.logService.trace('Settings Sync: Token updated for the account', current.accountName);
+				this.logService.info('Settings Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -263,7 +263,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
+			this.logService.info(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
