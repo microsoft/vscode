@@ -94,7 +94,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onViewsVisibilityChanged(view: IView, visible: boolean): void {
 		this.getOrCreateActiveViewContextKey(view).set(visible);
-		this._onDidChangeViewVisibility.fire({ id: view.id, visible: visible });
+		this._onDidChangeViewVisibility.fire({ id: view.id, visible });
 	}
 
 	private onViewsRemoved(removed: IView[]): void {
@@ -337,9 +337,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						// The blur event doesn't fire on WebKit when the focused element is hidden,
 						// so the context key needs to be forced here too otherwise a view may still
 						// think it's showing, breaking toggle commands.
-						if (this.focusedViewContextKey.get() === id) {
-							this.focusedViewContextKey.reset();
-						}
+						this.updateFocusedViewContext(view.id, false);
 					} else {
 						view.setExpanded(false);
 					}
@@ -635,7 +633,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				const viewPaneContainerDisposables = this._register(new DisposableStore());
 
 				// Use composite's instantiation service to get the editor progress service for any editors instantiated within the composite
-				const viewPaneContainer = that.createViewPaneContainer(element, viewContainer, viewContainerLocation, viewPaneContainerDisposables, this.instantiationService);
+				const viewPaneContainer = that.createViewPaneContainer(viewContainer, viewPaneContainerDisposables, this.instantiationService);
 
 				// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
 				if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
@@ -664,28 +662,37 @@ export class ViewsService extends Disposable implements IViewsService {
 		Registry.as<PaneCompositeRegistry>(getPaneCompositeExtension(viewContainerLocation)).deregisterPaneComposite(viewContainer.id);
 	}
 
-	private createViewPaneContainer(element: HTMLElement, viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
+	private createViewPaneContainer(viewContainer: ViewContainer, disposables: DisposableStore, instantiationService: IInstantiationService): ViewPaneContainer {
 		const viewPaneContainer: ViewPaneContainer = (instantiationService as any).createInstance(viewContainer.ctorDescriptor.ctor, ...(viewContainer.ctorDescriptor.staticArguments || []));
 
 		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
 		disposables.add(toDisposable(() => this.viewPaneContainers.delete(viewPaneContainer.getId())));
 		disposables.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
-		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
-		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
-		disposables.add(viewPaneContainer.onDidFocusView(view => {
-			if (this.focusedViewContextKey.get() !== view.id) {
-				this.focusedViewContextKey.set(view.id);
-				this._onDidChangeFocusedView.fire();
+		disposables.add(viewPaneContainer.onDidChangeViewVisibility(view => {
+			this.onViewsVisibilityChanged(view, view.isBodyVisible());
+			if (!view.isVisible()) {
+				this.updateFocusedViewContext(view.id, false);
 			}
 		}));
-		disposables.add(viewPaneContainer.onDidBlurView(view => {
-			if (this.focusedViewContextKey.get() === view.id) {
+		disposables.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
+		disposables.add(viewPaneContainer.onDidFocusView(view => this.updateFocusedViewContext(view.id, true)));
+		disposables.add(viewPaneContainer.onDidBlurView(view => this.updateFocusedViewContext(view.id, false)));
+
+		return viewPaneContainer;
+	}
+
+	private updateFocusedViewContext(viewId: string, focused: boolean): void {
+		if (focused) {
+			if (this.focusedViewContextKey.get() !== viewId) {
+				this.focusedViewContextKey.set(viewId);
+				this._onDidChangeFocusedView.fire();
+			}
+		} else {
+			if (this.focusedViewContextKey.get() === viewId) {
 				this.focusedViewContextKey.reset();
 				this._onDidChangeFocusedView.fire();
 			}
-		}));
-
-		return viewPaneContainer;
+		}
 	}
 }
 
