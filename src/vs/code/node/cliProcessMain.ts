@@ -186,7 +186,7 @@ class CliMain extends Disposable {
 			}
 		}
 		const sqmId = await resolveSqmId(stateService, logService);
-		const devDeviceId = await resolvedevDeviceId(logService);
+		const devDeviceId = await resolvedevDeviceId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
