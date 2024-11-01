@@ -18,6 +18,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection } from '../common/terminalSuggestConfiguration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
+import { TerminalSuggestContribution } from './terminal.suggest.contribution.js';
 
 export const enum VSCodeSuggestOscPt {
 	Completions = 'Completions',
@@ -39,6 +41,7 @@ export type PwshCompletion = {
 };
 
 export class TerminalPwshCompletionProvider extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
+	static readonly ID = 'terminal.pwshCompletionProvider';
 	private _codeCompletionsRequested: boolean = false;
 	private _gitCompletionsRequested: boolean = false;
 	private _lastUserDataTimestamp: number = 0;
@@ -75,7 +78,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
-	constructor(private readonly _cachedPwshCommands: Set<SimpleCompletionItem>, @IConfigurationService private readonly _configurationService: IConfigurationService) {
+	constructor(_ctx: ITerminalContributionContext, @IConfigurationService private readonly _configurationService: IConfigurationService) {
 		super();
 	}
 
@@ -157,7 +160,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		}
 		// This is a global command, add cached commands list to completions
 		else {
-			completions.push(...this._cachedPwshCommands);
+			completions.push(...TerminalSuggestContribution.cachedPwshCommands);
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.completion.isDirectory)) {
@@ -215,7 +218,7 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		}
 
 		// Request global pwsh completions if there are none cached
-		if (this._cachedPwshCommands.size === 0) {
+		if (TerminalSuggestContribution.cachedPwshCommands.size === 0) {
 			this._onAcceptedCompletion.fire(SuggestAddon.requestGlobalCompletionsSequence);
 		}
 

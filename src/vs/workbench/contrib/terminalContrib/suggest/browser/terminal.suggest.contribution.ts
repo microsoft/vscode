@@ -39,7 +39,7 @@ registerSingleton(ITerminalCompletionService, TerminalCompletionService, Instant
 
 // #region Terminal Contributions
 
-class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
+export class TerminalSuggestContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.suggest';
 
 	static get(instance: ITerminalInstance): TerminalSuggestContribution | null {
@@ -47,12 +47,13 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
+	private readonly _pwshAddon: MutableDisposable<TerminalPwshCompletionProvider> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
 
-	private static readonly _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
+	static readonly cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -64,15 +65,16 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	) {
 		super();
 		this.add(toDisposable(() => this._addon?.dispose()));
+		this.add(toDisposable(() => this._pwshAddon?.dispose()));
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 
 		// Attempt to load cached pwsh commands if not already loaded
-		if (TerminalSuggestContribution._cachedPwshCommands.size === 0) {
+		if (TerminalSuggestContribution.cachedPwshCommands.size === 0) {
 			const config = this._storageService.get(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION, undefined);
 			if (config !== undefined) {
 				const completions = JSON.parse(config);
 				for (const c of completions) {
-					TerminalSuggestContribution._cachedPwshCommands.add(c);
+					TerminalSuggestContribution.cachedPwshCommands.add(c);
 				}
 			}
 		}
@@ -85,7 +87,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	}
 
 	clearSuggestCache(): void {
-		TerminalSuggestContribution._cachedPwshCommands.clear();
+		TerminalSuggestContribution.cachedPwshCommands.clear();
 		this._storageService.remove(Constants.CachedPwshCommandsStorageKey, StorageScope.APPLICATION);
 	}
 
@@ -96,26 +98,27 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			return;
 		}
 		this.add(Event.runAndSubscribe(this._ctx.instance.onDidChangeShellType, async () => {
-			this._loadSuggestAddon(xterm.raw);
+			this._loadSuggestAddons(xterm.raw);
 		}));
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {
-				this._loadSuggestAddon(xterm.raw);
+				this._loadSuggestAddons(xterm.raw);
 			}
 		}));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.SendKeybindingsToShell)) {
-				this._loadSuggestAddon(xterm.raw);
+				this._loadSuggestAddons(xterm.raw);
 			}
 		}));
 	}
 
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
 		if (this._ctx.instance.shellType !== 'pwsh') {
+			console.log('returning,', this._ctx.instance.shellType);
 			return;
 		}
-		const pwshCompletionProviderAddon = this._instantiationService.createInstance(TerminalPwshCompletionProvider, TerminalSuggestContribution._cachedPwshCommands);
-		xterm.raw.loadAddon(pwshCompletionProviderAddon);
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(TerminalPwshCompletionProvider, this._ctx);
+		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
 		this._completionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon);
 		// If completions are requested, pause and queue input events until completions are
@@ -142,7 +145,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 	}
 
-	private _loadSuggestAddon(xterm: RawXtermTerminal): void {
+	private _loadSuggestAddons(xterm: RawXtermTerminal): void {
 		const sendingKeybindingsToShell = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).sendKeybindingsToShell;
 		// TODO: experimental setting @meganrogge for zsh/bash?
 		if (sendingKeybindingsToShell || !this._ctx.instance.shellType || !['pwsh', 'zsh', 'bash'].includes(this._ctx.instance.shellType)) {
@@ -152,7 +155,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		if (this._terminalSuggestWidgetVisibleContextKey) {
 			const addon = this._addon.value = this._instantiationService.createInstance(SuggestAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities, this._terminalSuggestWidgetVisibleContextKey);
 			xterm.loadAddon(addon);
-
+			this._loadPwshCompletionAddon(xterm);
 			if (this._ctx.instance.target === TerminalLocation.Editor) {
 				addon.setContainerWithOverflow(xterm.element!);
 			} else {
@@ -175,6 +178,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 }
 
 registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestContribution);
+registerTerminalContribution(TerminalPwshCompletionProvider.ID, TerminalPwshCompletionProvider);
 
 // #endregion
 
