@@ -778,7 +778,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		}
 	}
 
-	static async resolveKernel(notebook: INotebookTextModel, notebookKernelService: INotebookKernelService, notebookKernelHistoryService: INotebookKernelHistoryService, commandService: ICommandService): Promise<INotebookKernel | undefined> {
+	static async resolveKernel(notebook: INotebookTextModel, notebookKernelHistoryService: INotebookKernelHistoryService, commandService: ICommandService): Promise<INotebookKernel | undefined> {
 		const alreadySelected = notebookKernelHistoryService.getKernels(notebook);
 
 		if (alreadySelected.selected) {

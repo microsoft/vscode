@@ -56,7 +56,7 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			cellExecutions.push([cell, this._notebookExecutionStateService.createCellExecution(notebook.uri, cell.handle)]);
 		}
 
-		const kernel = await KernelPickerMRUStrategy.resolveKernel(notebook, this._notebookKernelService, this._notebookKernelHistoryService, this._commandService);
+		const kernel = await KernelPickerMRUStrategy.resolveKernel(notebook, this._notebookKernelHistoryService, this._commandService);
 
 		if (!kernel) {
 			// clear all pending cell executions
