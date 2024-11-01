@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Barrier } from 'vs/base/common/async';
-import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from 'vs/platform/terminal/common/terminal';
-import { BasePty } from 'vs/workbench/contrib/terminal/common/basePty';
-import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remote/remoteTerminalChannel';
-import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { Barrier } from '../../../../base/common/async.js';
+import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { BasePty } from '../common/basePty.js';
+import { RemoteTerminalChannelClient } from '../common/remote/remoteTerminalChannel.js';
+import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 
 export class RemotePty extends BasePty implements ITerminalChildProcess {
 	private readonly _startBarrier: Barrier;

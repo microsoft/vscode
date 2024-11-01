@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/objects';
-import { isAbsolute } from 'vs/base/common/path';
-import { Emitter } from 'vs/base/common/event';
-import { relativePath } from 'vs/base/common/resources';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Schemas } from 'vs/base/common/network';
-import { ResourceSet } from 'vs/base/common/map';
-import { getDriveLetter } from 'vs/base/common/extpath';
+import { URI } from '../../base/common/uri.js';
+import { equals } from '../../base/common/objects.js';
+import { isAbsolute } from '../../base/common/path.js';
+import { Emitter } from '../../base/common/event.js';
+import { relativePath } from '../../base/common/resources.js';
+import { Disposable } from '../../base/common/lifecycle.js';
+import { ParsedExpression, IExpression, parse } from '../../base/common/glob.js';
+import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../platform/configuration/common/configuration.js';
+import { Schemas } from '../../base/common/network.js';
+import { ResourceSet } from '../../base/common/map.js';
+import { getDriveLetter } from '../../base/common/extpath.js';
 
 interface IConfiguredExpression {
 	readonly expression: IExpression;

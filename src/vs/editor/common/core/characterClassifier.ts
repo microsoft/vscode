@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toUint8 } from 'vs/base/common/uint';
+import { toUint8 } from '../../../base/common/uint.js';
 
 /**
  * A fast character classifier that uses a compact array for ASCII values.

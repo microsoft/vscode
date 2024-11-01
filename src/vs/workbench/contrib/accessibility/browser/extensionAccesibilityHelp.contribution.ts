@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableMap, IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { AccessibleViewType, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { IViewsRegistry, Extensions, IViewDescriptor } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { DisposableMap, IDisposable, DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { AccessibleViewType, ExtensionContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { FocusedViewContext } from '../../../common/contextkeys.js';
+import { IViewsRegistry, Extensions, IViewDescriptor } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 	static ID = 'extensionAccessibilityHelpDialogContribution';
@@ -41,9 +39,9 @@ export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 
 function registerAccessibilityHelpAction(keybindingService: IKeybindingService, viewDescriptor: IViewDescriptor): IDisposable {
 	const disposableStore = new DisposableStore();
-	const helpContent = resolveExtensionHelpContent(keybindingService, viewDescriptor.accessibilityHelpContent);
-	if (!helpContent) {
-		throw new Error('No help content for view');
+	const content = viewDescriptor.accessibilityHelpContent?.value;
+	if (!content) {
+		throw new Error('No content provided for the accessibility help dialog');
 	}
 	disposableStore.add(AccessibleViewRegistry.register({
 		priority: 95,
@@ -55,10 +53,10 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 			return new ExtensionContentProvider(
 				viewDescriptor.id,
 				{ type: AccessibleViewType.Help },
-				() => helpContent.value,
-				() => viewsService.openView(viewDescriptor.id, true)
+				() => content,
+				() => viewsService.openView(viewDescriptor.id, true),
 			);
-		}
+		},
 	}));
 
 	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {
@@ -66,29 +64,4 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));
 	}));
 	return disposableStore;
-}
-
-function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): MarkdownString | undefined {
-	if (!content) {
-		return;
-	}
-	let resolvedContent = typeof content === 'string' ? content : content.value;
-	const matches = resolvedContent.matchAll(/\<keybinding:(?<commandId>.*)\>/gm);
-	for (const match of [...matches]) {
-		const commandId = match?.groups?.commandId;
-		if (match?.length && commandId) {
-			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-			let kbLabel = keybinding;
-			if (!kbLabel) {
-				const args = URI.parse(`command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify(commandId))}`);
-				kbLabel = ` [Configure a keybinding](${args})`;
-			} else {
-				kbLabel = ' (' + keybinding + ')';
-			}
-			resolvedContent = resolvedContent.replace(match[0], kbLabel);
-		}
-	}
-	const result = new MarkdownString(resolvedContent);
-	result.isTrusted = true;
-	return result;
 }

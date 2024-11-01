@@ -5,10 +5,10 @@
 
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration {
 	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
-	display: none !important;
+	visibility: hidden;
 }
 .monaco-workbench .xterm.dev-mode:hover .xterm-sequence-decoration {
-	display: block !important;
+	visibility: visible !important;
 }
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.left {
 	direction: rtl;

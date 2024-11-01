@@ -2,17 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/* eslint-disable local/code-import-patterns */
 
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/headless';
-
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
-import { Emitter } from 'vs/base/common/event';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import type { Terminal } from '@xterm/xterm';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../log/common/log.js';
+import { PromptInputModel, type IPromptInputModelState } from '../../../../common/capabilities/commandDetection/promptInputModel.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import type { ITerminalCommand } from '../../../../common/capabilities/capabilities.js';
 import { notDeepStrictEqual, strictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
+import { timeout } from '../../../../../../base/common/async.js';
+import { importAMDNodeModule } from '../../../../../../amdX.js';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,8 +58,9 @@ suite('PromptInputModel', () => {
 		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
 	}
 
-	setup(() => {
-		xterm = store.add(new Terminal({ allowProposedApi: true }));
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		onCommandStart = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());
 		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));
@@ -466,6 +467,26 @@ suite('PromptInputModel', () => {
 
 			await writePromise('\x1b[D');
 			await assertPromptInput(`echo "foo\n|bar`);
+		});
+	});
+
+	suite('wrapped line (non-continuation)', () => {
+		test('basic wrapped line', async () => {
+			xterm.resize(5, 10);
+
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ech');
+			await assertPromptInput(`ech|`);
+
+			await writePromise('o ');
+			await assertPromptInput(`echo |`);
+
+			await writePromise('"a"');
+			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+			await assertPromptInput(`echo "a"| `);
 		});
 	});
 

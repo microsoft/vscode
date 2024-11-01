@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-confirmation-widget {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	padding: 8px 12px 12px;
+}
+
+.chat-confirmation-widget:not(:last-child) {
+	margin-bottom: 16px;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title {
+	font-weight: 600;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-title p {
+	margin: 0 0 4px 0;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-message .rendered-markdown p {
+	margin-top: 0;
+}
+
+.chat-confirmation-widget .chat-confirmation-widget-message .rendered-markdown > :last-child {
+	margin-bottom: 0px;
+}
+
+.chat-confirmation-widget .chat-confirmation-buttons-container {
+	display: flex;
+	gap: 8px;
+	margin-top: 13px;
+}
+
+.chat-confirmation-widget.hideButtons .chat-confirmation-buttons-container {
+	display: none;
+}

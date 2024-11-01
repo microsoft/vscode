@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { Color, HSLA } from 'vs/base/common/color';
-import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
-import { IColor, IColorInformation } from 'vs/editor/common/languages';
+import { Color, HSLA } from '../../../base/common/color.js';
+import { IPosition } from '../core/position.js';
+import { IRange } from '../core/range.js';
+import { IColor, IColorInformation } from '../languages.js';
 
 export interface IDocumentColorComputerTarget {
 	getValue(): string;

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { CodeLens, CodeLensList, CodeLensProvider } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { illegalArgument, onUnexpectedExternalError } from '../../../../base/common/errors.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { assertType } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextModel } from '../../../common/model.js';
+import { CodeLens, CodeLensList, CodeLensProvider } from '../../../common/languages.js';
+import { IModelService } from '../../../common/services/model.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 
 export interface CodeLensItem {
 	symbol: CodeLens;

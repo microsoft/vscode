@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, TMScopeRegistry } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, TMScopeRegistry } from './TMScopeRegistry.js';
 import type { IGrammar, IOnigLib, IRawTheme, Registry, StateStack } from 'vscode-textmate';
 
 interface ITMGrammarFactoryHost {

@@ -28,6 +28,7 @@ declare module 'vscode' {
 		 * @return An extension or `undefined`.
 		 */
 		export function getExtension<T = any>(extensionId: string, includeDifferentExtensionHosts: boolean): Extension<T> | undefined;
+		export function getExtension<T = any>(extensionId: string, includeDifferentExtensionHosts: true): Extension<T | undefined> | undefined;
 
 		/**
 		 * All extensions across all extension hosts.

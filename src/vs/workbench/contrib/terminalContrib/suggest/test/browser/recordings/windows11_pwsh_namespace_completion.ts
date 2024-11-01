@@ -83,15 +83,23 @@ export const events = [
 	},
 	{
 		"type": "input",
+		"data": "r"
+	},
+	{
+		"type": "input",
 		"data": "e"
 	},
 	{
+		"type": "input",
+		"data": "q"
+	},
+	{
 		"type": "output",
-		"data": "\u001b[?25l\u001b[3;3H[re\u001b[?25h"
+		"data": "\u001b[?25l\u001b[3;3H[req\u001b[?25h"
 	},
 	{
 		"type": "promptInputChange",
-		"data": "[re|"
+		"data": "[req|"
 	},
 	{
 		"type": "command",
@@ -99,14 +107,14 @@ export const events = [
 	},
 	{
 		"type": "sendText",
-		"data": "System.Xml.Linq.ReaderOptions"
+		"data": "Json.Schema.RequiredKeyword"
 	},
 	{
 		"type": "output",
-		"data": "\u001b[?25l\u001b[3;3H[System.Xml.Linq.ReaderOptions\u001b[?25h"
+		"data": "\u001b[?25l\u001b[3;3H[Json.Schema.RequiredKeyword\u001b[?25h"
 	},
 	{
 		"type": "promptInputChange",
-		"data": "[System.Xml.Linq.ReaderOptions|"
+		"data": "[Json.Schema.RequiredKeyword|"
 	}
 ];

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriDto } from 'vs/base/common/uri';
-import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { Categories } from './actionCommonCategories';
-import { ICommandMetadata } from 'vs/platform/commands/common/commands';
+import { URI, UriDto } from '../../../base/common/uri.js';
+import { ContextKeyExpression } from '../../contextkey/common/contextkey.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { Categories } from './actionCommonCategories.js';
+import { ICommandMetadata } from '../../commands/common/commands.js';
 
 export interface ILocalizedString {
 

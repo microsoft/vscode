@@ -3,29 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/keybindings';
-import * as nls from 'vs/nls';
-import { OS } from 'vs/base/common/platform';
-import { Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import * as dom from 'vs/base/browser/dom';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { Promises, timeout } from 'vs/base/common/async';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { defaultInputBoxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import './media/keybindings.css';
+import * as nls from '../../../../nls.js';
+import { OS } from '../../../../base/common/platform.js';
+import { Disposable, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
+import * as dom from '../../../../base/browser/dom.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { SearchWidget, SearchOptions } from './preferencesWidgets.js';
+import { Promises, timeout } from '../../../../base/common/async.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { defaultInputBoxStyles, defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 
 export interface KeybindingsSearchOptions extends SearchOptions {
 	recordEnter?: boolean;

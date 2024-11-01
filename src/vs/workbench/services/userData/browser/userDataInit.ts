@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { mark } from 'vs/base/common/performance';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from '../../../common/contributions.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { mark } from '../../../../base/common/performance.js';
 
 export interface IUserDataInitializer {
 	requiresInitialization(): Promise<boolean>;

@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { localize, localize2 } from 'vs/nls';
-import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentGroups } from 'vs/workbench/common/views';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { ILocalizedString } from 'vs/platform/action/common/action';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from '../common/debug.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ViewPane } from '../../../browser/parts/views/viewPane.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentGroups } from '../../../common/views.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { WorkbenchStateContext } from '../../../common/contextkeys.js';
+import { OpenFolderAction, OpenFileAction, OpenFileFolderAction } from '../../../browser/actions/workspaceActions.js';
+import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
+import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from './debugCommands.js';
+import { ILocalizedString } from '../../../../platform/action/common/action.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);

@@ -3,72 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import * as DOM from 'vs/base/browser/dom';
-import * as glob from 'vs/base/common/glob';
-import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from 'vs/platform/files/common/files';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
-import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { localize } from 'vs/nls';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { equals, deepClone } from 'vs/base/common/objects';
-import * as path from 'vs/base/common/path';
-import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from 'vs/base/common/comparers';
-import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
-import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
-import { Schemas } from 'vs/base/common/network';
-import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { findValidPasteFileTarget } from 'vs/workbench/contrib/files/browser/fileActions';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
-import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { isNumber, isStringArray } from 'vs/base/common/types';
-import { IEditableData } from 'vs/workbench/common/views';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
-import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
-import { ResourceSet } from 'vs/base/common/map';
-import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
-import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { timeout } from 'vs/base/common/async';
-import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { mainWindow } from 'vs/base/browser/window';
-import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
+import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import * as glob from '../../../../../base/common/glob.js';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
+import { IProgressService, ProgressLocation, } from '../../../../../platform/progress/common/progress.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from '../../../../../platform/files/common/files.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
+import { dirname, joinPath, distinctParents } from '../../../../../base/common/resources.js';
+import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { localize } from '../../../../../nls.js';
+import { createSingleCallFunction } from '../../../../../base/common/functional.js';
+import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { equals, deepClone } from '../../../../../base/common/objects.js';
+import * as path from '../../../../../base/common/path.js';
+import { ExplorerItem, NewExplorerItem } from '../../common/explorerModel.js';
+import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from '../../../../../base/common/comparers.js';
+import { CodeDataTransfers, containsDragType } from '../../../../../platform/dnd/browser/dnd.js';
+import { fillEditorsDragData } from '../../../../browser/dnd.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
+import { findValidPasteFileTarget } from '../fileActions.js';
+import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
+import { Emitter, Event, EventMultiplexer } from '../../../../../base/common/event.js';
+import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
+import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
+import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { isNumber } from '../../../../../base/common/types.js';
+import { IEditableData } from '../../../../common/views.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { IExplorerService } from '../files.js';
+import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from '../fileImportExport.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { WebFileSystemAccess } from '../../../../../platform/files/browser/webFileSystemAccess.js';
+import { IgnoreFile } from '../../../../services/search/common/ignoreFile.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
+import { defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { IExplorerFileContribution, explorerFileContribRegistry } from '../explorerFileContrib.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -97,6 +93,31 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService
 	) { }
+
+	getParent(element: ExplorerItem): ExplorerItem {
+		const folders = this.contextService.getWorkspace().folders;
+		const isMultiRoot = folders.length > 1;
+
+		if (isMultiRoot) {
+			// If we have multiple folders, the root is a workspace folder
+			// Workspace folders are rendered and can be returned directly
+			if (element.isRoot) {
+				return element;
+			} else if (element.parent) {
+				return element.parent;
+			}
+		} else if (element.parent) {
+			// If we have a single folder, the root the workspace folder
+			// The workspace folder is not rendered, so all it's children are tree roots
+			if (element.parent.isRoot) {
+				return element;
+			} else {
+				return element.parent;
+			}
+		}
+
+		throw new Error('getParent only supported for cached parents');
+	}
 
 	hasChildren(element: ExplorerItem | ExplorerItem[]): boolean {
 		// don't render nest parents as containing children when all the children are filtered out
@@ -283,81 +304,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
 
-	private readonly hoverDelegate = new class implements IHoverDelegate {
-
-		private lastHoverHideTime = 0;
-		private hiddenFromClick = false;
-		readonly placement = 'element';
-
-		get delay() {
-			// Delay implementation borrowed froms src/vs/workbench/browser/parts/statusbar/statusbarPart.ts
-			if (Date.now() - this.lastHoverHideTime < 500) {
-				return 0; // show instantly when a hover was recently shown
-			}
-
-			return this.configurationService.getValue<number>('workbench.hover.delay');
-		}
-
-		constructor(
-			private readonly configurationService: IConfigurationService,
-			private readonly hoverService: IHoverService
-		) { }
-
-		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
-			let element: HTMLElement;
-			if (options.target instanceof HTMLElement) {
-				element = options.target;
-			} else {
-				element = options.target.targetElements[0];
-			}
-
-			const tlRow = element.closest('.monaco-tl-row') as HTMLElement | undefined;
-			const listRow = tlRow?.closest('.monaco-list-row') as HTMLElement | undefined;
-
-			const child = element.querySelector('div.monaco-icon-label-container') as Element | undefined;
-			const childOfChild = child?.querySelector('span.monaco-icon-name-container') as HTMLElement | undefined;
-			let overflowed = false;
-			if (childOfChild && child) {
-				const width = child.clientWidth;
-				const childWidth = childOfChild.offsetWidth;
-				// Check if element is overflowing its parent container
-				overflowed = width <= childWidth;
-			}
-
-			// Only count decorations that provide additional info, as hover overing decorations such as git excluded isn't helpful
-			const hasDecoration = options.content.toString().includes('•');
-			// If it's overflowing or has a decoration show the tooltip
-			overflowed = overflowed || hasDecoration;
-
-			const indentGuideElement = tlRow?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
-			if (!indentGuideElement) {
-				return;
-			}
-
-			return overflowed ? this.hoverService.showHover({
-				...options,
-				target: indentGuideElement,
-				container: listRow,
-				additionalClasses: ['explorer-item-hover'],
-				position: {
-					hoverPosition: HoverPosition.RIGHT,
-				},
-				appearance: {
-					compact: true,
-					skipFadeInAnimation: true,
-					showPointer: false,
-				}
-			}, focus) : undefined;
-		}
-
-		onDidHideHover(): void {
-			if (!this.hiddenFromClick) {
-				this.lastHoverHideTime = Date.now();
-			}
-			this.hiddenFromClick = false;
-		}
-	}(this.configurationService, this.hoverService);
-
 	constructor(
 		container: HTMLElement,
 		private labels: ResourceLabels,
@@ -369,7 +315,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -402,8 +347,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const templateDisposables = new DisposableStore();
-		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: experimentalHover ? this.hoverDelegate : undefined }));
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
 		templateDisposables.add(label.onDidRender(() => {
 			try {
 				if (templateData.currentContext) {
@@ -524,15 +468,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// Apply some CSS magic to get things looking as reasonable as possible.
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
-
-		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
 		templateData.contribs.forEach(c => c.setResource(stat.resource));
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			title: experimentalHover ? isStringArray(label) ? label[0] : label : undefined,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData),
+			matches: stat.isDirectory ? [] : createMatches(filterData),
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
 			domId
 		});
@@ -659,7 +600,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 						break;
 					} if (DOM.isActiveElement(inputBox.inputElement)) {
 						return;
-					} else if (ownerDocument.activeElement instanceof HTMLElement && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
 					} else {
 						break;
@@ -964,6 +905,10 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const lexicographicOptions = this.explorerService.sortOrderConfiguration.lexicographicOptions;
+		const reverse = this.explorerService.sortOrderConfiguration.reverse;
+		if (reverse) {
+			[statA, statB] = [statB, statA];
+		}
 
 		let compareFileNames;
 		let compareFileExtensions;
@@ -1566,7 +1511,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 }
 
 function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement; count: number; index: number } | null {
-	if (!(target instanceof HTMLElement)) {
+	if (!(DOM.isHTMLElement(target))) {
 		return null;
 	}
 

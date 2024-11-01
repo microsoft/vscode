@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { ExtHostContext, MainContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { IDecorationsService, IDecorationData } from '../../services/decorations/common/decorations.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 
 class DecorationRequestsQueue {
 

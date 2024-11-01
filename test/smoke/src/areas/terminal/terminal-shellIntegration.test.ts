@@ -6,8 +6,8 @@
 import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue, TerminalCommandId } from '../../../../automation';
 import { setTerminalTestSettings } from './terminal-helpers';
 
-export function setup() {
-	describe('Terminal Shell Integration', () => {
+export function setup(options?: { skipSuite: boolean }) {
+	(options?.skipSuite ? describe.skip : describe)('Terminal Shell Integration', () => {
 		let terminal: Terminal;
 		let settingsEditor: SettingsEditor;
 		let app: Application;

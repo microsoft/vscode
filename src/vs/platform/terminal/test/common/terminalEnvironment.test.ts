@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { collapseTildePath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { collapseTildePath, sanitizeCwd } from '../../common/terminalEnvironment.js';
 
 suite('terminalEnvironment', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

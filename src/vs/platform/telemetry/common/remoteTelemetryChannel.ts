@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IServerTelemetryService } from 'vs/platform/telemetry/common/serverTelemetryService';
+import { Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { TelemetryLevel } from './telemetry.js';
+import { ITelemetryAppender } from './telemetryUtils.js';
+import { IServerTelemetryService } from './serverTelemetryService.js';
 
 export class ServerTelemetryChannel extends Disposable implements IServerChannel {
 	constructor(

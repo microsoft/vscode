@@ -74,15 +74,15 @@
 	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.extension-status-error {
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-error::before {
 	color: var(--vscode-editorError-foreground);
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning {
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning::before {
 	color: var(--vscode-editorWarning-foreground);
 }
 
-.monaco-action-bar .action-item .action-label.extension-action.extension-status-info {
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-info::before {
 	color: var(--vscode-editorInfo-foreground);
 }
 
@@ -97,7 +97,8 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.ignore,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.undo-ignore,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.install:not(.installing),
+.monaco-action-bar .action-item .action-label.extension-action.install.hide,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.install-other-server:not(.installing),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.hide-when-disabled,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
@@ -105,7 +106,7 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.language,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.extension-sync,
-.monaco-action-bar .action-item.action-dropdown-item.disabled,
+.monaco-action-bar .action-item.action-dropdown-item.hide,
 .monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
@@ -113,6 +114,10 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
 .monaco-action-bar .action-item .action-label.extension-action.manage.hide {
 	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.label {
+	opacity: 0.4 !important;
 }
 
 .monaco-action-bar .action-item.checkbox-action-item.disabled {

@@ -27,8 +27,8 @@ class TsMappedEditsProvider implements vscode.MappedEditsProvider {
 		}
 
 		const response = await this.client.execute('mapCode', {
-			mappings: [{
-				file,
+			file,
+			mapping: {
 				contents: codeBlocks,
 				focusLocations: context.documents.map(documents => {
 					return documents.flatMap((contextItem): FileSpan[] => {
@@ -39,7 +39,7 @@ class TsMappedEditsProvider implements vscode.MappedEditsProvider {
 						return contextItem.ranges.map((range): FileSpan => ({ file, ...Range.toTextSpan(range) }));
 					});
 				}),
-			}],
+			}
 		}, token);
 		if (response.type !== 'response' || !response.body) {
 			return;

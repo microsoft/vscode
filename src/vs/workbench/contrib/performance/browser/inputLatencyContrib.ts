@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { inputLatency } from 'vs/base/browser/performance';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { inputLatency } from '../../../../base/browser/performance.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class InputLatencyContrib extends Disposable implements IWorkbenchContribution {
 	private readonly _listener = this._register(new MutableDisposable());

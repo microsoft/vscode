@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableFromEvent } from 'vs/base/common/observable';
-import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { observableFromEvent } from '../../../../base/common/observable.js';
+import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 export const enum TestingConfigKeys {
 	AutoRunDelay = 'testing.autoRun.delay',
@@ -159,7 +159,7 @@ export const testingConfiguration: IConfigurationNode = {
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
 		},
 		[TestingConfigKeys.AlwaysRevealTestOnStateChange]: {
-			markdownDescription: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the executed test when `#testing.followRunningTest#` is on. If this setting is turned off, only failed tests will be revealed."),
+			markdownDescription: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the executed test when {0} is on. If this setting is turned off, only failed tests will be revealed.", '`#testing.followRunningTest#`'),
 			type: 'boolean',
 			default: false,
 		},

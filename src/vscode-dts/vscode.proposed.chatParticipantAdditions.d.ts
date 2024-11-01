@@ -5,55 +5,8 @@
 
 declare module 'vscode' {
 
-	/**
-	 * The location at which the chat is happening.
-	 */
-	export enum ChatLocation {
-		/**
-		 * The chat panel
-		 */
-		Panel = 1,
-		/**
-		 * Terminal inline chat
-		 */
-		Terminal = 2,
-		/**
-		 * Notebook inline chat
-		 */
-		Notebook = 3,
-		/**
-		 * Code editor inline chat
-		 */
-		Editor = 4
-	}
-
-	export interface ChatRequest {
-		/**
-		 * The attempt number of the request. The first request has attempt number 0.
-		 */
-		readonly attempt: number;
-
-		/**
-		 * If automatic command detection is enabled.
-		 */
-		readonly enableCommandDetection: boolean;
-
-		/**
-		 * The location at which the chat is happening. This will always be one of the supported values
-		 */
-		readonly location: ChatLocation;
-	}
-
 	export interface ChatParticipant {
 		onDidPerformAction: Event<ChatUserActionEvent>;
-		supportIssueReporting?: boolean;
-	}
-
-	export interface ChatErrorDetails {
-		/**
-		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
-		 */
-		responseIsRedacted?: boolean;
 	}
 
 	/**
@@ -83,6 +36,11 @@ declare module 'vscode' {
 		constructor(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]);
 	}
 
+	export class ChatResponseCodeblockUriPart {
+		value: Uri;
+		constructor(value: Uri);
+	}
+
 	/**
 	 * Displays a {@link Command command} as a button in the chat response.
 	 */
@@ -106,10 +64,18 @@ declare module 'vscode' {
 		title: string;
 		message: string;
 		data: any;
-		constructor(title: string, message: string, data: any);
+		buttons?: string[];
+		constructor(title: string, message: string, data: any, buttons?: string[]);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart;
+	export class ChatResponseCodeCitationPart {
+		value: Uri;
+		license: string;
+		snippet: string;
+		constructor(value: Uri, license: string, snippet: string);
+	}
+
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart;
 
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
@@ -122,6 +88,73 @@ declare module 'vscode' {
 		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
 	}
 
+	export class ChatResponseReferencePart2 {
+		/**
+		 * The reference target.
+		 */
+		value: Uri | Location | { variableName: string; value?: Uri | Location } | string;
+
+		/**
+		 * The icon for the reference.
+		 */
+		iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		};
+		options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+
+		/**
+		 * Create a new ChatResponseReferencePart.
+		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
+		 */
+		constructor(value: Uri | Location | { variableName: string; value?: Uri | Location } | string, iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		}, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } });
+	}
+
+	export class ChatResponseMovePart {
+
+		readonly uri: Uri;
+		readonly range: Range;
+
+		constructor(uri: Uri, range: Range);
+	}
+
+	export interface ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 *
+		 * If this is a {@linkcode Uri} or {@linkcode Location}, this is rendered as a normal link.
+		 *
+		 * If this is a {@linkcode SymbolInformation}, this is rendered as a symbol link.
+		 *
+		 * TODO mjbvz: Should this be a full `SymbolInformation`? Or just the parts we need?
+		 * TODO mjbvz: Should we allow a `SymbolInformation` without a location? For example, until `resolve` completes?
+		 */
+		value2: Uri | Location | SymbolInformation;
+
+		/**
+		 * Optional method which fills in the details of the anchor.
+		 *
+		 * THis is currently only implemented for symbol links.
+		 */
+		resolve?(token: CancellationToken): Thenable<void>;
+	}
+
 	export interface ChatResponseStream {
 
 		/**
@@ -132,12 +165,13 @@ declare module 'vscode' {
 		* @param task If provided, a task to run while the progress is displayed. When the Thenable resolves, the progress will be marked complete in the UI, and the progress message will be updated to the resolved string if one is specified.
 		* @returns This stream.
 		*/
-		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): ChatResponseStream;
+		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
-		textEdit(target: Uri, edits: TextEdit | TextEdit[]): ChatResponseStream;
-		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): ChatResponseStream;
-		detectedParticipant(participant: string, command?: ChatCommand): ChatResponseStream;
-		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): ChatResponseStream;
+		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+		markdownWithVulnerabilities(value: string | MarkdownString, vulnerabilities: ChatVulnerability[]): void;
+		codeblockUri(uri: Uri): void;
+		detectedParticipant(participant: string, command?: ChatCommand): void;
+		push(part: ChatResponsePart | ChatResponseTextEditPart | ChatResponseDetectedParticipantPart | ChatResponseWarningPart | ChatResponseProgressPart2): void;
 
 		/**
 		 * Show an inline message in the chat view asking the user to confirm an action.
@@ -149,7 +183,7 @@ declare module 'vscode' {
 		 * TODO@API should this be MarkdownString?
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
-		confirmation(title: string, message: string, data: any): ChatResponseStream;
+		confirmation(title: string, message: string, data: any, buttons?: string[]): void;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
@@ -158,11 +192,21 @@ declare module 'vscode' {
 		 * @param message A warning message
 		 * @returns This stream.
 		 */
-		warning(message: string | MarkdownString): ChatResponseStream;
+		warning(message: string | MarkdownString): void;
 
-		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): ChatResponseStream;
+		reference(value: Uri | Location | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }): void;
 
-		push(part: ExtendedChatResponsePart): ChatResponseStream;
+		reference2(value: Uri | Location | string | { variableName: string; value?: Uri | Location }, iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }, options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }): void;
+
+		codeCitation(value: Uri, license: string, snippet: string): void;
+
+		push(part: ExtendedChatResponsePart): void;
+	}
+
+	export enum ChatResponseReferencePartStatusKind {
+		Complete = 1,
+		Partial = 2,
+		Omitted = 3
 	}
 
 	/**
@@ -201,6 +245,8 @@ declare module 'vscode' {
 		id: string;
 		label: string | CompletionItemLabel;
 		values: ChatVariableValue[];
+		fullName?: string;
+		icon?: ThemeIcon;
 		insertText?: string;
 		detail?: string;
 		documentation?: string | MarkdownString;
@@ -211,31 +257,36 @@ declare module 'vscode' {
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
 
+	export interface ChatResult {
+		nextQuestion?: {
+			prompt: string;
+			participant?: string;
+			command?: string;
+		};
+	}
+
 	export namespace chat {
 		/**
 		 * Create a chat participant with the extended progress type
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, dynamicProps: DynamicChatParticipantProps, handler: ChatExtendedRequestHandler): ChatParticipant;
-
-		/**
-		 * Current version of the proposal. Changes whenever backwards-incompatible changes are made.
-		 * If a new feature is added that doesn't break existing code, the version is not incremented. When the extension uses this new feature, it should set its engines.vscode version appropriately.
-		 * But if a change is made to an existing feature that would break existing code, the version should be incremented.
-		 * The chat extension should not activate if it doesn't support the current version.
-		 */
-		export const _version: 1 | number;
+		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 	}
 
-	/**
-	 * These don't get set on the ChatParticipant after creation, like other props, because they are typically defined in package.json and we want them at the time of creation.
-	 */
-	export interface DynamicChatParticipantProps {
-		name: string;
-		publisherName: string;
-		description?: string;
-		fullName?: string;
+	export interface ChatParticipantMetadata {
+		participant: string;
+		command?: string;
+		disambiguation: { category: string; description: string; examples: string[] }[];
+	}
+
+	export interface ChatParticipantDetectionResult {
+		participant: string;
+		command?: string;
+	}
+
+	export interface ChatParticipantDetectionProvider {
+		provideParticipantDetection(chatRequest: ChatRequest, context: ChatContext, options: { participants?: ChatParticipantMetadata[]; location: ChatLocation }, token: CancellationToken): ProviderResult<ChatParticipantDetectionResult>;
 	}
 
 	/*
@@ -266,6 +317,15 @@ declare module 'vscode' {
 		newFile?: boolean;
 	}
 
+	export interface ChatApplyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'apply';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
+		codeMapper?: string;
+	}
+
 	export interface ChatTerminalAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
@@ -291,79 +351,41 @@ declare module 'vscode' {
 	}
 
 	export interface ChatEditorAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'editor';
 		accepted: boolean;
 	}
 
+	export interface ChatEditingSessionAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'chatEditingSessionAction';
+		uri: Uri;
+		hasRemainingEdits: boolean;
+		outcome: ChatEditingSessionActionOutcome;
+	}
+
+	export enum ChatEditingSessionActionOutcome {
+		Accepted = 1,
+		Rejected = 2
+	}
+
 	export interface ChatUserActionEvent {
 		readonly result: ChatResult;
-		readonly action: ChatCopyAction | ChatInsertAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction;
+		readonly action: ChatCopyAction | ChatInsertAction | ChatApplyAction | ChatTerminalAction | ChatCommandAction | ChatFollowupAction | ChatBugReportAction | ChatEditorAction | ChatEditingSessionAction;
 	}
 
-	/**
-	 * The detail level of this chat variable value.
-	 */
-	export enum ChatVariableLevel {
-		Short = 1,
-		Medium = 2,
-		Full = 3
+	export interface ChatPromptReference {
+		/**
+		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
+		 */
+		readonly name: string;
 	}
 
-	export interface ChatVariableValue {
-		/**
-		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
-		 */
-		level: ChatVariableLevel;
-
-		/**
-		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
-		 */
-		value: string | Uri;
-
-		/**
-		 * A description of this value, which could be provided to the LLM as a hint.
-		 */
-		description?: string;
+	export interface ChatResultFeedback {
+		readonly unhelpfulReason?: string;
 	}
 
-	export interface ChatVariableResolverResponseStream {
-		/**
-		 * Push a progress part to this stream. Short-hand for
-		 * `push(new ChatResponseProgressPart(value))`.
-		 *
-		 * @param value
-		 * @returns This stream.
-		 */
-		progress(value: string): ChatVariableResolverResponseStream;
-
-		/**
-		 * Push a reference to this stream. Short-hand for
-		 * `push(new ChatResponseReferencePart(value))`.
-		 *
-		 * *Note* that the reference is not rendered inline with the response.
-		 *
-		 * @param value A uri or location
-		 * @returns This stream.
-		 */
-		reference(value: Uri | Location): ChatVariableResolverResponseStream;
-
-		/**
-		 * Pushes a part to this stream.
-		 *
-		 * @param part A response part, rendered or metadata
-		 */
-		push(part: ChatVariableResolverResponsePart): ChatVariableResolverResponseStream;
-	}
-
-	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
-
-	export interface ChatVariableResolver {
-		/**
-		 * A callback to resolve the value of a chat variable.
-		 * @param name The name of the variable.
-		 * @param context Contextual information about this chat request.
-		 * @param token A cancellation token.
-		 */
-		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+	export namespace lm {
+		export function fileIsIgnored(uri: Uri, token: CancellationToken): Thenable<boolean>;
 	}
 }

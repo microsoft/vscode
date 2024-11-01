@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'minimist';
-import { isWindows } from 'vs/base/common/platform';
-import { localize } from 'vs/nls';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import minimist from 'minimist';
+import { isWindows } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
+import { NativeParsedArgs } from '../common/argv.js';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -205,6 +205,10 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-dev-shm-usage': { type: 'boolean' },
 	'profile-temp': { type: 'boolean' },
 	'ozone-platform': { type: 'string' },
+	'enable-tracing': { type: 'string' },
+	'trace-startup-format': { type: 'string' },
+	'trace-startup-file': { type: 'string' },
+	'trace-startup-duration': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };
@@ -268,6 +272,7 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 		const newArgs = args.filter(a => a !== firstArg);
 		const reporter = errorReporter.getSubcommandReporter ? errorReporter.getSubcommandReporter(firstArg) : undefined;
 		const subcommandOptions = parseArgs(newArgs, options, reporter);
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return <T>{
 			[firstArg]: subcommandOptions,
 			_: []

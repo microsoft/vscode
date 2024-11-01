@@ -1,0 +1,14 @@
+{
+	"extends": "../../../extensions/tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"types": [
+			"node",
+			"mocha",
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../../src/vscode-dts/vscode.d.ts"
+	]
+}

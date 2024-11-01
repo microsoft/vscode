@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
+import { Iterable } from './iterator.js';
 
 const unset = Symbol('unset');
 
@@ -30,6 +30,11 @@ export class WellDefinedPrefixTree<V> {
 	/** Gets the top-level nodes of the tree */
 	public get nodes(): Iterable<IPrefixTreeNode<V>> {
 		return this.root.children?.values() || Iterable.empty();
+	}
+
+	/** Gets the top-level nodes of the tree */
+	public get entries(): Iterable<[string, IPrefixTreeNode<V>]> {
+		return this.root.children?.entries() || Iterable.empty();
 	}
 
 	/**

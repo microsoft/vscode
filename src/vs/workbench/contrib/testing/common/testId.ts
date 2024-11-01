@@ -105,7 +105,7 @@ export class TestId {
 	 * todo@connor4312: review usages of this to see if using the WellDefinedPrefixTree is better
 	 */
 	public static isChild(maybeParent: string, maybeChild: string) {
-		return maybeChild.startsWith(maybeParent) && maybeChild[maybeParent.length] === TestIdPathParts.Delimiter;
+		return maybeChild[maybeParent.length] === TestIdPathParts.Delimiter && maybeChild.startsWith(maybeParent);
 	}
 
 	/**

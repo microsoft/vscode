@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeyboardLayoutInfo, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping, macLinuxKeyboardMappingEquals, windowsKeyboardMappingEquals } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { Emitter, Event } from 'vs/base/common/event';
-import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { INativeKeyboardLayoutService as IBaseNativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IKeyboardLayoutInfo, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping, macLinuxKeyboardMappingEquals, windowsKeyboardMappingEquals } from '../../../../platform/keyboardLayout/common/keyboardLayout.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
+import { INativeKeyboardLayoutService as IBaseNativeKeyboardLayoutService } from '../../../../platform/keyboardLayout/common/keyboardLayoutService.js';
+import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 export const INativeKeyboardLayoutService = createDecorator<INativeKeyboardLayoutService>('nativeKeyboardLayoutService');
 

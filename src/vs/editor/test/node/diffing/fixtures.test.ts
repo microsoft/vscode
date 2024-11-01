@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { FileAccess } from 'vs/base/common/network';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
-import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { Range } from 'vs/editor/common/core/range';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { DetailedLineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { LegacyLinesDiffComputer } from '../../../common/diff/legacyLinesDiffComputer.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { Range } from '../../../common/core/range.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { AbstractText, ArrayText, SingleTextEdit, TextEdit } from '../../../common/core/textEdit.js';
+import { LinesDiff } from '../../../common/diff/linesDiffComputer.js';
 
 suite('diffing fixtures', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,7 +49,15 @@ suite('diffing fixtures', () => {
 		const ignoreTrimWhitespace = folder.indexOf('trimws') >= 0;
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: true });
 
+		if (diffingAlgoName === 'advanced' && !ignoreTrimWhitespace) {
+			assertDiffCorrectness(diff, firstContentLines, secondContentLines);
+		}
+
 		function getDiffs(changes: readonly DetailedLineRangeMapping[]): IDetailedDiff[] {
+			for (const c of changes) {
+				RangeMapping.assertSorted(c.innerChanges ?? []);
+			}
+
 			return changes.map<IDetailedDiff>(c => ({
 				originalRange: c.original.toString(),
 				modifiedRange: c.modified.toString(),
@@ -123,7 +133,7 @@ suite('diffing fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('shifting-twice', 'advanced');
+		runTest('invalid-diff-trimws', 'advanced');
 	});
 
 	for (const folder of folders) {
@@ -159,4 +169,21 @@ interface IMoveInfo {
 	modifiedRange: string; // [startLineNumber, endLineNumberExclusive)
 
 	changes: IDetailedDiff[];
+}
+
+function assertDiffCorrectness(diff: LinesDiff, original: string[], modified: string[]) {
+	const allInnerChanges = diff.changes.flatMap(c => c.innerChanges!);
+	const edit = rangeMappingsToTextEdit(allInnerChanges, new ArrayText(modified));
+	const result = edit.normalize().apply(new ArrayText(original));
+
+	assert.deepStrictEqual(result, modified.join('\n'));
+}
+
+function rangeMappingsToTextEdit(rangeMappings: readonly RangeMapping[], modified: AbstractText): TextEdit {
+	return new TextEdit(rangeMappings.map(m => {
+		return new SingleTextEdit(
+			m.originalRange,
+			modified.getValueOfRange(m.modifiedRange)
+		);
+	}));
 }

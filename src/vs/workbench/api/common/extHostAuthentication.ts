@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { Emitter, Event } from 'vs/base/common/event';
-import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable } from 'vs/workbench/api/common/extHostTypes';
-import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from './extHost.protocol.js';
+import { Disposable } from './extHostTypes.js';
+import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 
 export interface IExtHostAuthentication extends ExtHostAuthentication { }
 export const IExtHostAuthentication = createDecorator<IExtHostAuthentication>('IExtHostAuthentication');
@@ -28,16 +28,27 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _proxy: MainThreadAuthenticationShape;
 	private _authenticationProviders: Map<string, ProviderWithMetadata> = new Map<string, ProviderWithMetadata>();
 
-	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
-	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
-
+	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent & { extensionIdFilter?: string[] }>();
 	private _getSessionTaskSingler = new TaskSingler<vscode.AuthenticationSession | undefined>();
-	private _getSessionsTaskSingler = new TaskSingler<ReadonlyArray<vscode.AuthenticationSession>>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadAuthentication);
+	}
+
+	/**
+	 * This sets up an event that will fire when the auth sessions change with a built-in filter for the extensionId
+	 * if a session change only affects a specific extension.
+	 * @param extensionId The extension that is interested in the event.
+	 * @returns An event with a built-in filter for the extensionId
+	 */
+	getExtensionScopedSessionsEvent(extensionId: string): Event<vscode.AuthenticationSessionsChangeEvent> {
+		const normalizedExtensionId = extensionId.toLowerCase();
+		return Event.chain(this._onDidChangeSessions.event, ($) => $
+			.filter(e => !e.extensionIdFilter || e.extensionIdFilter.includes(normalizedExtensionId))
+			.map(e => ({ provider: e.provider }))
+		);
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
@@ -54,14 +65,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
-		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const sortedScopes = [...scopes].sort().join(' ');
-		return await this._getSessionsTaskSingler.getOrCreate(`${extensionId} ${sortedScopes}`, async () => {
-			await this._proxy.$ensureProvider(providerId);
-			const extensionName = requestingExtension.displayName || requestingExtension.name;
-			return this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
-		});
+	async getAccounts(providerId: string) {
+		await this._proxy.$ensureProvider(providerId);
+		return await this._proxy.$getAccounts(providerId);
 	}
 
 	async removeSession(providerId: string, sessionId: string): Promise<void> {
@@ -89,7 +95,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	async $createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderCreateSessionOptions): Promise<vscode.AuthenticationSession> {
+	async $createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
 			return await providerData.provider.createSession(scopes, options);
@@ -107,19 +113,19 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	async $getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+	async $getSessions(providerId: string, scopes: ReadonlyArray<string> | undefined, options: vscode.AuthenticationProviderSessionOptions): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return await providerData.provider.getSessions(scopes);
+			return await providerData.provider.getSessions(scopes, options);
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$onDidChangeAuthenticationSessions(id: string, label: string) {
+	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]) {
 		// Don't fire events for the internal auth providers
 		if (!id.startsWith(INTERNAL_AUTH_PROVIDER_PREFIX)) {
-			this._onDidChangeSessions.fire({ provider: { id, label } });
+			this._onDidChangeSessions.fire({ provider: { id, label }, extensionIdFilter });
 		}
 		return Promise.resolve();
 	}

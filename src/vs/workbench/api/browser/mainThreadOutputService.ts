@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
-import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { UriComponents, URI } from 'vs/base/common/uri';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
-import { isNumber } from 'vs/base/common/types';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { Extensions, IOutputChannelRegistry, IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from '../../services/output/common/output.js';
+import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { UriComponents, URI } from '../../../base/common/uri.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Event } from '../../../base/common/event.js';
+import { IViewsService } from '../../services/views/common/viewsService.js';
+import { isNumber } from '../../../base/common/types.js';
 
 @extHostNamedCustomer(MainContext.MainThreadOutputService)
 export class MainThreadOutputService extends Disposable implements MainThreadOutputServiceShape {
