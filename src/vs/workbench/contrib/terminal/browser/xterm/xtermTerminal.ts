@@ -417,6 +417,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._disposeOfWebglRenderer();
 			}
 		}
+		this._refreshLigaturesAddon();
 	}
 
 	private _updateSmoothScrolling() {
