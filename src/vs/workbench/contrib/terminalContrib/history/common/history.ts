@@ -191,7 +191,8 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 // Shell file history loads once per shell per window
 interface IShellFileHistoryEntry {
-	source?: string;
+	sourceLabel: string;
+	sourceResource: URI;
 	commands: string[];
 }
 const shellFileHistory: Map<TerminalShellType | undefined, IShellFileHistoryEntry | null> = new Map();
@@ -240,7 +241,7 @@ export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IShe
 	if (remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows) {
 		return undefined;
 	}
-	const source = '~/.bash_history';
+	const sourceLabel = '~/.bash_history';
 	const resolvedFile = await fetchFileContents(env['HOME'], '.bash_history', false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
@@ -279,7 +280,8 @@ export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IShe
 	}
 
 	return {
-		source,
+		sourceLabel,
+		sourceResource: resolvedFile.resource,
 		commands: Array.from(result.values())
 	};
 }
@@ -292,7 +294,7 @@ export async function fetchZshHistory(accessor: ServicesAccessor): Promise<IShel
 		return undefined;
 	}
 
-	const source = '~/.zsh_history';
+	const sourceLabel = '~/.zsh_history';
 	const resolvedFile = await fetchFileContents(env['HOME'], '.zsh_history', false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
@@ -306,7 +308,8 @@ export async function fetchZshHistory(accessor: ServicesAccessor): Promise<IShel
 		}
 	}
 	return {
-		source,
+		sourceLabel,
+		sourceResource: resolvedFile.resource,
 		commands: Array.from(result.values())
 	};
 }
@@ -316,7 +319,7 @@ export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IS
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
 
-	const source = '~/.python_history';
+	const sourceLabel = '~/.python_history';
 	const resolvedFile = await fetchFileContents(env['HOME'], '.python_history', false, fileService, remoteAgentService);
 
 	if (resolvedFile === undefined) {
@@ -334,7 +337,8 @@ export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IS
 	});
 
 	return {
-		source,
+		sourceLabel,
+		sourceResource: resolvedFile.resource,
 		commands: Array.from(result.values())
 	};
 }
@@ -346,15 +350,15 @@ export async function fetchPwshHistory(accessor: ServicesAccessor): Promise<IShe
 	let filePath: string;
 	const remoteEnvironment = await remoteAgentService.getEnvironment();
 	const isFileWindows = remoteEnvironment?.os === OperatingSystem.Windows || !remoteEnvironment && isWindows;
-	let source: string;
+	let sourceLabel: string;
 	if (isFileWindows) {
 		folderPrefix = env['APPDATA'];
 		filePath = 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
-		source = `$APPDATA\\...\\ConsoleHost_history.txt`;
+		sourceLabel = `$APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt`;
 	} else {
 		folderPrefix = env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
-		source = `~/${filePath}`;
+		sourceLabel = `~/${filePath}`;
 	}
 	const resolvedFile = await fetchFileContents(folderPrefix, filePath, isFileWindows, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
@@ -409,7 +413,8 @@ export async function fetchPwshHistory(accessor: ServicesAccessor): Promise<IShe
 	}
 
 	return {
-		source,
+		sourceLabel,
+		sourceResource: resolvedFile.resource,
 		commands: Array.from(result.values())
 	};
 }
@@ -435,15 +440,19 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 	// What if XDG_DATA_HOME was defined but somehow $XDG_DATA_HOME/fish/fish_history
 	// was not exist. Does fish fall back to ~/.local/share/fish/fish_history?
 
-	let resolvedFile: { source: URI | string; content: string } | undefined;
-	let source: string;
+	let folderPrefix: string | undefined;
+	let filePath: string;
+	let sourceLabel: string;
 	if (overridenDataHome) {
-		source = '$XDG_DATA_HOME/fish/fish_history';
-		resolvedFile = await fetchFileContents(env['XDG_DATA_HOME'], 'fish/fish_history', false, fileService, remoteAgentService);
+		sourceLabel = '$XDG_DATA_HOME/fish/fish_history';
+		folderPrefix = env['XDG_DATA_HOME'];
+		filePath = 'fish/fish_history';
 	} else {
-		source = '~/.local/share/fish/fish_history';
-		resolvedFile = await fetchFileContents(env['HOME'], '.local/share/fish/fish_history', false, fileService, remoteAgentService);
+		sourceLabel = '~/.local/share/fish/fish_history';
+		folderPrefix = env['HOME'];
+		filePath = '.local/share/fish/fish_history';
 	}
+	const resolvedFile = await fetchFileContents(folderPrefix, filePath, false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
 	}
@@ -473,7 +482,8 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 		}
 	}
 	return {
-		source,
+		sourceLabel,
+		sourceResource: resolvedFile.resource,
 		commands: Array.from(result.values())
 	};
 }
@@ -512,20 +522,20 @@ async function fetchFileContents(
 	isFileWindows: boolean,
 	fileService: Pick<IFileService, 'readFile'>,
 	remoteAgentService: Pick<IRemoteAgentService, 'getConnection'>,
-): Promise<{ source: URI | string; content: string } | undefined> {
+): Promise<{ resource: URI; content: string } | undefined> {
 	if (!folderPrefix) {
 		return undefined;
 	}
 	const connection = remoteAgentService.getConnection();
 	const isRemote = !!connection?.remoteAuthority;
-	const historyFileUri = URI.from({
+	const resource = URI.from({
 		scheme: isRemote ? Schemas.vscodeRemote : Schemas.file,
 		authority: isRemote ? connection.remoteAuthority : undefined,
 		path: URI.file(join(folderPrefix, filePath)).path
 	});
 	let content: IFileContent;
 	try {
-		content = await fileService.readFile(historyFileUri);
+		content = await fileService.readFile(resource);
 	} catch (e: unknown) {
 		// Handle file not found only
 		if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
@@ -537,7 +547,7 @@ async function fetchFileContents(
 		return undefined;
 	}
 	return {
-		source: historyFileUri,
+		resource,
 		content: content.value.toString()
 	};
 }
