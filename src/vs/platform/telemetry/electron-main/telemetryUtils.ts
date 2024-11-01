@@ -6,7 +6,7 @@
 import { getdevDeviceId } from '../../../base/node/id.js';
 import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
-import { machineIdKey, sqmIdKey, devDeviceIdKey } from '../common/telemetry.js';
+import { machineIdKey, sqmIdKey, devDeviceIdKey, ITelemetryService } from '../common/telemetry.js';
 import { resolveMachineId as resolveNodeMachineId, resolveSqmId as resolveNodeSqmId, resolvedevDeviceId as resolveNodedevDeviceId } from '../node/telemetryUtils.js';
 
 export async function resolveMachineId(stateService: IStateService, logService: ILogService): Promise<string> {
@@ -28,10 +28,20 @@ export async function resolvedevDeviceId(stateService: IStateService, logService
 	return devDeviceId;
 }
 
-export async function validatedevDeviceId(stateService: IStateService, logService: ILogService): Promise<void> {
+export async function validatedevDeviceId(stateService: IStateService, logService: ILogService, telemetryService: ITelemetryService): Promise<void> {
 	const actualDeviceId = await getdevDeviceId(logService.error.bind(logService));
 	const currentDeviceId = await resolveNodedevDeviceId(stateService, logService);
 	if (actualDeviceId !== currentDeviceId) {
 		stateService.setItem(devDeviceIdKey, actualDeviceId);
+		telemetryService.publicLog2<
+			{
+				oldDeviceId: string;
+			},
+			{
+				owner: 'lramos15';
+				comment: 'Whenever the dev device id changes we collect this event to understand how often this is happening';
+				oldDeviceId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; endpoint: 'SqmUserId'; comment: 'The previous dev device id' };
+			}
+		>('devDeviceIdMismatch', { oldDeviceId: currentDeviceId });
 	}
 }
