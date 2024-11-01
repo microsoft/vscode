@@ -329,7 +329,7 @@ configurationRegistry.registerConfiguration({
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
 				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.terminal' }, "Open a new terminal in the editor area."),
 			],
-			'default': 'welcomePage',
+			'default': 'none',
 			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
 		},
 		'workbench.welcomePage.preferReducedMotion': {

@@ -29,7 +29,7 @@
 
 /* Watermark & shortcuts */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace  {
 	display: flex;
 	height: 100%;
 	max-width: 290px;
@@ -39,17 +39,99 @@
 	justify-content: center;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace {
+	display: flex;
+	height: 100%;
+	max-width: 700px;
+	margin: auto;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark-workspace {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
-	max-width: 200px;
-	height: calc(100% - 70px);
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark-no-workspace,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark-no-workspace {
+	display: flex;
+	height: 100%;
+	min-width: 500px;
+	max-width: 700px;
+	margin: auto;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 16px;
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .button-container {
+	width: 100%;
+	display: flex;
+	justify-content: center;
+	margin-bottom: 30px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .open-folder-button {
+	padding: 8px 12px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .open-folder-button .codicon {
+	font-size: 16px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .open-folder-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list {
+	width: 100%;
+	min-width: 260px;
+	max-width: 700px;
+	color: var(--vscode-editorWatermark-foreground);
+	opacity: 0.8;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item {
+	padding: 6px 0;
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.8;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item .path {
+	opacity: 0.6;
+	color: var(--vscode-editorWatermark-foreground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item:hover {
+	opacity: 1;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item:hover .path {
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .letterpress {
 	width: 100%;
 	max-height: 100%;
 	aspect-ratio: 1/1;
@@ -59,48 +141,48 @@
 	background-repeat: no-repeat;
 }
 
-.monaco-workbench.vs-dark .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+.monaco-workbench.vs-dark .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .letterpress {
 	background-image: url('./letterpress-dark.svg');
 }
 
-.monaco-workbench.hc-light .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+.monaco-workbench.hc-light .part.editor > .content .editor-group-container > .editor-group-watermark-workspace	 > .letterpress {
 	background-image: url('./letterpress-hcLight.svg');
 }
 
-.monaco-workbench.hc-black .part.editor > .content .editor-group-container .editor-group-watermark > .letterpress {
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .letterpress {
 	background-image: url('./letterpress-hcDark.svg');
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark > .shortcuts,
-.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark > .shortcuts,
-.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark > .shortcuts {
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark-workspace > .shortcuts,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark-workspace > .shortcuts,
+.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark-workspace > .shortcuts {
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts > .watermark-box {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .shortcuts > .watermark-box {
 	display: inline-table;
 	border-collapse: separate;
 	border-spacing: 11px 17px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dl {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .shortcuts dl {
 	display: table-row;
 	opacity: .8;
 	cursor: default;
 	color: var(--vscode-editorWatermark-foreground);
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .shortcuts dt {
 	text-align: right;
 	letter-spacing: 0.04em
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dd {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .shortcuts dd {
 	text-align: left;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dt,
-.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .shortcuts dd {
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .shortcuts dt,
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-workspace > .shortcuts dd {
 	display: table-cell;
 	vertical-align: middle;
 }
@@ -168,4 +250,47 @@
 .monaco-workbench .part.editor > .content .grid-view-container {
 	width: 100%;
 	height: 100%;
+}
+
+/* Hide no-workspace watermark when not needed */
+.monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark-no-workspace {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .more-item {
+	opacity: 0.7;
+	margin-top: 8px;
+	font-style: italic;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .more-item:hover {
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
+
+/* When container is small, allow wrapping */
+@media (max-width: 700px) {
+	.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item {
+		white-space: normal;
+		word-break: break-all;
+	}
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .recent-list .recent-item .spacer {
+    display: inline-block;
+    width: 10px;  /* Adjust this value to increase/decrease spacing between name and path(location) of recent items */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .new-file-item {
+	opacity: 0.7;
+	cursor: pointer;
+	padding: 1px 0;
+	font-style: italic;
+	margin-bottom: 5px;
+	color: var(--vscode-editorWatermark-foreground);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark-no-workspace .new-file-item:hover {
+	color: var(--vscode-foreground);
+	opacity: 1;
 }
