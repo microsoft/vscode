@@ -36,6 +36,11 @@ export class SettingsDocument {
 			return this.provideLanguageCompletionItems(location, position);
 		}
 
+		// workbench.editor.label
+		if (location.path[0] === 'workbench.editor.label.patterns') {
+			return this.provideEditorLabelCompletionItems(location, position);
+		}
+
 		// settingsSync.ignoredExtensions
 		if (location.path[0] === 'settingsSync.ignoredExtensions') {
 			let ignoredExtensions = [];
@@ -123,6 +128,31 @@ export class SettingsDocument {
 		completions.push(this.newSimpleCompletionItem(getText('activeRepositoryName'), range, vscode.l10n.t("the name of the active repository (e.g. vscode)")));
 		completions.push(this.newSimpleCompletionItem(getText('activeRepositoryBranchName'), range, vscode.l10n.t("the name of the active branch in the active repository (e.g. main)")));
 
+		return completions;
+	}
+
+	private async provideEditorLabelCompletionItems(location: Location, pos: vscode.Position): Promise<vscode.CompletionItem[]> {
+		const completions: vscode.CompletionItem[] = [];
+
+		if (!this.isCompletingPropertyValue(location, pos)) {
+			return completions;
+		}
+
+		let range = this.document.getWordRangeAtPosition(pos, /\$\{[^"\}]*\}?/);
+		if (!range || range.start.isEqual(pos) || range.end.isEqual(pos) && this.document.getText(range).endsWith('}')) {
+			range = new vscode.Range(pos, pos);
+		}
+
+		const getText = (variable: string) => {
+			const text = '${' + variable + '}';
+			return location.previousNode ? text : JSON.stringify(text);
+		};
+
+
+		completions.push(this.newSimpleCompletionItem(getText('dirname'), range, vscode.l10n.t("The parent folder name of the editor (e.g. myFileFolder)")));
+		completions.push(this.newSimpleCompletionItem(getText('dirname(1)'), range, vscode.l10n.t("The nth parent folder name of the editor")));
+		completions.push(this.newSimpleCompletionItem(getText('filename'), range, vscode.l10n.t("The file name of the editor without its directory or extension (e.g. myFile)")));
+		completions.push(this.newSimpleCompletionItem(getText('extname'), range, vscode.l10n.t("The file extension of the editor (e.g. txt)")));
 		return completions;
 	}
 

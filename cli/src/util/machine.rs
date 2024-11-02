@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
- use std::{
+use std::{
 	ffi::OsString,
 	path::{Path, PathBuf},
 	time::Duration,

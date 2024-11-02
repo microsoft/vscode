@@ -11,6 +11,20 @@
 	background-size: 16px;
 }
 
+.monaco-action-bar .action-item.menu-entry.text-only .action-label {
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	border-radius: 2px;
+}
+
+.monaco-action-bar .action-item.menu-entry.text-only.use-comma:not(:last-of-type) .action-label::after {
+	content: ', ';
+}
+
+.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
+	color: var(--vscode-descriptionForeground);
+}
+
 .monaco-dropdown-with-default {
 	display: flex !important;
 	flex-direction: row;

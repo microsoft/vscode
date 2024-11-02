@@ -3,27 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./hover';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import * as dom from 'vs/base/browser/dom';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget, IHoverOptions } from 'vs/platform/hover/browser/hover';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from 'vs/base/browser/ui/hover/hoverWidget';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { localize } from 'vs/nls';
-import { isMacintosh } from 'vs/base/common/platform';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { status } from 'vs/base/browser/ui/aria/aria';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import './hover.css';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../common/config/editorOptions.js';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { MarkdownRenderer, openLinkFromMarkdown } from '../../widget/markdownRenderer/browser/markdownRenderer.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { localize } from '../../../../nls.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
+import type { IHoverOptions, IHoverTarget, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { TimeoutTimer } from '../../../../base/common/async.js';
+import { isNumber } from '../../../../base/common/types.js';
 
 const $ = dom.$;
 type TargetRect = {
@@ -111,13 +112,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
-		this._hover = this._register(new BaseHoverWidget());
-		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
+		this._hover = this._register(new BaseHoverWidget(!options.appearance?.skipFadeInAnimation));
+		this._hover.containerDomNode.classList.add('workbench-hover');
 		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
-		}
-		if (options.appearance?.skipFadeInAnimation) {
-			this._hover.containerDomNode.classList.add('skip-fade-in');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
@@ -129,7 +127,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = options.position?.hoverPosition ?? HoverPosition.ABOVE;
+		// Default to position above when the position is unspecified or a mouse event
+		this._hoverPosition = options.position?.hoverPosition === undefined
+			? HoverPosition.ABOVE
+			: isNumber(options.position.hoverPosition)
+				? options.position.hoverPosition
+				: HoverPosition.BELOW;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -151,7 +154,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			contentsElement.textContent = options.content;
 			contentsElement.style.whiteSpace = 'pre-wrap';
 
-		} else if (options.content instanceof HTMLElement) {
+		} else if (dom.isHTMLElement(options.content)) {
 			contentsElement.appendChild(options.content);
 			contentsElement.classList.add('html-hover-contents');
 
@@ -223,7 +226,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		}
 
 		// Show the hover hint if needed
-		if (hideOnHover && options.appearance?.showHoverHint) {
+		if (options.appearance?.showHoverHint) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const infoElement = $('div.info');
 			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');
@@ -396,7 +399,6 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 			this.setHoverPointerPosition(targetRect);
 		}
-
 		this._hover.onContentsChanged();
 	}
 
@@ -469,9 +471,11 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			return;
 		}
 
+		const hoverPointerOffset = (this._hoverPointer ? Constants.PointerSize : 0);
+
 		// When force position is enabled, restrict max width
 		if (this._forcePosition) {
-			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
+			const padding = hoverPointerOffset + Constants.HoverBorderWidth;
 			if (this._hoverPosition === HoverPosition.RIGHT) {
 				this._hover.containerDomNode.style.maxWidth = `${this._targetDocumentElement.clientWidth - target.right - padding}px`;
 			} else if (this._hoverPosition === HoverPosition.LEFT) {
@@ -484,10 +488,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		if (this._hoverPosition === HoverPosition.RIGHT) {
 			const roomOnRight = this._targetDocumentElement.clientWidth - target.right;
 			// Hover on the right is going beyond window.
-			if (roomOnRight < this._hover.containerDomNode.clientWidth) {
+			if (roomOnRight < this._hover.containerDomNode.clientWidth + hoverPointerOffset) {
 				const roomOnLeft = target.left;
 				// There's enough room on the left, flip the hover position
-				if (roomOnLeft >= this._hover.containerDomNode.clientWidth) {
+				if (roomOnLeft >= this._hover.containerDomNode.clientWidth + hoverPointerOffset) {
 					this._hoverPosition = HoverPosition.LEFT;
 				}
 				// Hover on the left would go beyond window too
@@ -501,10 +505,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 			const roomOnLeft = target.left;
 			// Hover on the left is going beyond window.
-			if (roomOnLeft < this._hover.containerDomNode.clientWidth) {
+			if (roomOnLeft < this._hover.containerDomNode.clientWidth + hoverPointerOffset) {
 				const roomOnRight = this._targetDocumentElement.clientWidth - target.right;
 				// There's enough room on the right, flip the hover position
-				if (roomOnRight >= this._hover.containerDomNode.clientWidth) {
+				if (roomOnRight >= this._hover.containerDomNode.clientWidth + hoverPointerOffset) {
 					this._hoverPosition = HoverPosition.RIGHT;
 				}
 				// Hover on the right would go beyond window too
@@ -513,7 +517,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				}
 			}
 			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth <= this._targetDocumentElement.clientLeft) {
+			if (target.left - this._hover.containerDomNode.clientWidth - hoverPointerOffset <= this._targetDocumentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;
 			}
 		}
@@ -526,10 +530,12 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			return;
 		}
 
+		const hoverPointerOffset = (this._hoverPointer ? Constants.PointerSize : 0);
+
 		// Position hover on top of the target
 		if (this._hoverPosition === HoverPosition.ABOVE) {
 			// Hover on top is going beyond window
-			if (target.top - this._hover.containerDomNode.clientHeight < 0) {
+			if (target.top - this._hover.containerDomNode.clientHeight - hoverPointerOffset < 0) {
 				this._hoverPosition = HoverPosition.BELOW;
 			}
 		}
@@ -537,7 +543,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		// Position hover below the target
 		else if (this._hoverPosition === HoverPosition.BELOW) {
 			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.clientHeight > this._targetWindow.innerHeight) {
+			if (target.bottom + this._hover.containerDomNode.clientHeight + hoverPointerOffset > this._targetWindow.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
@@ -620,9 +626,9 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	public override dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
+			this._target.dispose?.();
 			this._hoverContainer.remove();
 			this._messageListeners.dispose();
-			this._target.dispose();
 			super.dispose();
 		}
 		this._isDisposed = true;
@@ -631,43 +637,41 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = true;
-	private _mouseTimeout: number | undefined;
+	private readonly _mouseTimer: MutableDisposable<TimeoutTimer> = this._register(new MutableDisposable());
 
 	private readonly _onMouseOut = this._register(new Emitter<void>());
 	get onMouseOut(): Event<void> { return this._onMouseOut.event; }
 
 	get isMouseIn(): boolean { return this._isMouseIn; }
 
+	/**
+	 * @param _elements The target elements to track mouse in/out events on.
+	 * @param _eventDebounceDelay The delay in ms to debounce the event firing. This is used to
+	 * allow a short period for the mouse to move into the hover or a nearby target element. For
+	 * example hovering a scroll bar will not hide the hover immediately.
+	 */
 	constructor(
-		private _elements: HTMLElement[]
+		private _elements: HTMLElement[],
+		private _eventDebounceDelay: number = 200
 	) {
 		super();
-		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver(n)));
-		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave(n)));
+
+		for (const element of this._elements) {
+			this.onmouseover(element, () => this._onTargetMouseOver());
+			this.onmouseleave(element, () => this._onTargetMouseLeave());
+		}
 	}
 
-	private _onTargetMouseOver(target: HTMLElement): void {
+	private _onTargetMouseOver(): void {
 		this._isMouseIn = true;
-		this._clearEvaluateMouseStateTimeout(target);
+		this._mouseTimer.clear();
 	}
 
-	private _onTargetMouseLeave(target: HTMLElement): void {
+	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
-		this._evaluateMouseState(target);
-	}
-
-	private _evaluateMouseState(target: HTMLElement): void {
-		this._clearEvaluateMouseStateTimeout(target);
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = dom.getWindow(target).setTimeout(() => this._fireIfMouseOutside(), 0);
-	}
-
-	private _clearEvaluateMouseStateTimeout(target: HTMLElement): void {
-		if (this._mouseTimeout) {
-			dom.getWindow(target).clearTimeout(this._mouseTimeout);
-			this._mouseTimeout = undefined;
-		}
+		this._mouseTimer.value = new TimeoutTimer(() => this._fireIfMouseOutside(), this._eventDebounceDelay);
 	}
 
 	private _fireIfMouseOutside(): void {

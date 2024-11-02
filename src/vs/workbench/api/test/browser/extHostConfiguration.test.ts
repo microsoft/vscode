@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
-import { MainThreadConfigurationShape, IConfigurationInitData } from 'vs/workbench/api/common/extHost.protocol';
-import { ConfigurationModel, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { mock } from 'vs/base/test/common/mock';
-import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
-import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { isLinux } from 'vs/base/common/platform';
-import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ExtHostWorkspace } from '../../common/extHostWorkspace.js';
+import { ExtHostConfigProvider } from '../../common/extHostConfiguration.js';
+import { MainThreadConfigurationShape, IConfigurationInitData } from '../../common/extHost.protocol.js';
+import { ConfigurationModel, ConfigurationModelParser } from '../../../../platform/configuration/common/configurationModels.js';
+import { TestRPCProtocol } from '../common/testRPCProtocol.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ConfigurationTarget, IConfigurationModel, IConfigurationChange } from '../../../../platform/configuration/common/configuration.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
+import { IExtHostFileSystemInfo } from '../../common/extHostFileSystemInfo.js';
+import { FileSystemProviderCapabilities } from '../../../../platform/files/common/files.js';
+import { isLinux } from '../../../../base/common/platform.js';
+import { IURITransformerService } from '../../common/extHostUriTransformerService.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('ExtHostConfiguration', function () {
 
@@ -44,11 +44,11 @@ suite('ExtHostConfiguration', function () {
 
 	function createConfigurationData(contents: any): IConfigurationInitData {
 		return {
-			defaults: new ConfigurationModel(contents),
-			policy: new ConfigurationModel(),
-			application: new ConfigurationModel(),
-			user: new ConfigurationModel(contents),
-			workspace: new ConfigurationModel(),
+			defaults: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+			application: ConfigurationModel.createEmptyModel(new NullLogService()),
+			user: new ConfigurationModel(contents, [], [], undefined, new NullLogService()),
+			workspace: ConfigurationModel.createEmptyModel(new NullLogService()),
 			folders: [],
 			configurationScopes: []
 		};
@@ -284,15 +284,15 @@ suite('ExtHostConfiguration', function () {
 					'editor': {
 						'wordWrap': 'off'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
-				workspace: new ConfigurationModel({}, []),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
 			},
@@ -319,7 +319,7 @@ suite('ExtHostConfiguration', function () {
 			'editor': {
 				'wordWrap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService());
 		folders.push([workspaceUri, workspace]);
 		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
@@ -335,14 +335,14 @@ suite('ExtHostConfiguration', function () {
 					'editor': {
 						'wordWrap': 'off'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -380,7 +380,7 @@ suite('ExtHostConfiguration', function () {
 			'editor': {
 				'wordWrap': 'bounded'
 			}
-		}, ['editor.wordWrap']);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService());
 
 		const firstRoot = URI.file('foo1');
 		const secondRoot = URI.file('foo2');
@@ -391,13 +391,13 @@ suite('ExtHostConfiguration', function () {
 				'wordWrap': 'off',
 				'lineNumbers': 'relative'
 			}
-		}, ['editor.wordWrap'])]);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService())]);
 		folders.push([secondRoot, new ConfigurationModel({
 			'editor': {
 				'wordWrap': 'on'
 			}
-		}, ['editor.wordWrap'])]);
-		folders.push([thirdRoot, new ConfigurationModel({}, [])]);
+		}, ['editor.wordWrap'], [], undefined, new NullLogService())]);
+		folders.push([thirdRoot, new ConfigurationModel({}, [], [], undefined, new NullLogService())]);
 
 		const extHostWorkspace = createExtHostWorkspace();
 		extHostWorkspace.$initializeWorkspace({
@@ -414,14 +414,14 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off',
 						'lineNumbers': 'on'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				workspace,
 				folders,
 				configurationScopes: []
@@ -520,8 +520,8 @@ suite('ExtHostConfiguration', function () {
 						'editor.wordWrap': 'bounded',
 					}
 				}),
-				policy: new ConfigurationModel(),
-				application: new ConfigurationModel(),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
+				application: ConfigurationModel.createEmptyModel(new NullLogService()),
 				user: toConfigurationModel({
 					'editor.wordWrap': 'bounded',
 					'[typescript]': {
@@ -575,20 +575,20 @@ suite('ExtHostConfiguration', function () {
 						'lineNumbers': 'on',
 						'fontSize': '12px'
 					}
-				}, ['editor.wordWrap']),
-				policy: new ConfigurationModel(),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				policy: ConfigurationModel.createEmptyModel(new NullLogService()),
 				application: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
 					}
-				}, ['editor.wordWrap']),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'auto',
 						'lineNumbers': 'off'
 					}
-				}, ['editor.wordWrap']),
-				workspace: new ConfigurationModel({}, []),
+				}, ['editor.wordWrap'], [], undefined, new NullLogService()),
+				workspace: new ConfigurationModel({}, [], [], undefined, new NullLogService()),
 				folders: [],
 				configurationScopes: []
 			},
@@ -789,7 +789,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function toConfigurationModel(obj: any): ConfigurationModel {
-		const parser = new ConfigurationModelParser('test');
+		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(obj));
 		return parser.configurationModel;
 	}

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { memoize } from 'vs/base/common/decorators';
-import { join } from 'vs/base/common/path';
-import { isLinux } from 'vs/base/common/platform';
-import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { memoize } from '../../../base/common/decorators.js';
+import { join } from '../../../base/common/path.js';
+import { isLinux } from '../../../base/common/platform.js';
+import { createStaticIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../common/environment.js';
+import { NativeEnvironmentService } from '../node/environmentService.js';
+import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentService, IEnvironmentMainService>(IEnvironmentService);
 
@@ -18,9 +18,6 @@ export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentServic
  * environments.
  */
 export interface IEnvironmentMainService extends INativeEnvironmentService {
-
-	// --- NLS cache path
-	readonly cachedLanguagesPath: string;
 
 	// --- backup paths
 	readonly backupHome: string;
@@ -43,9 +40,6 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
 
 	private _snapEnv: Record<string, string> = {};
-
-	@memoize
-	get cachedLanguagesPath(): string { return join(this.userDataPath, 'clp'); }
 
 	@memoize
 	get backupHome(): string { return join(this.userDataPath, 'Backups'); }

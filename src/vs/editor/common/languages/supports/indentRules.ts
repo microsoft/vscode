@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
+import { IndentationRule } from '../languageConfiguration.js';
 
 export const enum IndentConsts {
 	INCREASE_MASK = 0b00000001,

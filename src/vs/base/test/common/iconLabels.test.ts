@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { IMatch } from 'vs/base/common/filters';
-import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from 'vs/base/common/iconLabels';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { IMatch } from '../../common/filters.js';
+import { escapeIcons, getCodiconAriaLabel, IParsedLabelWithIcons, markdownEscapeEscapedIcons, matchesFuzzyIconAware, parseLabelWithIcons, stripIcons } from '../../common/iconLabels.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 interface IIconFilter {
 	// Returns null if word doesn't match.

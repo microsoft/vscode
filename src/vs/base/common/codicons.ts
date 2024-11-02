@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { ThemeIcon } from 'vs/base/common/themables';
-import { register } from 'vs/base/common/codiconsUtil';
-import { codiconsLibrary } from 'vs/base/common/codiconsLibrary';
+import { ThemeIcon } from './themables.js';
+import { register } from './codiconsUtil.js';
+import { codiconsLibrary } from './codiconsLibrary.js';
 
 
 /**
@@ -36,7 +36,17 @@ export const codiconsDerived = {
 	scrollbarButtonUp: register('scrollbar-button-up', 'triangle-up'),
 	scrollbarButtonDown: register('scrollbar-button-down', 'triangle-down'),
 	toolBarMore: register('toolbar-more', 'more'),
-	quickInputBack: register('quick-input-back', 'arrow-left')
+	quickInputBack: register('quick-input-back', 'arrow-left'),
+	dropDownButton: register('drop-down-button', 0xeab4),
+	symbolCustomColor: register('symbol-customcolor', 0xeb5c),
+	exportIcon: register('export', 0xebac),
+	workspaceUnspecified: register('workspace-unspecified', 0xebc3),
+	newLine: register('newline', 0xebea),
+	thumbsDownFilled: register('thumbsdown-filled', 0xec13),
+	thumbsUpFilled: register('thumbsup-filled', 0xec14),
+	gitFetch: register('git-fetch', 0xec1d),
+	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
+	debugBreakpointPending: register('debug-breakpoint-pending', 0xebd9),
 
 } as const;
 

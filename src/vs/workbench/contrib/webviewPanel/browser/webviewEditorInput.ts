@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
+import { CodeWindow } from '../../../../base/browser/window.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { IOverlayWebview } from '../../webview/browser/webview.js';
+import { WebviewIconManager, WebviewIcons } from './webviewIconManager.js';
 
 export interface WebviewInputInitInfo {
 	readonly viewType: string;
@@ -30,7 +32,7 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.AuxWindowUnsupported;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	private readonly _resourceId = generateUuid();
@@ -130,5 +132,9 @@ export class WebviewInput extends EditorInput {
 		this._hasTransfered = true;
 		other._webview = this._webview;
 		return other;
+	}
+
+	public claim(claimant: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined): void {
+		return this._webview.claim(claimant, targetWindow, scopedContextKeyService);
 	}
 }

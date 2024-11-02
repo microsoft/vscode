@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
+import * as path from '../../../base/common/path.js';
 
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { win32 } from 'vs/base/node/processes';
-import * as types from 'vs/workbench/api/common/extHostTypes';
-import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import { win32 } from '../../../base/node/processes.js';
+import * as types from '../common/extHostTypes.js';
+import { IExtHostWorkspace } from '../common/extHostWorkspace.js';
 import type * as vscode from 'vscode';
-import * as tasks from '../common/shared/tasks';
-import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
-import { IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
-import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerData } from 'vs/workbench/api/common/extHostTask';
-import { Schemas } from 'vs/base/common/network';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
-import * as resources from 'vs/base/common/resources';
+import * as tasks from '../common/shared/tasks.js';
+import { IExtHostDocumentsAndEditors } from '../common/extHostDocumentsAndEditors.js';
+import { IExtHostConfiguration } from '../common/extHostConfiguration.js';
+import { IWorkspaceFolder, WorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { IExtHostTerminalService } from '../common/extHostTerminalService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
+import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { ExtHostTaskBase, TaskHandleDTO, TaskDTO, CustomExecutionDTO, HandlerData } from '../common/extHostTask.js';
+import { Schemas } from '../../../base/common/network.js';
+import { ILogService } from '../../../platform/log/common/log.js';
+import { IExtHostApiDeprecationService } from '../common/extHostApiDeprecationService.js';
+import * as resources from '../../../base/common/resources.js';
 import { homedir } from 'os';
-import { IExtHostVariableResolverProvider } from 'vs/workbench/api/common/extHostVariableResolverService';
+import { IExtHostVariableResolverProvider } from '../common/extHostVariableResolverService.js';
 
 export class ExtHostTask extends ExtHostTaskBase {
 	constructor(

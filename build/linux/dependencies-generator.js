@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDependencies = void 0;
+exports.getDependencies = getDependencies;
 const child_process_1 = require("child_process");
 const path = require("path");
 const install_sysroot_1 = require("./debian/install-sysroot");
@@ -23,7 +23,7 @@ const product = require("../../product.json");
 // The reference dependencies, which one has to update when the new dependencies
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES = true;
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/120.0.6099.268:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/128.0.6613.186:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [
@@ -43,7 +43,8 @@ async function getDependencies(packageType, buildDir, applicationName, arch) {
         throw new Error('Invalid RPM arch string ' + arch);
     }
     // Get the files for which we want to find dependencies.
-    const nativeModulesPath = path.join(buildDir, 'resources', 'app', 'node_modules.asar.unpacked');
+    const canAsar = false; // TODO@esm ASAR disabled in ESM
+    const nativeModulesPath = path.join(buildDir, 'resources', 'app', canAsar ? 'node_modules.asar.unpacked' : 'node_modules');
     const findResult = (0, child_process_1.spawnSync)('find', [nativeModulesPath, '-name', '*.node']);
     if (findResult.status) {
         console.error('Error finding files:');
@@ -92,7 +93,6 @@ async function getDependencies(packageType, buildDir, applicationName, arch) {
     }
     return sortedDependencies;
 }
-exports.getDependencies = getDependencies;
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/merge_package_deps.py.
 function mergePackageDeps(inputDeps) {
     const requires = new Set();

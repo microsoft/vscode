@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { Codicon } from 'vs/base/common/codicons';
-import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as nls from 'vs/nls';
-import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
-import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import * as dom from '../../../../base/browser/dom.js';
+import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
+import { IContextViewProvider } from '../../../../base/browser/ui/contextview/contextview.js';
+import { HistoryInputBox, IInputBoxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { Widget } from '../../../../base/browser/ui/widget.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event as CommonEvent } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import * as nls from '../../../../nls.js';
+import { ContextScopedHistoryInputBox } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
+import { showHistoryKeybindingHint } from '../../../../platform/history/browser/historyWidgetKeybindingHint.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 export interface IOptions {
 	placeholder?: string;

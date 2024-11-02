@@ -295,11 +295,11 @@ suite('Notebook Document', function () {
 		const document = await vscode.workspace.openNotebookDocument(uri);
 
 		const edit = new vscode.WorkspaceEdit();
-		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, custom: { ...(document.metadata.custom || {}), extraNotebookMetadata: true } });
+		const metdataEdit = vscode.NotebookEdit.updateNotebookMetadata({ ...document.metadata, extraNotebookMetadata: true });
 		edit.set(document.uri, [metdataEdit]);
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.equal(success, true);
-		assert.ok(document.metadata.custom.extraNotebookMetadata, `Test metadata not found`);
+		assert.ok(document.metadata.extraNotebookMetadata, `Test metadata not found`);
 	});
 
 	test('setTextDocumentLanguage for notebook cells', async function () {

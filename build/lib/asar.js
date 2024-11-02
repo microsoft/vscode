@@ -4,17 +4,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createAsar = void 0;
+exports.createAsar = createAsar;
 const path = require("path");
 const es = require("event-stream");
 const pickle = require('chromium-pickle-js');
 const Filesystem = require('asar/lib/filesystem');
 const VinylFile = require("vinyl");
 const minimatch = require("minimatch");
-function createAsar(folderPath, unpackGlobs, destFilename) {
+function createAsar(folderPath, unpackGlobs, skipGlobs, duplicateGlobs, destFilename) {
     const shouldUnpackFile = (file) => {
         for (let i = 0; i < unpackGlobs.length; i++) {
             if (minimatch(file.relative, unpackGlobs[i])) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const shouldSkipFile = (file) => {
+        for (const skipGlob of skipGlobs) {
+            if (minimatch(file.relative, skipGlob)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    // Files that should be duplicated between
+    // node_modules.asar and node_modules
+    const shouldDuplicateFile = (file) => {
+        for (const duplicateGlob of duplicateGlobs) {
+            if (minimatch(file.relative, duplicateGlob)) {
                 return true;
             }
         }
@@ -63,6 +81,23 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         }
         if (!file.stat.isFile()) {
             throw new Error(`unknown item in stream!`);
+        }
+        if (shouldSkipFile(file)) {
+            this.queue(new VinylFile({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
+            return;
+        }
+        if (shouldDuplicateFile(file)) {
+            this.queue(new VinylFile({
+                base: '.',
+                path: file.path,
+                stat: file.stat,
+                contents: file.contents
+            }));
         }
         const shouldUnpack = shouldUnpackFile(file);
         insertFile(file.relative, { size: file.contents.length, mode: file.stat.mode }, shouldUnpack);
@@ -115,5 +150,4 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         }
     });
 }
-exports.createAsar = createAsar;
 //# sourceMappingURL=asar.js.map

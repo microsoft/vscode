@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
+import { registerSharedProcessRemoteService } from '../../ipc/electron-sandbox/services.js';
+import { IV8InspectProfilingService } from '../common/profiling.js';
 
 registerSharedProcessRemoteService(IV8InspectProfilingService, 'v8InspectProfiling');

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { URI } from '../../../base/common/uri.js';
+import { IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 
 export interface IBaseBackupInfo {
 	remoteAuthority?: string;

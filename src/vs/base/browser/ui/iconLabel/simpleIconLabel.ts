@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { reset } from '../../dom.js';
+import type { IManagedHover } from '../hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../hover/hoverDelegateFactory.js';
+import { renderLabelWithIcons } from './iconLabels.js';
+import { IDisposable } from '../../../common/lifecycle.js';
 
 export class SimpleIconLabel implements IDisposable {
 
-	private hover?: ICustomHover;
+	private hover?: IManagedHover;
 
 	constructor(
 		private readonly _container: HTMLElement
@@ -23,7 +24,7 @@ export class SimpleIconLabel implements IDisposable {
 
 	set title(title: string) {
 		if (!this.hover && title) {
-			this.hover = setupCustomHover(getDefaultHoverDelegate('mouse'), this._container, title);
+			this.hover = getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this._container, title);
 		} else if (this.hover) {
 			this.hover.update(title);
 		}

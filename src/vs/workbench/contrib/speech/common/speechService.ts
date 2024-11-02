@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { language } from 'vs/base/common/platform';
+import { localize } from '../../../../nls.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { language } from '../../../../base/common/platform.js';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
-export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'string', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
-export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'string', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
+export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'boolean', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
+export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'boolean', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
+export const TextToSpeechInProgress = new RawContextKey<boolean>('textToSpeechInProgress', false, { type: 'boolean', description: localize('textToSpeechInProgress', "A text-to-speech session is in progress.") });
 
 export interface ISpeechProviderMetadata {
 	readonly extension: ExtensionIdentifier;
@@ -26,7 +27,8 @@ export enum SpeechToTextStatus {
 	Started = 1,
 	Recognizing = 2,
 	Recognized = 3,
-	Stopped = 4
+	Stopped = 4,
+	Error = 5
 }
 
 export interface ISpeechToTextEvent {
@@ -36,6 +38,23 @@ export interface ISpeechToTextEvent {
 
 export interface ISpeechToTextSession {
 	readonly onDidChange: Event<ISpeechToTextEvent>;
+}
+
+export enum TextToSpeechStatus {
+	Started = 1,
+	Stopped = 2,
+	Error = 3
+}
+
+export interface ITextToSpeechEvent {
+	readonly status: TextToSpeechStatus;
+	readonly text?: string;
+}
+
+export interface ITextToSpeechSession {
+	readonly onDidChange: Event<ITextToSpeechEvent>;
+
+	synthesize(text: string): Promise<void>;
 }
 
 export enum KeywordRecognitionStatus {
@@ -57,10 +76,15 @@ export interface ISpeechToTextSessionOptions {
 	readonly language?: string;
 }
 
+export interface ITextToSpeechSessionOptions {
+	readonly language?: string;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
 	createSpeechToTextSession(token: CancellationToken, options?: ISpeechToTextSessionOptions): ISpeechToTextSession;
+	createTextToSpeechSession(token: CancellationToken, options?: ITextToSpeechSessionOptions): ITextToSpeechSession;
 	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
@@ -68,8 +92,7 @@ export interface ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly onDidRegisterSpeechProvider: Event<ISpeechProvider>;
-	readonly onDidUnregisterSpeechProvider: Event<ISpeechProvider>;
+	readonly onDidChangeHasSpeechProvider: Event<void>;
 
 	readonly hasSpeechProvider: boolean;
 
@@ -84,7 +107,19 @@ export interface ISpeechService {
 	 * Starts to transcribe speech from the default microphone. The returned
 	 * session object provides an event to subscribe for transcribed text.
 	 */
-	createSpeechToTextSession(token: CancellationToken, context?: string): ISpeechToTextSession;
+	createSpeechToTextSession(token: CancellationToken, context?: string): Promise<ISpeechToTextSession>;
+
+	readonly onDidStartTextToSpeechSession: Event<void>;
+	readonly onDidEndTextToSpeechSession: Event<void>;
+
+	readonly hasActiveTextToSpeechSession: boolean;
+
+	/**
+	 * Creates a synthesizer to synthesize speech from text. The returned
+	 * session object provides a method to synthesize text and listen for
+	 * events.
+	 */
+	createTextToSpeechSession(token: CancellationToken, context?: string): Promise<ITextToSpeechSession>;
 
 	readonly onDidStartKeywordRecognition: Event<void>;
 	readonly onDidEndKeywordRecognition: Event<void>;
@@ -99,7 +134,13 @@ export interface ISpeechService {
 	recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus>;
 }
 
-export const SPEECH_LANGUAGE_CONFIG = 'accessibility.voice.speechLanguage';
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	AutoSynthesize = 'accessibility.voice.autoSynthesize',
+	SpeechLanguage = 'accessibility.voice.speechLanguage',
+}
+
+export const SPEECH_LANGUAGE_CONFIG = AccessibilityVoiceSettingId.SpeechLanguage;
 
 export const SPEECH_LANGUAGES = {
 	['da-DK']: {
@@ -169,7 +210,8 @@ export const SPEECH_LANGUAGES = {
 		name: localize('speechLanguage.sv-SE', "Swedish (Sweden)")
 	},
 	['tr-TR']: {
-		name: localize('speechLanguage.tr-TR', "Turkish (Turkey)")
+		// allow-any-unicode-next-line
+		name: localize('speechLanguage.tr-TR', "Turkish (Türkiye)")
 	},
 	['zh-CN']: {
 		name: localize('speechLanguage.zh-CN', "Chinese (Simplified, China)")

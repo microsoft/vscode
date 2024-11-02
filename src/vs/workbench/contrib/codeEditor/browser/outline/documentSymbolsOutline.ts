@@ -3,36 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { OutlineConfigCollapseItemsValues, IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from 'vs/workbench/services/outline/browser/outline';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorPane } from 'vs/workbench/common/editor';
-import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from 'vs/workbench/contrib/codeEditor/browser/outline/documentSymbolsTree';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { raceCancellation, TimeoutTimer, timeout, Barrier } from 'vs/base/common/async';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ScrollType } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { IDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { localize } from 'vs/nls';
-import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { isEqual } from 'vs/base/common/resources';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { OutlineConfigCollapseItemsValues, IBreadcrumbsDataSource, IOutline, IOutlineCreator, IOutlineListConfig, IOutlineService, OutlineChangeEvent, OutlineConfigKeys, OutlineTarget, } from '../../../../services/outline/browser/outline.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../common/contributions.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IEditorPane } from '../../../../common/editor.js';
+import { DocumentSymbolComparator, DocumentSymbolAccessibilityProvider, DocumentSymbolRenderer, DocumentSymbolFilter, DocumentSymbolGroupRenderer, DocumentSymbolIdentityProvider, DocumentSymbolNavigationLabelProvider, DocumentSymbolVirtualDelegate } from './documentSymbolsTree.js';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { OutlineGroup, OutlineElement, OutlineModel, TreeElement, IOutlineMarker, IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { raceCancellation, TimeoutTimer, timeout, Barrier } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IPosition } from '../../../../../editor/common/core/position.js';
+import { ScrollType } from '../../../../../editor/common/editorCommon.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { IEditorOptions, TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IDataSource } from '../../../../../base/browser/ui/tree/tree.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { localize } from '../../../../../nls.js';
+import { IMarkerDecorationsService } from '../../../../../editor/common/services/markerDecorations.js';
+import { MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 

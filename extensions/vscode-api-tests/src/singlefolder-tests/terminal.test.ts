@@ -953,8 +953,8 @@ function sanitizeData(data: string): string {
 
 	// Strip escape sequences so winpty/conpty doesn't cause flakiness, do for all platforms for
 	// consistency
-	const terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
-	data = data.replace(terminalCodesRegex, '');
+	const CSI_SEQUENCE = /(:?(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
+	data = data.replace(CSI_SEQUENCE, '');
 
 	return data;
 }

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, getWindow } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
+import { addDisposableListener, getWindow } from './dom.js';
+import { Disposable } from '../common/lifecycle.js';
+import { Mimes } from '../common/mime.js';
 
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
@@ -100,7 +100,7 @@ export function applyDragImage(event: DragEvent, label: string | null, clazz: st
 		event.dataTransfer.setDragImage(dragImage, -10, -10);
 
 		// Removes the element when the DND operation is done
-		setTimeout(() => ownerDocument.body.removeChild(dragImage), 0);
+		setTimeout(() => dragImage.remove(), 0);
 	}
 }
 

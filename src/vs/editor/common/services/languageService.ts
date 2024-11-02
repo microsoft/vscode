@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { ILanguageNameIdPair, ILanguageSelection, ILanguageService, ILanguageIcon, ILanguageExtensionPoint } from 'vs/editor/common/languages/language';
-import { firstOrDefault } from 'vs/base/common/arrays';
-import { ILanguageIdCodec, TokenizationRegistry } from 'vs/editor/common/languages';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { LanguagesRegistry } from './languagesRegistry.js';
+import { ILanguageNameIdPair, ILanguageSelection, ILanguageService, ILanguageIcon, ILanguageExtensionPoint } from '../languages/language.js';
+import { ILanguageIdCodec, TokenizationRegistry } from '../languages.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { IObservable, observableFromEvent } from '../../../base/common/observable.js';
 
 export class LanguageService extends Disposable implements ILanguageService {
 	public _serviceBrand: undefined;
@@ -95,7 +95,7 @@ export class LanguageService extends Disposable implements ILanguageService {
 
 	public guessLanguageIdByFilepathOrFirstLine(resource: URI | null, firstLine?: string): string | null {
 		const languageIds = this._registry.guessLanguageIdByFilepathOrFirstLine(resource, firstLine);
-		return firstOrDefault(languageIds, null);
+		return languageIds.at(0) ?? null;
 	}
 
 	public createById(languageId: string | null | undefined): ILanguageSelection {
@@ -150,51 +150,15 @@ export class LanguageService extends Disposable implements ILanguageService {
 }
 
 class LanguageSelection implements ILanguageSelection {
+	private readonly _value: IObservable<string>;
+	public readonly onDidChange: Event<string>;
 
-	public languageId: string;
-
-	private _listener: IDisposable | null = null;
-	private _emitter: Emitter<string> | null = null;
-
-	constructor(
-		private readonly _onDidChangeLanguages: Event<void>,
-		private readonly _selector: () => string
-	) {
-		this.languageId = this._selector();
+	constructor(onDidChangeLanguages: Event<void>, selector: () => string) {
+		this._value = observableFromEvent(this, onDidChangeLanguages, () => selector());
+		this.onDidChange = Event.fromObservable(this._value);
 	}
 
-	private _dispose(): void {
-		if (this._listener) {
-			this._listener.dispose();
-			this._listener = null;
-		}
-		if (this._emitter) {
-			this._emitter.dispose();
-			this._emitter = null;
-		}
-	}
-
-	public get onDidChange(): Event<string> {
-		if (!this._listener) {
-			this._listener = this._onDidChangeLanguages(() => this._evaluate());
-		}
-		if (!this._emitter) {
-			this._emitter = new Emitter<string>({
-				onDidRemoveLastListener: () => {
-					this._dispose();
-				}
-			});
-		}
-		return this._emitter.event;
-	}
-
-	private _evaluate(): void {
-		const languageId = this._selector();
-		if (languageId === this.languageId) {
-			// no change
-			return;
-		}
-		this.languageId = languageId;
-		this._emitter?.fire(this.languageId);
+	public get languageId(): string {
+		return this._value.get();
 	}
 }

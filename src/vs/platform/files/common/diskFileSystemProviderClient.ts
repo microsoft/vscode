@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { canceled } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } from 'vs/base/common/stream';
-import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions, IFileSystemProviderError } from 'vs/platform/files/common/files';
-import { reviveFileChanges } from 'vs/platform/files/common/watcher';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import { canceled } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } from '../../../base/common/stream.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions, IFileSystemProviderError } from './files.js';
+import { reviveFileChanges } from './watcher.js';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 

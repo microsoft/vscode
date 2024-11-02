@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature, BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Dimension } from 'vs/base/browser/dom';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ViewPaneContainer, ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { IView } from 'vs/workbench/common/views';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { VIEWPANE_FILTER_ACTION } from 'vs/workbench/browser/parts/views/viewPane';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { Composite, CompositeDescriptor, CompositeRegistry } from './composite.js';
+import { IConstructorSignature, BrandedService, IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../base/common/uri.js';
+import { Dimension } from '../../base/browser/dom.js';
+import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
+import { IAction, Separator } from '../../base/common/actions.js';
+import { MenuId, SubmenuItemAction } from '../../platform/actions/common/actions.js';
+import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
+import { IStorageService } from '../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../platform/workspace/common/workspace.js';
+import { ViewPaneContainer, ViewsSubMenu } from './parts/views/viewPaneContainer.js';
+import { IPaneComposite } from '../common/panecomposite.js';
+import { IView } from '../common/views.js';
+import { IExtensionService } from '../services/extensions/common/extensions.js';
+import { VIEWPANE_FILTER_ACTION } from './parts/views/viewPane.js';
+import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
+import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 

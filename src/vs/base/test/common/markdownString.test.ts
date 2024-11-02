@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { MarkdownString } from '../../common/htmlContent.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('MarkdownString', () => {
 

@@ -12,3 +12,8 @@ export function isWeb(): boolean {
 export function isWebAndHasSharedArrayBuffers(): boolean {
 	return isWeb() && (globalThis as any)['crossOriginIsolated'];
 }
+
+export function supportsReadableByteStreams(): boolean {
+	return isWeb() && 'ReadableByteStreamController' in globalThis;
+}
+

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { matchesFuzzy } from 'vs/base/common/filters';
-import { splitGlobAware } from 'vs/base/common/glob';
-import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
-import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
-import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
-import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { matchesFuzzy } from '../../../../base/common/filters.js';
+import { splitGlobAware } from '../../../../base/common/glob.js';
+import { ITreeFilter, TreeVisibility, TreeFilterResult } from '../../../../base/browser/ui/tree/tree.js';
+import { IReplElement } from '../common/debug.js';
+import { ReplEvaluationResult, ReplEvaluationInput } from '../common/replModel.js';
+import { Variable } from '../common/debugModel.js';
 
 
 type ParsedQuery = {
@@ -28,7 +28,9 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		if (query && query !== '') {
 			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (f.startsWith('!')) {
+				if (f.startsWith('\\')) {
+					this._parsedQueries.push({ type: 'include', query: f.slice(1) });
+				} else if (f.startsWith('!')) {
 					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
 				} else {
 					this._parsedQueries.push({ type: 'include', query: f });

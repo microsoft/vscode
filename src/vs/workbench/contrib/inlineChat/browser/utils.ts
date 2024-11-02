@@ -3,35 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IEditObserver } from './inlineChatStrategies';
-import { IProgress } from 'vs/platform/progress/common/progress';
-import { IntervalTimer, AsyncIterableSource } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { IIdentifiedSingleEditOperation, ITextModel, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { IEditObserver } from './inlineChatStrategies.js';
+import { IProgress } from '../../../../platform/progress/common/progress.js';
+import { IntervalTimer, AsyncIterableSource } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { getNWords } from '../../chat/common/chatWordCounter.js';
 
-export function invertLineRange(range: LineRange, model: ITextModel): LineRange[] {
-	if (range.isEmpty) {
-		return [];
-	}
-	const result: LineRange[] = [];
-	if (range.startLineNumber > 1) {
-		result.push(new LineRange(1, range.startLineNumber));
-	}
-	if (range.endLineNumberExclusive < model.getLineCount() + 1) {
-		result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
-	}
-	return result.filter(r => !r.isEmpty);
-}
 
-export function asRange(lineRange: LineRange, model: ITextModel): Range {
-	return lineRange.isEmpty
-		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
-		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
-}
 
 // --- async edit
 
@@ -77,12 +58,15 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 
 export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
-	wordsPerSec = Math.max(10, wordsPerSec);
+	wordsPerSec = Math.max(30, wordsPerSec);
 
 	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';
 
 	interval.cancelAndSet(() => {
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);

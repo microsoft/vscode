@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import * as nls from 'vs/nls';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorZoom } from '../../../common/config/editorZoom.js';
+import * as nls from '../../../../nls.js';
 
 class EditorFontZoomIn extends EditorAction {
 

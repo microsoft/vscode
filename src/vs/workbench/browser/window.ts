@@ -3,33 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
-import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
-import { timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh } from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isSafari, setFullscreen } from '../../base/browser/browser.js';
+import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from '../../base/browser/dom.js';
+import { DomEmitter } from '../../base/browser/event.js';
+import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from '../../base/browser/deviceAccess.js';
+import { timeout } from '../../base/common/async.js';
+import { Event } from '../../base/common/event.js';
+import { Disposable, IDisposable, dispose, toDisposable } from '../../base/common/lifecycle.js';
+import { matchesScheme, Schemas } from '../../base/common/network.js';
+import { isIOS, isMacintosh } from '../../base/common/platform.js';
+import Severity from '../../base/common/severity.js';
+import { URI } from '../../base/common/uri.js';
+import { localize } from '../../nls.js';
+import { CommandsRegistry } from '../../platform/commands/common/commands.js';
+import { IDialogService, IPromptButton } from '../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../platform/label/common/label.js';
+import { IOpenerService } from '../../platform/opener/common/opener.js';
+import { IProductService } from '../../platform/product/common/productService.js';
+import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
+import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
+import { BrowserLifecycleService } from '../services/lifecycle/browser/lifecycleService.js';
+import { ILifecycleService, ShutdownReason } from '../services/lifecycle/common/lifecycle.js';
+import { IHostService } from '../services/host/browser/host.js';
+import { registerWindowDriver } from '../services/driver/browser/driver.js';
+import { CodeWindow, isAuxiliaryWindow, mainWindow } from '../../base/browser/window.js';
+import { createSingleCallFunction } from '../../base/common/functional.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -39,7 +40,8 @@ export abstract class BaseWindow extends Disposable {
 	constructor(
 		targetWindow: CodeWindow,
 		dom = { getWindowsCount, getWindows }, /* for testing */
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -52,31 +54,54 @@ export abstract class BaseWindow extends Disposable {
 	//#region focus handling in multi-window applications
 
 	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
-		const originalFocus = HTMLElement.prototype.focus;
+		const originalFocus = targetWindow.HTMLElement.prototype.focus;
 
+		const that = this;
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
 
-			// If the active focused window is not the same as the
-			// window of the element to focus, make sure to focus
-			// that window first before focusing the element.
-			const activeWindow = getActiveWindow();
-			if (activeWindow.document.hasFocus()) {
-				const elementWindow = getWindow(this);
-				if (activeWindow !== elementWindow) {
-					elementWindow.focus();
-				}
-			}
+			// Ensure the window the element belongs to is focused
+			// in scenarios where auxiliary windows are present
+			that.onElementFocus(getWindow(this));
 
 			// Pass to original focus() method
 			originalFocus.apply(this, [options]);
 		};
 	}
 
+	private onElementFocus(targetWindow: CodeWindow): void {
+		const activeWindow = getActiveWindow();
+		if (activeWindow !== targetWindow && activeWindow.document.hasFocus()) {
+
+			// Call original focus()
+			targetWindow.focus();
+
+			// In Electron, `window.focus()` fails to bring the window
+			// to the front if multiple windows exist in the same process
+			// group (floating windows). As such, we ask the host service
+			// to focus the window which can take care of bringin the
+			// window to the front.
+			//
+			// To minimise disruption by bringing windows to the front
+			// by accident, we only do this if the window is not already
+			// focused and the active window is not the target window
+			// but has focus. This is an indication that multiple windows
+			// are opened in the same process group while the target window
+			// is not focused.
+
+			if (
+				!this.environmentService.extensionTestsLocationURI &&
+				!targetWindow.document.hasFocus()
+			) {
+				this.hostService.focus(targetWindow);
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region timeout handling in multi-window applications
 
-	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+	protected enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
 
 		// Override `setTimeout` and `clearTimeout` on the provided window to make
 		// sure timeouts are dispatched to all opened windows. Some browsers may decide
@@ -108,9 +133,19 @@ export abstract class BaseWindow extends Disposable {
 					continue; // skip over hidden windows (but never over main window)
 				}
 
-				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
+				// we track didClear in case the browser does not properly clear the timeout
+				// this can happen for timeouts on unfocused windows
+				let didClear = false;
+
+				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [(...args: unknown[]) => {
+					if (didClear) {
+						return;
+					}
+					handlerFn(...args);
+				}, timeout, ...args]);
 
 				const timeoutDisposable = toDisposable(() => {
+					didClear = true;
 					(window as any).vscodeOriginalClearTimeout(handle);
 					timeoutDisposables.delete(timeoutDisposable);
 				});
@@ -186,12 +221,12 @@ export class BrowserWindow extends BaseWindow {
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly browserEnvironmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService hostService: IHostService
 	) {
-		super(mainWindow, undefined, hostService);
+		super(mainWindow, undefined, hostService, browserEnvironmentService);
 
 		this.registerListeners();
 		this.create();
@@ -288,8 +323,8 @@ export class BrowserWindow extends BaseWindow {
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				let isAllowedOpener = false;
-				if (this.environmentService.options?.openerAllowedExternalUrlPrefixes) {
-					for (const trustedPopupPrefix of this.environmentService.options.openerAllowedExternalUrlPrefixes) {
+				if (this.browserEnvironmentService.options?.openerAllowedExternalUrlPrefixes) {
+					for (const trustedPopupPrefix of this.browserEnvironmentService.options.openerAllowedExternalUrlPrefixes) {
 						if (href.startsWith(trustedPopupPrefix)) {
 							isAllowedOpener = true;
 							break;
