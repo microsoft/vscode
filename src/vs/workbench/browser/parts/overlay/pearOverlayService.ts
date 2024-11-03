@@ -1,3 +1,5 @@
+/* eslint-disable header/header */
+
 import {
 	registerSingleton,
 	InstantiationType,
@@ -43,6 +45,21 @@ export interface IPearOverlayService extends IDisposable {
 	 * Returns true if the PearAI popup is visible.
 	 */
 	isVisible(): boolean;
+
+	/**
+	 * Locks the PearAI popup.
+	 */
+	lock(): void;
+
+	/**
+	 * Unlocks the PearAI popup.
+	 */
+	unlock(): void;
+
+	/**
+	 * Returns true if the PearAI popup is locked.
+	 */
+	isLocked(): boolean;
 }
 
 export class PearOverlayService
@@ -102,6 +119,21 @@ export class PearOverlayService
 			const overlayService = accessor.get(IPearOverlayService);
 			overlayService.toggle();
 		});
+
+		CommandsRegistry.registerCommand("pearai.lockOverlay", (accessor) => {
+			const overlayService = accessor.get(IPearOverlayService);
+			overlayService.lock();
+		});
+
+		CommandsRegistry.registerCommand("pearai.unlockOverlay", (accessor) => {
+			const overlayService = accessor.get(IPearOverlayService);
+			overlayService.unlock();
+		});
+
+		CommandsRegistry.registerCommand("pearai.isOverlayLocked", (accessor) => {
+			const overlayService = accessor.get(IPearOverlayService);
+			return overlayService.isLocked();
+		});
 	}
 
 	get pearOverlayPart(): PearOverlayPart {
@@ -120,6 +152,18 @@ export class PearOverlayService
 		this._pearOverlayPart.toggle();
 	}
 
+	lock(): void {
+		this._pearOverlayPart.lock();
+	}
+
+	unlock(): void {
+		this._pearOverlayPart.unlock();
+	}
+
+	isLocked(): boolean {
+		return this._pearOverlayPart.isLocked;
+	}
+
 	override dispose(): void {
 		super.dispose();
 		this._pearOverlayPart.dispose();
@@ -128,7 +172,6 @@ export class PearOverlayService
 	isVisible(): boolean {
 		return this._pearOverlayPart.isVisible();
 	}
-
 }
 
 registerSingleton(

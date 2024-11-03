@@ -1,3 +1,5 @@
+/* eslint-disable header/header */
+
 import { Part } from "vs/workbench/browser/part";
 import {
 	IWorkbenchLayoutService,
@@ -35,6 +37,7 @@ export class PearOverlayPart extends Part {
 	private _webviewService: WebviewService | undefined;
 
 	private state: "loading" | "open" | "closed" = "loading";
+	private _isLocked: boolean = false;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -232,6 +235,10 @@ export class PearOverlayPart extends Part {
 	}
 
 	private close() {
+		if (this.isLocked) {
+			return; // Prevent closing when locked
+		}
+
 		if (this.state === "closed") {
 			return;
 		}
@@ -281,6 +288,18 @@ export class PearOverlayPart extends Part {
 			return;
 		}
 		this.toggleOpenClose();
+	}
+
+	public lock(): void {
+		this._isLocked = true;
+	}
+
+	public unlock(): void {
+		this._isLocked = false;
+	}
+
+	public get isLocked(): boolean {
+		return this._isLocked;
 	}
 
 	toJSON(): object {
