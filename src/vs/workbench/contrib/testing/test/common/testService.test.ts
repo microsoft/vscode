@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { simplifyTestsToExecute } from 'vs/workbench/contrib/testing/common/testService';
-import { getInitializedMainTestCollection, makeSimpleStubTree } from 'vs/workbench/contrib/testing/test/common/testStubs';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestId } from '../../common/testId.js';
+import { simplifyTestsToExecute } from '../../common/testService.js';
+import { getInitializedMainTestCollection, makeSimpleStubTree } from './testStubs.js';
 
 suite('Workbench - Test Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

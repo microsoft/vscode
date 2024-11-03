@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from 'vs/workbench/contrib/files/common/files';
-import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
-import { URI } from 'vs/base/common/uri';
-import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
-import { dirname, basename } from 'vs/base/common/resources';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditableData } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
-import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from 'vs/platform/progress/common/progress';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExpression } from 'vs/base/common/glob';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Event } from '../../../../base/common/event.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from '../common/files.js';
+import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
+import { dirname, basename } from '../../../../base/common/resources.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditableData } from '../../../common/views.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IBulkEditService, ResourceFileEdit } from '../../../../editor/browser/services/bulkEditService.js';
+import { UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
+import { IExplorerView, IExplorerService } from './files.js';
+import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from '../../../../platform/progress/common/progress.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { IHostService } from '../../../services/host/browser/host.js';
+import { IExpression } from '../../../../base/common/glob.js';
+import { ResourceGlobMatcher } from '../../../common/resources.js';
+import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 

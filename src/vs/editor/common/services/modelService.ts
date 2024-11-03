@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
-import { StringSHA1 } from 'vs/base/common/hash';
-import { isEditStackElement } from 'vs/editor/common/model/editStack';
-import { Schemas } from 'vs/base/common/network';
-import { equals } from 'vs/base/common/objects';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { EditOperation, ISingleEditOperation } from '../core/editOperation.js';
+import { Range } from '../core/range.js';
+import { DefaultEndOfLine, EndOfLinePreference, EndOfLineSequence, ITextBuffer, ITextBufferFactory, ITextModel, ITextModelCreationOptions } from '../model.js';
+import { TextModel, createTextBuffer } from '../model/textModel.js';
+import { EDITOR_MODEL_DEFAULTS } from '../core/textModelDefaults.js';
+import { IModelLanguageChangedEvent } from '../textModelEvents.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
+import { ILanguageSelection } from '../languages/language.js';
+import { IModelService } from './model.js';
+import { ITextResourcePropertiesService } from './textResourceConfiguration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IUndoRedoService, ResourceEditStackSnapshot } from '../../../platform/undoRedo/common/undoRedo.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
+import { isEditStackElement } from '../model/editStack.js';
+import { Schemas } from '../../../base/common/network.js';
+import { equals } from '../../../base/common/objects.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();

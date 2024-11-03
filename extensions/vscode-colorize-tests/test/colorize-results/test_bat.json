@@ -294,7 +294,7 @@
 		}
 	},
 	{
-		"c": " .\\scripts\\npm.bat install",
+		"c": " npm i",
 		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
-import { language } from 'vs/base/common/platform';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { localize } from '../../../../nls.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { language } from '../../../../base/common/platform.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 interface ILocalHistoryDateFormatter {
 	format: (timestamp: number) => string;

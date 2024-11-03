@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
-import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellKind, INotebookRendererInfo, IOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { mock } from 'vs/base/test/common/mock';
-import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
-import { Event } from 'vs/base/common/event';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CellOutputContainer } from '../../browser/view/cellParts/cellOutput.js';
+import { CodeCellRenderTemplate } from '../../browser/view/notebookRenderingCommon.js';
+import { CodeCellViewModel } from '../../browser/viewModel/codeCellViewModel.js';
+import { CellKind, INotebookRendererInfo, IOutputDto } from '../../common/notebookCommon.js';
+import { setupInstantiationService, withTestNotebook } from './testNotebookEditor.js';
+import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { INotebookService } from '../../common/notebookService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { Event } from '../../../../../base/common/event.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('CellOutput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
+import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { IFileService } from '../../../files/common/files.js';
+import { Registry } from '../../../registry/common/platform.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../userDataProfile/common/userDataProfile.js';
+import { ISettingsSyncContent, parseSettingsSyncContent, SettingsSynchroniser } from '../../common/settingsSync.js';
+import { ISyncData, IUserDataSyncStoreService, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode } from '../../common/userDataSync.js';
+import { UserDataSyncClient, UserDataSyncTestServer } from './userDataSyncClient.js';
 
 suite('SettingsSync - Auto', () => {
 

@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { autoFixCommandId, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, quickFixCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import * as nls from 'vs/nls';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTriggerSource } from '../common/types';
-import { CodeActionController } from './codeActionController';
-import { SUPPORTED_CODE_ACTIONS } from './codeActionModel';
+import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, EditorCommand, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { autoFixCommandId, codeActionCommandId, fixAllCommandId, organizeImportsCommandId, quickFixCommandId, refactorCommandId, sourceActionCommandId } from './codeAction.js';
+import * as nls from '../../../../nls.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { CodeActionAutoApply, CodeActionCommandArgs, CodeActionFilter, CodeActionKind, CodeActionTriggerSource } from '../common/types.js';
+import { CodeActionController } from './codeActionController.js';
+import { SUPPORTED_CODE_ACTIONS } from './codeActionModel.js';
 
 function contextKeyForSupportedActions(kind: HierarchicalKind) {
 	return ContextKeyExpr.regex(

@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
-import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { DisposableStore, disposeOnReturn } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
+import { TokenizationRegistry } from '../../../../common/languages.js';
+import { ILanguageService } from '../../../../common/languages/language.js';
+import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
+import { TextModel } from '../../../../common/model/textModel.js';
+import { BracketPairInfo } from '../../../../common/textModelBracketPairs.js';
+import { TokenInfo, TokenizedDocument } from './tokenizer.test.js';
+import { createModelServices, instantiateTextModel } from '../../testTextModel.js';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 

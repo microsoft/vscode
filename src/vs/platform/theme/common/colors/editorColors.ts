@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as nls from '../../../../nls.js';
 
 // Import the effects we need
-import { Color, RGBA } from 'vs/base/common/color';
-import { registerColor, transparent, lessProminent, darken, lighten } from 'vs/platform/theme/common/colorUtils';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { registerColor, transparent, lessProminent, darken, lighten } from '../colorUtils.js';
 
 // Import the colors we need
-import { foreground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colors/baseColors';
-import { scrollbarShadow, badgeBackground } from 'vs/platform/theme/common/colors/miscColors';
+import { foreground, contrastBorder, activeContrastBorder } from './baseColors.js';
+import { scrollbarShadow, badgeBackground } from './miscColors.js';
 
 
 // ----- editor
@@ -133,6 +133,10 @@ export const editorSelectionHighlight = registerColor('editor.selectionHighlight
 export const editorSelectionHighlightBorder = registerColor('editor.selectionHighlightBorder',
 	{ light: null, dark: null, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
 	nls.localize('editorSelectionHighlightBorder', "Border color for regions with the same content as the selection."));
+
+export const editorCompositionBorder = registerColor('editor.compositionBorder',
+	{ light: '#000000', dark: '#ffffff', hcLight: '#000000', hcDark: '#ffffff' },
+	nls.localize('editorCompositionBorder', "The border color for an IME composition."));
 
 
 // ----- editor find
@@ -426,7 +430,7 @@ export const overviewRulerCommonContentForeground = registerColor('editorOvervie
 	nls.localize('overviewRulerCommonContentForeground', 'Common ancestor overview ruler foreground for inline merge-conflicts.'));
 
 export const overviewRulerFindMatchForeground = registerColor('editorOverviewRuler.findMatchForeground',
-	{ dark: '#d186167e', light: '#d186167e', hcDark: '#AB5A00', hcLight: '' },
+	{ dark: '#d186167e', light: '#d186167e', hcDark: '#AB5A00', hcLight: '#AB5A00' },
 	nls.localize('overviewRulerFindMatchForeground', 'Overview ruler marker color for find matches. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground',

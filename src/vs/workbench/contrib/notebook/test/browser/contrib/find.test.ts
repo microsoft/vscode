@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
-import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { CellFindMatchModel, FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { IActiveNotebookEditor, ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from '../../../../../../editor/common/core/range.js';
+import { FindMatch, ITextBuffer, ValidAnnotatedEditOperation } from '../../../../../../editor/common/model.js';
+import { USUAL_WORD_SEPARATORS } from '../../../../../../editor/common/core/wordHelper.js';
+import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
+import { FindReplaceState } from '../../../../../../editor/contrib/find/browser/findState.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { NotebookFindFilters } from '../../../browser/contrib/find/findFilters.js';
+import { CellFindMatchModel, FindModel } from '../../../browser/contrib/find/findModel.js';
+import { IActiveNotebookEditor, ICellModelDecorations, ICellModelDeltaDecorations } from '../../../browser/notebookBrowser.js';
+import { NotebookViewModel } from '../../../browser/viewModel/notebookViewModelImpl.js';
+import { CellEditType, CellKind } from '../../../common/notebookCommon.js';
+import { TestCell, withTestNotebook } from '../testNotebookEditor.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 suite('Notebook Find', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

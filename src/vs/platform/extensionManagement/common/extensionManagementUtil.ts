@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { isLinux, platform } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { getErrorMessage } from 'vs/base/common/errors';
-import { ILogService } from 'vs/platform/log/common/log';
-import { arch } from 'vs/base/common/process';
-import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { compareIgnoreCase } from '../../../base/common/strings.js';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from './extensionManagement.js';
+import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from '../../extensions/common/extensions.js';
+import { IFileService } from '../../files/common/files.js';
+import { isLinux, platform } from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
+import { ILogService } from '../../log/common/log.js';
+import { arch } from '../../../base/common/process.js';
+import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -103,7 +103,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 	return byExtension;
 }
 
-export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
+export function getLocalExtensionTelemetryData(extension: ILocalExtension) {
 	return {
 		id: extension.identifier.id,
 		name: extension.manifest.name,
@@ -133,7 +133,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		]
 	}
 */
-export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
+export function getGalleryExtensionTelemetryData(extension: IGalleryExtension) {
 	return {
 		id: new TelemetryTrustedValue(extension.identifier.id),
 		name: new TelemetryTrustedValue(extension.name),

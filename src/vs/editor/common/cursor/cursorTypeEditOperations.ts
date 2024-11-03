@@ -3,26 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CharCode } from 'vs/base/common/charCode';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import * as strings from 'vs/base/common/strings';
-import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
-import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
-import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
-import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
-import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
-import { getEnterAction } from 'vs/editor/common/languages/enterAction';
+import { CharCode } from '../../../base/common/charCode.js';
+import { onUnexpectedError } from '../../../base/common/errors.js';
+import * as strings from '../../../base/common/strings.js';
+import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from '../commands/replaceCommand.js';
+import { ShiftCommand } from '../commands/shiftCommand.js';
+import { SurroundSelectionCommand } from '../commands/surroundSelectionCommand.js';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from '../cursorCommon.js';
+import { WordCharacterClass, getMapForWordSeparators } from '../core/wordCharacterClassifier.js';
+import { Range } from '../core/range.js';
+import { Selection } from '../core/selection.js';
+import { Position } from '../core/position.js';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../editorCommon.js';
+import { ITextModel } from '../model.js';
+import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from '../languages/languageConfiguration.js';
+import { getIndentationAtPosition } from '../languages/languageConfigurationRegistry.js';
+import { IElectricAction } from '../languages/supports/electricCharacter.js';
+import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from '../config/editorOptions.js';
+import { createScopedLineTokens } from '../languages/supports.js';
+import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from '../languages/autoIndent.js';
+import { getEnterAction } from '../languages/enterAction.js';
 
 export class AutoIndentOperation {
 

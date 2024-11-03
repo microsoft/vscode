@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction } from 'vs/base/common/actions';
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMenuActionOptions, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
+import { AnchorAlignment, AnchorAxisAlignment, IAnchor, IContextViewProvider } from '../../../base/browser/ui/contextview/contextview.js';
+import { IAction } from '../../../base/common/actions.js';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { IMenuActionOptions, MenuId } from '../../actions/common/actions.js';
+import { IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
 

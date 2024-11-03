@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { FoldingRules } from 'vs/editor/common/languages/languageConfiguration';
+import { IRange } from '../core/range.js';
+import { FoldingRules } from '../languages/languageConfiguration.js';
 
 export interface ISectionHeaderFinderTarget {
 	getLineCount(): number;

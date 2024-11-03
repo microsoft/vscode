@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as errors from 'vs/base/common/errors';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from 'vs/editor/common/languages';
-import { IModelService } from 'vs/editor/common/services/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
-import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, isSemanticColoringEnabled } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
+import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
+import * as errors from '../../../../base/common/errors.js';
+import { ITextModel } from '../../../common/model.js';
+import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
+import { DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits } from '../../../common/languages.js';
+import { IModelService } from '../../../common/services/model.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from '../../../common/services/semanticTokensProviderStyling.js';
+import { getDocumentSemanticTokens, hasDocumentSemanticTokensProvider, isSemanticTokens, isSemanticTokensEdits } from '../common/getSemanticTokens.js';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
+import { ISemanticTokensStylingService } from '../../../common/services/semanticTokensStyling.js';
+import { registerEditorFeature } from '../../../common/editorFeatures.js';
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, isSemanticColoringEnabled } from '../common/semanticTokensConfig.js';
 
 export class DocumentSemanticTokensFeature extends Disposable {
 

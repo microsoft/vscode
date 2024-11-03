@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import * as json from 'vs/base/common/json';
-import { setProperty } from 'vs/base/common/jsonEdit';
-import { Queue } from 'vs/base/common/async';
-import { Edit, FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IConfigurationUpdateOptions, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
-import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IOpenSettingsOptions, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ITextModel } from 'vs/editor/common/model';
-import { IReference } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import * as nls from '../../../../nls.js';
+import { URI } from '../../../../base/common/uri.js';
+import * as json from '../../../../base/common/json.js';
+import { setProperty } from '../../../../base/common/jsonEdit.js';
+import { Queue } from '../../../../base/common/async.js';
+import { Edit, FormattingOptions } from '../../../../base/common/jsonFormatter.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { ITextFileService } from '../../textfile/common/textfiles.js';
+import { IConfigurationUpdateOptions, IConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
+import { FOLDER_SETTINGS_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY, USER_STANDALONE_CONFIGURATIONS, TASKS_DEFAULT, FOLDER_SCOPES, IWorkbenchConfigurationService } from './configuration.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../platform/files/common/files.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IEditorService } from '../../editor/common/editorService.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenSettingsOptions, IPreferencesService } from '../../preferences/common/preferences.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IReference } from '../../../../base/common/lifecycle.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { EditOperation } from '../../../../editor/common/core/editOperation.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
 
 export const enum ConfigurationEditingErrorCode {
 

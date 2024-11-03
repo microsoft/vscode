@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { throttle } from 'vs/base/common/decorators';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ILogService, LogLevel } from '../../../../log/common/log.js';
+import type { ITerminalCommand } from '../capabilities.js';
+import { throttle } from '../../../../../base/common/decorators.js';
 
-// Importing types is safe in any layer
-// eslint-disable-next-line local/code-import-patterns
 import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 
 const enum PromptInputState {
@@ -49,6 +47,10 @@ export interface IPromptInputModelState {
 	 */
 	readonly prefix: string;
 	/**
+	 * The prompt input from the cursor to the end, this _does not_ include ghost text.
+	 */
+	readonly suffix: string;
+	/**
 	 * The index of the cursor in {@link value}.
 	 */
 	readonly cursorIndex: number;
@@ -80,6 +82,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _value: string = '';
 	get value() { return this._value; }
 	get prefix() { return this._value.substring(0, this._cursorIndex); }
+	get suffix() { return this._value.substring(this._cursorIndex, this._ghostTextIndex === -1 ? undefined : this._ghostTextIndex); }
 
 	private _cursorIndex: number = 0;
 	get cursorIndex() { return this._cursorIndex; }
@@ -474,6 +477,7 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		return Object.freeze({
 			value: this._value,
 			prefix: this.prefix,
+			suffix: this.suffix,
 			cursorIndex: this._cursorIndex,
 			ghostTextIndex: this._ghostTextIndex
 		});

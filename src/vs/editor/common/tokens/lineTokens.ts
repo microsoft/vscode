@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
-import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageIdCodec } from '../languages.js';
+import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from '../encodedTokenAttributes.js';
+import { IPosition } from '../core/position.js';
+import { ITextModel } from '../model.js';
+import { OffsetRange } from '../core/offsetRange.js';
+import { TokenArray, TokenArrayBuilder } from './tokenArray.js';
+
 
 export interface IViewLineTokens {
 	languageIdCodec: ILanguageIdCodec;
@@ -27,20 +30,6 @@ export interface IViewLineTokens {
 }
 
 export class LineTokens implements IViewLineTokens {
-	_lineTokensBrand: void = undefined;
-
-	private readonly _tokens: Uint32Array;
-	private readonly _tokensCount: number;
-	private readonly _text: string;
-
-	public readonly languageIdCodec: ILanguageIdCodec;
-
-	public static defaultTokenMetadata = (
-		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-	) >>> 0;
-
 	public static createEmpty(lineContent: string, decoder: ILanguageIdCodec): LineTokens {
 		const defaultMetadata = LineTokens.defaultTokenMetadata;
 
@@ -62,6 +51,54 @@ export class LineTokens implements IViewLineTokens {
 		}
 		return new LineTokens(new Uint32Array(tokens), fullText, decoder);
 	}
+
+	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {
+		const tokenCount = (tokens.length >>> 1);
+		const lastTokenIndex = tokenCount - 1;
+		for (let tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
+			tokens[tokenIndex << 1] = tokens[(tokenIndex + 1) << 1];
+		}
+		tokens[lastTokenIndex << 1] = lineTextLength;
+	}
+
+	public static findIndexInTokensArray(tokens: Uint32Array, desiredIndex: number): number {
+		if (tokens.length <= 2) {
+			return 0;
+		}
+
+		let low = 0;
+		let high = (tokens.length >>> 1) - 1;
+
+		while (low < high) {
+
+			const mid = low + Math.floor((high - low) / 2);
+			const endOffset = tokens[(mid << 1)];
+
+			if (endOffset === desiredIndex) {
+				return mid + 1;
+			} else if (endOffset < desiredIndex) {
+				low = mid + 1;
+			} else if (endOffset > desiredIndex) {
+				high = mid;
+			}
+		}
+
+		return low;
+	}
+
+	_lineTokensBrand: void = undefined;
+
+	private readonly _tokens: Uint32Array;
+	private readonly _tokensCount: number;
+	private readonly _text: string;
+
+	public readonly languageIdCodec: ILanguageIdCodec;
+
+	public static defaultTokenMetadata = (
+		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
 
 	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
 		this._tokens = tokens;
@@ -166,40 +203,6 @@ export class LineTokens implements IViewLineTokens {
 		return new SliceLineTokens(this, startOffset, endOffset, deltaOffset);
 	}
 
-	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {
-		const tokenCount = (tokens.length >>> 1);
-		const lastTokenIndex = tokenCount - 1;
-		for (let tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
-			tokens[tokenIndex << 1] = tokens[(tokenIndex + 1) << 1];
-		}
-		tokens[lastTokenIndex << 1] = lineTextLength;
-	}
-
-	public static findIndexInTokensArray(tokens: Uint32Array, desiredIndex: number): number {
-		if (tokens.length <= 2) {
-			return 0;
-		}
-
-		let low = 0;
-		let high = (tokens.length >>> 1) - 1;
-
-		while (low < high) {
-
-			const mid = low + Math.floor((high - low) / 2);
-			const endOffset = tokens[(mid << 1)];
-
-			if (endOffset === desiredIndex) {
-				return mid + 1;
-			} else if (endOffset < desiredIndex) {
-				low = mid + 1;
-			} else if (endOffset > desiredIndex) {
-				high = mid;
-			}
-		}
-
-		return low;
-	}
-
 	/**
 	 * @pure
 	 * @param insertTokens Must be sorted by offset.
@@ -245,6 +248,23 @@ export class LineTokens implements IViewLineTokens {
 		}
 
 		return new LineTokens(new Uint32Array(newTokens), text, this.languageIdCodec);
+	}
+
+	public getTokensInRange(range: OffsetRange): TokenArray {
+		const builder = new TokenArrayBuilder();
+
+		const startTokenIndex = this.findTokenIndexAtOffset(range.start);
+		const endTokenIndex = this.findTokenIndexAtOffset(range.endExclusive);
+
+		for (let tokenIndex = startTokenIndex; tokenIndex <= endTokenIndex; tokenIndex++) {
+			const tokenRange = new OffsetRange(this.getStartOffset(tokenIndex), this.getEndOffset(tokenIndex));
+			const length = tokenRange.intersectionLength(range);
+			if (length > 0) {
+				builder.add(length, this.getMetadata(tokenIndex));
+			}
+		}
+
+		return builder.build();
 	}
 
 	public getTokenText(tokenIndex: number): string {

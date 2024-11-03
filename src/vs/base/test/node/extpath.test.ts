@@ -6,10 +6,10 @@
 import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { realcase, realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
-import { Promises } from 'vs/base/node/pfs';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { realcase, realcaseSync, realpath, realpathSync } from '../../node/extpath.js';
+import { Promises } from '../../node/pfs.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { flakySuite, getRandomTestPath } from './testUtils.js';
 
 flakySuite('Extpath', () => {
 	let testDir: string;

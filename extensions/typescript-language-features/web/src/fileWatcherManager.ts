@@ -53,9 +53,9 @@ export class FileWatcherManager {
 		this.watchFiles.set(path, { callback, pollingInterval, options });
 		const watchIds = [++this.watchId];
 		this.watchPort.postMessage({ type: 'watchFile', uri: uri, id: watchIds[0] });
-		if (this.enabledExperimentalTypeAcquisition && looksLikeNodeModules(path)) {
+		if (this.enabledExperimentalTypeAcquisition && looksLikeNodeModules(path) && uri.scheme !== 'vscode-global-typings') {
 			watchIds.push(++this.watchId);
-			this.watchPort.postMessage({ type: 'watchFile', uri: mapUri(uri, 'vscode-node-modules'), id: watchIds[1] });
+			this.watchPort.postMessage({ type: 'watchFile', uri: mapUri(uri, 'vscode-global-typings'), id: watchIds[1] });
 		}
 		return {
 			close: () => {

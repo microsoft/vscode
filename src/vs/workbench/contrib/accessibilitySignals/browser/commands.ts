@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { localize, localize2 } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { AccessibilitySignal, AcknowledgeDocCommentsToken, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { Action2 } from '../../../../platform/actions/common/actions.js';
+import { AccessibilitySignal, AcknowledgeDocCommentsToken, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class ShowSignalSoundHelp extends Action2 {
 	static readonly ID = 'signals.sounds.help';
@@ -44,10 +45,11 @@ export class ShowSignalSoundHelp extends Action2 {
 				alwaysVisible: true
 			}] : []
 		})).sort((a, b) => a.label.localeCompare(b.label));
-		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
+		const disposables = new DisposableStore();
+		const qp = disposables.add(quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>());
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isSoundEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.sound') !== 'never');
-		qp.onDidAccept(() => {
+		disposables.add(qp.onDidAccept(() => {
 			const enabledSounds = qp.selectedItems.map(i => i.signal);
 			const disabledSounds = qp.items.map(i => (i as any).signal).filter(i => !enabledSounds.includes(i));
 			for (const signal of enabledSounds) {
@@ -67,13 +69,14 @@ export class ShowSignalSoundHelp extends Action2 {
 				configurationService.updateValue(signal.settingsKey, value);
 			}
 			qp.hide();
-		});
-		qp.onDidTriggerItemButton(e => {
+		}));
+		disposables.add(qp.onDidTriggerItemButton(e => {
 			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
-		});
-		qp.onDidChangeActive(() => {
+		}));
+		disposables.add(qp.onDidChangeActive(() => {
 			accessibilitySignalService.playSound(qp.activeItems[0].signal.sound.getSound(true), true, AcknowledgeDocCommentsToken);
-		});
+		}));
+		disposables.add(qp.onDidHide(() => disposables.dispose()));
 		qp.placeholder = localize('sounds.help.placeholder', 'Select a sound to play and configure');
 		qp.canSelectMany = true;
 		await qp.show();
@@ -114,11 +117,12 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				alwaysVisible: true,
 			}] : []
 		})).sort((a, b) => a.label.localeCompare(b.label));
-		const qp = quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>();
+		const disposables = new DisposableStore();
+		const qp = disposables.add(quickInputService.createQuickPick<IQuickPickItem & { signal: AccessibilitySignal }>());
 		qp.items = items;
 		qp.selectedItems = items.filter(i => accessibilitySignalService.isAnnouncementEnabled(i.signal) || userGestureSignals.includes(i.signal) && configurationService.getValue(i.signal.settingsKey + '.announcement') !== 'never');
 		const screenReaderOptimized = accessibilityService.isScreenReaderOptimized();
-		qp.onDidAccept(() => {
+		disposables.add(qp.onDidAccept(() => {
 			if (!screenReaderOptimized) {
 				// announcements are off by default when screen reader is not active
 				qp.hide();
@@ -139,10 +143,11 @@ export class ShowAccessibilityAnnouncementHelp extends Action2 {
 				configurationService.updateValue(signal.settingsKey, value);
 			}
 			qp.hide();
-		});
-		qp.onDidTriggerItemButton(e => {
+		}));
+		disposables.add(qp.onDidTriggerItemButton(e => {
 			preferencesService.openUserSettings({ jsonEditor: true, revealSetting: { key: e.item.signal.settingsKey, edit: true } });
-		});
+		}));
+		disposables.add(qp.onDidHide(() => disposables.dispose()));
 		qp.placeholder = screenReaderOptimized ? localize('announcement.help.placeholder', 'Select an announcement to configure') : localize('announcement.help.placeholder.disabled', 'Screen reader is not active, announcements are disabled by default.');
 		qp.canSelectMany = true;
 		await qp.show();

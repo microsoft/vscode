@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction } from 'vs/editor/browser/editorExtensions';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CoreEditingCommands } from '../../../../browser/coreCommands.js';
+import type { ICodeEditor } from '../../../../browser/editorBrowser.js';
+import { EditorAction } from '../../../../browser/editorExtensions.js';
+import { Position } from '../../../../common/core/position.js';
+import { Selection } from '../../../../common/core/selection.js';
+import { Handler } from '../../../../common/editorCommon.js';
+import { ITextModel } from '../../../../common/model.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightAction, DeleteDuplicateLinesAction, DeleteLinesAction, IndentLinesAction, InsertLineAfterAction, InsertLineBeforeAction, JoinLinesAction, KebabCaseAction, LowerCaseAction, SnakeCaseAction, SortLinesAscendingAction, SortLinesDescendingAction, TitleCaseAction, TransposeAction, UpperCaseAction } from '../../browser/linesOperations.js';
+import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../test/common/testTextModel.js';
 
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {

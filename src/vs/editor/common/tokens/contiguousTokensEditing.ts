@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { LineTokens } from './lineTokens.js';
 
 export const EMPTY_LINE_TOKENS = (new Uint32Array(0)).buffer;
 

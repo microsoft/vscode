@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
-import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { Position } from 'vs/editor/common/core/position';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { URI } from '../../../base/common/uri.js';
+import { workbenchInstantiationService, TestEditorService } from './workbenchTestServices.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { LanguageService } from '../../../editor/common/services/languageService.js';
+import { RangeHighlightDecorations } from '../../browser/codeeditor.js';
+import { TextModel } from '../../../editor/common/model/textModel.js';
+import { createTestCodeEditor } from '../../../editor/test/browser/testCodeEditor.js';
+import { Range, IRange } from '../../../editor/common/core/range.js';
+import { Position } from '../../../editor/common/core/position.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
+import { CoreNavigationCommands } from '../../../editor/browser/coreCommands.js';
+import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { createTextModel } from '../../../editor/test/common/testTextModel.js';
+import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 
 suite('Editor - Range decorations', () => {
 

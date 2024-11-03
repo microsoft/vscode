@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
+import { FastDomNode } from '../../../base/browser/fastDomNode.js';
+import { RenderingContext, RestrictedRenderingContext } from './renderingContext.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
 
 export abstract class ViewPart extends ViewEventHandler {
 

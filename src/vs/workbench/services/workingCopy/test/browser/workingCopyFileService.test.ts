@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { URI } from 'vs/base/common/uri';
-import { FileOperation } from 'vs/platform/files/common/files';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { ICopyOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { timeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TextFileEditorModel } from '../../../textfile/common/textFileEditorModel.js';
+import { TextFileEditorModelManager } from '../../../textfile/common/textFileEditorModelManager.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from '../../../../test/browser/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { FileOperation } from '../../../../../platform/files/common/files.js';
+import { TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { ICopyOperation } from '../../common/workingCopyFileService.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('WorkingCopyFileService', () => {
 

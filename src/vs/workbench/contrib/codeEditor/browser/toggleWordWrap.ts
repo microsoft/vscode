@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorContributionInstantiation, ServicesAccessor, registerDiffEditorContribution, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDiffEditorContribution, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import * as nls from 'vs/nls';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { addDisposableListener, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorAction, EditorContributionInstantiation, ServicesAccessor, registerDiffEditorContribution, registerEditorAction, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { IDiffEditorContribution, IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import * as nls from '../../../../nls.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';

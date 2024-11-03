@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/60e2e6e24c63d5a703cb04577678a2e416edd956",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/dfd7e5f4f71f9695c5d8697ca57f81240165aa04",
 	"name": "YAML 1.1",
 	"scopeName": "source.yaml.1.1",
 	"comment": "https://yaml.org/spec/1.1/",
@@ -641,7 +641,8 @@
 		},
 		"block-map-value": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-c-l-block-map-implicit-value",
-			"begin": ":(?=[\\x{85 2028 2029}\r\n\t ])",
+			"//": "Assumming 3rd party preprocessing variables `{{...}}` turn into valid map-keys when inside a block-mapping",
+			"begin": ":(?=[\\x{85 2028 2029}\r\n\t ])|(?<=}})(?=[\t ]++#|[\t ]*+$)",
 			"while": "\\G(?![?:!\"'0-9A-Za-z$()+./;<=\\\\^_~\\[{\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}&&[^\\x{2028 2029}]]|-[^\\x{85 2028 2029}\r\n\t ])",
 			"beginCaptures": {
 				"0": {

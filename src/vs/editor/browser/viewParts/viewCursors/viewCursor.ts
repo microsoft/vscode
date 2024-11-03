@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as strings from 'vs/base/common/strings';
-import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import * as dom from '../../../../base/browser/dom.js';
+import { FastDomNode, createFastDomNode } from '../../../../base/browser/fastDomNode.js';
+import * as strings from '../../../../base/common/strings.js';
+import { applyFontInfo } from '../../config/domFontInfo.js';
+import { TextEditorCursorStyle, EditorOption } from '../../../common/config/editorOptions.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
+import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../../common/viewEvents.js';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;

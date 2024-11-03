@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteConsoleLog, parse } from 'vs/base/common/console';
-import { ILogService } from 'vs/platform/log/common/log';
+import { IRemoteConsoleLog, parse } from '../../../../base/common/console.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export function logRemoteEntry(logService: ILogService, entry: IRemoteConsoleLog, label: string | null = null): void {
 	const args = parse(entry).args;

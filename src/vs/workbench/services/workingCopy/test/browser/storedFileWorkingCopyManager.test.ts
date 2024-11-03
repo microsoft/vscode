@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
-import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
-import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { timeout } from 'vs/base/common/async';
-import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { URI } from '../../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from '../../../../test/browser/workbenchTestServices.js';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopySaveEvent } from '../../common/storedFileWorkingCopyManager.js';
+import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from '../../common/storedFileWorkingCopy.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from './storedFileWorkingCopy.test.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 suite('StoredFileWorkingCopyManager', () => {
 

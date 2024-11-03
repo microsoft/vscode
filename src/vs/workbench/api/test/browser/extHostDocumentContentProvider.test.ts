@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtHostDocumentContentProvider } from 'vs/workbench/api/common/extHostDocumentContentProviders';
-import { Emitter } from 'vs/base/common/event';
-import { MainThreadDocumentContentProvidersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { timeout } from 'vs/base/common/async';
-import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
+import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { ExtHostDocumentContentProvider } from '../../common/extHostDocumentContentProviders.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { MainThreadDocumentContentProvidersShape } from '../../common/extHost.protocol.js';
+import { timeout } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 
 suite('ExtHostDocumentContentProvider', () => {
 

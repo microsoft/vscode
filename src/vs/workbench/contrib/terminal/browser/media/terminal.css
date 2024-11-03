@@ -477,7 +477,7 @@
 	left: 0;
 	border: 1.5px solid #ffffff;
 	width: 0px !important;
-	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
+	border-color: var(--vscode-terminalCommandGuide-foreground);
 	box-sizing: border-box;
 	transform: translateX(3px);
 	pointer-events: none;

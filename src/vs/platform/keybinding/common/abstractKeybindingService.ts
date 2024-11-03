@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { illegalState } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IME } from 'vs/base/common/ime';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from 'vs/base/common/keybindings';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as nls from 'vs/nls';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../base/common/actions.js';
+import * as arrays from '../../../base/common/arrays.js';
+import { IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
+import { illegalState } from '../../../base/common/errors.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { IME } from '../../../base/common/ime.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { Keybinding, ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../base/common/keybindings.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import * as nls from '../../../nls.js';
 
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
-import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICommandService } from '../../commands/common/commands.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from './keybinding.js';
+import { ResolutionResult, KeybindingResolver, ResultKind, NoMatchingKb } from './keybindingResolver.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
+import { ILogService } from '../../log/common/log.js';
+import { INotificationService } from '../../notification/common/notification.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 interface CurrentChord {
 	keypress: string;

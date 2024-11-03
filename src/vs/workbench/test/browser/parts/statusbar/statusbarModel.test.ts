@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { StatusbarViewModel } from '../../../../browser/parts/statusbar/statusbarModel.js';
+import { TestStorageService } from '../../../common/workbenchTestServices.js';
+import { StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 suite('Workbench status bar model', () => {
 

@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
-import { filterWithPrevious } from 'vs/editor/browser/widget/diffEditor/utils';
-import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
-import { ISerializedLineRange, LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
-import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
-import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
-import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
-import { ITextModel } from 'vs/editor/common/model';
-import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
-import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
-import { DiffEditorOptions } from './diffEditorOptions';
-import { optimizeSequenceDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
-import { isDefined } from 'vs/base/common/types';
-import { groupAdjacentBy } from 'vs/base/common/arrays';
-import { softAssert } from 'vs/base/common/assert';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, IReader, ISettableObservable, ITransaction, autorun, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { IDiffProviderFactoryService } from './diffProviderFactoryService.js';
+import { filterWithPrevious } from './utils.js';
+import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
+import { ISerializedLineRange, LineRange, LineRangeSet } from '../../../common/core/lineRange.js';
+import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
+import { IDocumentDiff } from '../../../common/diff/documentDiffProvider.js';
+import { MovedText } from '../../../common/diff/linesDiffComputer.js';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../common/diff/rangeMapping.js';
+import { IDiffEditorModel, IDiffEditorViewModel } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
+import { TextEditInfo } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper.js';
+import { combineTextEditInfos } from '../../../common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos.js';
+import { DiffEditorOptions } from './diffEditorOptions.js';
+import { optimizeSequenceDiffs } from '../../../common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { groupAdjacentBy } from '../../../../base/common/arrays.js';
+import { softAssert } from '../../../../base/common/assert.js';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>(this, false);

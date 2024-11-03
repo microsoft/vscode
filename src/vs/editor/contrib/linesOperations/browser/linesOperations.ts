@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
-import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
-import { EnterOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ICommand } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ITextModel } from 'vs/editor/common/model';
-import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/browser/copyLinesCommand';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/browser/moveLinesCommand';
-import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/browser/sortLinesCommand';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { CoreEditingCommands } from '../../../browser/coreCommands.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
+import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from '../../../browser/editorExtensions.js';
+import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from '../../../common/commands/replaceCommand.js';
+import { TrimTrailingWhitespaceCommand } from '../../../common/commands/trimTrailingWhitespaceCommand.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
+import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
+import { EnterOperation } from '../../../common/cursor/cursorTypeEditOperations.js';
+import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { ICommand } from '../../../common/editorCommon.js';
+import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { ITextModel } from '../../../common/model.js';
+import { CopyLinesCommand } from './copyLinesCommand.js';
+import { MoveLinesCommand } from './moveLinesCommand.js';
+import { SortLinesCommand } from './sortLinesCommand.js';
+import * as nls from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 // copy lines
 

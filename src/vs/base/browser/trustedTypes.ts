@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from '../common/errors.js';
 
 export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 	policyName: string,

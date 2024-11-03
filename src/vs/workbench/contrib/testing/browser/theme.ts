@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
-import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { Color, RGBA } from '../../../../base/common/color.js';
+import { localize } from '../../../../nls.js';
+import { badgeBackground, badgeForeground, chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { TestResultState } from '../common/testTypes.js';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
 	dark: '#f14c4c',

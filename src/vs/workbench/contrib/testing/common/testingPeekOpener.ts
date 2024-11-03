@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { URI } from '../../../../base/common/uri.js';
+import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { TestResultItem } from './testTypes.js';
+import { ITestResult } from './testResult.js';
+import { IEditor } from '../../../../editor/common/editorCommon.js';
+import { MutableObservableValue } from './observableValue.js';
 
 export interface IShowResultOptions {
 	/** Reveal the peek, if configured, in the given editor */

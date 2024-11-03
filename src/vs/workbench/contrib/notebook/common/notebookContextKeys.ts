@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { INTERACTIVE_WINDOW_EDITOR_ID, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { INTERACTIVE_WINDOW_EDITOR_ID, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from './notebookCommon.js';
 
 
 
@@ -17,6 +17,7 @@ export const InteractiveWindowOpen = new RawContextKey<boolean>('interactiveWind
 export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', NOTEBOOK_EDITOR_ID);
 export const INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', INTERACTIVE_WINDOW_EDITOR_ID);
 export const REPL_NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', REPL_EDITOR_ID);
+export const IS_COMPOSITE_NOTEBOOK = new RawContextKey<boolean>('isCompositeNotebook', false);
 
 // Editor keys
 // based on the focus of the notebook editor widget
@@ -63,5 +64,6 @@ export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKern
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 export const NOTEBOOK_MISSING_KERNEL_EXTENSION = new RawContextKey<boolean>('notebookMissingKernelExtension', false);
 export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
+export const KERNEL_HAS_VARIABLE_PROVIDER = new RawContextKey<boolean>('kernelHasVariableProvider', false);
 
 //#endregion

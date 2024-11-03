@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
-import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IURLHandler, IURLService, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableWindowInterval } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isCancellationError } from 'vs/base/common/errors';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { localize, localize2 } from '../../../../nls.js';
+import { IDisposable, combinedDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IURLHandler, IURLService, IOpenURLOptions } from '../../../../platform/url/common/url.js';
+import { IHostService } from '../../host/browser/host.js';
+import { ActivationKind, IExtensionService } from '../common/extensions.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;

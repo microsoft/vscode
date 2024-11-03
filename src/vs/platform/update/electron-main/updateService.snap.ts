@@ -5,15 +5,15 @@
 
 import { spawn } from 'child_process';
 import { realpath, watch } from 'fs';
-import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
-import * as path from 'vs/base/common/path';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from 'vs/platform/update/common/update';
-import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
+import { timeout } from '../../../base/common/async.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import * as path from '../../../base/common/path.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ILogService } from '../../log/common/log.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { AvailableForDownload, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { UpdateNotAvailableClassification } from './abstractUpdateService.js';
 
 abstract class AbstractUpdateService implements IUpdateService {
 

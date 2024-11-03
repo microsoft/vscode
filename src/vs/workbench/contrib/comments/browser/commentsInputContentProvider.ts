@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
-import { SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { IEditorContribution, ScrollType } from '../../../../editor/common/editorCommon.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { applyTextEditorOptions } from '../../../common/editor/editorOptions.js';
+import { SimpleCommentEditor } from './simpleCommentEditor.js';
 
 export class CommentsInputContentProvider extends Disposable implements ITextModelContentProvider, IEditorContribution {
 

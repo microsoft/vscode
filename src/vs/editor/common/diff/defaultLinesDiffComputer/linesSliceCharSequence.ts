@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLastIdxMonotonous, findLastMonotonous, findFirstMonotonous } from 'vs/base/common/arraysFind';
-import { CharCode } from 'vs/base/common/charCode';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ISequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
-import { isSpace } from 'vs/editor/common/diff/defaultLinesDiffComputer/utils';
+import { findLastIdxMonotonous, findLastMonotonous, findFirstMonotonous } from '../../../../base/common/arraysFind.js';
+import { CharCode } from '../../../../base/common/charCode.js';
+import { OffsetRange } from '../../core/offsetRange.js';
+import { Position } from '../../core/position.js';
+import { Range } from '../../core/range.js';
+import { ISequence } from './algorithms/diffAlgorithm.js';
+import { isSpace } from './utils.js';
 
 export class LinesSliceCharSequence implements ISequence {
 	private readonly elements: number[] = [];

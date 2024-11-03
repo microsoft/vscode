@@ -3,25 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isValidBasename } from 'vs/base/common/extpath';
-import { extname } from 'vs/base/common/path';
-import { basename, joinPath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
-import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { SnippetsAction } from 'vs/workbench/contrib/snippets/browser/commands/abstractSnippetsActions';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
-import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
+import { extname } from '../../../../../base/common/path.js';
+import { basename, joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { getIconClassesForLanguageId } from '../../../../../editor/common/services/getIconClasses.js';
+import * as nls from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { SnippetsAction } from './abstractSnippetsActions.js';
+import { ISnippetsService } from '../snippets.js';
+import { SnippetSource } from '../snippetsFile.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
 
 namespace ISnippetPick {
 	export function is(thing: object | undefined): thing is ISnippetPick {

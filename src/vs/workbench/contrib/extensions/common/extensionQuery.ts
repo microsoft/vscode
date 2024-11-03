@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/extensions.js';
 
 export class Query {
 

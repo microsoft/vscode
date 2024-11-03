@@ -2,20 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
-import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { getNotebookEditorFromEditorPane } from './notebookBrowser.js';
+import { NOTEBOOK_OUTPUT_FOCUSED } from '../common/notebookContextKeys.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export class NotebookAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
 	readonly name = 'notebook';
 	readonly type = AccessibleViewType.View;
-	readonly when = ContextKeyExpr.and(NOTEBOOK_OUTPUT_FOCUSED, ContextKeyExpr.equals('resourceExtname', '.ipynb'));
+	readonly when = ContextKeyExpr.and(NOTEBOOK_OUTPUT_FOCUSED);
 	getProvider(accessor: ServicesAccessor) {
 		const editorService = accessor.get(IEditorService);
 		return getAccessibleOutputProvider(editorService);
