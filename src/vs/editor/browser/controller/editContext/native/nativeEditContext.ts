@@ -252,11 +252,15 @@ export class NativeEditContext extends AbstractEditContext {
 		if (selectionEndOffset > e.updateRangeEnd) {
 			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
 		}
+		let positionDelta = 0;
+		if (e.selectionStart === e.selectionEnd && selectionStartOffset === selectionEndOffset) {
+			positionDelta = e.selectionStart - (e.updateRangeStart + e.text.length);
+		}
 		const typeInput: ITypeData = {
 			text,
 			replacePrevCharCnt,
 			replaceNextCharCnt,
-			positionDelta: 0,
+			positionDelta
 		};
 		this._onType(viewController, typeInput);
 
