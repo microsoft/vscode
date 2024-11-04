@@ -3065,12 +3065,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			this._debug('update cell output', cell.handle, outputHeight);
-			cell.updateOutputHeight(outputIndex, outputHeight, source);
-			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+			if (outputIndex > -1) {
+				this._debug('update cell output', cell.handle, outputHeight);
+				cell.updateOutputHeight(outputIndex, outputHeight, source);
+				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 
-			if (isInit) {
-				this._onDidRenderOutput.fire(output);
+				if (isInit) {
+					this._onDidRenderOutput.fire(output);
+				}
+			} else {
+				this._debug('tried to update cell output that does not exist');
 			}
 		}
 	}
