@@ -720,7 +720,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(container);
 		const hoverDelegate = store.add(createInstantHoverDelegate());
 		const attachments = this.location === ChatAgentLocation.EditingSession
-			? [...this.attachmentModel.attachments.entries()].filter(([_, attachment]) => !attachment.isFile)
+			// Render as attachments anything that isn't a file, but still render specific ranges in a file
+			? [...this.attachmentModel.attachments.entries()].filter(([_, attachment]) => !attachment.isFile || attachment.isFile && typeof attachment.value === 'object' && !!attachment.value && 'range' in attachment.value)
 			: [...this.attachmentModel.attachments.entries()];
 		dom.setVisibility(Boolean(attachments.length) || Boolean(this.implicitContext?.value), this.attachedContextContainer);
 		if (!attachments.length) {
