@@ -41,6 +41,8 @@ if [ "$VSCODE_INJECTION" == "1" ]; then
 	builtin unset VSCODE_INJECTION
 fi
 
+echo "hi"
+
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi

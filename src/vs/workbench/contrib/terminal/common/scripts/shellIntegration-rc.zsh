@@ -111,6 +111,27 @@ __vsc_update_cwd() {
 	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
 }
 
+__vsc_update_env() {
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "env")" $__vsc_nonce //env json
+}
+
+__vsc_get_env_as_json() {
+	builtin local env_json="{"
+	builtin local first=1
+	for var in ${(k)parameters}; do
+		if [ $first -eq 1 ]; then
+			first=0
+		else
+			env_json+=","
+		fi
+		env_json+="\"$var\":\""
+		env_json+="${(q)${(P)var}}\""
+	done
+	env_json+="}"
+	builtin printf '%s\n' "$env_json"
+}
+__vsc_get_env_as_json
+
 __vsc_command_output_start() {
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
@@ -139,6 +160,7 @@ __vsc_command_complete() {
 		builtin printf '\e]633;D;%s\a' "$__vsc_status"
 	fi
 	__vsc_update_cwd
+	__vsc_update_env
 }
 
 if [[ -o NOUNSET ]]; then
