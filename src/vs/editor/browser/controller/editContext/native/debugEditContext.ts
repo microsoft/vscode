@@ -10,7 +10,7 @@ const COLOR_FOR_SELECTION_BOUNDS = 'red';
 const COLOR_FOR_CHARACTER_BOUNDS = 'green';
 
 export class DebugEditContext {
-	private _isDebugging = true;
+	private _isDebugging = false;
 	private _controlBounds: DOMRect | null = null;
 	private _selectionBounds: DOMRect | null = null;
 	private _characterBounds: { rangeStart: number; characterBounds: DOMRect[] } | null = null;
@@ -35,6 +35,10 @@ export class DebugEditContext {
 
 	get characterBoundsRangeStart(): number {
 		return this._editContext.characterBoundsRangeStart;
+	}
+
+	get editContext(): EditContext {
+		return this._editContext;
 	}
 
 	updateText(rangeStart: number, rangeEnd: number, text: string): void {
@@ -137,7 +141,7 @@ export class DebugEditContext {
 	public renderDebug() {
 		this._disposables.forEach(d => d.dispose());
 		this._disposables = [];
-		if (!this._isDebugging || this._listenerMap.size === 0) {
+		if (this._listenerMap.size === 0) {
 			return;
 		}
 		if (this._controlBounds) {
