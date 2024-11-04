@@ -493,6 +493,22 @@ export class ExplorerItem {
 
 		return null;
 	}
+
+	// Find
+	private markedAsFindResult = false;
+	isMarkedAsFound(): boolean {
+		return this.markedAsFindResult;
+	}
+
+	markItemAndParents(): void {
+		this.markedAsFindResult = true;
+		this.parent?.markItemAndParents();
+	}
+
+	unmarkItemAndChildren(): void {
+		this.markedAsFindResult = false;
+		this.children.forEach(child => child.unmarkItemAndChildren());
+	}
 }
 
 export class NewExplorerItem extends ExplorerItem {
