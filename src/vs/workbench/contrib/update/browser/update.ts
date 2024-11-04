@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import severity from 'vs/base/common/severity';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+// import { URI } from 'vs/base/common/uri';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -16,7 +16,7 @@ import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementRe
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
+// import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
 import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -36,7 +36,7 @@ export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMin
 export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
 export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
-let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
+// let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
 export function showReleaseNotesInEditor(instantiationService: IInstantiationService, version: string, useCurrentFile: boolean) {
 	// if (!releaseNotesManager) {
@@ -46,17 +46,17 @@ export function showReleaseNotesInEditor(instantiationService: IInstantiationSer
 	// return releaseNotesManager.show(version, useCurrentFile);
 }
 
-async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
-	// const openerService = accessor.get(IOpenerService);
-	// const productService = accessor.get(IProductService);
+// async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
+// 	const openerService = accessor.get(IOpenerService);
+// 	const productService = accessor.get(IProductService);
 
-	// if (productService.releaseNotesUrl) {
-	// 	const uri = URI.parse(productService.releaseNotesUrl);
-	// 	await openerService.open(uri);
-	// } else {
-	// 	throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
-	// }
-}
+// 	if (productService.releaseNotesUrl) {
+// 		const uri = URI.parse(productService.releaseNotesUrl);
+// 		await openerService.open(uri);
+// 	} else {
+// 		throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
+// 	}
+// }
 
 async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 	// const instantiationService = accessor.get(IInstantiationService);
@@ -128,10 +128,10 @@ export class ProductContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
-			const currentVersion = parseVersion(productService.version);
-			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
-			const releaseNotesUrl = productService.releaseNotesUrl;
+			// const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
+			// const currentVersion = parseVersion(productService.version);
+			// const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
+			// const releaseNotesUrl = productService.releaseNotesUrl;
 
 			// was there a major/minor update? if so, open release notes
 			// if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && currentVersion && isMajorMinorUpdate(lastVersion, currentVersion)) {
