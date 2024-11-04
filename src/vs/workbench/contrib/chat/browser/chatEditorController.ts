@@ -268,18 +268,18 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		});
 	}
 
-	revealNext() {
-		this._reveal(true);
+	revealNext(strict = false): boolean {
+		return this._reveal(true, strict);
 	}
 
-	revealPrevious() {
-		this._reveal(false);
+	revealPrevious(strict = false): boolean {
+		return this._reveal(false, strict);
 	}
 
-	private _reveal(next: boolean) {
+	private _reveal(next: boolean, strict: boolean): boolean {
 		const position = this._editor.getPosition();
 		if (!position) {
-			return;
+			return false;
 		}
 
 		const decorations: (Range | undefined)[] = this._decorations
@@ -302,7 +302,7 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 		coalesceInPlace(decorations);
 
 		if (decorations.length === 0) {
-			return;
+			return false;
 		}
 
 		let idx = binarySearch(decorations, Range.fromPositions(position), Range.compareRangesUsingStarts);
@@ -317,12 +317,16 @@ export class ChatEditorController extends Disposable implements IEditorContribut
 			target = next ? idx : idx - 1;
 		}
 
-		target = (target + decorations.length) % decorations.length;
+		if (strict && (target < 0 || target >= decorations.length)) {
+			return false;
+		}
 
+		target = (target + decorations.length) % decorations.length;
 
 		const targetPosition = decorations[target].getStartPosition();
 		this._editor.setPosition(targetPosition);
 		this._editor.revealPositionInCenter(targetPosition, ScrollType.Smooth);
 		this._editor.focus();
+		return true;
 	}
 }
