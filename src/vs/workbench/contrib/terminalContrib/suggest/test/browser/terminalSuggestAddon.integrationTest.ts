@@ -30,7 +30,8 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
-import { TerminalCompletionService } from '../../browser/terminalSuggestionService.js';
+import { ITerminalCompletionService, TerminalCompletionService } from '../../browser/terminalSuggestionService.js';
+import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
@@ -60,7 +61,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite.only('Terminal Contrib Suggest Recordings', () => {
+suite('Terminal Contrib Suggest Recordings, PWSH', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -97,14 +98,16 @@ suite.only('Terminal Contrib Suggest Recordings', () => {
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
 		terminalConfigurationService.setConfig(terminalConfig as any);
-		const terminalCompletionService = store.add(new TerminalCompletionService());
+		const completionService = instantiationService.createInstance(TerminalCompletionService);
+		instantiationService.stub(ITerminalCompletionService, store.add(completionService));
+		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
+		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, GeneralShellType.PowerShell, shellIntegrationAddon.capabilities));
+		store.add(completionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
-		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
-		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, undefined, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
-		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, undefined, shellIntegrationAddon.capabilities));
+		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, GeneralShellType.PowerShell, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
 		xterm.open(testContainer);
@@ -113,7 +116,6 @@ suite.only('Terminal Contrib Suggest Recordings', () => {
 		xterm.loadAddon(shellIntegrationAddon);
 		xterm.loadAddon(pwshCompletionProvider);
 		store.add(pwshCompletionProvider);
-		store.add(terminalCompletionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
 		xterm.loadAddon(suggestAddon);
 		xterm.focus();
 	});
@@ -122,6 +124,7 @@ suite.only('Terminal Contrib Suggest Recordings', () => {
 		test(testCase.name, async () => {
 			const suggestDataEvents: string[] = [];
 			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
+			store.add(pwshCompletionProvider.onAcceptedCompletion(e => suggestDataEvents.push(e)));
 			for (const event of testCase.events) {
 				// DEBUG: Uncomment to see the events as they are played
 				// console.log(

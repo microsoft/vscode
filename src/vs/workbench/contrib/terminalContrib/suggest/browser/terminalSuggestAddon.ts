@@ -83,10 +83,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		private readonly _shellType: TerminalShellType | undefined,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 	) {
 		super();
 
@@ -333,7 +333,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		const xtermBox = this._screen!.getBoundingClientRect();
-		console.log('should be showing suggestions', this._model.items.length, this._model.items.map(e => e.completion.label));
+
 		suggestWidget.showSuggestions(0, false, false, {
 			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
