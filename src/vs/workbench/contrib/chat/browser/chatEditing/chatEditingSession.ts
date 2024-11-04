@@ -467,7 +467,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	addFileToWorkingSet(resource: URI) {
-		if (!this._workingSet.has(resource)) {
+		const state = this._workingSet.get(resource);
+		if (state === undefined || state === WorkingSetEntryState.Transient) {
 			this._workingSet.set(resource, WorkingSetEntryState.Attached);
 
 			// Convert all transient entries to attachments

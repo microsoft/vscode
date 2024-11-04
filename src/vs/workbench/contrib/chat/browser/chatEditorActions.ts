@@ -6,7 +6,7 @@ import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { localize2 } from '../../../../nls.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
@@ -35,13 +35,7 @@ abstract class NavigateAction extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				when: ContextKeyExpr.and(ctxHasEditorModification, EditorContextKeys.focus),
 			},
-			f1: true,
-			menu: {
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: next ? -100 : -101,
-				when: ctxHasEditorModification
-			}
+			f1: true
 		});
 	}
 
@@ -75,12 +69,7 @@ abstract class AcceptDiscardAction extends Action2 {
 			icon: accept
 				? Codicon.check
 				: Codicon.discard,
-			menu: {
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: accept ? -103 : -102,
-				when: ctxHasEditorModification
-			}
+			f1: true,
 		});
 	}
 
