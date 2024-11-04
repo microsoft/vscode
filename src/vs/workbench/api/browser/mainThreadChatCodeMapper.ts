@@ -55,9 +55,7 @@ export class MainThreadChatCodemapper extends Disposable implements MainThreadCo
 		const response = this._responseMap.get(requestId);
 		if (response) {
 			const resource = URI.revive(data.uri);
-			for (const edit of data.edits) {
-				response.textEdit(edit, resource);
-			}
+			response.textEdit(resource, data.edits);
 		}
 		return Promise.resolve();
 	}

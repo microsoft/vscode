@@ -18,7 +18,6 @@ import { escape } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { OldIssueReporterData } from '../../../../platform/issue/common/issue.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
@@ -57,7 +56,7 @@ export class BaseIssueReporterService extends Disposable {
 
 	constructor(
 		public disableExtensions: boolean,
-		public data: IssueReporterData | OldIssueReporterData,
+		public data: IssueReporterData,
 		public os: {
 			type: string;
 			arch: string;

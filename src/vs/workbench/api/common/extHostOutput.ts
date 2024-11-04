@@ -19,19 +19,17 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { isString } from '../../../base/common/types.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../platform/files/common/files.js';
 import { Emitter } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 
 class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOutputChannel {
 
 	private offset: number = 0;
 
-	private _disposed: boolean = false;
-	get disposed(): boolean { return this._disposed; }
-
 	public visible: boolean = false;
 
 	constructor(
-		readonly id: string, readonly name: string,
+		readonly id: string,
+		readonly name: string,
 		protected readonly logger: ILogger,
 		protected readonly proxy: MainThreadOutputServiceShape,
 		readonly extension: IExtensionDescription,
@@ -39,6 +37,7 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 		super();
 		this.setLevel(logger.getLevel());
 		this._register(logger.onDidChangeLogLevel(level => this.setLevel(level)));
+		this._register(toDisposable(() => this.proxy.$dispose(this.id)));
 	}
 
 	get logLevel(): LogLevel {
@@ -83,15 +82,6 @@ class ExtHostOutputChannel extends AbstractMessageLogger implements vscode.LogOu
 		if (this.visible) {
 			this.logger.flush();
 			this.proxy.$update(this.id, OutputChannelUpdateMode.Append);
-		}
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (!this._disposed) {
-			this.proxy.$dispose(this.id);
-			this._disposed = true;
 		}
 	}
 
@@ -153,31 +143,39 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		if (logLevelValue) {
 			logLevel = parseLogLevel(logLevelValue);
 		}
-		const extHostOutputChannel = log ? this.doCreateLogOutputChannel(name, logLevel, extension) : this.doCreateOutputChannel(name, languageId, extension);
+		const channelDisposables = new DisposableStore();
+		const extHostOutputChannel = log
+			? this.doCreateLogOutputChannel(name, logLevel, extension, channelDisposables)
+			: this.doCreateOutputChannel(name, languageId, extension, channelDisposables);
 		extHostOutputChannel.then(channel => {
 			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
+			channelDisposables.add(toDisposable(() => this.channels.delete(channel.id)));
 		});
-		return log ? this.createExtHostLogOutputChannel(name, logLevel ?? this.logService.getLevel(), <Promise<ExtHostOutputChannel>>extHostOutputChannel) : this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannel);
+		return log
+			? this.createExtHostLogOutputChannel(name, logLevel ?? this.logService.getLevel(), <Promise<ExtHostOutputChannel>>extHostOutputChannel, channelDisposables)
+			: this.createExtHostOutputChannel(name, <Promise<ExtHostOutputChannel>>extHostOutputChannel, channelDisposables);
 	}
 
-	private async doCreateOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
+	private async doCreateOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription, channelDisposables: DisposableStore): Promise<ExtHostOutputChannel> {
 		if (!this.outputDirectoryPromise) {
 			this.outputDirectoryPromise = this.extHostFileSystem.value.createDirectory(this.outputsLocation).then(() => this.outputsLocation);
 		}
 		const outputDir = await this.outputDirectoryPromise;
 		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this.namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
-		const logger = this.loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true, hidden: true });
+		const logger = channelDisposables.add(this.loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true, hidden: true }));
 		const id = await this.proxy.$register(name, file, languageId, extension.identifier.value);
+		channelDisposables.add(toDisposable(() => this.loggerService.deregisterLogger(file)));
 		return new ExtHostOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
-	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel | undefined, extension: IExtensionDescription): Promise<ExtHostLogOutputChannel> {
+	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel | undefined, extension: IExtensionDescription, channelDisposables: DisposableStore): Promise<ExtHostLogOutputChannel> {
 		const extensionLogDir = await this.createExtensionLogDirectory(extension);
 		const fileName = name.replace(/[\\/:\*\?"<>\|]/g, '');
 		const file = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDir, `${fileName}.log`);
 		const id = `${extension.identifier.value}.${fileName}`;
-		const logger = this.loggerService.createLogger(file, { id, name, logLevel, extensionId: extension.identifier.value });
+		const logger = channelDisposables.add(this.loggerService.createLogger(file, { id, name, logLevel, extensionId: extension.identifier.value }));
+		channelDisposables.add(toDisposable(() => this.loggerService.deregisterLogger(file)));
 		return new ExtHostLogOutputChannel(id, name, logger, this.proxy, extension);
 	}
 
@@ -199,13 +197,13 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return extensionLogDirectoryPromise;
 	}
 
-	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>): vscode.OutputChannel {
-		let disposed = false;
+	private createExtHostOutputChannel(name: string, channelPromise: Promise<ExtHostOutputChannel>, channelDisposables: DisposableStore): vscode.OutputChannel {
 		const validate = () => {
-			if (disposed) {
+			if (channelDisposables.isDisposed) {
 				throw new Error('Channel has been closed');
 			}
 		};
+		channelPromise.then(channel => channelDisposables.add(channel));
 		return {
 			get name(): string { return name; },
 			append(value: string): void {
@@ -233,33 +231,30 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 				channelPromise.then(channel => channel.hide());
 			},
 			dispose(): void {
-				disposed = true;
-				channelPromise.then(channel => channel.dispose());
+				channelDisposables.dispose();
 			}
 		};
 	}
 
-	private createExtHostLogOutputChannel(name: string, logLevel: LogLevel, channelPromise: Promise<ExtHostOutputChannel>): vscode.LogOutputChannel {
-		const disposables = new DisposableStore();
+	private createExtHostLogOutputChannel(name: string, logLevel: LogLevel, channelPromise: Promise<ExtHostOutputChannel>, channelDisposables: DisposableStore): vscode.LogOutputChannel {
 		const validate = () => {
-			if (disposables.isDisposed) {
+			if (channelDisposables.isDisposed) {
 				throw new Error('Channel has been closed');
 			}
 		};
-		const onDidChangeLogLevel = disposables.add(new Emitter<LogLevel>());
+		const onDidChangeLogLevel = channelDisposables.add(new Emitter<LogLevel>());
 		function setLogLevel(newLogLevel: LogLevel): void {
 			logLevel = newLogLevel;
 			onDidChangeLogLevel.fire(newLogLevel);
 		}
 		channelPromise.then(channel => {
-			disposables.add(channel);
 			if (channel.logLevel !== logLevel) {
 				setLogLevel(channel.logLevel);
 			}
-			disposables.add(channel.onDidChangeLogLevel(e => setLogLevel(e)));
+			channelDisposables.add(channel.onDidChangeLogLevel(e => setLogLevel(e)));
 		});
 		return {
-			...this.createExtHostOutputChannel(name, channelPromise),
+			...this.createExtHostOutputChannel(name, channelPromise, channelDisposables),
 			get logLevel() { return logLevel; },
 			onDidChangeLogLevel: onDidChangeLogLevel.event,
 			trace(value: string, ...args: any[]): void {
@@ -281,9 +276,6 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 			error(value: Error | string, ...args: any[]): void {
 				validate();
 				channelPromise.then(channel => channel.error(value, ...args));
-			},
-			dispose(): void {
-				disposables.dispose();
 			}
 		};
 	}

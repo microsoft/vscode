@@ -10,6 +10,7 @@ import { ColorPickerModel } from '../colorPickerModel.js';
 import { SaturationBox } from './colorPickerSaturationBox.js';
 import { InsertButton } from './colorPickerInsertButton.js';
 import { HueStrip, OpacityStrip, Strip } from './colorPickerStrip.js';
+import { ColorPickerWidgetType } from '../colorPickerParticipantUtils.js';
 
 const $ = dom.$;
 
@@ -21,7 +22,7 @@ export class ColorPickerBody extends Disposable {
 	private readonly _opacityStrip: Strip;
 	private readonly _insertButton: InsertButton | null = null;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, isStandaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, type: ColorPickerWidgetType) {
 		super();
 
 		this._domNode = $('.colorpicker-body');
@@ -32,17 +33,17 @@ export class ColorPickerBody extends Disposable {
 		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
 
-		this._opacityStrip = new OpacityStrip(this._domNode, this.model, isStandaloneColorPicker);
+		this._opacityStrip = new OpacityStrip(this._domNode, this.model, type);
 		this._register(this._opacityStrip);
 		this._register(this._opacityStrip.onDidChange(this.onDidOpacityChange, this));
 		this._register(this._opacityStrip.onColorFlushed(this.flushColor, this));
 
-		this._hueStrip = new HueStrip(this._domNode, this.model, isStandaloneColorPicker);
+		this._hueStrip = new HueStrip(this._domNode, this.model, type);
 		this._register(this._hueStrip);
 		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
 		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
 
-		if (isStandaloneColorPicker) {
+		if (type === ColorPickerWidgetType.Standalone) {
 			this._insertButton = this._register(new InsertButton(this._domNode));
 			this._domNode.classList.add('standalone-colorpicker');
 		}

@@ -11,6 +11,7 @@ import { Platform } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize2 } from '../../../nls.js';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
+import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
@@ -257,6 +258,7 @@ export type Metadata = Partial<IGalleryMetadata & {
 	installedTimestamp: number;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }>;
 
 export interface ILocalExtension extends IExtension {
@@ -271,6 +273,7 @@ export interface ILocalExtension extends IExtension {
 	updated: boolean;
 	pinned: boolean;
 	source: InstallSource;
+	size: number;
 }
 
 export const enum SortBy {
@@ -622,6 +625,15 @@ export interface IExtensionTipsService {
 	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]>;
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]>;
+}
+
+export async function computeSize(location: URI, fileService: IFileService): Promise<number> {
+	const stat = await fileService.resolve(location);
+	if (stat.children) {
+		const sizes = await Promise.all(stat.children.map(c => computeSize(c.resource, fileService)));
+		return sizes.reduce((r, s) => r + s, 0);
+	}
+	return stat.size ?? 0;
 }
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");

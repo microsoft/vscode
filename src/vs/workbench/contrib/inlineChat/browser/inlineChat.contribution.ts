@@ -21,7 +21,7 @@ import { InlineChatEnabler, InlineChatSessionServiceImpl } from './inlineChatSes
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CancelAction, SubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 import { InlineChatExansionContextKey, InlineChatExpandLineAction } from './inlineChatCurrentLine.js';
@@ -47,7 +47,7 @@ const editActionMenuItem: IMenuItem = {
 		title: localize('send.edit', "Edit Code"),
 	},
 	when: ContextKeyExpr.and(
-		CONTEXT_CHAT_INPUT_HAS_TEXT,
+		ChatContextKeys.inputHasText,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 		CTX_INLINE_CHAT_EDITING
 	),
@@ -61,7 +61,7 @@ const generateActionMenuItem: IMenuItem = {
 		title: localize('send.generate', "Generate"),
 	},
 	when: ContextKeyExpr.and(
-		CONTEXT_CHAT_INPUT_HAS_TEXT,
+		ChatContextKeys.inputHasText,
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
 		CTX_INLINE_CHAT_EDITING.toNegated()
 	),
@@ -92,7 +92,6 @@ registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
-registerAction2(InlineChatActions.DiscardAction);
 registerAction2(InlineChatActions.RerunAction);
 registerAction2(InlineChatActions.MoveToNextHunk);
 registerAction2(InlineChatActions.MoveToPreviousHunk);

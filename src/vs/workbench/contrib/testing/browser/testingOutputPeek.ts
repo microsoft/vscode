@@ -31,7 +31,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { IPeekViewService, PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from '../../../../editor/contrib/peekView/browser/peekView.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { createAndFillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -74,11 +74,16 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 
 
 /** Iterates through every message in every result */
-function* allMessages(results: readonly ITestResult[]) {
-	for (const result of results) {
-		for (const test of result.tests) {
-			for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
-				for (let messageIndex = 0; messageIndex < test.tasks[taskIndex].messages.length; messageIndex++) {
+function* allMessages([result]: readonly ITestResult[]) {
+	if (!result) {
+		return;
+	}
+
+	for (const test of result.tests) {
+		for (let taskIndex = 0; taskIndex < test.tasks.length; taskIndex++) {
+			const messages = test.tasks[taskIndex].messages;
+			for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
+				if (messages[messageIndex].type === TestMessageType.Error) {
 					yield { result, test, taskIndex, messageIndex };
 				}
 			}
@@ -280,7 +285,8 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		// and this test is not in any of the editors' models.
 		switch (cfg) {
 			case AutoOpenPeekViewWhen.FailureVisible: {
-				const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+				const visibleEditors = this.editorService.visibleTextEditorControls;
+				const editorUris = new Set(visibleEditors.filter(isCodeEditor).map(e => e.getModel()?.uri.toString()));
 				if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
 					return;
 				}
@@ -726,7 +732,7 @@ class TestResultsPeek extends PeekViewWidget {
 		const actionBar = this._actionbarWidget!;
 		this._disposables.add(menu.onDidChange(() => {
 			actions.length = 0;
-			createAndFillInActionBarActions(menu, undefined, actions);
+			fillInActionBarActions(menu.getActions(), actions);
 			while (actionBar.getAction(1)) {
 				actionBar.pull(0); // remove all but the view's default "close" button
 			}
@@ -734,7 +740,7 @@ class TestResultsPeek extends PeekViewWidget {
 		}));
 
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, undefined, actions);
+		fillInActionBarActions(menu.getActions(), actions);
 		actionBar.push(actions, { label: false, icon: true, index: 0 });
 	}
 

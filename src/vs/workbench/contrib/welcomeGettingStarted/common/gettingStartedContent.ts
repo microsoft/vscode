@@ -79,6 +79,7 @@ export type BuiltinGettingStartedCategory = {
 	when?: string;
 	content:
 	| { type: 'steps'; steps: BuiltinGettingStartedStep[] };
+	walkthroughPageTitle: string;
 };
 
 export type BuiltinGettingStartedStartEntry = {
@@ -216,6 +217,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		isFeatured: true,
 		icon: setupIcon,
 		when: '!isWeb',
+		walkthroughPageTitle: localize('gettingStarted.setup.walkthroughPageTitle', 'Setup VS Code'),
 		next: 'Beginner',
 		content: {
 			type: 'steps',
@@ -317,6 +319,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		when: 'isWeb',
 		next: 'Beginner',
+		walkthroughPageTitle: localize('gettingStarted.setupWeb.walkthroughPageTitle', 'Setup VS Code Web'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -402,6 +405,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		when: CONTEXT_ACCESSIBILITY_MODE_ENABLED.key,
 		next: 'Setup',
+		walkthroughPageTitle: localize('gettingStarted.setupAccessibility.walkthroughPageTitle', 'Setup VS Code Accessibility'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -430,9 +434,23 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					}
 				},
 				{
+					id: 'commandPaletteTaskAccessibility',
+					title: localize('gettingStarted.commandPaletteAccessibility.title', "Unlock productivity with the Command Palette "),
+					description: localize('gettingStarted.commandPaletteAccessibility.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
+					media: { type: 'markdown', path: 'empty' },
+				},
+				{
+					id: 'keybindingsAccessibility',
+					title: localize('gettingStarted.keyboardShortcuts.title', "Customize your keyboard shortcuts"),
+					description: localize('gettingStarted.keyboardShortcuts.description.interpolated', "Once you have discovered your favorite commands, create custom keyboard shortcuts for instant access.\n{0}", Button(localize('keyboardShortcuts', "Keyboard Shortcuts"), 'command:toSide:workbench.action.openGlobalKeybindings')),
+					media: {
+						type: 'markdown', path: 'empty',
+					}
+				},
+				{
 					id: 'accessibilitySignals',
 					title: localize('gettingStarted.accessibilitySignals.title', "Fine tune which accessibility signals you want to receive via audio or a braille device"),
-					description: localize('gettingStarted.accessibilitySignals.description.interpolated', "Accessibility sounds and announcements are played around the workbench for different events.\n These can be discovered and configured using the List Signal Sounds and List Signal Announcements commands.\n{0}\n{1}", Button(localize('listSignalSounds', "List Signal Sounds"), 'command:signals.sounds.help'), Button(localize('listSignalAnnouncements', "List Signal Announcements"), 'command:signals.announcements.help')),
+					description: localize('gettingStarted.accessibilitySignals.description.interpolated', "Accessibility sounds and announcements are played around the workbench for different events.\n These can be discovered and configured using the List Signal Sounds and List Signal Announcements commands.\n{0}\n{1}", Button(localize('listSignalSounds', "List Signal Sounds"), 'command:signals.sounds.help'), Button(localize('listSignalAnnouncements', "List Signal Announcements"), 'command:accessibility.announcement.help')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}
@@ -456,7 +474,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'codeFolding',
 					title: localize('gettingStarted.codeFolding.title', "Use code folding to collapse blocks of code and focus on the code you're interested in."),
-					description: localize('gettingStarted.codeFolding.description.interpolated', "Fold or unfold a code section with the Toggle Fold command.\n{0}\n Fold or unfold recursively with the Toggle Fold Recursively Command\n{1}\n", Button(localize('toggleFold', "Toggle Fold"), 'command:editor.toggleFold'), Button(localize('toggleFoldRecursively', "Toggle Fold Recursively"), 'editor.toggleFoldRecursively')),
+					description: localize('gettingStarted.codeFolding.description.interpolated', "Fold or unfold a code section with the Toggle Fold command.\n{0}\n Fold or unfold recursively with the Toggle Fold Recursively Command\n{1}\n", Button(localize('toggleFold', "Toggle Fold"), 'command:editor.toggleFold'), Button(localize('toggleFoldRecursively', "Toggle Fold Recursively"), 'command:editor.toggleFoldRecursively')),
 					media: {
 						type: 'markdown', path: 'empty'
 					}
@@ -484,6 +502,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
 		description: localize('gettingStarted.beginner.description', "Get an overview of the most essential features"),
+		walkthroughPageTitle: localize('gettingStarted.beginner.walkthroughPageTitle', 'Essential Features'),
 		content: {
 			type: 'steps',
 			steps: [
@@ -590,6 +609,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		icon: setupIcon,
 		isFeatured: false,
 		when: `config.${NotebookSetting.openGettingStarted} && userHasOpenedNotebook`,
+		walkthroughPageTitle: localize('gettingStarted.notebook.walkthroughPageTitle', 'Notebooks'),
 		content: {
 			type: 'steps',
 			steps: [

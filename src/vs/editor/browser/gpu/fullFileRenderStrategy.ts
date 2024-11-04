@@ -144,12 +144,12 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 
 		let tokens: IViewLineTokens;
 
-		const activeWindow = getActiveWindow();
+		const dpr = getActiveWindow().devicePixelRatio;
 
 		// Update scroll offset
-		const scrollTop = this._context.viewLayout.getCurrentScrollTop() * activeWindow.devicePixelRatio;
 		const scrollOffsetBuffer = this._scrollOffsetValueBuffers[this._activeDoubleBufferIndex];
-		scrollOffsetBuffer[1] = scrollTop;
+		scrollOffsetBuffer[0] = this._context.viewLayout.getCurrentScrollLeft() * dpr;
+		scrollOffsetBuffer[1] = this._context.viewLayout.getCurrentScrollTop() * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, scrollOffsetBuffer);
 
 		// Update cell data
@@ -235,14 +235,14 @@ export class FullFileRenderStrategy extends Disposable implements IGpuRenderStra
 					glyph = this._atlas.getGlyph(this._glyphRasterizer, chars, tokenMetadata);
 
 					// TODO: Support non-standard character widths
-					screenAbsoluteX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * activeWindow.devicePixelRatio);
+					screenAbsoluteX = Math.round((x + xOffset) * viewLineOptions.spaceWidth * dpr);
 					screenAbsoluteY = (
 						Math.ceil((
 							// Top of line including line height
 							viewportData.relativeVerticalOffset[y - viewportData.startLineNumber] +
 							// Delta to top of line after line height
 							Math.floor((viewportData.lineHeight - this._context.configuration.options.get(EditorOption.fontSize)) / 2)
-						) * activeWindow.devicePixelRatio)
+						) * dpr)
 					);
 					zeroToOneX = screenAbsoluteX / this._canvas.width;
 					zeroToOneY = screenAbsoluteY / this._canvas.height;

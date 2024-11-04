@@ -16,6 +16,7 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { InteractiveWindowSetting } from './interactiveCommon.js';
 
 
@@ -40,7 +41,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplInputHint)) {
+			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplEditor)) {
 				status(this.ariaLabel);
 			}
 		}));
@@ -115,7 +116,12 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			hintElement.appendChild(after);
 			this.domNode.append(hintElement);
 
-			this.ariaLabel = actionPart.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplInputHint));
+			const helpKeybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			const helpInfo = helpKeybinding
+				? localize('ReplInputAriaLabelHelp', "Use {0} for accessibility help. ", helpKeybinding)
+				: localize('ReplInputAriaLabelHelpNoKb', "Run the Open Accessibility Help command for more information. ");
+
+			this.ariaLabel = actionPart.concat(helpInfo, localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplEditor));
 		}
 	}
 

@@ -321,6 +321,7 @@ class ChatTokenDeleter extends Disposable {
 							range: rangeToDelete,
 							text: '',
 						}]);
+						this.widget.refreshParsedInput();
 					}
 				});
 			}

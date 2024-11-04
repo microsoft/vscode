@@ -334,11 +334,11 @@ suite('NotebookDiff', () => {
 			};
 
 			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
-			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
+			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
-			const result = await diffViewModel.computeDiff(token);
+			await diffViewModel.computeDiff(token);
 
-			assert.strictEqual(result?.firstChangeIndex, 0);
+			assert.strictEqual(eventArgs?.firstChangeIndex, 0);
 			assert.strictEqual(diffViewModel.items[0].type, 'insert');
 			assert.strictEqual(diffViewModel.items[1].type, 'placeholder');
 
@@ -388,11 +388,11 @@ suite('NotebookDiff', () => {
 			};
 
 			diffViewModel = disposables.add(new NotebookDiffViewModel(model, notebookEditorWorkerService, configurationService, eventDispatcher, accessor.get<INotebookService>(INotebookService), heightCalculator, undefined));
-			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined = undefined;
+			let eventArgs: INotebookDiffViewModelUpdateEvent | undefined;
 			disposables.add(diffViewModel.onDidChangeItems(e => eventArgs = e));
-			const result = await diffViewModel.computeDiff(token);
+			await diffViewModel.computeDiff(token);
 
-			assert.strictEqual(result?.firstChangeIndex, 0);
+			assert.strictEqual(eventArgs?.firstChangeIndex, 0);
 			assert.strictEqual(diffViewModel.items.length, 2);
 			assert.strictEqual(diffViewModel.items[0].type, 'insert');
 			assert.strictEqual(diffViewModel.items[1].type, 'placeholder');

@@ -166,7 +166,8 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			// recursively to give users a chance to configure exclude rules
 			// for reducing the overhead of watching recursively
 			if (recursive && excludes.length === 0) {
-				const watcherExcludes = configuration.getConfiguration().get<IGlobPatterns>('files.watcherExclude');
+				const workspaceFolder = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri));
+				const watcherExcludes = configuration.getConfiguration('files', workspaceFolder).get<IGlobPatterns>('watcherExclude');
 				if (watcherExcludes) {
 					for (const key in watcherExcludes) {
 						if (key && watcherExcludes[key] === true) {
@@ -188,9 +189,9 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			// `bar` unless a suffix of `/**` if added.
 			// (https://github.com/microsoft/vscode/issues/148245)
 			else if (!recursive) {
-				const workspaceUri = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri))?.uri;
-				if (workspaceUri) {
-					const watcherExcludes = configuration.getConfiguration().get<IGlobPatterns>('files.watcherExclude');
+				const workspaceFolder = workspace.getWorkspaceFolder(URI.revive(globPattern.baseUri));
+				if (workspaceFolder) {
+					const watcherExcludes = configuration.getConfiguration('files', workspaceFolder).get<IGlobPatterns>('watcherExclude');
 					if (watcherExcludes) {
 						for (const key in watcherExcludes) {
 							if (key && watcherExcludes[key] === true) {
@@ -199,7 +200,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 									includes = [];
 								}
 
-								includes.push(normalizeWatcherPattern(workspaceUri.fsPath, includePattern));
+								includes.push(normalizeWatcherPattern(workspaceFolder.uri.fsPath, includePattern));
 							}
 						}
 					}

@@ -48,6 +48,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfile = this._onDidChangeProfile.event;
 
+	get onProfileAwareDidUpdateExtensionMetadata() { return super.onDidUpdateExtensionMetadata; }
+
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -235,7 +237,8 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		updated: !!metadata.updated,
 		pinned: !!metadata?.pinned,
 		isWorkspaceScoped: false,
-		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource')
+		source: metadata?.source ?? (extension.identifier.uuid ? 'gallery' : 'resource'),
+		size: metadata.size ?? 0,
 	};
 }
 
