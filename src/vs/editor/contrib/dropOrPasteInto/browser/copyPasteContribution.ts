@@ -6,14 +6,17 @@
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
 import { IJSONSchema, SchemaToType } from '../../../../base/common/jsonSchema.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import * as nls from '../../../../nls.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { editorConfigurationBaseNode } from '../../../common/config/editorConfigurationSchema.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { registerEditorFeature } from '../../../common/editorFeatures.js';
-import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx } from './copyPasteController.js';
+import { CopyPasteController, changePasteTypeCommandId, pasteWidgetVisibleCtx, pasteAsPreferenceConfig } from './copyPasteController.js';
 import { DefaultPasteProvidersFeature, DefaultTextPasteOrDropEditProvider } from './defaultProviders.js';
-import * as nls from '../../../../nls.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 registerEditorContribution(CopyPasteController.ID, CopyPasteController, EditorContributionInstantiation.Eager); // eager because it listens to events on the container dom node of the editor
 registerEditorFeature(DefaultPasteProvidersFeature);
@@ -103,5 +106,36 @@ registerEditorAction(class extends EditorAction {
 
 	public override run(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		return CopyPasteController.get(editor)?.pasteAs({ providerId: DefaultTextPasteOrDropEditProvider.id });
+	}
+});
+
+export type PreferredPasteConfiguration = ReadonlyArray<{ readonly kind: string; readonly mimeType?: string }>;
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...editorConfigurationBaseNode,
+	properties: {
+		[pasteAsPreferenceConfig]: {
+			type: 'array',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			description: nls.localize('preferredDescription', "Configures the preferred type of edit to use when pasting content.\n\nThis is an ordered list of edit kinds with optional mime types for the content being pasted. The first available edit of a preferred kind will be used."),
+			default: [],
+			items: {
+				type: 'object',
+				required: ['kind'],
+				properties: {
+					mimeType: {
+						type: 'string',
+						description: nls.localize('mimeType', "The optional mime type that this preference applies to. If not provided, the preference will be used for all mime types."),
+					},
+					kind: {
+						type: 'string',
+						description: nls.localize('kind', "The kind identifier of the paste edit."),
+					}
+				},
+				defaultSnippets: [
+					{ body: { kind: '$1' } }
+				]
+			}
+		},
 	}
 });
