@@ -19,6 +19,9 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ChatEditorController } from './chatEditorController.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { EDITS_VIEW_ID } from './chat.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 
 class ChatEditorOverlayWidget implements IOverlayWidget {
 
@@ -33,20 +36,20 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('chat-editor-overlay-widget');
 
-		const progressNode = document.createElement('div');
-		progressNode.classList.add('progress-container');
-		progressNode.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
-		this._domNode.appendChild(progressNode);
-
-		const toolbarContainer = document.createElement('div');
-		toolbarContainer.classList.add('toolbar-container');
-		this._domNode.appendChild(toolbarContainer);
-		this._toolbar = instaService.createInstance(WorkbenchToolBar, toolbarContainer, {});
+		this._toolbar = instaService.createInstance(WorkbenchToolBar, this._domNode, {
+			actionViewItemProvider: (action, options) => {
+				if (action.id === 'accept' || action.id === 'discard') {
+					return new ActionViewItem(undefined, action, { ...options, label: true, icon: false });
+				}
+				return undefined;
+			}
+		});
 	}
 
 	dispose() {
@@ -105,8 +108,19 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 
 			const groups = [[
 				toAction({
+					id: 'open',
+					label: localize('open', 'Open Chat Edit'),
+					class: ThemeIcon.asClassName(busy
+						? ThemeIcon.modify(Codicon.loading, 'spin')
+						: Codicon.goToEditingSession),
+					run: async () => {
+						await this._viewsService.openView(EDITS_VIEW_ID);
+					}
+				}),
+				toAction({
 					id: 'accept',
-					label: localize('accept', 'Accept Chat Edits'),
+					label: localize('accept', 'Accept'),
+					tooltip: localize('acceptTooltip', 'Accept Chat Edits'),
 					class: ThemeIcon.asClassName(Codicon.check),
 					enabled: !busy && modified,
 					run: () => {
@@ -116,7 +130,8 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 				}),
 				toAction({
 					id: 'discard',
-					label: localize('discard', 'Discard Chat Edits'),
+					label: localize('discard', 'Discard'),
+					tooltip: localize('discardTooltip', 'Discard Chat Edits'),
 					class: ThemeIcon.asClassName(Codicon.discard),
 					enabled: !busy && modified,
 					run: () => {
