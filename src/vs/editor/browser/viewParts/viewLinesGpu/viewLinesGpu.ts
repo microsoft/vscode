@@ -40,6 +40,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private readonly canvas: HTMLCanvasElement;
 
+	private _initViewportData?: ViewportData[];
 	private _lastViewportData?: ViewportData;
 	private _lastViewLineOptions?: ViewLineOptions;
 
@@ -285,6 +286,16 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		// endregion Bind group
 
 		this._initialized = true;
+
+		// Render the initial viewport immediately after initialization
+		if (this._initViewportData) {
+			// HACK: Rendering multiple times in the same frame like this isn't ideal, but there
+			//       isn't an easy way to merge viewport data
+			for (const viewportData of this._initViewportData) {
+				this.renderText(viewportData);
+			}
+			this._initViewportData = undefined;
+		}
 	}
 
 	private _updateAtlasStorageBufferAndTexture() {
@@ -361,6 +372,9 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	public renderText(viewportData: ViewportData): void {
 		if (this._initialized) {
 			return this._renderText(viewportData);
+		} else {
+			this._initViewportData = this._initViewportData ?? [];
+			this._initViewportData.push(viewportData);
 		}
 	}
 
