@@ -177,12 +177,12 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 		this._renderStrategy = this._register(this._instantiationService.createInstance(FullFileRenderStrategy, this._context, this._device, this.canvas, atlas));
 
 		this._glyphStorageBuffer[0] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
+			label: 'Monaco glyph storage buffer [0]',
 			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
 		this._glyphStorageBuffer[1] = this._register(GPULifecycle.createBuffer(this._device, {
-			label: 'Monaco glyph storage buffer',
+			label: 'Monaco glyph storage buffer [1]',
 			size: GlyphStorageBufferInfo.BytesPerEntry * TextureAtlasPage.maximumGlyphCount,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		})).object;
@@ -300,6 +300,12 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 	private _updateAtlasStorageBufferAndTexture() {
 		for (const [layerIndex, page] of ViewGpuContext.atlas.pages.entries()) {
+			if (layerIndex >= 2) {
+				// TODO: Support arbitrary number of layers
+				console.log(`Attempt to upload atlas page [${layerIndex}], only 2 are supported currently`);
+				continue;
+			}
+
 			// Skip the update if it's already the latest version
 			if (page.version === this._atlasGpuTextureVersions[layerIndex]) {
 				continue;
