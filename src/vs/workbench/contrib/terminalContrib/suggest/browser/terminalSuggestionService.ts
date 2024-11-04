@@ -72,7 +72,15 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			this._providers.set(extensionIdentifier, extMap);
 		}
 		extMap.set(id, provider);
-		return toDisposable(() => this._providers.delete(id));
+		return toDisposable(() => {
+			const extMap = this._providers.get(extensionIdentifier);
+			if (extMap) {
+				extMap.delete(id);
+				if (extMap.size === 0) {
+					this._providers.delete(extensionIdentifier);
+				}
+			}
+		});
 	}
 
 	async provideCompletions(value: string, shellType: TerminalShellType): Promise<ICompletionProviderResult[] | undefined> {

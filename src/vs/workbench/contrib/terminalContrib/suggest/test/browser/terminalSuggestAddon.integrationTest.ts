@@ -30,6 +30,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
+import { TerminalCompletionService } from '../../browser/terminalSuggestionService.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
@@ -59,7 +60,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-suite('Terminal Contrib Suggest Recordings', () => {
+suite.only('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -96,6 +97,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		}, store);
 		const terminalConfigurationService = instantiationService.get(ITerminalConfigurationService) as TestTerminalConfigurationService;
 		terminalConfigurationService.setConfig(terminalConfig as any);
+		const terminalCompletionService = store.add(new TerminalCompletionService());
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
@@ -109,9 +111,10 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		suggestAddon.setContainerWithOverflow(testContainer);
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 		xterm.loadAddon(shellIntegrationAddon);
-		xterm.loadAddon(suggestAddon);
 		xterm.loadAddon(pwshCompletionProvider);
-
+		store.add(pwshCompletionProvider);
+		store.add(terminalCompletionService.registerTerminalCompletionProvider('builtin-pwsh', 'pwsh', pwshCompletionProvider));
+		xterm.loadAddon(suggestAddon);
 		xterm.focus();
 	});
 

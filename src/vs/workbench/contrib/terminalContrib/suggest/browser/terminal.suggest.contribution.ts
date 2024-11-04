@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, TerminalLocation, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
@@ -53,7 +53,7 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalCompletionService private readonly _completionService: ITerminalCompletionService
+		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService
 	) {
 		super();
 		this.add(toDisposable(() => this._addon?.dispose()));
@@ -83,7 +83,7 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 	}
 
 	private _loadPwshCompletionAddon(xterm: RawXtermTerminal): void {
-		if (this._ctx.instance.shellType !== 'pwsh') {
+		if (this._ctx.instance.shellType !== GeneralShellType.PowerShell) {
 			console.log('returning,', this._ctx.instance.shellType);
 			return;
 		}
@@ -94,7 +94,7 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 			this._ctx.instance.focus();
 			this._ctx.instance.sendText(text, false);
 		}));
-		this._completionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon);
+		this.add(this._terminalCompletionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon));
 		// If completions are requested, pause and queue input events until completions are
 		// received. This fixing some problems in PowerShell, particularly enter not executing
 		// when typing quickly and some characters being printed twice. On Windows this isn't
