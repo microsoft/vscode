@@ -60,7 +60,9 @@ export class TextureAtlas extends Disposable {
 		this._allocatorType = options?.allocatorType ?? 'slab';
 
 		this._register(Event.runAndSubscribe(this._themeService.onDidColorThemeChange, () => {
-			// TODO: Clear entire atlas on theme change
+			if (!!this._colorMap) {
+				this.clear();
+			}
 			this._colorMap = this._themeService.getColorTheme().tokenColorMap;
 		}));
 
