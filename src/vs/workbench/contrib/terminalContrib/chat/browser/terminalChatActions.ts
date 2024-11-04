@@ -60,7 +60,10 @@ registerActiveXtermAction({
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible),
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.or(TerminalContextKeys.focus, TerminalChatContextKeys.focused),
+			TerminalChatContextKeys.visible
+		),
 		weight: KeybindingWeight.WorkbenchContrib,
 	},
 	icon: Codicon.close,
@@ -70,9 +73,7 @@ registerActiveXtermAction({
 		order: 2
 	},
 	f1: true,
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible)
-	),
+	precondition: TerminalChatContextKeys.visible,
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
