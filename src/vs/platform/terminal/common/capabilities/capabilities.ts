@@ -150,7 +150,7 @@ export interface ICwdDetectionCapability {
 
 export interface IShellEnvDetectionCapability {
 	readonly type: TerminalCapability.ShellEnvDetection;
-	readonly onDidChangeEnv: Event<unknown>;
+	readonly onDidChangeEnv: Event<Map<string, string>>;
 	get envs(): Map<string, string>;
 	setEnvironment(envs: { [key: string]: string | undefined } | undefined): void;
 	applyEnvironmentDiff(envs: { [key: string]: string | undefined } | undefined): void;

@@ -63,9 +63,6 @@ function Global:__VSCode-Escape-Value([string]$value) {
 		})
 }
 
-function Global:__VSCode-Send_env() {
-
-}
 
 function Global:Prompt() {
 	$FakeCode = [int]!$global:?

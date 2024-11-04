@@ -46,15 +46,15 @@ export class MainThreadTerminalShellIntegration extends Disposable implements Ma
 
 		// TODO: Listen to environment changes on our new capability, send to extension host via a $... method
 		// onDidChangeTerminalShellIntegrationEnvironment
-
 		const envChangeEvent = this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvDetection, e => e.onDidChangeEnv));
 		this._store.add(envChangeEvent.event(e => {
 			console.log('True');
-			// this._proxy.$envChange(e.instance.instanceId, e.data);  // would e.data be all the env vars
+
+			// convert map into keys and values
+			const keysArr = Array.from(e.data.keys());
+			const valuesArr = Array.from(e.data.values());
+			this._proxy.$shellEnvChange(e.instance.instanceId, keysArr, valuesArr);  // sending to ext host via $ method
 		}));
-
-		// this._store.add(this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.ShellEnvironmentDetection, e => e.onEnvironmentChanged));
-
 
 
 		// onDidStartTerminalShellExecution
