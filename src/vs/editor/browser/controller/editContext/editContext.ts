@@ -16,4 +16,5 @@ export abstract class AbstractEditContext extends ViewPart {
 	abstract setAriaOptions(options: IEditorAriaOptions): void;
 	abstract getLastRenderData(): Position | null;
 	abstract writeScreenReaderContent(reason: string): void;
+	abstract getTextAreaDomNode(): HTMLTextAreaElement;
 }
