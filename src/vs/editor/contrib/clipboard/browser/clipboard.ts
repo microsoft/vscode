@@ -14,6 +14,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { NativeEditContext } from '../../../browser/controller/editContext/native/nativeEditContext.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
@@ -240,7 +241,7 @@ if (PasteAction) {
 				const currentFocusedElement = getActiveWindow().document.activeElement;
 				const editorDomNode = focusedEditor.getContainerDomNode();
 				const editorDocument = editorDomNode.ownerDocument;
-				const textAreaDomNode = editorDocument.getElementsByClassName(`native-edit-context-textarea`).item(0);
+				const textAreaDomNode = editorDocument.getElementsByClassName(NativeEditContext.TEXT_AREA_CLASS_NAME).item(0);
 				if (textAreaDomNode && isHTMLElement(textAreaDomNode) && isHTMLElement(currentFocusedElement)) {
 					textAreaDomNode.focus();
 					result = editorDocument.execCommand('paste');
