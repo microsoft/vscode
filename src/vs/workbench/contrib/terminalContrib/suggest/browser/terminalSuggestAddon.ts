@@ -157,8 +157,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		// TODO: fix this
-		if (providedCompletions[0].replacementIndex !== undefined && providedCompletions[0].replacementLength !== undefined) {
+		if (replacementIndex !== undefined && replacementLength !== undefined) {
 			const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 			// This is a TabExpansion2 result
 			if (this._leadingLineContent.includes(' ') || firstChar === '[') {
@@ -168,9 +167,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				this._replacementIndex = replacementIndex;
 				this._replacementLength = replacementLength;
 			}
-		} else {
-			replacementIndex = providedCompletions[0].replacementIndex ?? 0;
-			replacementLength = providedCompletions[0].replacementLength ?? 0;
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {

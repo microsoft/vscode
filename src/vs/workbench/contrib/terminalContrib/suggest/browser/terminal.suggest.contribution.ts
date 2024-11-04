@@ -27,7 +27,7 @@ import { ITerminalCompletionService, TerminalCompletionService } from './termina
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { SuggestAddon } from './terminalSuggestAddon.js';
 import { TerminalClipboardContribution } from '../../clipboard/browser/terminal.clipboard.contribution.js';
-import { TerminalPwshCompletionProvider } from './terminalPwshCompletionProvider.js';
+import { PwshCompletionProviderAddon } from './pwshCompletionProvider.js';
 
 registerSingleton(ITerminalCompletionService, TerminalCompletionService, InstantiationType.Delayed);
 
@@ -41,12 +41,12 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 	}
 
 	private readonly _addon: MutableDisposable<SuggestAddon> = new MutableDisposable();
-	private readonly _pwshAddon: MutableDisposable<TerminalPwshCompletionProvider> = new MutableDisposable();
+	private readonly _pwshAddon: MutableDisposable<PwshCompletionProviderAddon> = new MutableDisposable();
 	private _terminalSuggestWidgetContextKeys: IReadableSet<string> = new Set(TerminalContextKeys.suggestWidgetVisible.key);
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
-	get pwshAddon(): TerminalPwshCompletionProvider | undefined { return this._pwshAddon.value; }
+	get pwshAddon(): PwshCompletionProviderAddon | undefined { return this._pwshAddon.value; }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -87,9 +87,13 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 			console.log('returning,', this._ctx.instance.shellType);
 			return;
 		}
-		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(TerminalPwshCompletionProvider, this._ctx);
+		const pwshCompletionProviderAddon = this._pwshAddon.value = this._instantiationService.createInstance(PwshCompletionProviderAddon, this._ctx.instance.shellType, this._ctx.instance.capabilities);
 		xterm.loadAddon(pwshCompletionProviderAddon);
 		this.add(pwshCompletionProviderAddon);
+		this.add(pwshCompletionProviderAddon.onAcceptedCompletion(async text => {
+			this._ctx.instance.focus();
+			this._ctx.instance.sendText(text, false);
+		}));
 		this._completionService.registerTerminalCompletionProvider('builtinPwsh', 'pwsh', pwshCompletionProviderAddon);
 		// If completions are requested, pause and queue input events until completions are
 		// received. This fixing some problems in PowerShell, particularly enter not executing
@@ -149,7 +153,6 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 }
 
 registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestContribution);
-registerTerminalContribution(TerminalPwshCompletionProvider.ID, TerminalPwshCompletionProvider);
 
 // #endregion
 

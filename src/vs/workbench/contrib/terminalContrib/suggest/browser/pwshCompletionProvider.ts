@@ -17,9 +17,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ITerminalSuggestConfiguration, terminalSuggestConfigSection, TerminalSuggestSettingId } from '../common/terminalSuggestConfiguration.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
-import { GeneralShellType } from '../../../../../platform/terminal/common/terminal.js';
-import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { GeneralShellType, TerminalShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 
 export const enum VSCodeSuggestOscPt {
@@ -45,7 +44,7 @@ const enum Constants {
 	CachedPwshCommandsStorageKey = 'terminal.suggest.pwshCommands'
 }
 
-export class TerminalPwshCompletionProvider extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
+export class PwshCompletionProviderAddon extends Disposable implements ITerminalAddon, ITerminalCompletionProvider {
 	public shellTypes = [GeneralShellType.PowerShell];
 	static readonly ID = 'terminal.pwshCompletionProvider';
 	private _codeCompletionsRequested: boolean = false;
@@ -87,17 +86,20 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 	private _cachedPwshCommands: Set<SimpleCompletionItem> = new Set();
 
 	constructor(
-		private readonly _ctx: ITerminalContributionContext,
+		_shellType: TerminalShellType | undefined,
+		_capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
-
+		if (_shellType && _shellType !== GeneralShellType.PowerShell) {
+			throw new Error('PwshCompletionProviderAddon can only be used with PowerShell');
+		}
 		this._register(Event.runAndSubscribe(Event.any(
-			_ctx.instance.capabilities.onDidAddCapabilityType,
-			_ctx.instance.capabilities.onDidRemoveCapabilityType
+			_capabilities.onDidAddCapabilityType,
+			_capabilities.onDidRemoveCapabilityType
 		), () => {
-			const commandDetection = _ctx.instance.capabilities.get(TerminalCapability.CommandDetection);
+			const commandDetection = _capabilities.get(TerminalCapability.CommandDetection);
 			if (commandDetection) {
 				if (this._promptInputModel !== commandDetection.promptInputModel) {
 					this._promptInputModel = commandDetection.promptInputModel;
@@ -135,10 +137,6 @@ export class TerminalPwshCompletionProvider extends Disposable implements ITermi
 		this._register(xterm.onData(() => {
 			this._lastUserDataTimestamp = Date.now();
 		}));
-		this.onAcceptedCompletion(async text => {
-			this._ctx.instance.focus();
-			this._ctx.instance.sendText(text, false);
-		});
 		const config = this._configurationService.getValue<ITerminalSuggestConfiguration>(terminalSuggestConfigSection);
 		const enabled = config.enabled;
 		if (!enabled) {

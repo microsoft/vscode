@@ -29,6 +29,7 @@ import { events as windows11_pwsh_writehost_multiline } from './recordings/windo
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ITerminalConfigurationService } from '../../../../terminal/browser/terminal.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { PwshCompletionProviderAddon } from '../../browser/pwshCompletionProvider.js';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
@@ -65,6 +66,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 	let capabilities: TerminalCapabilityStore;
 	let suggestWidgetVisibleContextKey: IContextKey<boolean>;
 	let suggestAddon: SuggestAddon;
+	let pwshCompletionProvider: PwshCompletionProviderAddon;
 
 	setup(async () => {
 		const terminalConfig = {
@@ -100,15 +102,15 @@ suite('Terminal Contrib Suggest Recordings', () => {
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
 		suggestAddon = store.add(instantiationService.createInstance(SuggestAddon, undefined, shellIntegrationAddon.capabilities, suggestWidgetVisibleContextKey));
-
+		pwshCompletionProvider = store.add(instantiationService.createInstance(PwshCompletionProviderAddon, undefined, shellIntegrationAddon.capabilities));
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
 		xterm.open(testContainer);
 		suggestAddon.setContainerWithOverflow(testContainer);
 		suggestAddon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
-
 		xterm.loadAddon(shellIntegrationAddon);
 		xterm.loadAddon(suggestAddon);
+		xterm.loadAddon(pwshCompletionProvider);
 
 		xterm.focus();
 	});
