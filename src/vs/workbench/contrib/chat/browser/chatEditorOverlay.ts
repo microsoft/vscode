@@ -43,6 +43,7 @@ class ChatEditorOverlayWidget implements IOverlayWidget {
 		this._domNode.classList.add('chat-editor-overlay-widget');
 
 		this._toolbar = instaService.createInstance(WorkbenchToolBar, this._domNode, {
+			telemetrySource: 'chatEditor.overlayToolbar',
 			actionViewItemProvider: (action, options) => {
 				if (action.id === 'accept' || action.id === 'discard') {
 					return new ActionViewItem(undefined, action, { ...options, label: true, icon: false });
