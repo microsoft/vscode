@@ -238,10 +238,15 @@ if (PasteAction) {
 			const experimentalEditContextEnabled = focusedEditor.getOption(EditorOption.experimentalEditContextEnabled);
 			if (experimentalEditContextEnabled) {
 				const currentFocusedElement = getActiveWindow().document.activeElement;
-				focusedEditor.getTextAreaDomNode()?.focus();
-				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-				if (isHTMLElement(currentFocusedElement)) {
+				const editorDomNode = focusedEditor.getContainerDomNode();
+				const editorDocument = editorDomNode.ownerDocument;
+				const textAreaDomNode = editorDocument.getElementsByClassName(`native-edit-context-textarea`).item(0);
+				if (textAreaDomNode && isHTMLElement(textAreaDomNode) && isHTMLElement(currentFocusedElement)) {
+					textAreaDomNode.focus();
+					result = editorDocument.execCommand('paste');
 					currentFocusedElement.focus();
+				} else {
+					result = false;
 				}
 			} else {
 				result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');

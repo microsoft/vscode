@@ -1078,11 +1078,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getContainerDomNode(): HTMLElement;
 
 	/**
-	 * Return this editor's text area dom node
-	 */
-	getTextAreaDomNode(): HTMLTextAreaElement | undefined;
-
-	/**
 	 * Returns the editor's dom node
 	 */
 	getDomNode(): HTMLElement | null;

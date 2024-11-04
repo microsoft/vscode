@@ -145,10 +145,6 @@ export class NativeEditContext extends AbstractEditContext {
 		super.dispose();
 	}
 
-	public getTextAreaDomNode(): HTMLTextAreaElement {
-		return this.textArea.domNode;
-	}
-
 	public setAriaOptions(): void {
 		this._screenReaderSupport.setAriaOptions();
 	}
