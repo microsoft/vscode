@@ -45,7 +45,7 @@ export class TextureAtlasPage extends Disposable implements IReadableTextureAtla
 		pageSize: number,
 		allocatorType: AllocatorType,
 		@ILogService private readonly _logService: ILogService,
-		themeService: IThemeService,
+		@IThemeService themeService: IThemeService,
 	) {
 		super();
 
