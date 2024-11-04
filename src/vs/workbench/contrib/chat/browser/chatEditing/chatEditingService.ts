@@ -136,6 +136,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			return this._currentSessionObs.read(r)?.canRedo.read(r) || false;
 		}));
 		this._register(this._chatService.onDidDisposeSession((e) => {
+			this._applyingChatEditsFailedContextKey.set(false);
 			if (e.reason === 'cleared' && this._currentSessionObs.get()?.chatSessionId === e.sessionId) {
 				void this._currentSessionObs.get()?.stop();
 			}

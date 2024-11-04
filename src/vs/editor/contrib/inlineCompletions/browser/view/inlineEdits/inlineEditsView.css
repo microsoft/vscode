@@ -74,10 +74,7 @@
 	}
 
 	.inline-edits-view {
-		--widget-color: var(--vscode-editorHoverWidget-background);
-
-		&.toolbarDropdownVisible,
-		.editorContainer:hover {
+		&.toolbarDropdownVisible, .editorContainer:hover {
 			.toolbar {
 				display: block;
 			}
@@ -85,9 +82,6 @@
 
 		.editorContainer {
 			color: var(--vscode-editorHoverWidget-foreground);
-			background-color: var(--vscode-editorHoverWidget-background);
-			/*border: 1px solid var(--vscode-editorHoverWidget-border);*/
-			/*border-radius: 3px;*/
 
 			.toolbar {
 				display: none;
@@ -135,7 +129,7 @@
 						border: none;
 					}
 
-					--vscode-editor-background: var(--widget-color);
+					--vscode-editor-background: transparent;
 				}
 			}
 		}

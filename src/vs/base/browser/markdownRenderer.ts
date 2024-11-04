@@ -113,7 +113,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
 		const opts: MarkedOptions = {
 			...marked.defaults,
-			...markedOptions
+			...markedOptions,
+			renderer
 		};
 		const tokens = marked.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);

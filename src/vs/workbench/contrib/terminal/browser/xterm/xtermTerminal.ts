@@ -16,7 +16,7 @@ import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { IShellIntegration, ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { IShellIntegration, ITerminalLogService, TerminalSettingId, type IDecorationAddon } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalFont, ITerminalConfiguration } from '../../common/terminal.js';
 import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal, ITerminalConfigurationService } from '../terminal.js';
 import { LogLevel } from '../../../../../platform/log/common/log.js';
@@ -141,6 +141,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
+	get decorationAddon(): IDecorationAddon { return this._decorationAddon; }
 
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
 		const canvas = this._webglAddon?.textureAtlas;
