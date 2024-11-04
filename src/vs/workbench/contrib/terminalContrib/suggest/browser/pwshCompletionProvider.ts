@@ -229,10 +229,6 @@ export class PwshCompletionProviderAddon extends Disposable implements ITerminal
 			this._pathSeparator = firstDir?.completion.label.match(/(?<sep>[\\\/])/)?.groups?.sep ?? sep;
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
-		// const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		// const model = new SimpleCompletionModel(completions, lineContext, replacementIndex, replacementLength);
-		// this._showCompletions(model);
-		// TODO: fix this type, dont use kind instead use isFile, isDirectory, etc.
 		this._notifyCompletions({
 			items: completions.map(c => { return { ...c, label: c.completion.label }; }), replacementIndex, replacementLength
 		});

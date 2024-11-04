@@ -148,6 +148,13 @@ export class TerminalSuggestContribution extends DisposableStore implements ITer
 				// Delay this slightly as synchronizing the prompt input is debounced
 				setTimeout(() => addon.isPasting = false, 100);
 			}));
+			if (!isWindows) {
+				let barrier: AutoOpenBarrier | undefined;
+				this.add(addon.onDidReceiveCompletions(() => {
+					barrier?.open();
+					barrier = undefined;
+				}));
+			}
 		}
 	}
 }

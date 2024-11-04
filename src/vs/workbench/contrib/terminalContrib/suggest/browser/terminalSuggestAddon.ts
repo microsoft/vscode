@@ -129,19 +129,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 
-		let replacementIndex = 0;
-		let replacementLength = this._promptInputModel.cursorIndex;
-
-		this._currentPromptInputState = {
-			value: this._promptInputModel.value,
-			prefix: this._promptInputModel.prefix,
-			suffix: this._promptInputModel.suffix,
-			cursorIndex: this._promptInputModel.cursorIndex,
-			ghostTextIndex: this._promptInputModel.ghostTextIndex
-		};
-
-		this._leadingLineContent = this._currentPromptInputState.prefix.substring(replacementIndex, replacementIndex + replacementLength + this._cursorIndexDelta);
-
 		if (!this._shellType) {
 			return;
 		}
@@ -152,21 +139,33 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._onDidReceiveCompletions.fire();
 
+		this._replacementIndex = providedCompletions[0].replacementIndex ?? 0;
+		this._replacementLength = providedCompletions[0].replacementLength ?? this._promptInputModel.cursorIndex;
+
+		this._currentPromptInputState = {
+			value: this._promptInputModel.value,
+			prefix: this._promptInputModel.prefix,
+			suffix: this._promptInputModel.suffix,
+			cursorIndex: this._promptInputModel.cursorIndex,
+			ghostTextIndex: this._promptInputModel.ghostTextIndex
+		};
+
+		this._leadingLineContent = this._currentPromptInputState.prefix.substring(this._replacementIndex, this._replacementIndex + this._replacementLength + this._cursorIndexDelta);
+
+
 		const completions = providedCompletions.map(p => p.items).flat();
 		if (!completions?.length) {
 			return;
 		}
 
-		if (replacementIndex !== undefined && replacementLength !== undefined) {
-			const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
-			// This is a TabExpansion2 result
-			if (this._leadingLineContent.includes(' ') || firstChar === '[') {
-				replacementIndex = 0;
-				replacementLength = this._promptInputModel.value.trim().length;
-				this._leadingLineContent = this._promptInputModel.prefix;
-				this._replacementIndex = replacementIndex;
-				this._replacementLength = replacementLength;
-			}
+		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
+		// This is a TabExpansion2 result
+		if (this._leadingLineContent.includes(' ') || firstChar === '[') {
+			const replacementIndex = 0;
+			const replacementLength = this._promptInputModel.value.trim().length;
+			this._leadingLineContent = this._promptInputModel.prefix;
+			this._replacementIndex = replacementIndex;
+			this._replacementLength = replacementLength;
 		}
 
 		if (this._mostRecentCompletion?.isDirectory && completions.every(e => e.isDirectory)) {
@@ -174,7 +173,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		this._mostRecentCompletion = undefined;
 
-		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (replacementIndex + replacementLength);
+		this._cursorIndexDelta = this._currentPromptInputState.cursorIndex - (this._replacementIndex + this._replacementLength);
 
 		let normalizedLeadingLineContent = this._leadingLineContent;
 
@@ -190,7 +189,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			normalizedLeadingLineContent = normalizePathSeparator(normalizedLeadingLineContent, this._pathSeparator);
 		}
 		const lineContext = new LineContext(normalizedLeadingLineContent, this._cursorIndexDelta);
-		const model = new SimpleCompletionModel(completions.map(c => new SimpleCompletionItem(c)), lineContext, replacementIndex, replacementLength);
+		const model = new SimpleCompletionModel(completions.map(c => new SimpleCompletionItem(c)), lineContext, this._replacementIndex, this._replacementLength);
 		this._showCompletions(model);
 	}
 
