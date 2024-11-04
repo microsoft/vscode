@@ -718,7 +718,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		if (!this.raw.element) {
 			return;
 		}
-		if (this._terminalConfigurationService.config.experimental?.fontLigatures) {
+		if (this._terminalConfigurationService.config.fontLigatures) {
 			if (!this._ligaturesAddon.value) {
 				this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 					if (this._store.isDisposed) {

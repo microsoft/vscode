@@ -116,7 +116,7 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
-	ExperimentalFontLigatures = 'terminal.integrated.experimental.fontLigatures',
+	FontLigatures = 'terminal.integrated.fontLigatures',
 
 	// Debug settings that are hidden from user
 
