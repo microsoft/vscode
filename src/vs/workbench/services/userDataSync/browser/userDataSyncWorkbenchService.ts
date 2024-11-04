@@ -143,6 +143,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private updateAuthenticationProviders(): void {
+		this.logService.info('Settings Sync: Updating authentication providers. Authentication Providers from store:', this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || [].map(({ id }) => id));
 		this._authenticationProviders = (this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || []).filter(({ id }) => this.authenticationService.declaredProviders.some(provider => provider.id === id));
 		this.logService.info('Settings Sync: Authentication providers updated', this._authenticationProviders.map(({ id }) => id));
 	}
