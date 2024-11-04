@@ -346,6 +346,7 @@ export class ChatEditingModifiedFileEntry extends Disposable implements IModifie
 		}
 
 		this.docSnapshot.setValue(this.doc.createSnapshot());
+		this._edit = OffsetEdit.empty;
 		this._stateObs.set(WorkingSetEntryState.Accepted, transaction);
 		await this.collapse(transaction);
 		this._notifyAction('accepted');
