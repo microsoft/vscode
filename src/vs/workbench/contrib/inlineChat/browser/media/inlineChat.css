@@ -38,6 +38,30 @@
 	background: var(--vscode-inlineChat-background);
 }
 
+@property --inline-chat-frame-progress {
+	syntax: '<percentage>';
+	initial-value: 0%;
+	inherits: false;
+}
+
+@keyframes shift {
+	0% {
+		--inline-chat-frame-progress: 0%;
+	}
+	50% {
+		--inline-chat-frame-progress: 100%;
+	}
+	100% {
+		--inline-chat-frame-progress: 0%;
+	}
+}
+
+.monaco-workbench .zone-widget.inline-chat-widget > .zone-widget-container.busy {
+	--inline-chat-frame-progress: 0%;
+	border-image: linear-gradient(90deg, var(--vscode-editorGutter-addedBackground) var(--inline-chat-frame-progress), var(--vscode-button-background)) 1;
+	animation: 3s shift linear infinite;
+}
+
 .monaco-workbench .zone-widget.inline-chat-widget > .zone-widget-container > .inline-chat {
 	color: inherit;
 	border-radius: unset;

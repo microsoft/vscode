@@ -1,0 +1,38 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-editor-overlay-widget {
+	padding: 4px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	border-radius: 2px;
+	border: 1px solid var(--vscode-contrastBorder);
+	display: flex;
+	align-items: center
+}
+
+
+.chat-editor-overlay-widget .progress-container {
+	display: none;
+	padding: 0 4px;
+}
+
+.chat-editor-overlay-widget.busy .progress-container {
+	display: inherit;
+}
+
+.chat-editor-overlay-widget .progress-container.codicon {
+	color: var(--vscode-button-foreground);
+}
+
+.chat-editor-overlay-widget .toolbar-container .action-item > .action-label.codicon {
+	color: var(--vscode-button-foreground);
+}
+
+.chat-editor-overlay-widget .toolbar-container .action-item.disabled > .action-label.codicon::before,
+.chat-editor-overlay-widget .toolbar-container .action-item.disabled > .action-label.codicon {
+	color: var(--vscode-button-foreground);
+	opacity: 0.7;
+}

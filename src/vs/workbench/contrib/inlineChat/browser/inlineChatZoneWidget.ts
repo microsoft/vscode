@@ -5,11 +5,12 @@
 import { addDisposableListener, Dimension } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { StableEditorBottomScrollState } from '../../../../editor/browser/stableEditorScroll.js';
-import { EditorLayoutInfo, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
@@ -30,7 +31,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		showFrame: true,
 		frameWidth: 1,
 		// frameColor: 'var(--vscode-inlineChat-border)',
-		// isResizeable: true,
+		isResizeable: true,
 		showArrow: false,
 		isAccessible: true,
 		className: 'inline-chat-widget',
@@ -100,7 +101,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			}
 		}));
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
-			if (this.position) {
+			if (this.position && !this._usesResizeHeight) {
 				// only relayout when visible
 				revealFn ??= this._createZoneAndScrollRestoreFn(this.position);
 				const height = this._computeHeight();
@@ -111,6 +112,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 
 		this.create();
+
+		this._disposables.add(autorun(r => {
+			const isBusy = this.widget.requestInProgress.read(r);
+			this.domNode.firstElementChild?.classList.toggle('busy', isBusy);
+		}));
 
 		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
 			if (!this.editor.hasWidgetFocus() && !this.widget.hasFocus()) {
@@ -147,7 +153,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		const info = this.editor.getLayoutInfo();
 		let width = info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth);
-		width = Math.min(640, width);
+		width = Math.min(850, width);
 
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);
@@ -160,6 +166,19 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const contentHeight = this._decoratingElementsHeight() + Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
 		return { linesValue: heightInLines, pixelsValue: contentHeight };
+	}
+
+	protected override _getResizeBounds(): { minLines: number; maxLines: number } {
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const decoHeight = this._decoratingElementsHeight();
+
+		const minHeightPx = decoHeight + this.widget.minHeight;
+		const maxHeightPx = decoHeight + this.widget.contentHeight;
+
+		return {
+			minLines: minHeightPx / lineHeight,
+			maxLines: maxHeightPx / lineHeight
+		};
 	}
 
 	protected override _onWidth(_widthInPixel: number): void {
@@ -194,7 +213,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	override updatePositionAndHeight(position: Position): void {
 		const revealZone = this._createZoneAndScrollRestoreFn(position);
-		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
+		super.updatePositionAndHeight(position, !this._usesResizeHeight ? this._computeHeight().linesValue : undefined);
 		revealZone();
 	}
 
@@ -247,10 +266,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	protected override revealRange(range: Range, isLastLine: boolean): void {
 		// noop
-	}
-
-	protected override _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimap.minimapWidth;
 	}
 
 	override hide(): void {

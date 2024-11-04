@@ -7504,8 +7504,13 @@ declare module 'vscode' {
 		 * verify whether it was successful.
 		 *
 		 * @param executable A command to run.
-		 * @param args Arguments to launch the executable with which will be automatically escaped
-		 * based on the executable type.
+		 * @param args Arguments to launch the executable with. The arguments will be escaped such
+		 * that they are interpreted as single arguments when the argument both contains whitespace
+		 * and does not include any single quote, double quote or backtick characters.
+		 *
+		 * Note that this escaping is not intended to be a security measure, be careful when passing
+		 * untrusted data to this API as strings like `$(...)` can often be used in shells to
+		 * execute code within a string.
 		 *
 		 * @example
 		 * // Execute a command in a terminal immediately after being created

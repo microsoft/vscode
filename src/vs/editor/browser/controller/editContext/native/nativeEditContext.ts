@@ -39,6 +39,8 @@ enum CompositionClassName {
 
 export class NativeEditContext extends AbstractEditContext {
 
+	// Text area used to handle paste events
+	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly domNode: FastDomNode<HTMLDivElement>;
 	private readonly _editContext: EditContext;
 	private readonly _screenReaderSupport: ScreenReaderSupport;
@@ -69,9 +71,12 @@ export class NativeEditContext extends AbstractEditContext {
 
 		this.domNode = new FastDomNode(document.createElement('div'));
 		this.domNode.setClassName(`native-edit-context`);
+		this.textArea = new FastDomNode(document.createElement('textarea'));
+		this.textArea.setClassName(`native-edit-context-textarea`);
 		this._updateDomAttributes();
 
 		overflowGuardContainer.appendChild(this.domNode);
+		overflowGuardContainer.appendChild(this.textArea);
 		this._parent = overflowGuardContainer.domNode;
 
 		this._selectionChangeListener = this._register(new MutableDisposable());
@@ -140,6 +145,10 @@ export class NativeEditContext extends AbstractEditContext {
 		super.dispose();
 	}
 
+	public getTextAreaDomNode(): HTMLTextAreaElement {
+		return this.textArea.domNode;
+	}
+
 	public setAriaOptions(): void {
 		this._screenReaderSupport.setAriaOptions();
 	}
@@ -176,7 +185,9 @@ export class NativeEditContext extends AbstractEditContext {
 		this._screenReaderSupport.writeScreenReaderContent();
 	}
 
-	public isFocused(): boolean { return this._focusTracker.isFocused; }
+	public isFocused(): boolean {
+		return this._focusTracker.isFocused || (getActiveWindow().document.activeElement === this.textArea.domNode);
+	}
 
 	public focus(): void {
 		this._focusTracker.focus();
@@ -241,11 +252,15 @@ export class NativeEditContext extends AbstractEditContext {
 		if (selectionEndOffset > e.updateRangeEnd) {
 			text += this._editContext.text.substring(e.updateRangeEnd, selectionEndOffset);
 		}
+		let positionDelta = 0;
+		if (e.selectionStart === e.selectionEnd && selectionStartOffset === selectionEndOffset) {
+			positionDelta = e.selectionStart - (e.updateRangeStart + e.text.length);
+		}
 		const typeInput: ITypeData = {
 			text,
 			replacePrevCharCnt,
 			replaceNextCharCnt,
-			positionDelta: 0,
+			positionDelta
 		};
 		this._onType(viewController, typeInput);
 
