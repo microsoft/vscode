@@ -37,7 +37,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
-	private _terminalDecorationHoverManager: TerminalDecorationHoverManager;
 	private readonly _registeredMenuItems: Map<ITerminalCommand, IAction[]> = new Map();
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
