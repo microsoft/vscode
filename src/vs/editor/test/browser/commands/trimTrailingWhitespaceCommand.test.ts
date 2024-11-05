@@ -3,15 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { getEditOperation } from 'vs/editor/test/browser/testCommand';
-import { withEditorModel } from 'vs/editor/test/common/testTextModel';
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from '../../../common/commands/trimTrailingWhitespaceCommand.js';
+import { ISingleEditOperation } from '../../../common/core/editOperation.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
+import { Selection } from '../../../common/core/selection.js';
+import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
+import { EncodedTokenizationResult, ITokenizationSupport, TokenizationRegistry } from '../../../common/languages.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { NullState } from '../../../common/languages/nullTokenize.js';
+import { getEditOperation } from '../testCommand.js';
+import { createModelServices, instantiateTextModel, withEditorModel } from '../../common/testTextModel.js';
 
 /**
  * Create single edit operation
@@ -36,7 +41,7 @@ function createSingleEditOp(text: string | null, positionLineNumber: number, pos
 
 function assertTrimTrailingWhitespaceCommand(text: string[], expected: ISingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		const op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), []);
+		const op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), [], true);
 		const actual = getEditOperation(model, op);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -44,12 +49,22 @@ function assertTrimTrailingWhitespaceCommand(text: string[], expected: ISingleEd
 
 function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expected: ISingleEditOperation[]): void {
 	return withEditorModel(text, (model) => {
-		const actual = trimTrailingWhitespace(model, cursors);
+		const actual = trimTrailingWhitespace(model, cursors, true);
 		assert.deepStrictEqual(actual, expected);
 	});
 }
 
 suite('Editor Commands - Trim Trailing Whitespace Command', () => {
+
+	let disposables: DisposableStore;
+
+	setup(() => {
+		disposables = new DisposableStore();
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -102,4 +117,73 @@ suite('Editor Commands - Trim Trailing Whitespace Command', () => {
 		]);
 	});
 
+	test('skips strings and regex if configured', function () {
+		const instantiationService = createModelServices(disposables);
+		const languageService = instantiationService.get(ILanguageService);
+		const languageId = 'testLanguageId';
+		const languageIdCodec = languageService.languageIdCodec;
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		const encodedLanguageId = languageIdCodec.encodeLanguageId(languageId);
+
+		const otherMetadata = (
+			(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
+		) >>> 0;
+		const stringMetadata = (
+			(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.String << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (MetadataConsts.BALANCED_BRACKETS_MASK)
+		) >>> 0;
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NullState,
+			tokenize: undefined!,
+			tokenizeEncoded: (line, hasEOL, state) => {
+				switch (line) {
+					case 'const a = `  ': {
+						const tokens = new Uint32Array([
+							0, otherMetadata,
+							10, stringMetadata,
+						]);
+						return new EncodedTokenizationResult(tokens, state);
+					}
+					case '  a string  ': {
+						const tokens = new Uint32Array([
+							0, stringMetadata,
+						]);
+						return new EncodedTokenizationResult(tokens, state);
+					}
+					case '`;  ': {
+						const tokens = new Uint32Array([
+							0, stringMetadata,
+							1, otherMetadata
+						]);
+						return new EncodedTokenizationResult(tokens, state);
+					}
+				}
+				throw new Error(`Unexpected`);
+			}
+		};
+
+		disposables.add(TokenizationRegistry.register(languageId, tokenizationSupport));
+
+		const model = disposables.add(instantiateTextModel(
+			instantiationService,
+			[
+				'const a = `  ',
+				'  a string  ',
+				'`;  ',
+			].join('\n'),
+			languageId
+		));
+
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
+
+		const op = new TrimTrailingWhitespaceCommand(new Selection(1, 1, 1, 1), [], false);
+		const actual = getEditOperation(model, op);
+		assert.deepStrictEqual(actual, [createSingleEditOp(null, 3, 3, 3, 5)]);
+	});
 });

@@ -11,6 +11,7 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
+import { URI } from 'vscode-uri';
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
@@ -338,13 +339,24 @@ function createServerHost(
 	// For module resolution only. `node_modules` is also automatically mapped
 	// as if all node_modules-like paths are symlinked.
 	function realpath(path: string): string {
+		if (path.startsWith('/^/')) {
+			// In memory file. No mapping needed
+			return path;
+		}
+
 		const isNm = looksLikeNodeModules(path) && !path.startsWith('/vscode-global-typings/');
 		// skip paths without .. or ./ or /. And things that look like node_modules
 		if (!isNm && !path.match(/\.\.|\/\.|\.\//)) {
 			return path;
 		}
 
-		let uri = pathMapper.toResource(path);
+		let uri: URI;
+		try {
+			uri = pathMapper.toResource(path);
+		} catch {
+			return path;
+		}
+
 		if (isNm) {
 			uri = mapUri(uri, 'vscode-node-modules');
 		}

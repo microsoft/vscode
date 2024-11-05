@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
-import { OperatingSystem } from 'vs/base/common/platform';
-import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+import { ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { IKeyboardEvent } from '../../../../platform/keybinding/common/keybinding.js';
+import { USLayoutResolvedKeybinding } from '../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { IKeyboardMapper } from '../../../../platform/keyboardLayout/common/keyboardMapper.js';
 
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.

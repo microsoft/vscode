@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $ } from 'vs/base/browser/dom';
-import { GridView, IView, Orientation, Sizing } from 'vs/base/browser/ui/grid/gridview';
-import { nodesToArrays, TestView } from 'vs/base/test/browser/ui/grid/util';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import assert from 'assert';
+import { $ } from '../../../../browser/dom.js';
+import { GridView, IView, Orientation, Sizing } from '../../../../browser/ui/grid/gridview.js';
+import { nodesToArrays, TestView } from './util.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('Gridview', function () {
 

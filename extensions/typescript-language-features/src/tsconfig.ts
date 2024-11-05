@@ -76,6 +76,10 @@ function inferredProjectConfigSnippet(
 	config: TypeScriptServiceConfiguration
 ) {
 	const baseConfig = inferredProjectCompilerOptions(version, projectType, config);
+	if (projectType === ProjectType.TypeScript) {
+		delete baseConfig.allowImportingTsExtensions;
+	}
+
 	const compilerOptions = Object.keys(baseConfig).map(key => `"${key}": ${JSON.stringify(baseConfig[key])}`);
 	return new vscode.SnippetString(`{
 	"compilerOptions": {

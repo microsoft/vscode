@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/path';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalSettings } from 'vs/platform/externalTerminal/common/externalTerminal';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Schemas } from 'vs/base/common/network';
-import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IExternalTerminalService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import * as nls from '../../../../nls.js';
+import * as paths from '../../../../base/common/path.js';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalSettings } from '../../../../platform/externalTerminal/common/externalTerminal.js';
+import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+import { IHistoryService } from '../../../services/history/common/history.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IConfigurationRegistry, Extensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IExternalTerminalService } from '../../../../platform/externalTerminal/electron-sandbox/externalTerminalService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
+import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({

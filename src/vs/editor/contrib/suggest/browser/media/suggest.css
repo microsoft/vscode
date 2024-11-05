@@ -352,7 +352,7 @@
 	color: var(--vscode-editorSuggestWidget-foreground);
 }
 
-.monaco-editor .suggest-details.focused {
+.monaco-editor .suggest-details:focus {
 	border-color: var(--vscode-focusBorder);
 }
 

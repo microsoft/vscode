@@ -45,6 +45,9 @@ declare module 'vscode' {
 		/** The type of the variable's value */
 		type?: string;
 
+		/** The interfaces or contracts that the type satisfies */
+		interfaces?: string[];
+
 		/** The language of the variable's value */
 		language?: string;
 	}

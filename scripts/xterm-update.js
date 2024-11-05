@@ -8,7 +8,7 @@ const path = require('path');
 
 const moduleNames = [
 	'@xterm/xterm',
-	'@xterm/addon-canvas',
+	'@xterm/addon-clipboard',
 	'@xterm/addon-image',
 	'@xterm/addon-search',
 	'@xterm/addon-serialize',
@@ -75,7 +75,7 @@ async function update() {
 	if (modulesWithVersion.length > 0) {
 		for (const cwd of [vscodeDir, path.join(vscodeDir, 'remote'), path.join(vscodeDir, 'remote/web')]) {
 			console.log(`${path.join(cwd, 'package.json')}: Updating\n  ${modulesWithVersion.join('\n  ')}`);
-			cp.execSync(`yarn add ${modulesWithVersion.join(' ')}`, { cwd });
+			cp.execSync(`npm install ${modulesWithVersion.join(' ')}`, { cwd });
 		}
 	}
 
@@ -91,7 +91,7 @@ async function update() {
 	if (backendOnlyModulesWithVersion.length > 0) {
 		for (const cwd of [vscodeDir, path.join(vscodeDir, 'remote')]) {
 			console.log(`${path.join(cwd, 'package.json')}: Updating\n  ${backendOnlyModulesWithVersion.join('\n  ')}`);
-			cp.execSync(`yarn add ${backendOnlyModulesWithVersion.join(' ')}`, { cwd });
+			cp.execSync(`npm install ${backendOnlyModulesWithVersion.join(' ')}`, { cwd });
 		}
 	}
 }

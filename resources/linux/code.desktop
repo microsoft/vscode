@@ -2,13 +2,13 @@
 Name=@@NAME_LONG@@
 Comment=Code Editing. Redefined.
 GenericName=Text Editor
-Exec=@@EXEC@@ --unity-launch %F
+Exec=@@EXEC@@ %F
 Icon=@@ICON@@
 Type=Application
 StartupNotify=false
 StartupWMClass=@@NAME_SHORT@@
 Categories=TextEditor;Development;IDE;
-MimeType=text/plain;inode/directory;application/x-@@NAME@@-workspace;
+MimeType=application/x-@@NAME@@-workspace;
 Actions=new-empty-window;
 Keywords=vscode;
 

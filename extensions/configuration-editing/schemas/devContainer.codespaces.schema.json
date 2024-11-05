@@ -180,6 +180,11 @@
 							"items": {
 								"type": "string"
 							}
+						},
+						"disableAutomaticConfiguration": {
+							"type": "boolean",
+							"description": "Disables the setup that is automatically run in a codespace if no `postCreateCommand` is specified.",
+							"default": false
 						}
 					}
 				}

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { TextSearchMatch, IFileMatch, ITextSearchMatch } from 'vs/workbench/services/search/common/search';
-import { Range } from 'vs/editor/common/core/range';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { FindMatch, IReadonlyTextBuffer } from '../../../../editor/common/model.js';
+import { TextSearchMatch, IFileMatch, ITextSearchMatch } from '../../../services/search/common/search.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 
 export type IRawClosedNotebookFileMatch = INotebookFileMatchNoModel<UriComponents>;
 

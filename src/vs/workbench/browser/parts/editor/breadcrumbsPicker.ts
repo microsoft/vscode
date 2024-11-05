@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareFileNames } from 'vs/base/common/comparers';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
-import * as glob from 'vs/base/common/glob';
-import { IDisposable, DisposableStore, MutableDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { posix, relative } from 'vs/base/common/path';
-import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/breadcrumbscontrol';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchDataTree, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { breadcrumbsPickerBackground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { isWorkspace, isWorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
-import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
-import { OutlineElement2, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
-import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { localize } from 'vs/nls';
-import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { compareFileNames } from '../../../../base/common/comparers.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { createMatches, FuzzyScore } from '../../../../base/common/filters.js';
+import * as glob from '../../../../base/common/glob.js';
+import { IDisposable, DisposableStore, MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { posix, relative } from '../../../../base/common/path.js';
+import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import './media/breadcrumbscontrol.css';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FileKind, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchDataTree, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { breadcrumbsPickerBackground, widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
+import { isWorkspace, isWorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from '../../labels.js';
+import { BreadcrumbsConfig } from './breadcrumbs.js';
+import { OutlineElement2, FileElement } from './breadcrumbsModel.js';
+import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
+import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../base/browser/ui/list/list.js';
+import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
+import { localize } from '../../../../nls.js';
+import { IOutline, IOutlineComparator } from '../../../services/outline/browser/outline.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 
 interface ILayoutInfo {
 	maxHeight: number;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function formatStackTrace(stack: string) {
+export function formatStackTrace(stack: string): { formattedStack: string; errorLocation?: string } {
 	let cleaned: string;
 	// Ansi colors are described here:
 	// https://en.wikipedia.org/wiki/ANSI_escape_code under the SGR section
@@ -26,7 +26,7 @@ export function formatStackTrace(stack: string) {
 		return linkifyStack(cleaned);
 	}
 
-	return cleaned;
+	return { formattedStack: cleaned };
 }
 
 const formatSequence = /\u001b\[.+?m/g;
@@ -49,10 +49,11 @@ type fileLocation = { kind: 'file'; path: string };
 
 type location = cellLocation | fileLocation;
 
-function linkifyStack(stack: string) {
+function linkifyStack(stack: string): { formattedStack: string; errorLocation?: string } {
 	const lines = stack.split('\n');
 
 	let fileOrCell: location | undefined;
+	let locationLink = '';
 
 	for (const i in lines) {
 
@@ -67,7 +68,9 @@ function linkifyStack(stack: string) {
 				kind: 'cell',
 				path: stripFormatting(original.replace(cellRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
-			lines[i] = original.replace(cellRegex, `$<prefix><a href=\'${fileOrCell.path}&line=$<lineNumber>\'>line $<lineNumber></a>`);
+			const link = original.replace(cellRegex, `<a href=\'${fileOrCell.path}&line=$<lineNumber>\'>line $<lineNumber></a>`);
+			lines[i] = original.replace(cellRegex, `$<prefix>${link}`);
+			locationLink = locationLink || link;
 
 			continue;
 		} else if (inputRegex.test(original)) {
@@ -75,7 +78,8 @@ function linkifyStack(stack: string) {
 				kind: 'cell',
 				path: stripFormatting(original.replace(inputRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
 			};
-			lines[i] = original.replace(inputRegex, `Input <a href=\'${fileOrCell.path}>\'>$<cellLabel></a>$<postfix>`);
+			const link = original.replace(inputRegex, `<a href=\'${fileOrCell.path}\'>$<cellLabel></a>`);
+			lines[i] = original.replace(inputRegex, `Input ${link}$<postfix>`);
 
 			continue;
 		} else if (!fileOrCell || original.trim() === '') {
@@ -94,5 +98,6 @@ function linkifyStack(stack: string) {
 		}
 	}
 
-	return lines.join('\n');
+	const errorLocation = locationLink;
+	return { formattedStack: lines.join('\n'), errorLocation };
 }

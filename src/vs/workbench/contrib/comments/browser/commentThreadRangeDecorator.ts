@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange } from 'vs/editor/common/core/range';
-import { CommentThread, CommentThreadCollapsibleState } from 'vs/editor/common/languages';
-import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { CommentThread, CommentThreadCollapsibleState } from '../../../../editor/common/languages.js';
+import { IModelDecorationOptions, IModelDeltaDecoration } from '../../../../editor/common/model.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { ICommentInfo, ICommentService } from './commentService.js';
 
 class CommentThreadRangeDecoration implements IModelDeltaDecoration {
 	private _decorationId: string | undefined;

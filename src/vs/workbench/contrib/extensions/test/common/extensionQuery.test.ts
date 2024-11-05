@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
+import assert from 'assert';
+import { Query } from '../../common/extensionQuery.js';
 
 suite('Extension query', () => {
 	test('parse', () => {

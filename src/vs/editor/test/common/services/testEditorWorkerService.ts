@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/core/range';
-import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../common/core/range.js';
+import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from '../../../common/services/editorWorker.js';
+import { TextEdit, IInplaceReplaceSupportResult, IColorInformation } from '../../../common/languages.js';
+import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../common/diff/documentDiffProvider.js';
+import { IChange } from '../../../common/diff/legacyLinesDiffComputer.js';
+import { SectionHeader } from '../../../common/services/findSectionHeaders.js';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 
@@ -25,4 +26,6 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
+	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
+	async computeDefaultDocumentColors(uri: URI): Promise<IColorInformation[] | null> { return null; }
 }

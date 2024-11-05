@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
-import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { getMediaOrTextMime } from 'vs/base/common/mime';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
-import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse } from 'vs/platform/remote/common/electronRemoteResources';
+import { VSBuffer, encodeBase64 } from '../../../base/common/buffer.js';
+import { Event } from '../../../base/common/event.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
+import { getMediaOrTextMime } from '../../../base/common/mime.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../files/common/files.js';
+import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
+import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse } from '../common/electronRemoteResources.js';
 
 export class ElectronRemoteResourceLoader extends Disposable {
 	constructor(

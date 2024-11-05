@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition } from './core/position.js';
 
 export interface IGuidesTextModelPart {
 	/**

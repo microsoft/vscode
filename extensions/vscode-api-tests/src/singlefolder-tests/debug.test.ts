@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { basename } from 'path';
-import { commands, debug, Disposable, window, workspace } from 'vscode';
+import { commands, debug, Disposable, FunctionBreakpoint, window, workspace } from 'vscode';
 import { assertNoRpc, createRandomFile, disposeAll } from '../utils';
 
 suite('vscode API - debug', function () {
@@ -47,6 +47,17 @@ suite('vscode API - debug', function () {
 		assert.strictEqual(debug.breakpoints.length, 0);
 
 		disposeAll(toDispose);
+	});
+
+	test('function breakpoint', async function () {
+		assert.strictEqual(debug.breakpoints.length, 0);
+		debug.addBreakpoints([new FunctionBreakpoint('func', false, 'condition', 'hitCondition', 'logMessage')]);
+		const functionBreakpoint = debug.breakpoints[0] as FunctionBreakpoint;
+		assert.strictEqual(functionBreakpoint.condition, 'condition');
+		assert.strictEqual(functionBreakpoint.hitCondition, 'hitCondition');
+		assert.strictEqual(functionBreakpoint.logMessage, 'logMessage');
+		assert.strictEqual(functionBreakpoint.enabled, false);
+		assert.strictEqual(functionBreakpoint.functionName, 'func');
 	});
 
 	test('start debugging', async function () {

@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import * as platform from 'vs/base/common/platform';
-import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
-import { IMouseTarget, IMouseTargetOutsideEditor, IMouseTargetViewZoneData, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorPointerMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor, PageCoordinates } from 'vs/editor/browser/editorDom';
-import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
-import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import * as dom from '../../../base/browser/dom.js';
+import { StandardWheelEvent, IMouseWheelEvent } from '../../../base/browser/mouseEvent.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import * as platform from '../../../base/common/platform.js';
+import { HitTestContext, MouseTarget, MouseTargetFactory, PointerHandlerLastRenderData } from './mouseTarget.js';
+import { IMouseTarget, IMouseTargetOutsideEditor, IMouseTargetViewZoneData, MouseTargetType } from '../editorBrowser.js';
+import { ClientCoordinates, EditorMouseEvent, EditorMouseEventFactory, GlobalEditorPointerMoveMonitor, createEditorPagePosition, createCoordinatesRelativeToEditor, PageCoordinates } from '../editorDom.js';
+import { ViewController } from '../view/viewController.js';
+import { EditorZoom } from '../../common/config/editorZoom.js';
+import { Position } from '../../common/core/position.js';
+import { Selection } from '../../common/core/selection.js';
+import { HorizontalPosition } from '../view/renderingContext.js';
+import { ViewContext } from '../../common/viewModel/viewContext.js';
+import * as viewEvents from '../../common/viewEvents.js';
+import { ViewEventHandler } from '../../common/viewEventHandler.js';
+import { EditorOption } from '../../common/config/editorOptions.js';
+import { NavigationCommandRevealType } from '../coreCommands.js';
+import { MouseWheelClassifier } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;

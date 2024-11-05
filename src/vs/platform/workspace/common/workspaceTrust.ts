@@ -3,23 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export enum WorkspaceTrustScope {
 	Local = 0,
 	Remote = 1
-}
-
-export function workspaceTrustToString(trustState: boolean) {
-	if (trustState) {
-		return localize('trusted', "Trusted");
-	} else {
-		return localize('untrusted', "Restricted Mode");
-	}
 }
 
 export interface WorkspaceTrustRequestButton {

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IHoverDelegate, IScopedHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { Lazy } from 'vs/base/common/lazy';
+import { IHoverDelegate, IScopedHoverDelegate } from './hoverDelegate.js';
+import { Lazy } from '../../../common/lazy.js';
 
 const nullHoverDelegateFactory = () => ({
 	get delay(): number { return -1; },
@@ -16,10 +16,12 @@ let hoverDelegateFactory: (placement: 'mouse' | 'element', enableInstantHover: b
 const defaultHoverDelegateMouse = new Lazy<IHoverDelegate>(() => hoverDelegateFactory('mouse', false));
 const defaultHoverDelegateElement = new Lazy<IHoverDelegate>(() => hoverDelegateFactory('element', false));
 
+// TODO: Remove when getDefaultHoverDelegate is no longer used
 export function setHoverDelegateFactory(hoverDelegateProvider: ((placement: 'mouse' | 'element', enableInstantHover: boolean) => IScopedHoverDelegate)): void {
 	hoverDelegateFactory = hoverDelegateProvider;
 }
 
+// TODO: Refine type for use in new IHoverService interface
 export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverDelegate {
 	if (placement === 'element') {
 		return defaultHoverDelegateElement.value;
@@ -27,6 +29,7 @@ export function getDefaultHoverDelegate(placement: 'mouse' | 'element'): IHoverD
 	return defaultHoverDelegateMouse.value;
 }
 
+// TODO: Create equivalent in IHoverService
 export function createInstantHoverDelegate(): IScopedHoverDelegate {
 	// Creates a hover delegate with instant hover enabled.
 	// This hover belongs to the consumer and requires the them to dispose it.

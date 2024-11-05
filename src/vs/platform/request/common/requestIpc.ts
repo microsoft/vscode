@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, streamToBuffer, VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { bufferToStream, streamToBuffer, VSBuffer } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
+import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
+import { AuthInfo, Credentials, IRequestService } from './request.js';
 
 type RequestResponse = [
 	{
@@ -34,6 +34,8 @@ export class RequestChannel implements IServerChannel {
 					return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer];
 				});
 			case 'resolveProxy': return this.service.resolveProxy(args[0]);
+			case 'lookupAuthorization': return this.service.lookupAuthorization(args[0]);
+			case 'lookupKerberosAuthorization': return this.service.lookupKerberosAuthorization(args[0]);
 			case 'loadCertificates': return this.service.loadCertificates();
 		}
 		throw new Error('Invalid call');
@@ -53,6 +55,14 @@ export class RequestChannelClient implements IRequestService {
 
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return this.channel.call<string | undefined>('resolveProxy', [url]);
+	}
+
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.channel.call<{ username: string; password: string } | undefined>('lookupAuthorization', [authInfo]);
+	}
+
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		return this.channel.call<string | undefined>('lookupKerberosAuthorization', [url]);
 	}
 
 	async loadCertificates(): Promise<string[]> {

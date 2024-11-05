@@ -9,15 +9,7 @@
     kind: "markdownContent"
   },
   {
-    inlineReference: {
-      scheme: "https",
-      authority: "microsoft.com",
-      path: "/",
-      query: "",
-      fragment: "",
-      _formatted: null,
-      _fsPath: null
-    },
+    inlineReference: URI(https://microsoft.com/),
     kind: "inlineReference"
   },
   {

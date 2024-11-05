@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutorunObserver } from 'vs/base/common/observableInternal/autorun';
-import { IObservable, ObservableValue, TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { Derived } from 'vs/base/common/observableInternal/derived';
-import { FromEventObservable } from 'vs/base/common/observableInternal/utils';
+import { AutorunObserver } from './autorun.js';
+import { IObservable, ObservableValue, TransactionImpl } from './base.js';
+import { Derived } from './derived.js';
+import { FromEventObservable } from './utils.js';
 
 let globalObservableLogger: IObservableLogger | undefined;
 
@@ -114,7 +114,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			styled(derived.debugName, { color: 'BlueViolet' }),
 			...this.formatInfo(info),
 			this.formatChanges(changedObservables),
-			{ data: [{ fn: derived._computeFn }] }
+			{ data: [{ fn: derived._debugNameData.referenceFn ?? derived._computeFn }] }
 		]));
 		changedObservables.clear();
 	}
@@ -143,7 +143,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			formatKind('autorun'),
 			styled(autorun.debugName, { color: 'BlueViolet' }),
 			this.formatChanges(changedObservables),
-			{ data: [{ fn: autorun._runFn }] }
+			{ data: [{ fn: autorun._debugNameData.referenceFn ?? autorun._runFn }] }
 		]));
 		changedObservables.clear();
 		this.indentation++;

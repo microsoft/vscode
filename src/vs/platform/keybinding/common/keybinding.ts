@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
-import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ResolutionResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { Event } from '../../../base/common/event.js';
+import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { KeyCode } from '../../../base/common/keyCodes.js';
+import { ResolvedKeybinding, Keybinding } from '../../../base/common/keybindings.js';
+import { IContextKeyService, IContextKeyServiceTarget } from '../../contextkey/common/contextkey.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ResolutionResult } from './keybindingResolver.js';
+import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 export interface IUserFriendlyKeybinding {
 	key: string;

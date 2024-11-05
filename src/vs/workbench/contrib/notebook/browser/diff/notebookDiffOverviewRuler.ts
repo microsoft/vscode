@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { Color } from 'vs/base/common/color';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
-import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { createFastDomNode, FastDomNode } from '../../../../../base/browser/fastDomNode.js';
+import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
+import { Color } from '../../../../../base/common/color.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IColorTheme, IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
+import { IDiffElementViewModelBase } from './diffElementViewModel.js';
+import { NotebookDiffEditorEventDispatcher } from './eventDispatcher.js';
+import { INotebookTextDiffEditor } from './notebookDiffEditorBrowser.js';
 
 const MINIMUM_SLIDER_SIZE = 20;
 
@@ -20,7 +20,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private readonly _overviewViewportDomElement: FastDomNode<HTMLElement>;
 
-	private _diffElementViewModels: DiffElementViewModelBase[] = [];
+	private _diffElementViewModels: readonly IDiffElementViewModelBase[] = [];
 	private _lanes = 2;
 
 	private _insertColor: Color | null;
@@ -28,7 +28,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private _removeColor: Color | null;
 	private _removeColorHex: string | null;
 
-	private _disposables: DisposableStore;
+	private readonly _disposables: DisposableStore;
 	private _renderAnimationFrame: IDisposable | null;
 
 	constructor(readonly notebookEditor: INotebookTextDiffEditor, readonly width: number, container: HTMLElement, @IThemeService themeService: IThemeService) {
@@ -94,7 +94,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		this._layoutNow();
 	}
 
-	updateViewModels(elements: DiffElementViewModelBase[], eventDispatcher: NotebookDiffEditorEventDispatcher | undefined) {
+	updateViewModels(elements: readonly IDiffElementViewModelBase[], eventDispatcher: NotebookDiffEditorEventDispatcher | undefined) {
 		this._disposables.clear();
 
 		this._diffElementViewModels = elements;
@@ -126,7 +126,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 	private _layoutNow() {
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 		const height = layoutInfo.height;
-		const contentHeight = this._diffElementViewModels.map(view => view.layoutInfo.totalHeight).reduce((a, b) => a + b, 0);
+		const contentHeight = this._diffElementViewModels.map(view => view.totalHeight).reduce((a, b) => a + b, 0);
 		const ratio = PixelRatio.getInstance(DOM.getWindow(this._domNode.domNode)).value;
 		this._domNode.setWidth(this.width);
 		this._domNode.setHeight(height);
@@ -182,8 +182,7 @@ export class NotebookDiffOverviewRuler extends Themable {
 		for (let i = 0; i < this._diffElementViewModels.length; i++) {
 			const element = this._diffElementViewModels[i];
 
-			const cellHeight = Math.round((element.layoutInfo.totalHeight / scrollHeight) * ratio * height);
-
+			const cellHeight = Math.round((element.totalHeight / scrollHeight) * ratio * height);
 			switch (element.type) {
 				case 'insert':
 					ctx.fillStyle = this._insertColorHex;
@@ -194,14 +193,17 @@ export class NotebookDiffOverviewRuler extends Themable {
 					ctx.fillRect(0, currentFrom, laneWidth, cellHeight);
 					break;
 				case 'unchanged':
+				case 'unchangedMetadata':
 					break;
 				case 'modified':
+				case 'modifiedMetadata':
 					ctx.fillStyle = this._removeColorHex;
 					ctx.fillRect(0, currentFrom, laneWidth, cellHeight);
 					ctx.fillStyle = this._insertColorHex;
 					ctx.fillRect(laneWidth, currentFrom, laneWidth, cellHeight);
 					break;
 			}
+
 
 			currentFrom += cellHeight;
 		}

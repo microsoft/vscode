@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
-import { disposableTimeout } from 'vs/base/common/async';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import * as DOM from '../../../../../../base/browser/dom.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { clamp } from '../../../../../../base/common/numbers.js';
+import { ICellViewModel, INotebookEditorDelegate } from '../../notebookBrowser.js';
+import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
+import { CellContentPart } from '../cellPart.js';
+import { CodeCellViewModel } from '../../viewModel/codeCellViewModel.js';
+import { NotebookCellInternalMetadata } from '../../../common/notebookCommon.js';
+import { INotebookExecutionStateService } from '../../../common/notebookExecutionStateService.js';
 
 const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
 
 export class CellExecutionPart extends CellContentPart {
-	private kernelDisposables = this._register(new DisposableStore());
+	private readonly kernelDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
@@ -38,6 +40,10 @@ export class CellExecutionPart extends CellContentPart {
 
 				this.updateExecutionOrder(this.currentCell.internalMetadata);
 			}
+		}));
+
+		this._register(this._notebookEditor.onDidScroll(() => {
+			this._updatePosition();
 		}));
 	}
 
@@ -74,12 +80,38 @@ export class CellExecutionPart extends CellContentPart {
 	}
 
 	override updateInternalLayoutNow(element: ICellViewModel): void {
-		if (element.isInputCollapsed) {
-			DOM.hide(this._executionOrderLabel);
-		} else {
-			DOM.show(this._executionOrderLabel);
-			const top = element.layoutInfo.editorHeight - 22 + element.layoutInfo.statusBarHeight;
-			this._executionOrderLabel.style.top = `${top}px`;
+		this._updatePosition();
+	}
+
+	private _updatePosition() {
+		if (this.currentCell) {
+			if (this.currentCell.isInputCollapsed) {
+				DOM.hide(this._executionOrderLabel);
+			} else {
+				DOM.show(this._executionOrderLabel);
+				let top = this.currentCell.layoutInfo.editorHeight - 22 + this.currentCell.layoutInfo.statusBarHeight;
+
+				if (this.currentCell instanceof CodeCellViewModel) {
+					const elementTop = this._notebookEditor.getAbsoluteTopOfElement(this.currentCell);
+					const editorBottom = elementTop + this.currentCell.layoutInfo.outputContainerOffset;
+					// another approach to avoid the flicker caused by sticky scroll is manually calculate the scrollBottom:
+					// const scrollBottom = this._notebookEditor.scrollTop + this._notebookEditor.getLayoutInfo().height - 26 - this._notebookEditor.getLayoutInfo().stickyHeight;
+					const scrollBottom = this._notebookEditor.scrollBottom;
+
+					const lineHeight = 22;
+					if (scrollBottom <= editorBottom) {
+						const offset = editorBottom - scrollBottom;
+						top -= offset;
+						top = clamp(
+							top,
+							lineHeight + 12, // line height + padding for single line
+							this.currentCell.layoutInfo.editorHeight - lineHeight + this.currentCell.layoutInfo.statusBarHeight
+						);
+					}
+				}
+
+				this._executionOrderLabel.style.top = `${top}px`;
+			}
 		}
 	}
 }
