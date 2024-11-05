@@ -12,6 +12,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
+import { Range } from '../../../../editor/common/core/range.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/chatAgents.js';
@@ -22,7 +23,7 @@ import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IC
 import { IChatWidgetService, showChatView, showEditsView } from './chat.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../editor/editor.api.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -136,58 +137,115 @@ interface IFileReference extends IFileEntry {
 	reference: IChatRequestVariableEntry;
 }
 
+interface IPartialFileEntry {
+	/**
+	 * TODO: @legomushroom
+	 */
+	entryType: 'text' | 'reference';
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	range: Range;
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	text: string;
+}
+
 /**
  * TODO: @legomushroom
  */
-type FileContentsEntry = IFileReference | IFileText;
+type TFileContentsEntry = IFileReference | IFileText;
 
-class FileContentsCodecDecoder extends Disposable implements streams.ReadableStream<FileContentsEntry> {
-	private _onData = this._register(new Emitter<FileContentsEntry>());
-	// public readonly onData = this._onData.event;
+type TStreamListenerNames = 'data' | 'error' | 'end';
 
-	private _onError = this._register(new Emitter<Error>());
-	// public readonly onError = this._onError.event;
+class DecoderBase<T, K = VSBuffer> extends Disposable implements streams.ReadableStream<T> {
+	protected readonly _onData = this._register(new Emitter<T>());
+	protected readonly _onError = this._register(new Emitter<Error>());
+	protected readonly _onEnd = this._register(new Emitter<void>());
 
-	private _onEnd = this._register(new Emitter<void>());
-	// public readonly onEnd = this._onEnd.event;
+	private readonly _listeners: Map<TStreamListenerNames, Map<Function, IDisposable>> = new Map();
 
 	constructor(
-		private readonly stream: streams.ReadableStream<VSBuffer>,
+		protected readonly stream: streams.ReadableStream<K>,
 	) {
 		super();
 	}
 
-	on(event: 'data', callback: (data: FileContentsEntry) => void): void;
+	on(event: 'data', callback: (data: T) => void): void;
 	on(event: 'error', callback: (err: Error) => void): void;
 	on(event: 'end', callback: () => void): void;
-	on(event: unknown, callback: unknown): void {
+	on(event: TStreamListenerNames, callback: unknown): void {
 		if (event === 'data') {
-			this._register(this._onData.event(callback as (data: FileContentsEntry) => void));
-			return;
+			return this.addDataListener(callback as (data: T) => void);
 		}
 
 		if (event === 'error') {
-			this._register(this._onError.event(callback as (error: Error) => void));
-			return;
+			return this.addErrorListener(callback as (error: Error) => void);
 		}
 
 		if (event === 'end') {
-			this._register(this._onEnd.event(callback as () => void));
-			return;
+			return this.addEndListener(callback as () => void);
 		}
 
-		// // throw new Error('Method not implemented.');
-		// on(event: 'data', callback: (data: FileContentsEntry) => void) {
-		// 	this._onData.event(callback);
-		// }
+		throw new Error(`Invalid event name: ${event}`);
+	}
 
-		// on(event: 'error', callback: (errror: Error) => void) {
-		// 	this._onError.event(callback);
-		// }
+	/**
+	 * TODO: @legomushroom
+	 */
+	public addDataListener(callback: (data: T) => void): void {
+		let currentListeners = this._listeners.get('data');
 
-		// on(event: 'end', callback: () => void) {
-		// 	this._onError.event(callback);
-		// }
+		if (!currentListeners) {
+			currentListeners = new Map();
+			this._listeners.set('data', currentListeners);
+		}
+
+		currentListeners.set(callback, this._onData.event(callback));
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public addErrorListener(callback: (error: Error) => void): void {
+		let currentListeners = this._listeners.get('error');
+
+		if (!currentListeners) {
+			currentListeners = new Map();
+			this._listeners.set('error', currentListeners);
+		}
+
+		currentListeners.set(callback, this._onError.event(callback));
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public addEndListener(callback: () => void): void {
+		let currentListeners = this._listeners.get('end');
+
+		if (!currentListeners) {
+			currentListeners = new Map();
+			this._listeners.set('end', currentListeners);
+		}
+
+		currentListeners.set(callback, this._onEnd.event(callback));
+	}
+
+	/**
+	 * Remove all existing event listeners.
+	 */
+	public removeAllListeners(): void {
+		for (const [name, listeners] of this._listeners.entries()) {
+			this._listeners.delete(name);
+			for (const [listener, disposable] of listeners) {
+				disposable.dispose();
+				listeners.delete(listener);
+			}
+		}
 	}
 
 	pause(): void {
@@ -199,25 +257,95 @@ class FileContentsCodecDecoder extends Disposable implements streams.ReadableStr
 	}
 
 	destroy(): void {
-		this.stream.destroy();
-		this.dispose(); // TODO: @legomushroom - remove this?
+		this.dispose();
 	}
 
 	removeListener(event: string, callback: Function): void {
-		// TODO: @legomushroom - add correct remove listener logic
-		this.stream.removeListener(event, callback);
+		for (const [nameName, listeners] of this._listeners.entries()) {
+			if (nameName !== event) {
+				continue;
+			}
+
+			for (const [listener, disposable] of listeners) {
+				if (listener !== callback) {
+					continue;
+				}
+
+				disposable.dispose();
+				listeners.delete(listener);
+			}
+		}
+	}
+
+	public override dispose(): void {
+		this.stream.destroy();
+		this.removeAllListeners();
+		super.dispose();
 	}
 }
 
 /**
  * TODO: @legomushroom
  */
-class FileContentsCodec extends Disposable implements ICodec<VSBuffer, FileContentsEntry> {
-	public encode(value: streams.ReadableStream<FileContentsEntry>): streams.ReadableStream<VSBuffer> {
+class FileContentsCodecDecoder extends DecoderBase<TFileContentsEntry> implements streams.ReadableStream<TFileContentsEntry> {
+	private currentEntity: IPartialFileEntry;
+
+	constructor(
+		stream: streams.ReadableStream<VSBuffer>,
+	) {
+		super(stream);
+
+		this.onStreamData = this.onStreamData.bind(this);
+		this.onStreamError = this.onStreamError.bind(this);
+		this.onStreamEnd = this.onStreamEnd.bind(this);
+
+		stream.on('data', this.onStreamData);
+		stream.on('error', this.onStreamError);
+		stream.on('end', this.onStreamEnd);
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private onStreamData(chunk: VSBuffer): void {
 		throw new Error('Method not implemented.');
 	}
 
-	public decode(value: streams.ReadableStream<VSBuffer>): streams.ReadableStream<FileContentsEntry> {
+	/**
+	 * TODO: @legomushroom
+	 */
+	private onStreamError(end: Error): void {
+		throw new Error('Method not implemented.');
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	private onStreamEnd(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	/**
+	 * TODO: @legomushroom
+	 */
+	public override dispose(): void {
+		this.stream.removeListener('data', this.onStreamData);
+		this.stream.removeListener('error', this.onStreamError);
+		this.stream.removeListener('end', this.onStreamEnd);
+
+		super.dispose();
+	}
+}
+
+/**
+ * TODO: @legomushroom
+ */
+class FileContentsCodec extends Disposable implements ICodec<VSBuffer, TFileContentsEntry> {
+	public encode(value: streams.ReadableStream<TFileContentsEntry>): streams.ReadableStream<VSBuffer> {
+		throw new Error('Method not implemented.');
+	}
+
+	public decode(value: streams.ReadableStream<VSBuffer>): streams.ReadableStream<TFileContentsEntry> {
 		throw new Error('Method not implemented.');
 	}
 }
