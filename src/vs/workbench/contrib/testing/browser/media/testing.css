@@ -390,12 +390,31 @@
 	color: var(--vscode-editorCodeLens-foreground);
 }
 
-.test-message-inline-content-s0 {
-	color: var(--vscode-testing-message-error-decorationForeground) !important;
+.test-message-inline-content {
+	margin-left: 4em;
+
+	+ .test-message-inline-content {
+		margin-left: 0;
+
+		&::before {
+			display: none;
+		}
+	}
 }
 
 .test-message-inline-content-s1 {
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+.test-message-inline-content-s0 {
+	margin-left: 4em;
+	color: var(--vscode-testing-message-error-badgeForeground) !important;
+	background: var(--vscode-testing-message-error-badgeBackground);
+	font-family: var(--vscode-font-family);
+	height: 100%;
+	display: inline-block;
+	border-radius: 3px;
+	padding: 0 3px;
 }
 
 .monaco-editor .testing-inline-message-severity-0 {

@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
+import { mapFindFirst } from '../../../../base/common/arraysFind.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -383,44 +384,49 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	}
 
 	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Set<Number>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
-		if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
-			for (const task of lastResult.tasks) {
-				for (const m of task.otherMessages) {
-					if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
-						const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
-						newDecorations.addMessage(decoration);
-					}
+		if (!this.testService.showInlineOutput.value || !(lastResult instanceof LiveTestResult)) {
+			return;
+		}
+
+		for (const task of lastResult.tasks) {
+			for (const m of task.otherMessages) {
+				if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
+					const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
+					newDecorations.addMessage(decoration);
 				}
 			}
+		}
 
-			for (const test of lastResult.tests) {
-				for (let taskId = 0; taskId < test.tasks.length; taskId++) {
-					const state = test.tasks[taskId];
-					// push error decorations first so they take precedence over normal output
-					for (const kind of [TestMessageType.Error, TestMessageType.Output]) {
-						for (let i = 0; i < state.messages.length; i++) {
-							const m = state.messages[i];
-							if (m.type !== kind || this.invalidatedMessages.has(m) || m.location?.uri.toString() !== uriStr) {
-								continue;
-							}
-
-							// Only add one message per line number. Overlapping messages
-							// don't appear well, and the peek will show all of them (#134129)
-							const line = m.location.range.startLineNumber;
-							if (!messageLines.has(line)) {
-								const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, buildTestUri({
-									type: TestUriType.ResultActualOutput,
-									messageIndex: i,
-									taskIndex: taskId,
-									resultId: lastResult.id,
-									testExtId: test.item.extId,
-								}), model);
-
-								newDecorations.addMessage(decoration);
-								messageLines.add(line);
-							}
-						}
+		for (const test of lastResult.tests) {
+			for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+				const state = test.tasks[taskId];
+				// push error decorations first so they take precedence over normal output
+				for (let i = 0; i < state.messages.length; i++) {
+					const m = state.messages[i];
+					if (m.type !== TestMessageType.Error || this.invalidatedMessages.has(m)) {
+						continue;
 					}
+
+					const line: number | undefined = m.location?.uri.toString() === uriStr
+						? m.location.range.startLineNumber
+						: m.stackTrace && mapFindFirst(m.stackTrace, (f) => f.position && f.uri?.toString() === uriStr ? f.position.lineNumber : undefined);
+
+					if (!line || messageLines.has(line)) {
+						continue;
+					}
+
+					// Only add one message per line number. Overlapping messages
+					// don't appear well, and the peek will show all of them (#134129)
+					const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, buildTestUri({
+						type: TestUriType.ResultActualOutput,
+						messageIndex: i,
+						taskIndex: taskId,
+						resultId: lastResult.id,
+						testExtId: test.item.extId,
+					}), model);
+
+					newDecorations.addMessage(decoration);
+					messageLines.add(line);
 				}
 			}
 		}
@@ -1176,7 +1182,7 @@ class TestMessageDecoration implements ITestDecoration {
 		}
 
 		options.after = {
-			content: ' '.repeat(4) + inlineText,
+			content: inlineText,
 			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass} ${messageUri ? 'test-message-inline-content-clickable' : ''}`
 		};
 		options.showIfCollapsed = true;
