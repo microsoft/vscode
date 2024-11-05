@@ -301,7 +301,7 @@ export class TerminalChatWidget extends Disposable {
 		if (!code) {
 			return;
 		}
-		const value = code.textEditorModel.getValue();
+		const value = code.getValue();
 		this._instance.runCommand(value, shouldExecute);
 		this.hide();
 	}
