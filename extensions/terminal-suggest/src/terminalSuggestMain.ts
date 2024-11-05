@@ -117,7 +117,7 @@ async function getCompletionSpecs(commands: Set<string>): Promise<FigSpec[]> {
 				for (const option of spec.options) {
 					const optionName = getLabel(option);
 					if (optionName) {
-						result.push(createCompletionItem(optionName, `Option for ${name}: ${option.description}`));
+						result.push(createCompletionItem(name + ' ' + optionName, option.description));
 					}
 				}
 			}
