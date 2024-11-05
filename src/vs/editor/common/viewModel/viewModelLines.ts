@@ -12,7 +12,7 @@ import { Range } from '../core/range.js';
 import { IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide, IndentGuideHorizontalLine } from '../textModelGuides.js';
 import { ModelDecorationOptions } from '../model/textModel.js';
-import { LineInjectedText } from '../textModelEvents.js';
+import { InlineClassName, LineInjectedText, lineMetaFromDecorations } from '../textModelEvents.js';
 import * as viewEvents from '../viewEvents.js';
 import { createModelLineProjection, IModelLineProjection } from './modelLineProjection.js';
 import { ILineBreaksComputer, ModelLineProjectionData, InjectedText, ILineBreaksComputerFactory } from '../modelLineProjectionData.js';

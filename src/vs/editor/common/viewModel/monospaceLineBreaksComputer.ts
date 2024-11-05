@@ -8,7 +8,7 @@ import * as strings from '../../../base/common/strings.js';
 import { WrappingIndent, IComputedEditorOptions, EditorOption } from '../config/editorOptions.js';
 import { CharacterClassifier } from '../core/characterClassifier.js';
 import { FontInfo } from '../config/fontInfo.js';
-import { LineInjectedText } from '../textModelEvents.js';
+import { InlineClassName, LineInjectedText } from '../textModelEvents.js';
 import { InjectedTextOptions } from '../model.js';
 import { ILineBreaksComputerFactory, ILineBreaksComputer, ModelLineProjectionData } from '../modelLineProjectionData.js';
 

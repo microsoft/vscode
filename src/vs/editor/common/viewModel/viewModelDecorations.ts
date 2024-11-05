@@ -10,7 +10,7 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
 import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { filterValidationDecorations } from '../config/editorOptions.js';
+import { EditorOption, filterValidationDecorations } from '../config/editorOptions.js';
 import { StandardTokenType } from '../encodedTokenAttributes.js';
 
 export interface IDecorationsViewportData {

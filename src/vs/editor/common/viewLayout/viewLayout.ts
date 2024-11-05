@@ -12,6 +12,7 @@ import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { LinesLayout } from './linesLayout.js';
 import { IEditorWhitespace, IPartialViewLinesViewportData, IViewLayout, IViewWhitespaceViewportData, IWhitespaceChangeAccessor, Viewport } from '../viewModel.js';
 import { ContentSizeChangedEvent } from '../viewModelEventDispatcher.js';
+import { ViewModelDecorations } from '../viewModel/viewModelDecorations.js';
 
 const SMOOTH_SCROLLING_TIME = 125;
 

@@ -43,6 +43,7 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { ConflictActionsFactory, IContentWidgetAction } from '../../mergeEditor/browser/view/conflictActions.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 
 export interface IEditObserver {
 	start(): void;

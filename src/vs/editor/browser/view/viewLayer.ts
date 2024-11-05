@@ -563,7 +563,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const lineHeight = deltaTop[i + 1] - deltaTop[i];
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -594,7 +594,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 				}
 
 				const lineHeight = deltaTop[i + 1] - deltaTop[i];
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this.viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], lineHeight, this._viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;

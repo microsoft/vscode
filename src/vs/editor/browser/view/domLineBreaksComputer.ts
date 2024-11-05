@@ -13,7 +13,7 @@ import { FontInfo } from '../../common/config/fontInfo.js';
 import { StringBuilder } from '../../common/core/stringBuilder.js';
 import { InjectedTextOptions } from '../../common/model.js';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../common/modelLineProjectionData.js';
-import { LineInjectedText } from '../../common/textModelEvents.js';
+import { InlineClassName, LineInjectedText } from '../../common/textModelEvents.js';
 
 const ttPolicy = createTrustedTypesPolicy('domLineBreaksComputer', { createHTML: value => value });
 
