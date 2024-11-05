@@ -5,25 +5,26 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import './postEditWidget.css';
+import { localize } from '../../../../nls.js';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../browser/editorBrowser.js';
 import { IBulkEditResult, IBulkEditService } from '../../../browser/services/bulkEditService.js';
 import { Range } from '../../../common/core/range.js';
 import { DocumentDropEdit, DocumentPasteEdit } from '../../../common/languages.js';
 import { TrackedRangeStickiness } from '../../../common/model.js';
 import { createCombinedWorkspaceEdit } from './edit.js';
-import { localize } from '../../../../nls.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import './postEditWidget.css';
 
 
 interface EditSet<Edit extends DocumentPasteEdit | DocumentDropEdit> {
@@ -55,9 +56,10 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		private readonly range: Range,
 		private readonly edits: EditSet<T>,
 		private readonly onSelectNewEdit: (editIndex: number) => void,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		private readonly additionalActions: readonly IAction[],
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 	) {
 		super();
 
@@ -115,24 +117,31 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 	}
 
 	showSelector() {
-		this._contextMenuService.showContextMenu({
-			getAnchor: () => {
-				const pos = dom.getDomNodePagePosition(this.button.element);
-				return { x: pos.left + pos.width, y: pos.top + pos.height };
-			},
-			getActions: () => {
-				return this.edits.allEdits.map((edit, i) => toAction({
-					id: '',
+		const pos = dom.getDomNodePagePosition(this.button.element);
+		const anchor = { x: pos.left + pos.width, y: pos.top + pos.height };
+
+		this._actionWidgetService.show('postEditWidget', false, [
+			...this.edits.allEdits.map((edit, i): IActionListItem<T> => {
+				return {
+					item: edit,
+					kind: ActionListItemKind.Action,
 					label: edit.title,
-					checked: i === this.edits.activeEditIndex,
-					run: () => {
-						if (i !== this.edits.activeEditIndex) {
-							return this.onSelectNewEdit(i);
-						}
-					},
-				}));
-			}
-		});
+					disabled: false,
+					canPreview: false,
+					hideIcon: true
+				};
+			})
+		], {
+			onHide: () => { },
+			onSelect: (item) => {
+				this._actionWidgetService.hide(false);
+
+				const i = this.edits.allEdits.findIndex(edit => edit === item);
+				if (i !== this.edits.activeEditIndex) {
+					return this.onSelectNewEdit(i);
+				}
+			},
+		}, anchor, this.editor.getDomNode() ?? undefined, this.additionalActions);
 	}
 }
 
@@ -145,6 +154,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		private readonly _editor: ICodeEditor,
 		private readonly _visibleContext: RawContextKey<boolean>,
 		private readonly _showCommand: ShowCommand,
+		private readonly _getAdditionalActions: () => readonly IAction[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -234,7 +244,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		this.clear();
 
 		if (this._editor.hasModel()) {
-			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit);
+			this._currentWidget.value = this._instantiationService.createInstance(PostEditWidget<T>, this._id, this._editor, this._visibleContext, this._showCommand, range, edits, onDidSelectEdit, this._getAdditionalActions());
 		}
 	}
 
